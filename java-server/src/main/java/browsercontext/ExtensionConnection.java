@@ -122,10 +122,15 @@ final class ExtensionConnection {
     private JsonNode exchange(String id, String action, String session, JsonNode params, Duration timeout) {
         WebSocket c = conn;
         if (c == null || !c.isOpen()) {
-            throw new BrowserException("NOT_CONNECTED", lastCloseCode == Protocol.CLOSE_USER_DISCONNECTED
-                    ? "The user disconnected this agent in the Browser Context MCP popup. Ask them to allow it again."
-                    : "The Chrome extension is not connected. Ask the user to open the Browser Context MCP "
-                            + "popup, check that it is paired, and try again.");
+            throw new BrowserException("NOT_CONNECTED", switch (lastCloseCode) {
+                case Protocol.CLOSE_USER_DISCONNECTED ->
+                    "The user disconnected this agent in the TabGoblin popup. Ask them to allow it again.";
+                case Protocol.CLOSE_UNAUTHORIZED ->
+                    "The pairing with the Chrome extension has ended (the pairing token was rotated or no longer "
+                            + "matches). Ask the user to pair the extension again with the current token.";
+                default -> "The Chrome extension is not connected. Ask the user to open the TabGoblin "
+                        + "popup, check that it is paired, and try again.";
+            });
         }
         Protocol.Command command = new Protocol.Command(id, action, session, params,
                 System.currentTimeMillis() + timeout.toMillis());

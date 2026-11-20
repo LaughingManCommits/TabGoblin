@@ -17,3 +17,4 @@ await build({
 for (const file of ['manifest.json', 'src/popup.html', 'src/popup.css']) {
   await cp(file, `dist/${file.split('/').pop()}`);
 }
+await cp('icons', 'dist/icons', { recursive: true });

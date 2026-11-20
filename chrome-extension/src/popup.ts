@@ -16,6 +16,8 @@ interface SessionView {
   id: string;
   tabId: number;
   origin: string;
+  origins: string[];
+  suspended: boolean;
   mode: Mode;
   paused: boolean;
   expiresAt: number | null;
@@ -154,9 +156,13 @@ function renderSessions(s: State): void {
       row.dataset.session = session.id;
 
       const line = el('div', 'line');
-      line.append(el('span', 'sid', session.id), el('span', 'origin', displayOrigin(session.origin)));
+      const more = session.origins.length > 1 ? ` +${session.origins.length - 1} site${session.origins.length > 2 ? 's' : ''}` : '';
+      const origin = el('span', 'origin', displayOrigin(session.origin) + more);
+      origin.title = session.origins.join('\n');
+      line.append(el('span', 'sid', session.id), origin);
       if (session.tabId === currentTab?.id) line.append(el('span', 'chip', 'this tab'));
-      if (session.paused) line.append(el('span', 'chip state', 'paused'));
+      if (session.suspended) line.append(el('span', 'chip state', 'suspended'));
+      else if (session.paused) line.append(el('span', 'chip state', 'paused'));
 
       const owner = session.clientId
         ? `${agentName({ name: session.clientName, id: session.clientId })}${session.ownerConnected ? '' : ' (not connected)'}`
@@ -188,8 +194,22 @@ function renderSessions(s: State): void {
 
   const here = currentTab?.origin ?? null;
   const sessionHere = s.sessions.find((x) => x.tabId === currentTab?.id);
-  const authorizedHere = !!sessionHere && sessionHere.origin === here;
+  const authorizedHere = !!sessionHere && !sessionHere.suspended && !!here && sessionHere.origins.includes(here);
   $('authorizeBox').hidden = authorizedHere;
+
+  // A suspended session on this tab can be taken up again here, with this site added if it is new.
+  const resumable = !!sessionHere && sessionHere.suspended && !!here;
+  $('resumeBox').hidden = !resumable;
+  if (resumable && sessionHere && here) {
+    const known = sessionHere.origins.includes(here);
+    $('resume').hidden = !known;
+    $('addOrigin').hidden = known;
+    $('resume').textContent = `Resume ${sessionHere.id} on this tab`;
+    $('addOrigin').textContent = `Add ${displayOrigin(here)} to ${sessionHere.id}`;
+    $('resumeHint').textContent = known
+      ? `Session ${sessionHere.id} was suspended when this tab left its site. It is back now.`
+      : `Session ${sessionHere.id} is suspended: this tab is on a site that is not part of it.`;
+  }
   if (authorizedHere) return;
   const button = $<HTMLButtonElement>('authorize');
   button.disabled = !here;
@@ -278,6 +298,9 @@ $('authorize').addEventListener('click', () => {
     minutes: Number($<HTMLSelectElement>('newExpiry').value) || null,
   });
 });
+const sessionOfThisTab = (): string | undefined => state?.sessions.find((x) => x.tabId === currentTab?.id)?.id;
+$('resume').addEventListener('click', () => void request({ type: 'resumeSession', session: sessionOfThisTab(), tabId: currentTab?.id }));
+$('addOrigin').addEventListener('click', () => void request({ type: 'addOrigin', session: sessionOfThisTab(), tabId: currentTab?.id }));
 $('confirmSubmissions').addEventListener('change', () => void request({ type: 'setConfirm', value: $<HTMLInputElement>('confirmSubmissions').checked }));
 $('indicator').addEventListener('change', () => void request({ type: 'setIndicator', value: $<HTMLInputElement>('indicator').checked }));
 $('clearActivity').addEventListener('click', () => void request({ type: 'clearActivity' }));

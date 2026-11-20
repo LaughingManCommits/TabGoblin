@@ -8,13 +8,15 @@ import {
   type WaitCondition,
 } from './interact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
-import { captureBaseline, contentDigest, observeSubmission, validationProblems, type SubmitBaseline } from './submit.ts';
+import {
+  captureBaseline, contentDigest, observeSubmission, submittedTexts, validationProblems, type SubmitBaseline,
+} from './submit.ts';
 
 interface Request {
   bcmcp: 1;
   op: string;
-  /** The origin the user authorized; this document must match it exactly. */
-  origin: string;
+  /** The origins the user authorized for the session; this document must be on one of them. */
+  origins: string[];
   refBase?: number;
   /** Id of the running operation, so it can be cancelled. */
   opId?: string;
@@ -27,8 +29,8 @@ const scope = globalThis as unknown as Record<string, unknown>;
 
 /** Operations that can be told to stop waiting. */
 const signals = new Map<string, { cancelled: boolean }>();
-/** Elements of submissions in flight, for observing the outcome while this document lives. */
-const submissions = new Map<string, { control: Element; fields: Element[] }>();
+/** Elements and texts of submissions in flight, for observing the outcome while this document lives. */
+const submissions = new Map<string, { control: Element; fields: Element[]; submitted: string[] }>();
 
 function optionalRef(msg: Request, state: PageState): Element | undefined {
   return msg.ref === undefined || msg.ref === null ? undefined : state.registry.resolve(Number(msg.ref));
@@ -81,10 +83,14 @@ function showIndicator(text: string | null): void {
     const root = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');
     style.textContent = ':host{all:initial;position:fixed;right:12px;bottom:12px;z-index:2147483647;pointer-events:none}'
-      + '.pill{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:14px;background:#1f2328;color:#fff;'
-      + 'font:12px/1.3 system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.3);opacity:.92}'
-      + '.dot{width:8px;height:8px;border-radius:50%;background:#4ade80}'
-      + 'button{pointer-events:auto;font:inherit;color:#fff;background:transparent;border:1px solid #6b7280;border-radius:10px;padding:1px 8px;cursor:pointer}';
+      // TabGoblin theme: dark cave pill, goblin-green dot.
+      + '.pill{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 11px;border-radius:999px;background:#12201a;'
+      + 'color:#e6f0e9;border:1px solid #2a3a31;font:600 12px/1.3 system-ui,"Segoe UI",sans-serif;'
+      + 'box-shadow:0 4px 14px rgba(0,0,0,.35)}'
+      + '.dot{width:8px;height:8px;border-radius:50%;background:#63d68f;box-shadow:0 0 0 3px rgba(99,214,143,.22)}'
+      + 'button{pointer-events:auto;font:inherit;color:#e6f0e9;background:#1e2a23;border:1px solid #2a3a31;'
+      + 'border-radius:999px;padding:2px 10px;cursor:pointer}'
+      + 'button:hover{background:#273830}';
     const pill = document.createElement('div');
     pill.className = 'pill';
     const dot = document.createElement('span');
@@ -105,8 +111,8 @@ function showIndicator(text: string | null): void {
 }
 
 async function handle(msg: Request, state: PageState): Promise<unknown> {
-  if (location.origin !== msg.origin) {
-    throw new DomError('ORIGIN_MISMATCH', 'This document is not on the authorized origin.');
+  if (!Array.isArray(msg.origins) || !msg.origins.includes(location.origin)) {
+    throw new DomError('ORIGIN_MISMATCH', 'This document is not on an authorized origin.');
   }
   const registry = state.registry;
   if (typeof msg.refBase === 'number') registry.startAfter(msg.refBase);
@@ -177,20 +183,23 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
     case 'submit_prepare': {
       // Everything is resolved before anything is touched: a stale ref stops the whole submission.
       const control = registry.resolve(ref);
-      const fields = (Array.isArray(msg.fields) ? msg.fields : []).map((f) => registry.resolve(Number(f)));
-      submissions.set(String(msg.submissionId), { control, fields });
-      return describeClickTarget(control);
+      const given = (Array.isArray(msg.fields) ? msg.fields : []) as { ref: unknown; text?: unknown }[];
+      const fields = given.map((f) => registry.resolve(Number(f.ref)));
+      submissions.set(String(msg.submissionId), { control, fields, submitted: [] });
+      return {
+        target: describeClickTarget(control),
+        // Fingerprint of what would be submitted, taken before any field is touched.
+        digest: contentDigest(control, fields, given.map((f) => (typeof f.text === 'string' ? f.text : undefined))),
+      };
     }
     case 'submit_baseline': {
       const entry = submissions.get(String(msg.submissionId));
       if (!entry) throw new DomError('STALE_REF', 'The page changed while the submission was being prepared. Take a new snapshot.');
       const problems = validationProblems(entry.control);
       const expectText = typeof msg.expectText === 'string' ? msg.expectText : undefined;
-      return {
-        problems,
-        baseline: captureBaseline(document, state.docId, entry.fields, expectText),
-        digest: contentDigest(entry.control, entry.fields),
-      };
+      // What is about to be sent stays in the page; only how often it already shows is kept.
+      entry.submitted = submittedTexts(entry.control, entry.fields);
+      return { problems, baseline: captureBaseline(document, state.docId, entry.fields, expectText, entry.submitted) };
     }
     case 'submit_fire': {
       const entry = submissions.get(String(msg.submissionId));
@@ -202,7 +211,9 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
       return observeSubmission(
         document, state.docId, msg.baseline as SubmitBaseline,
         typeof msg.expectText === 'string' ? msg.expectText : undefined,
-        entry?.control ?? null, entry?.fields ?? []);
+        entry?.control ?? null, entry?.fields ?? [],
+        // After a navigation the page no longer knows what was typed; the agent's own texts still do.
+        entry?.submitted ?? (Array.isArray(msg.submitted) ? msg.submitted.map(String) : []));
     }
     case 'submit_done':
       submissions.delete(String(msg.submissionId));

@@ -7,9 +7,6 @@ import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -37,7 +34,7 @@ public final class McpMain {
 
     private static final String INSTRUCTIONS = """
             Generic tools for the user's own Chrome tabs. The user authorizes a tab and its website origin in the \
-            Browser Context MCP extension popup; each authorized tab is a session (s1, s2, ...) that belongs to \
+            TabGoblin extension popup; each authorized tab is a session (s1, s2, ...) that belongs to \
             one agent. You can only act on your sessions and only on their origin. browser_status lists them; \
             pass session=<id> to every tool when you have more than one.
             Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
@@ -58,6 +55,9 @@ public final class McpMain {
 
     private static final String SESSION = """
             "session":{"type":"string","description":"Session id from browser_status (s1, s2, ...). Optional while exactly one tab is authorized for this agent."}""";
+
+    private static final java.util.concurrent.atomic.AtomicReference<StdinTap> TAP =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     private McpMain() {
     }
@@ -103,7 +103,7 @@ public final class McpMain {
         if (bridge == null) {
             bridge = new WebSocketBridge(port, tokens, extensionOrigin);
             startupProblem = "Could not listen on any of ports " + port + "-" + (port + PORT_RANGE - 1)
-                    + " on 127.0.0.1: too many Browser Context MCP servers are running.";
+                    + " on 127.0.0.1: too many TabGoblin servers are running.";
             Log.warn(startupProblem);
         } else {
             Log.info("listening port=" + bridge.getPort() + " client=" + bridge.clientId());
@@ -111,32 +111,15 @@ public final class McpMain {
         BrowserService service = new BrowserService(bridge, startupProblem);
 
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
-        // Exit when the MCP client closes stdin, so no orphan process keeps the WebSocket port.
-        InputStream stdin = new FilterInputStream(System.in) {
-            @Override
-            public int read(byte[] b, int off, int len) throws IOException {
-                int n = super.read(b, off, len);
-                if (n < 0) {
-                    exitSoon();
-                }
-                return n;
-            }
-
-            @Override
-            public int read() throws IOException {
-                int n = super.read();
-                if (n < 0) {
-                    exitSoon();
-                }
-                return n;
-            }
-        };
+        // Exit when the MCP client closes stdin, so no orphan process keeps the WebSocket port,
+        // and stop tool calls the client cancels.
+        StdinTap stdin = new StdinTap(System.in, McpMain::exitSoon);
 
         McpServer.sync(new StdioServerTransportProvider(mapper, stdin, mcpOut))
                 .serverInfo("browser-context-mcp", "0.2.0")
                 .instructions(INSTRUCTIONS)
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
-                .tools(toolSpecs(service, mapper))
+                .tools(toolSpecs(service, mapper, stdin))
                 .build();
 
         Thread.currentThread().join();
@@ -169,6 +152,12 @@ public final class McpMain {
 
     /** The MCP face of {@link BrowserService}: one generic tool per browser primitive. */
     static List<SyncToolSpecification> toolSpecs(BrowserService service, McpJsonMapper mapper) {
+        return toolSpecs(service, mapper, null);
+    }
+
+    /** @param cancellations where client-side cancellations arrive, or null when there is no client stream */
+    static List<SyncToolSpecification> toolSpecs(BrowserService service, McpJsonMapper mapper, StdinTap cancellations) {
+        TAP.set(cancellations);
         List<SyncToolSpecification> specs = new ArrayList<>();
         specs.add(tool(service, mapper, "browser_status", true,
                 "List this agent's browser sessions: for each authorized tab its session id, origin, access level "
@@ -285,7 +274,16 @@ public final class McpMain {
                 .tool(tool)
                 .callHandler((exchange, request) -> {
                     noteClient(service, exchange);
-                    return toMcp(service.call(name, argsOf(service, request)));
+                    JsonNode arguments = argsOf(service, request);
+                    StdinTap tap = TAP.get();
+                    String callId = tap == null ? null : tap.begin(name, arguments);
+                    try {
+                        return toMcp(service.call(name, arguments));
+                    } finally {
+                        if (tap != null) {
+                            tap.end(callId);
+                        }
+                    }
                 })
                 .build();
     }

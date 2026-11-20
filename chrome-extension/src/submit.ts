@@ -4,7 +4,7 @@
 
 import { visibleText } from './extract.ts';
 import type { SubmitSignals } from './policy.ts';
-import { accessibleName, clip, isVisible, norm, ownText } from './snapshot.ts';
+import { accessibleName, clip, isSensitiveField, isVisible, norm, ownText } from './snapshot.ts';
 
 /** State captured just before the submit control is clicked. Small and serialisable: it has to
  *  survive a navigation, when the document that took it no longer exists. */
@@ -13,6 +13,8 @@ export interface SubmitBaseline {
   url: string;
   /** Occurrences of the expected text outside the fields it was typed into. */
   expectCount: number;
+  /** The same count for each submitted text, in the order they were given. */
+  submittedCounts: number[];
   alerts: string[];
   statuses: string[];
   /** Values of the submitted fields, in order (null when a field is not a value control). */
@@ -75,17 +77,23 @@ export function validationProblems(control: Element): string[] {
  * the given fields), for recognising an identical repeat. Only the hash leaves the page. Null
  * when there is no content to fingerprint.
  */
-export function contentDigest(control: Element, fields: Element[]): string | null {
+export function contentDigest(control: Element, fields: Element[], intended: (string | undefined)[] = []): string | null {
   const values: string[] = [];
-  const add = (el: Element): void => {
+  // `intended` is what a field is about to be filled with: the fingerprint is taken before
+  // anything is typed, so an identical repeat is recognised without touching the page.
+  const add = (el: Element, override?: string): void => {
     const type = (el.getAttribute('type') || '').toLowerCase();
     if (type === 'password' || type === 'hidden' || type === 'submit' || type === 'button') return;
+    if (override !== undefined) {
+      values.push((type === 'checkbox' || type === 'radio') ? String(/^(true|on|yes|checked|1)$/i.test(override.trim())) : override);
+      return;
+    }
     const value = (type === 'checkbox' || type === 'radio') ? String((el as HTMLInputElement).checked) : valueOf(el);
     if (value !== null) values.push(value);
   };
-  fields.forEach(add);
+  fields.forEach((field, i) => add(field, intended[i]));
   const form = (control as HTMLButtonElement).form;
-  if (form) Array.from(form.elements).forEach(add);
+  if (form) Array.from(form.elements).filter((el) => !fields.includes(el)).forEach((el) => add(el));
   if (!values.some((v) => v && v !== 'false')) return null;
   const text = `${accessibleName(control)}\u0000${values.join('\u0000')}`;
   let hash = 5381;
@@ -93,11 +101,32 @@ export function contentDigest(control: Element, fields: Element[]): string | nul
   return `${hash.toString(16)}-${text.length}`;
 }
 
-export function captureBaseline(doc: Document, docId: string, fields: Element[], expectText: string | undefined): SubmitBaseline {
+/** Text values about to be submitted that are long enough to be recognised on the page afterwards. */
+export function submittedTexts(control: Element, fields: Element[]): string[] {
+  const texts = new Set<string>();
+  const add = (el: Element): void => {
+    const tag = el.localName;
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const textual = tag === 'textarea' || el.getAttribute('contenteditable') !== null
+      || (tag === 'input' && ['', 'text', 'search', 'email', 'url', 'tel'].includes(type));
+    if (!textual || isSensitiveField(el)) return;
+    const value = norm(valueOf(el));
+    if (value.length >= 4) texts.add(value);
+  };
+  fields.forEach(add);
+  const form = (control as HTMLButtonElement).form;
+  if (form) Array.from(form.elements).forEach(add);
+  return [...texts].slice(0, 10);
+}
+
+export function captureBaseline(
+  doc: Document, docId: string, fields: Element[], expectText: string | undefined, submitted: string[] = [],
+): SubmitBaseline {
   return {
     docId,
     url: doc.location.href,
     expectCount: expectCount(doc, fields, expectText),
+    submittedCounts: submitted.map((text) => expectCount(doc, fields, text)),
     alerts: texts(doc, ALERT_SELECTOR),
     statuses: texts(doc, STATUS_SELECTOR),
     fieldValues: fields.map(valueOf),
@@ -110,7 +139,7 @@ export function captureBaseline(doc: Document, docId: string, fields: Element[],
  */
 export function observeSubmission(
   doc: Document, docId: string, baseline: SubmitBaseline, expectText: string | undefined,
-  control: Element | null, fields: Element[],
+  control: Element | null, fields: Element[], submitted: string[] = [],
 ): SubmitSignals {
   const sameDocument = docId === baseline.docId;
   const before = new Set(baseline.alerts);
@@ -123,6 +152,8 @@ export function observeSubmission(
   const nowValues = fields.map((f) => (f.isConnected ? valueOf(f) : ''));
   return {
     expectSeen: !!expectText && expectCount(doc, fields, expectText) > (sameDocument ? baseline.expectCount : 0),
+    submittedSeen: submitted.some((text, i) =>
+      expectCount(doc, fields, text) > (sameDocument ? baseline.submittedCounts?.[i] ?? 0 : 0)),
     newAlerts: texts(doc, ALERT_SELECTOR).filter((t) => !sameDocument || !before.has(t)),
     invalidFields: invalid,
     newStatuses: texts(doc, STATUS_SELECTOR).filter((t) => !sameDocument || !statusesBefore.has(t)),

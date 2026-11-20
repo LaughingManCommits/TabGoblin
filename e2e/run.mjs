@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { startDemo } from '../demo-site/server.mjs';
 import { McpClient } from './mcp-client.mjs';
+import { RawAgent } from './raw-agent.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const JAR = resolve(HERE, '../java-server/target/browser-context-mcp.jar');
@@ -141,14 +142,20 @@ try {
   let page = (await browser.pages())[0] ?? await browser.newPage();
   await page.goto(demo.originA + '/');
 
-  const findPopup = async () => (await extension.pages()).find((p) => p.url().includes('popup.html'));
+  // A popup belongs to the tab it was opened on and goes away with it: only a live one counts.
+  const findPopup = async () => {
+    for (const candidate of await extension.pages()) {
+      if (candidate.url().includes('popup.html') && await candidate.evaluate(() => true).catch(() => false)) return candidate;
+    }
+    return undefined;
+  };
   /** Clicks the extension's toolbar button for `target`, like the user would, and returns the popup. */
   async function openPopup(target = page, { fresh = false } = {}) {
     let popup = await findPopup();
     // A real popup closes as soon as the user clicks elsewhere. Chrome grants the extension access
     // to a tab only on a new click of its toolbar button, so authorizing always starts from one.
     if (popup && fresh) {
-      await popup.close();
+      await popup.close().catch(() => undefined);
       await until(async () => !(await findPopup()), 'the popup to close');
       popup = undefined;
     }
@@ -516,12 +523,13 @@ try {
     assert(await page.$eval('#comment', (el) => el.value) === 'draft only', 'draft should be untouched');
   });
   await step('the user can decline a submission in the popup', async () => {
-    const pending = one.tool('browser_submit', { ref: postRef() });
+    const pending = one.tool('browser_submit', { ref: postRef(), fields: [{ ref: commentRef(), text: 'never typed' }] });
     const prompt = await answerPrompt(false);
     has(prompt.label, 'Post comment');
     fails(await pending, 'SUBMIT_DENIED');
     await sleep(500);
     assert(await posts() === 0, 'nothing should be posted');
+    assert(await page.$eval('#comment', (el) => el.value) === 'draft only', 'a declined submission must not type anything');
   });
   await step('a confirmed submission is filled, sent once and verified against the page', async () => {
     const pending = one.tool('browser_submit', {
@@ -549,7 +557,9 @@ try {
     const repeat = json(await one.tool('browser_submit', {
       ref: postRef(), fields: [{ ref: commentRef(), text: ENTERED_TEXT }], repeat: true,
     }));
-    assert(repeat.state === 'CONFIRMED', JSON.stringify(repeat));
+    // No expected text was named: the submitted comment showing up on the page is recognised by itself.
+    assert(repeat.state === 'CONFIRMED' && repeat.verified === 'content', JSON.stringify(repeat));
+    has(repeat.evidence.join(' | '), 'the submitted text is now visible on the page');
     assert(await posts() === 2, `posts: ${await posts()}`);
   });
   await step('a submission the page does not visibly react to is reported UNCERTAIN, not as success', async () => {
@@ -568,7 +578,7 @@ try {
   await step('a click with intent="submit" still works and is verified too', async () => {
     await one.tool('browser_fill', { ref: commentRef(), text: 'second comment' });
     const result = json(await one.tool('browser_click', { ref: postRef(), intent: 'submit' }));
-    assert(result.dispatched === true && result.state === 'CONFIRMED', JSON.stringify(result));
+    assert(result.dispatched === true && result.state === 'CONFIRMED' && result.verified === 'content', JSON.stringify(result));
     assert(await posts() === 3, `posts: ${await posts()}`);
   });
 
@@ -710,39 +720,80 @@ try {
     await togglePause(sA, 'Pause');
     await sleep(600);
     assert(await posts() === before, 'a cancelled submission was sent');
+    assert(await page.$eval('#comment', (el) => el.value) !== 'cancelled comment', 'a cancelled submission must not type anything');
     await setConfirmation(false);
   });
 
-  console.log('\nLeaving the origin');
-  await step('a click that leaves the origin ends the session immediately', async () => {
+  await step('a tool call the MCP client cancels is stopped in the browser', async () => {
+    const started = Date.now();
+    const id = one.nextId;
+    const pending = one.request('tools/call', { name: 'browser_wait_for', arguments: { text: 'never-there', timeout_ms: 25000 } });
+    await sleep(800);
+    one.notify('notifications/cancelled', { requestId: id, reason: 'the user pressed stop' });
+    const result = await pending;
+    assert(Date.now() - started < 8000, `the cancelled call kept running for ${Date.now() - started}ms`);
+    has(result.content[0].text, 'Error [INTERRUPTED]');
+    // The page stopped waiting as well, and the session is immediately usable again.
+    await until(async () => /wait_for \d+ms CANCELLED/.test((await one.tool('browser_status', { diagnostics: true })).text), 'the wait to be cancelled in the page');
+    ok(await one.tool('browser_snapshot'));
+  });
+
+  console.log('\nLeaving the site: suspended, not lost');
+  /** The user clicks the icon on the tab and presses the resume (or add-site) button. */
+  async function resumeFromPopup(button) {
+    const popup = await openPopup(page, { fresh: true });
+    await popup.waitForFunction((id) => !document.getElementById('resumeBox').hidden && !document.getElementById(id).hidden, {}, button);
+    const label = await popup.$eval(`#${button}`, (el) => el.textContent);
+    await popup.click(`#${button}`);
+    await until(async () => !(await one.tool('browser_snapshot')).isError, 'the session to resume');
+    return label;
+  }
+  await step('a click that leaves the site suspends the session at once', async () => {
     snap = ok(await one.tool('browser_snapshot')).text;
     const click = json(await one.tool('browser_click', { ref: ref(snap, 'Link: Partner portal') }));
     assert(click.leftAuthorizedOrigin === true && click.navigation === 'left-origin', JSON.stringify(click));
     assert(page.url().startsWith(demo.originB), `tab is at ${page.url()}`);
     for (const tool of ['browser_snapshot', 'browser_extract', 'browser_screenshot']) {
-      fails(await one.tool(tool), 'NOT_AUTHORIZED');
+      fails(await one.tool(tool), 'SESSION_SUSPENDED');
     }
-    fails(await one.tool('browser_snapshot', { session: sA }), 'UNKNOWN_SESSION');
-    has((await one.tool('browser_status')).text, 'Authorized origin: none');
+    const status = (await one.tool('browser_status')).text;
+    has(status, `Session ${sA}`);
+    has(status, 'State: suspended');
     assert(await badge() === '', `badge is ${await badge()}`);
   });
-  await step('returning to the site does not restore access: the user must authorize again', async () => {
+  await step('returning does not resume it; one click by the user does, and it is the same session', async () => {
     await page.goto(demo.originA + '/');
-    fails(await one.tool('browser_snapshot'), 'NOT_AUTHORIZED');
-    sA = await authorize(page, 'write');
-    assert(sA === 's2', `a new authorization is a new session, got ${sA}`);
+    fails(await one.tool('browser_snapshot'), 'SESSION_SUSPENDED');
+    has(await resumeFromPopup('resume'), `Resume ${sA} on this tab`);
+    const status = (await one.tool('browser_status')).text;
+    has(status, `Session ${sA}\n  Authorized origin: ${demo.originA}\n  Access: read/write`);
+    lacks(status, 'suspended');
     has(ok(await one.tool('browser_snapshot')).text, 'Page: Demo Tracker: Issues');
   });
-  await step('a redirect out of the origin during navigate ends the session too', async () => {
+  await step('a redirect out of the site during navigate suspends the session too', async () => {
     fails(await one.tool('browser_navigate', { url: '/redirect-out' }), 'ORIGIN_MISMATCH');
-    fails(await one.tool('browser_snapshot'), 'NOT_AUTHORIZED');
+    fails(await one.tool('browser_snapshot'), 'SESSION_SUSPENDED');
+    assert(page.url().startsWith(demo.originB), `tab is at ${page.url()}`);
   });
-  await step('when the user navigates the tab away, access ends without any agent command', async () => {
-    await page.goto(demo.originA + '/');
-    await authorize(page, 'read');
-    await page.goto(demo.originB + '/');
-    await until(async () => (await badge()) === '', 'access to be revoked');
-    has((await one.tool('browser_status')).text, 'Authorized origin: none');
+  await step('the user can add the other site to the session; a third site stays out', async () => {
+    has(await resumeFromPopup('addOrigin'), `to ${sA}`);
+    has(ok(await one.tool('browser_snapshot')).text, 'Page: Notes App');
+    has((await one.tool('browser_status')).text, `All authorized sites of this session: ${demo.originA} ${demo.originB}`);
+    fails(await one.tool('browser_navigate', { url: demo.originC + '/' }), 'NAVIGATION_BLOCKED');
+  });
+  await step('moving between the sites of a session is allowed, but needs the user each time', async () => {
+    const hop = json(await one.tool('browser_navigate', { url: demo.originA + '/' }));
+    assert(hop.navigation === 'needs-user' && hop.suspended === true, JSON.stringify(hop));
+    assert(page.url() === `${demo.originA}/`, `tab is at ${page.url()}`);
+    fails(await one.tool('browser_snapshot'), 'SESSION_SUSPENDED');
+    await resumeFromPopup('resume');
+    has(ok(await one.tool('browser_snapshot')).text, 'Page: Demo Tracker: Issues');
+  });
+  await step('when the user navigates the tab away, access stops without any agent command', async () => {
+    await page.goto(demo.originC + '/');
+    await until(async () => (await one.tool('browser_status')).text.includes('State: suspended'), 'the session to be suspended');
+    fails(await one.tool('browser_snapshot'), 'SESSION_SUSPENDED');
+    assert(await badge() === '', `badge is ${await badge()}`);
   });
 
   console.log('\nSeveral tabs: independent sessions');
@@ -957,6 +1008,69 @@ try {
     has(ok(await two.tool('browser_extract')).text, 'Completeness: COMPLETE');
   });
 
+  console.log('\nProtocol protections, tested with a hand-made agent');
+  const raw = new RawAgent(token);
+  let pageR;
+  let sR;
+  await step('an agent that only speaks an older protocol version is refused', async () => {
+    const old = new RawAgent(token, { clientId: 'c-oldproto', name: 'old-agent', versions: [1] });
+    await old.listen(wsPort);
+    await openPopup();
+    await until(() => old.closeCodes.includes(4406), 'the old-protocol agent to be refused', 15000);
+    assert(!old.paired, 'it must never be paired');
+    await old.close();
+  });
+  await step('replayed ids, stale deadlines, unknown actions and other agents\' sessions are refused', async () => {
+    await raw.listen(wsPort);
+    const popup = await openPopup();
+    await until(() => raw.paired, 'the hand-made agent to pair', 15000);
+    await popup.waitForFunction(() => [...document.querySelectorAll('#agents .name')].some((n) => n.textContent === 'raw-agent'));
+    pageR = await browser.newPage();
+    await pageR.goto(demo.originA + '/page2.html');
+    sR = await authorize(pageR, 'explore', { agent: raw.clientId });
+    const code = (r) => (r.success ? 'ok' : r.error.code);
+
+    assert(code(await raw.command('snapshot', { id: 'once' })) === 'ok', 'first use of an id runs');
+    assert(code(await raw.command('snapshot', { id: 'once' })) === 'DUPLICATE_COMMAND', 'a replayed id must not run again');
+    assert(code(await raw.command('snapshot', { deadline: Date.now() - 1 })) === 'STALE_COMMAND', 'a command past its deadline must not run');
+    assert(code(await raw.command('evaluate', { params: { script: 'document.cookie' } })) === 'UNSUPPORTED_ACTION', 'there is no such action');
+    assert(code(await raw.command('cookies')) === 'UNSUPPORTED_ACTION', 'there is no such action');
+    assert(code(await raw.command('snapshot', { session: sA })) === 'SESSION_NOT_OWNED', 'a forged session id must not work');
+    assert(code(await raw.command('fill', { params: { ref: 1, text: 'x' } })) === 'WRITE_NOT_AUTHORIZED', 'the access level holds for any agent');
+    // Malformed messages are ignored and the connection keeps working.
+    raw.send({ id: 'bad', action: 'snapshot', session: 'tab-1', deadline: Date.now() + 1000 });
+    raw.send({ type: 'evaluate', script: 'document.cookie' });
+    assert(code(await raw.command('status')) === 'ok', 'the connection survives malformed messages');
+  });
+  await step('a queued command can be cancelled before it runs', async () => {
+    const code = (r) => (r.success ? 'ok' : r.error.code);
+    const first = raw.command('wait_for', { id: 'w1', params: { text: 'never-there', timeoutMs: 20000 } });
+    await sleep(500);
+    const queued = raw.command('navigate', { id: 'q1', params: { url: '/' } });
+    await sleep(300);
+    raw.send({ type: 'cancel', id: 'q1' });
+    raw.send({ type: 'cancel', id: 'w1' });
+    assert(code(await first) === 'CANCELLED', 'the running wait is cancelled');
+    assert(code(await queued) === 'CANCELLED', 'the queued navigation is cancelled');
+    await sleep(500);
+    assert(pageR.url().endsWith('/page2.html'), `the cancelled navigation still happened: ${pageR.url()}`);
+    assert(code(await raw.command('snapshot')) === 'ok', 'the session works again');
+  });
+  await step('a flood of commands is rate limited, and served again once it stops', async () => {
+    const code = (r) => (r.success ? 'ok' : r.error.code);
+    const flood = await Promise.all(Array.from({ length: 90 }, () => raw.command('status')));
+    const limited = flood.filter((r) => code(r) === 'RATE_LIMITED').length;
+    assert(limited >= 30 && limited < 90, `${limited} of 90 commands were rate limited`);
+    await sleep(2500);
+    assert(code(await raw.command('status')) === 'ok', 'the agent is served again');
+    ok(await one.tool('browser_snapshot', { session: sA })); // other agents were never affected
+    await raw.close();
+    // The open popup belongs to the tab that is about to close: start a new one on the main tab first.
+    const popup = await openPopup(page, { fresh: true });
+    await pageR.close();
+    await popup.waitForFunction(() => document.getElementById('connection').textContent === '2 agents connected');
+  });
+
   console.log('\nDisconnecting and recovering');
   await step('the user can disconnect one agent; the other keeps working', async () => {
     const popup = await openPopup();
@@ -1020,6 +1134,58 @@ try {
     await pageB.close();
     await until(async () => (await two.tool('browser_status')).text.includes('Authorized origin: none'), 'the closed tab to end its session');
     has((await one.tool('browser_status')).text, `Session ${sA}`);
+  });
+  await step('an authorization with an expiry ends on its own, also across a worker restart', async () => {
+    const pageX = await browser.newPage();
+    await pageX.goto(demo.originA + '/page2.html');
+    const sX = await authorize(pageX, 'read', { minutes: 60 });
+    has(ok(await one.tool('browser_snapshot', { session: sX })).text, 'Page: Demo Tracker: Settings');
+    const popup = await openPopup();
+    await popup.waitForFunction((sel) => document.querySelector(sel)?.textContent.includes('until '), {}, row(sX, '.meta'));
+    // Move the stored expiry into the past, as if the hour had gone by while the worker slept.
+    await (await worker()).evaluate(async (id) => {
+      const { state } = await chrome.storage.session.get('state');
+      state.sessions.find((x) => x.id === id).expiresAt = Date.now() - 1000;
+      await chrome.storage.session.set({ state });
+      globalThis.__beforeExpiry = true;
+    }, sX);
+    await (await worker()).close();
+    await openPopup();
+    await until(async () => {
+      const fresh = (await extension.workers())[0];
+      return fresh ? fresh.evaluate(() => globalThis.__beforeExpiry !== true).catch(() => false) : false;
+    }, 'a fresh service worker', 20000);
+    await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the agent to reconnect', 20000);
+    const expired = await one.tool('browser_snapshot', { session: sX });
+    assert(expired.isError && /AUTHORIZATION_EXPIRED|UNKNOWN_SESSION/.test(expired.text), expired.text);
+    await until(async () => !(await one.tool('browser_status')).text.includes(`Session ${sX}`), 'the expired session to be gone');
+    has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
+    await openPopup(page, { fresh: true });
+    await pageX.close();
+  });
+  await step('rotating the pairing token ends the pairing at once; pairing again restores the sessions', async () => {
+    await until(async () => !(await two.tool('browser_status')).text.includes('not connected'), 'the second agent to be connected', 20000);
+    const rotated = /New pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--rotate-token'], { encoding: 'utf8' }))?.[1];
+    assert(rotated && rotated !== token, 'a new token should be printed');
+    const refused = await one.tool('browser_snapshot', { session: sA });
+    fails(refused, 'NOT_CONNECTED');
+    has(refused.text, 'pair the extension again');
+    const popup = await openPopup();
+    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'), { timeout: 20000 });
+    // The old token no longer pairs.
+    await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
+    await popup.type('#token', token);
+    await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
+    await popup.click('#pair');
+    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'));
+    fails(await one.tool('browser_snapshot', { session: sA }), 'NOT_CONNECTED');
+    // The new one does, and the session is where it was.
+    await popup.type('#token', rotated);
+    await popup.click('#pair');
+    await until(async () => !(await one.tool('browser_snapshot', { session: sA })).isError, 'the pairing to be restored', 20000);
+    has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
+    await until(async () => !(await two.tool('browser_status')).text.includes('not connected'), 'the second agent to pair again', 20000);
+    for (const server of servers) lacks(server.stderr, rotated);
   });
   await step('diagnostics list recent operations with durations and codes, and no content', async () => {
     const status = (await one.tool('browser_status', { diagnostics: true })).text;

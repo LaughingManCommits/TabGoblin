@@ -13,8 +13,12 @@ export interface SessionAuth {
   tabId: number;
   /** scheme + hostname + port, exactly as URL.origin reports it. Subdomains are different origins. */
   origin: string;
+  /** Every origin the user authorized for this session; `origin` is the first. */
+  origins: string[];
   mode: Mode;
   paused: boolean;
+  /** The tab left the authorized origins: nothing is accessible until the user resumes the session. */
+  suspended: boolean;
   /** Owning agent, or null until an agent claims the session. */
   clientId: string | null;
   clientName: string | null;
@@ -68,7 +72,7 @@ function needs(mode: Mode): CommandError {
  * it; an unknown URL fails closed.
  */
 export function checkGate(
-  session: Pick<SessionAuth, 'origin' | 'mode' | 'paused' | 'expiresAt'> | null,
+  session: Pick<SessionAuth, 'origins' | 'mode' | 'paused' | 'expiresAt' | 'suspended'> | null,
   action: string,
   tabUrl: string | undefined,
   now: number = Date.now(),
@@ -79,7 +83,7 @@ export function checkGate(
   if (action === 'status') return;
   if (!session) {
     throw new CommandError('NOT_AUTHORIZED',
-      'No website is authorized. Ask the user to open the site, click the Browser Context MCP icon and authorize it.');
+      'No website is authorized. Ask the user to open the site, click the TabGoblin icon and authorize it.');
   }
   if (session.expiresAt !== null && now >= session.expiresAt) {
     throw new CommandError('AUTHORIZATION_EXPIRED', 'This authorization has expired. The user must authorize the tab again.');
@@ -87,12 +91,22 @@ export function checkGate(
   if (session.paused) {
     throw new CommandError('PAUSED', 'The user paused this session. Ask them to resume it in the extension popup.');
   }
-  if (originOf(tabUrl) !== session.origin) {
+  if (session.suspended) {
+    throw new CommandError('SESSION_SUSPENDED',
+      'The tab left the sites authorized for this session, so the session is suspended and nothing can be read. Ask the user to click the TabGoblin icon on that tab and resume it.');
+  }
+  if (!inScope(session.origins, tabUrl)) {
     throw new CommandError('ORIGIN_MISMATCH',
-      `The tab is no longer on the authorized origin ${session.origin}. Access has been revoked; the user must authorize again.`);
+      'The tab is no longer on a site authorized for this session. The session is suspended; the user must resume it from the TabGoblin icon on that tab.');
   }
   const required = REQUIRED[action];
   if (RANK[session.mode] < RANK[required]) throw needs(required);
+}
+
+/** Whether a URL lies on one of the authorized origins. Unknown or non-web URLs never do. */
+export function inScope(origins: readonly string[], url: string | undefined | null): boolean {
+  const origin = originOf(url);
+  return origin !== null && origins.includes(origin);
 }
 
 /** Who is asking: one authenticated server connection. */
@@ -146,7 +160,7 @@ export function resolveSession<T extends SessionAuth>(
   const candidates = sessions.filter(usable);
   if (candidates.length === 0) {
     throw new CommandError('NOT_AUTHORIZED',
-      'No website is authorized for this agent. Ask the user to open the site, click the Browser Context MCP icon and authorize it.');
+      'No website is authorized for this agent. Ask the user to open the site, click the TabGoblin icon and authorize it.');
   }
   if (candidates.length > 1) {
     const list = candidates.map((s) => `${s.id} (${s.origin})`).join(', ');
@@ -160,7 +174,8 @@ export function resolveSession<T extends SessionAuth>(
  * Resolves an absolute or relative URL against the current page and insists the result stays on
  * the authorized origin.
  */
-export function resolveNavigation(input: string, currentUrl: string, authorizedOrigin: string): string {
+export function resolveNavigation(input: string, currentUrl: string, authorized: string | readonly string[]): string {
+  const origins = typeof authorized === 'string' ? [authorized] : authorized;
   let target: URL;
   try {
     target = new URL(input, currentUrl);
@@ -173,9 +188,9 @@ export function resolveNavigation(input: string, currentUrl: string, authorizedO
   if (target.username || target.password) {
     throw new CommandError('NAVIGATION_BLOCKED', 'URLs with embedded credentials are not allowed.');
   }
-  if (target.origin !== authorizedOrigin) {
+  if (!origins.includes(target.origin)) {
     throw new CommandError('NAVIGATION_BLOCKED',
-      `${target.origin} is outside the authorized origin ${authorizedOrigin}. Only the user can authorize another site.`);
+      `${target.origin} is outside the authorized origin ${origins.join(', ')}. Only the user can authorize another site.`);
   }
   return target.href;
 }
@@ -262,6 +277,8 @@ export function parseKey(input: string): { key: string; mode: Mode } {
 export interface SubmitSignals {
   /** The expected text is now visible outside the fields it was typed into. */
   expectSeen: boolean;
+  /** Text that was submitted is now visible on the page outside the fields it was typed into. */
+  submittedSeen: boolean;
   /** Texts of error alerts that were not there before. */
   newAlerts: string[];
   /** Labels of fields the page marks invalid. */
@@ -305,6 +322,11 @@ export function judgeSubmission(signals: SubmitSignals, expected: boolean): Subm
   if (expected) {
     evidence.push('the expected text did not appear');
     return { state: 'UNCERTAIN', verified: null, evidence };
+  }
+  // No expectation was named, but what was submitted has shown up on the page: that is content.
+  if (signals.submittedSeen) {
+    evidence.unshift('the submitted text is now visible on the page');
+    return { state: 'CONFIRMED', verified: 'content', evidence };
   }
   if (evidence.length) return { state: 'CONFIRMED', verified: 'reaction', evidence };
   return { state: 'UNCERTAIN', verified: null, evidence: ['the page showed no visible reaction'] };
@@ -382,6 +404,7 @@ export function failureNote(code: string): string {
     case 'NOT_AUTHORIZED': return 'no site authorized';
     case 'PAUSED': return 'paused';
     case 'ORIGIN_MISMATCH': return 'left authorized site';
+    case 'SESSION_SUSPENDED': return 'session suspended';
     case 'WRITE_NOT_AUTHORIZED': return 'needs Write access';
     case 'EXPLORE_NOT_AUTHORIZED': return 'needs Explore access';
     case 'AUTHORIZATION_EXPIRED': return 'authorization expired';

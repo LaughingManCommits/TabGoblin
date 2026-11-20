@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { judgeSubmission } from '../src/policy.ts';
-import { captureBaseline, contentDigest, observeSubmission, validationProblems } from '../src/submit.ts';
+import { captureBaseline, contentDigest, observeSubmission, submittedTexts, validationProblems } from '../src/submit.ts';
 import { page } from './helpers.ts';
 
 const FORM = `
@@ -104,6 +104,46 @@ test('after a navigation the new document is judged without the old elements', (
 
   const errorPage = page('<p role="alert">Session expired</p>', 'https://app.example/login');
   assert.equal(judgeSubmission(observeSubmission(errorPage.doc, 'd3', baseline, 'Shipping it', null, []), true).state, 'FAILED');
+});
+
+test('submitted text is recognised on the page without the agent naming it', () => {
+  const { doc, el, comment, send } = setup();
+  comment.value = 'Ship it on Friday';
+  (el('e') as HTMLInputElement).value = 'ada@example.org';
+  const submitted = submittedTexts(send, [comment]);
+  assert.deepEqual(submitted, ['Ship it on Friday', 'ada@example.org']);
+  const baseline = captureBaseline(doc, 'd1', [comment], undefined, submitted);
+  assert.deepEqual(baseline.submittedCounts, [0, 0]);
+  assert.equal(observeSubmission(doc, 'd1', baseline, undefined, send, [comment], submitted).submittedSeen, false);
+
+  el('comments').innerHTML = '<li>Ship it on Friday</li>';
+  comment.value = '';
+  const signals = observeSubmission(doc, 'd1', baseline, undefined, send, [comment], submitted);
+  assert.equal(signals.submittedSeen, true);
+  assert.deepEqual(judgeSubmission(signals, false).verified, 'content');
+
+  // After a navigation the agent's own texts are still recognised.
+  const after = page('<p>Saved: Ship it on Friday</p>', 'https://app.example/done');
+  assert.equal(observeSubmission(after.doc, 'd2', baseline, undefined, null, [], ['Ship it on Friday']).submittedSeen, true);
+});
+
+test('short values, passwords and non-text fields are not used as evidence', () => {
+  const { doc } = page(`
+    <form><input id="a" value="ok"><input id="p" type="password" value="hunter2hunter2">
+    <input id="n" type="number" value="123456"><input id="c" type="checkbox" checked>
+    <input id="t" name="api_token" value="sk-live-abcdef"><textarea id="x">A real sentence.</textarea>
+    <button id="go">Go</button></form>`);
+  assert.deepEqual(submittedTexts(doc.getElementById('go')!, []), ['A real sentence.']);
+});
+
+test('a submission is fingerprinted before anything is typed', () => {
+  const filled = setup();
+  filled.comment.value = 'Same words';
+  const untouched = setup();
+  // What the fields are about to hold gives the same fingerprint as when they already hold it.
+  assert.equal(contentDigest(untouched.send, [untouched.comment], ['Same words']), contentDigest(filled.send, [filled.comment]));
+  assert.equal(untouched.comment.value, '', 'fingerprinting must not touch the field');
+  assert.notEqual(contentDigest(untouched.send, [untouched.comment], ['Other words']), contentDigest(filled.send, [filled.comment]));
 });
 
 test('identical content has the same fingerprint, and the fingerprint reveals nothing', () => {

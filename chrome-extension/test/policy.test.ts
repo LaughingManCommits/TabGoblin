@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, checkClick, checkGate, failureNote, isHighImpact,
+  CommandError, RateLimiter, RecentIds, activityLabel, checkClick, checkGate, failureNote, inScope, isHighImpact,
   judgeSubmission, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
   type ClickTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
@@ -15,8 +15,8 @@ const ALL_ACTIONS = [...READ_ACTIONS, ...EXPLORE_ACTIONS, ...WRITE_ACTIONS];
 
 function session(over: Partial<SessionAuth> = {}): SessionAuth {
   return {
-    id: 's1', authorizationId: 'a1', tabId: 7, origin: ORIGIN, mode: 'read', paused: false,
-    clientId: 'c-me', clientName: 'IDE', expiresAt: null, ...over,
+    id: 's1', authorizationId: 'a1', tabId: 7, origin: ORIGIN, origins: [ORIGIN], mode: 'read', paused: false,
+    suspended: false, clientId: 'c-me', clientName: 'IDE', expiresAt: null, ...over,
   };
 }
 
@@ -85,6 +85,27 @@ test('pause and expiry block everything except status', () => {
   }
   assert.equal(code(() => checkGate(session({ mode: 'write', expiresAt: 1000 }), 'snapshot', HERE, 999)), 'ok');
   assert.equal(code(() => checkGate(session({ paused: true }), 'status', HERE)), 'ok');
+});
+
+test('a session may span the sites the user added to it, and nothing else', () => {
+  const sso = session({ mode: 'write', origins: [ORIGIN, 'https://login.example'] });
+  assert.equal(code(() => checkGate(sso, 'snapshot', 'https://login.example/signin')), 'ok');
+  assert.equal(code(() => checkGate(sso, 'snapshot', HERE)), 'ok');
+  assert.equal(code(() => checkGate(sso, 'snapshot', 'https://evil.example/')), 'ORIGIN_MISMATCH');
+  assert.equal(code(() => checkGate(sso, 'snapshot', 'https://sub.login.example/')), 'ORIGIN_MISMATCH');
+  assert.equal(inScope(sso.origins, 'https://login.example/x'), true);
+  assert.equal(inScope(sso.origins, undefined), false);
+  assert.equal(inScope([], HERE), false);
+  assert.equal(resolveNavigation('https://login.example/signin', HERE, sso.origins), 'https://login.example/signin');
+  assert.equal(code(() => resolveNavigation('https://other.example/', HERE, sso.origins)), 'NAVIGATION_BLOCKED');
+});
+
+test('a suspended session exposes nothing, even on a page it is authorized for', () => {
+  const suspended = session({ mode: 'write', suspended: true });
+  for (const action of ALL_ACTIONS) {
+    assert.equal(code(() => checkGate(suspended, action, HERE)), 'SESSION_SUSPENDED', action);
+  }
+  assert.equal(code(() => checkGate(suspended, 'status', HERE)), 'ok');
 });
 
 test('there are no actions for scripts, cookies, storage or raw requests', () => {
@@ -217,7 +238,7 @@ test('keys are normalised; moving around needs Explore, typing and Enter need Wr
 });
 
 const signals = (over: Partial<SubmitSignals> = {}): SubmitSignals => ({
-  expectSeen: false, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: false,
+  expectSeen: false, submittedSeen: false, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: false,
   urlChanged: false, documentChanged: false, ...over,
 });
 
@@ -241,6 +262,13 @@ test('submissions are confirmed by content or by the page reacting, and failed b
     const verdict = judgeSubmission(signals(reaction), false);
     assert.deepEqual([verdict.state, verdict.verified], ['CONFIRMED', 'reaction'], JSON.stringify(reaction));
   }
+
+  // Nothing was named, but the submitted text showed up on the page: that is content, not just a reaction.
+  const recognised = judgeSubmission(signals({ submittedSeen: true, fieldsCleared: true }), false);
+  assert.deepEqual([recognised.state, recognised.verified], ['CONFIRMED', 'content']);
+  assert.equal(recognised.evidence[0], 'the submitted text is now visible on the page');
+  // A named expectation is stricter: it has to be that text.
+  assert.equal(judgeSubmission(signals({ submittedSeen: true }), true).state, 'UNCERTAIN');
 
   // An error wins over everything else, including the expected text.
   const failed = judgeSubmission(signals({ expectSeen: true, newAlerts: ['Title is required'], invalidFields: ['Title'] }), true);

@@ -155,7 +155,7 @@ public final class BrowserService {
         if (!bridge.isExtensionConnected()) {
             sb.append("Extension: not connected\n");
             sb.append("Listening on: ws://127.0.0.1:").append(bridge.getPort()).append('\n');
-            sb.append("Ask the user to load the Browser Context MCP extension in Chrome, open its popup, ")
+            sb.append("Ask the user to load the TabGoblin extension in Chrome, open its popup, ")
                     .append("and pair it with this server's pairing token. A paired extension finds a new server ")
                     .append("within about 30 seconds, or at once when its popup is opened.");
             return ToolResult.ok(sb.toString());
@@ -170,7 +170,7 @@ public final class BrowserService {
         JsonNode sessions = s.path("sessions");
         if (sessions.isEmpty()) {
             sb.append("Authorized origin: none\n");
-            sb.append("Ask the user to open the site in Chrome, click the Browser Context MCP icon, ")
+            sb.append("Ask the user to open the site in Chrome, click the TabGoblin icon, ")
                     .append("and authorize that tab.");
         } else {
             sb.append("Sessions: ").append(sessions.size())
@@ -181,6 +181,17 @@ public final class BrowserService {
             sb.append("  Authorized origin: ").append(session.path("origin").asString("?")).append('\n');
             sb.append("  Access: ").append(describeMode(session.path("mode").asString(""))).append('\n');
             sb.append("  Paused: ").append(session.path("paused").asBoolean(false) ? "yes" : "no").append('\n');
+            if (session.path("origins").size() > 1) {
+                sb.append("  All authorized sites of this session:");
+                for (JsonNode origin : session.path("origins")) {
+                    sb.append(' ').append(origin.asString(""));
+                }
+                sb.append('\n');
+            }
+            if (session.path("suspended").asBoolean(false)) {
+                sb.append("  State: suspended (the tab left the authorized sites; nothing can be read until ")
+                        .append("the user clicks the extension icon on that tab and resumes the session)\n");
+            }
             if (session.path("owner").asString("").equals("unclaimed")) {
                 sb.append("  Owner: not yet claimed (your first command on it claims it)\n");
             }

@@ -7,7 +7,7 @@
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkClick, checkGate, failureNote, isHighImpact,
+  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkClick, checkGate, failureNote, inScope, isHighImpact,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
   type ClickTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
@@ -143,7 +143,11 @@ const ready: Promise<void> = (async () => {
   if (saved) {
     // Tolerate state written by an earlier version of this extension in the same browser run.
     persisted = { ...persisted, ...saved };
-    persisted.sessions.forEach((s, i) => { s.refRange ??= i; });
+    persisted.sessions.forEach((s, i) => {
+      s.refRange ??= i;
+      s.origins ??= [s.origin];
+      s.suspended ??= false;
+    });
     // Anything still "running" or mid-submission belonged to a worker that no longer exists.
     persisted.activity = persisted.activity.filter((a) => a.status !== 'running');
     for (const session of persisted.sessions) {
@@ -207,7 +211,8 @@ function pushActivity(entry: ActivityEntry): void {
 
 function refreshBadge(): void {
   const running = persisted.activity.some((a) => a.status === 'running');
-  const active = persisted.sessions.filter((s) => !s.paused).length;
+  const active = persisted.sessions.filter((s) => !s.paused && !s.suspended).length;
+  const paused = persisted.sessions.some((s) => s.paused && !s.suspended);
   let text = '';
   let color = '#5f6368';
   if (pendingConfirms.size) {
@@ -216,7 +221,7 @@ function refreshBadge(): void {
   } else if (running) {
     text = 'RUN';
     color = '#2563eb';
-  } else if (persisted.sessions.length && !active) {
+  } else if (!active && paused) {
     text = 'II';
   } else if (active) {
     text = 'ON';
@@ -231,7 +236,7 @@ function setIndicator(session: SessionRecord, text: string | null): Promise<void
   clearTimeout(indicatorTimers.get(session.id));
   indicatorTimers.delete(session.id);
   if (text && !config.indicator) return Promise.resolve();
-  return chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'indicator', origin: session.origin, text }, { frameId: 0 })
+  return chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'indicator', origins: session.origins, text }, { frameId: 0 })
     .then(() => undefined, () => undefined);
 }
 
@@ -270,8 +275,10 @@ async function authorize(tabId: number, mode: Mode, clientId: string | null, min
     authorizationId: crypto.randomUUID(),
     tabId,
     origin,
+    origins: [origin],
     mode,
     paused: false,
+    suspended: false,
     clientId: owner ? owner.clientId : null,
     clientName: owner ? owner.name : null,
     expiresAt: minutes ? Date.now() + minutes * 60_000 : null,
@@ -297,7 +304,7 @@ function cancelOperations(match: (op: Operation) => boolean, reason: string): vo
     op.finishConfirm?.('cancelled');
     const session = sessionById(op.sessionId);
     if (op.waitingInPage && session) {
-      void chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'cancel', origin: session.origin, opId: op.key }, { frameId: 0 })
+      void chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'cancel', origins: session.origins, opId: op.key }, { frameId: 0 })
         .catch(() => undefined);
     }
   }
@@ -313,6 +320,21 @@ function endSession(session: SessionRecord, reason: string): void {
   pushState();
 }
 
+/**
+ * The tab left the sites authorized for the session. Nothing of it is accessible any more, but
+ * the session itself (owner, access level, history) is kept until the user resumes it on that
+ * tab, so a detour through a login page does not mean starting over.
+ */
+function suspendSession(session: SessionRecord): void {
+  if (!persisted.sessions.includes(session) || session.suspended) return;
+  cancelOperations((op) => op.sessionId === session.id, 'The tab left the authorized sites.');
+  void setIndicator(session, null);
+  session.suspended = true;
+  session.documentId = null;
+  noteActivity(session.id, 'Left authorized site: session suspended');
+  pushState();
+}
+
 chrome.tabs.onRemoved.addListener((tabId) => {
   void ready.then(() => {
     const session = persisted.sessions.find((s) => s.tabId === tabId);
@@ -320,15 +342,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   });
 });
 
-// Any navigation of an authorized tab: if it is no longer on the authorized origin, access ends
+// Any navigation of an authorized tab: if it is no longer on an authorized origin, access stops
 // immediately. tab.url is only visible while Chrome still grants this extension the tab, so an
-// unknown URL also ends access (fail closed).
+// unknown URL also stops access (fail closed).
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
   void ready.then(() => {
     const session = persisted.sessions.find((s) => s.tabId === tabId);
     if (!session) return;
     if (info.url === undefined && info.status === undefined) return;
-    if (originOf(tab.url) !== session.origin) endSession(session, 'Left authorized site: access revoked');
+    if (!session.suspended && !inScope(session.origins, tab.url)) suspendSession(session);
   });
 });
 
@@ -393,7 +415,7 @@ function noteDocument(session: SessionRecord, reply: PageReply | undefined): voi
 
 /** Makes sure our content script is present in the tab's current document. Safe to repeat. */
 async function ensureContentScript(session: SessionRecord): Promise<void> {
-  const ping = { bcmcp: 1, op: 'ping', origin: session.origin, refBase: session.refHigh };
+  const ping = { bcmcp: 1, op: 'ping', origins: session.origins, refBase: session.refHigh };
   let reply: PageReply | undefined;
   try {
     reply = await sendToPage(session.tabId, ping, 3000);
@@ -418,7 +440,7 @@ async function ensureContentScript(session: SessionRecord): Promise<void> {
 }
 
 function pageError(session: SessionRecord, reply: PageReply | undefined): CommandError {
-  if (reply?.code === 'ORIGIN_MISMATCH') endSession(session, 'Left authorized site: access revoked');
+  if (reply?.code === 'ORIGIN_MISMATCH') suspendSession(session);
   return new CommandError(reply?.code ?? 'PAGE_ERROR', reply?.message ?? 'The page did not answer.');
 }
 
@@ -440,7 +462,7 @@ async function page<T>(
   let reply: PageReply;
   try {
     reply = await sendToPage(session.tabId,
-      { bcmcp: 1, op: name, origin: session.origin, refBase: session.refHigh, opId: op.key, ...params }, timeoutMs);
+      { bcmcp: 1, op: name, origins: session.origins, refBase: session.refHigh, opId: op.key, ...params }, timeoutMs);
   } catch (e) {
     if (e instanceof CommandError) throw e;
     throw new CommandError('PAGE_NAVIGATED',
@@ -460,12 +482,14 @@ function summarize(session: SessionRecord, client: Client, tab: chrome.tabs.Tab 
     clientId: session.clientId ?? '',
     authorizationId: session.authorizationId,
     origin: session.origin,
+    origins: session.origins,
+    suspended: session.suspended,
     tabId: session.tabId,
     frameId: 0,
     documentId: session.documentId ?? '',
     mode: session.mode,
     generation: session.generation,
-    state: session.paused ? 'paused' : 'active',
+    state: session.suspended ? 'suspended' : session.paused ? 'paused' : 'active',
     paused: session.paused,
     owner: session.clientId === client.clientId ? 'you' : 'unclaimed',
     expiresAt: session.expiresAt,
@@ -505,7 +529,7 @@ async function gate(op: Operation, action: string): Promise<{ session: SessionRe
   try {
     checkGate(tab ? session : null, action, tab?.url);
   } catch (e) {
-    if (e instanceof CommandError && e.code === 'ORIGIN_MISMATCH') endSession(session, 'Left authorized site: access revoked');
+    if (e instanceof CommandError && e.code === 'ORIGIN_MISMATCH') suspendSession(session);
     if (e instanceof CommandError && e.code === 'AUTHORIZATION_EXPIRED') endSession(session, 'Authorization expired');
     throw e;
   }
@@ -606,7 +630,7 @@ async function confirmWithUser(op: Operation, session: SessionRecord, label: str
   }
   if (answer !== 'allow') {
     throw new CommandError('SUBMIT_NOT_CONFIRMED',
-      'The user did not confirm the submission within 60 seconds. Nothing was clicked. Ask them to confirm in the Browser Context MCP popup before trying again.');
+      'The user did not confirm the submission within 60 seconds. Nothing was clicked. Ask them to confirm in the TabGoblin popup before trying again.');
   }
 }
 
@@ -614,12 +638,12 @@ async function confirmWithUser(op: Operation, session: SessionRecord, label: str
 async function settle(session: SessionRecord, before: { url: string | undefined; docId: string | null; at: number }): Promise<object> {
   await sleep(250);
   const tab = await waitWhileLoading(session.tabId, 10000);
-  if (originOf(tab?.url) !== session.origin) {
-    endSession(session, 'Left authorized site: access revoked');
+  if (!inScope(session.origins, tab?.url)) {
+    suspendSession(session);
     return {
       navigation: 'left-origin',
       leftAuthorizedOrigin: true,
-      note: 'The tab went outside the authorized origin. The session has ended; the user must authorize again.',
+      note: 'The tab went outside the sites authorized for this session. The session is suspended: nothing can be read until the user clicks the TabGoblin icon on that tab and resumes it.',
     };
   }
   let navigation = 'none';
@@ -693,7 +717,7 @@ function trackLoad(tabId: number, timeoutMs: number): Promise<'complete' | 'time
 async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.Tab, params: Record<string, unknown>): Promise<object> {
   const history = typeof params.history === 'string' ? params.history : null;
   let requested: string | null = null;
-  if (!history) requested = resolveNavigation(String(params.url ?? ''), tab.url as string, session.origin);
+  if (!history) requested = resolveNavigation(String(params.url ?? ''), tab.url as string, session.origins);
   checkpoint(op);
   await ensureContentScript(session);
   const before = { url: tab.url, docId: session.documentId };
@@ -714,10 +738,19 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   const outcome = await loaded;
   const after = await getTab(session.tabId);
   // A redirect or a history entry can leave the origin even though the request looked fine.
-  if (originOf(after?.url) !== session.origin) {
-    endSession(session, 'Left authorized site: access revoked');
+  if (!inScope(session.origins, after?.url)) {
+    suspendSession(session);
+    if (requested && originOf(requested) !== originOf(tab.url)) {
+      // An authorized site of this session, but a different one: Chrome withdraws an extension's
+      // access whenever a tab changes site, and only a user click gives it back.
+      return {
+        navigation: 'needs-user',
+        suspended: true,
+        note: 'The tab moved to another site of this session. The session is suspended until the user clicks the TabGoblin icon on the tab and resumes it there.',
+      };
+    }
     throw new CommandError('ORIGIN_MISMATCH',
-      'The navigation ended outside the authorized origin (a redirect or an earlier page of another site). The session has ended; the user must authorize again.');
+      'The navigation ended outside the sites authorized for this session (a redirect or an earlier page of another site). The session is suspended until the user resumes it from the extension icon on that tab.');
   }
   let navigation = 'unknown';
   if (outcome === 'timeout') {
@@ -756,7 +789,7 @@ async function screenshot(op: Operation, session: SessionRecord): Promise<object
   }
   // captureVisibleTab captures whatever is in front. Discard the image if that changed meanwhile.
   const after = await getTab(session.tabId);
-  if (!after?.active || originOf(after.url) !== session.origin) {
+  if (!after?.active || !inScope(session.origins, after.url)) {
     throw new CommandError('SCREENSHOT_FAILED', 'The visible tab changed during capture, so the image was discarded.');
   }
   const comma = dataUrl.indexOf(',');
@@ -822,10 +855,21 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
 
   try {
     // PREPARED: every ref resolves and the policy allows it, before anything is touched.
-    const target = await page<ClickTarget>(op, session, 'submit_prepare',
-      { ref: request.ref, fields: request.fields.map((f) => f.ref), submissionId: id });
+    const prepared = await page<{ target: ClickTarget; digest: string | null }>(op, session, 'submit_prepare',
+      { ref: request.ref, fields: request.fields, submissionId: id });
+    const target = prepared.target;
     checkClick(session.mode, 'submit', target);
+    const repeatOf = prepared.digest === null ? undefined : session.submissions.find((s) =>
+      s.id !== id && s.digest === prepared.digest && Date.now() - s.time < DUPLICATE_WINDOW_MS
+      && (s.state === 'CONFIRMED' || s.state === 'UNCERTAIN' || s.state === 'SUBMITTING' || s.state === 'VERIFYING'));
+    if (repeatOf && !request.repeat) {
+      throw new CommandError('DUPLICATE_SUBMISSION',
+        `The same content was submitted here ${Math.round((Date.now() - repeatOf.time) / 1000)}s ago (${repeatOf.id}, ${repeatOf.state}). Nothing was sent or typed. Inspect the page first; pass repeat=true only if the user wants it sent again.`);
+    }
+    record.digest = prepared.digest;
     advance('PREPARED');
+    // The user decides before a single character is entered: declining leaves the page untouched.
+    await confirmWithUser(op, session, target.label);
 
     for (const field of request.fields) {
       const filled = await page<{ valueMatches: boolean }>(op, session, 'fill',
@@ -838,27 +882,14 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
     }
     advance('FILLED');
 
-    const prepared = await page<{ problems: string[]; baseline: SubmitBaseline; digest: string | null }>(
+    // The "before" picture, taken right before the click, plus the browser's own form validation.
+    const { problems, baseline } = await page<{ problems: string[]; baseline: SubmitBaseline }>(
       op, session, 'submit_baseline', { submissionId: id, expectText: request.expectText });
-    if (prepared.problems.length) {
+    if (problems.length) {
       return finish(
-        { state: 'FAILED', verified: null, evidence: prepared.problems.map((p) => `not submitted, the form rejects: ${p}`) },
+        { state: 'FAILED', verified: null, evidence: problems.map((p) => `not submitted, the form rejects: ${p}`) },
         { dispatched: false });
     }
-    const repeatOf = prepared.digest === null ? undefined : session.submissions.find((s) =>
-      s.id !== id && s.digest === prepared.digest && Date.now() - s.time < DUPLICATE_WINDOW_MS
-      && (s.state === 'CONFIRMED' || s.state === 'UNCERTAIN' || s.state === 'SUBMITTING' || s.state === 'VERIFYING'));
-    if (repeatOf && !request.repeat) {
-      forgetSubmission(session, id);
-      throw new CommandError('DUPLICATE_SUBMISSION',
-        `The same content was submitted here ${Math.round((Date.now() - repeatOf.time) / 1000)}s ago (${repeatOf.id}, ${repeatOf.state}). Nothing was sent. Inspect the page first; pass repeat=true only if the user wants it sent again.`);
-    }
-    record.digest = prepared.digest;
-    // The user is asked only now, when it is certain the submission would go out.
-    await confirmWithUser(op, session, target.label);
-    // They may have taken a while: take the "before" picture again right before the click.
-    const { baseline } = await page<{ baseline: SubmitBaseline }>(
-      op, session, 'submit_baseline', { submissionId: id, expectText: request.expectText });
     checkpoint(op); // last point at which the submission can still be cancelled
     advance('SUBMITTING');
 
@@ -876,7 +907,10 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
         { dispatched: true });
     }
     advance('VERIFYING');
-    const verdict = await verify(op, session, id, baseline, request.expectText);
+    // The agent's own texts, to recognise them on the page afterwards even across a navigation.
+    const submitted = request.fields.map((f) => f.text.trim())
+      .filter((t) => t.length >= 4 && !/^(true|false|on|off|yes|no|checked|unchecked)$/i.test(t));
+    const verdict = await verify(op, session, id, baseline, request.expectText, submitted);
     const where = sessionById(session.id) ? await settle(session, before) : { leftAuthorizedOrigin: true };
     return finish(verdict, { dispatched: true, ...(fired.note ? { clickNote: fired.note } : {}), ...where });
   } catch (e) {
@@ -888,18 +922,19 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
 /** Watches the page after the click until it shows a conclusive signal or the window closes. */
 async function verify(
   op: Operation, session: SessionRecord, id: string, baseline: SubmitBaseline, expectText: string | undefined,
+  submitted: string[],
 ): Promise<SubmitVerdict> {
   const started = Date.now();
   let verdict: SubmitVerdict = { state: 'UNCERTAIN', verified: null, evidence: ['the outcome could not be observed'] };
   await sleep(300);
   for (;;) {
     const tab = await waitWhileLoading(session.tabId, 8000);
-    if (!sessionById(session.id) || originOf(tab?.url) !== session.origin) {
-      if (sessionById(session.id)) endSession(session, 'Left authorized site: access revoked');
-      return { state: 'UNCERTAIN', verified: null, evidence: ['the tab left the authorized origin after submitting, so the result could not be read'] };
+    if (!sessionById(session.id) || session.suspended || !inScope(session.origins, tab?.url)) {
+      if (sessionById(session.id)) suspendSession(session);
+      return { state: 'UNCERTAIN', verified: null, evidence: ['the tab left the authorized sites after submitting, so the result could not be read'] };
     }
     try {
-      const signals = await page<SubmitSignals>(op, session, 'submit_observe', { submissionId: id, baseline, expectText }, 8000, true);
+      const signals = await page<SubmitSignals>(op, session, 'submit_observe', { submissionId: id, baseline, expectText, submitted }, 8000, true);
       verdict = judgeSubmission(signals, !!expectText);
     } catch {
       // The page may be between documents; look again until the window closes.
@@ -1114,7 +1149,14 @@ function connectPort(port: number): void {
 
   ws.onclose = (event) => {
     const wasPaired = client.authenticated;
-    if (event.code === CLOSE_UNAUTHORIZED) pairingFailed = true;
+    if (event.code === CLOSE_UNAUTHORIZED) {
+      pairingFailed = true;
+      // The token this extension holds was refused, typically because it was rotated. Other
+      // servers share it: a heartbeat makes each of them check now instead of in a while.
+      for (const other of clients.values()) {
+        if (other !== client && other.authenticated && other.ws.readyState === WebSocket.OPEN) other.ws.send('{"type":"ping"}');
+      }
+    }
     if (event.code === CLOSE_VERSION) versionMismatch = true;
     dropClient(client);
     if (wasPaired) {
@@ -1144,8 +1186,9 @@ function scan(force: boolean, minGapMs = 2500): void {
 
 function connectionStatus(): string {
   if (!config.token) return 'unpaired';
-  if ([...clients.values()].some((c) => c.authenticated)) return 'connected';
+  // A refused token needs the user's attention even while another server is still connected.
   if (pairingFailed) return 'pairing_failed';
+  if ([...clients.values()].some((c) => c.authenticated)) return 'connected';
   if (versionMismatch) return 'version_mismatch';
   return 'disconnected';
 }
@@ -1178,6 +1221,7 @@ function popupState(): object {
     blockedClients: persisted.blockedClients,
     sessions: persisted.sessions.map((s) => ({
       id: s.id, tabId: s.tabId, origin: s.origin, mode: s.mode, paused: s.paused, expiresAt: s.expiresAt,
+      origins: s.origins, suspended: s.suspended,
       clientId: s.clientId, clientName: s.clientName, ownerConnected: !!s.clientId && connected.has(s.clientId),
       lastSubmission: s.submissions.length ? s.submissions[s.submissions.length - 1].state : null,
     })),
@@ -1248,6 +1292,26 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
     case 'revoke':
       if (session) endSession(session, 'Access revoked by you');
       return;
+    case 'resumeSession':
+    case 'addOrigin': {
+      if (!session || !session.suspended) return;
+      // The tab's address is visible here only because the user just clicked the icon on that
+      // tab, which is also what gives Chrome's access to it back.
+      const tab = await getTab(session.tabId);
+      const origin = originOf(tab?.url);
+      if (!origin || msg.tabId !== session.tabId) {
+        throw new Error('Click the extension icon on the session\'s own tab to resume it.');
+      }
+      if (!session.origins.includes(origin)) {
+        if (msg.type !== 'addOrigin') throw new Error('This tab is on a site that is not part of the session.');
+        session.origins.push(origin);
+        noteActivity(session.id, 'Site added to the session by you');
+      }
+      session.suspended = false;
+      noteActivity(session.id, 'Session resumed by you');
+      pushState();
+      return;
+    }
     case 'disconnectClient': {
       const client = [...clients.values()].find((c) => c.clientId === msg.clientId);
       if (msg.clientId && !persisted.blockedClients.includes(msg.clientId)) persisted.blockedClients.push(msg.clientId);

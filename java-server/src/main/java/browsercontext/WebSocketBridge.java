@@ -152,7 +152,20 @@ public class WebSocketBridge extends WebSocketServer {
 
     /** Sends one command to the extension. Never retries. */
     public JsonNode send(String action, String session, JsonNode params, Duration timeout) {
+        dropStalePairings();
         return connection.request(action, session, params, timeout);
+    }
+
+    /** A rotated token ends existing pairings before the next command, not only at the next heartbeat. */
+    private void dropStalePairings() {
+        String current = token.get();
+        for (WebSocket conn : getConnections()) {
+            Peer peer = conn.getAttachment();
+            if (peer != null && peer.authenticated && !peer.tokenAtPairing.equals(current) && conn.isOpen()) {
+                Log.info("pairing ended reason=token_rotated");
+                conn.closeConnection(CLOSE_UNAUTHORIZED, "Pairing token changed");
+            }
+        }
     }
 
     private boolean originAllowed(String origin) {

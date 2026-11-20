@@ -356,6 +356,17 @@ class WebSocketBridgeTest {
             ext.send("{\"type\":\"ping\"}");
             assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, ext.closed.get(3, TimeUnit.SECONDS));
 
+            // The next command does not wait for a heartbeat: a stale pairing is dropped before it is used.
+            FakeExtension second = FakeExtension.paired(rotating.getPort(), rotated);
+            String again = Pairing.randomHex(32);
+            current.set(again);
+            BrowserException refused = assertThrows(BrowserException.class,
+                    () -> rotating.send("snapshot", "s1", null, SHORT));
+            assertEquals("NOT_CONNECTED", refused.code());
+            assertTrue(refused.getMessage().contains("pair the extension again"), refused.getMessage());
+            assertTrue(second.commands.isEmpty(), "nothing may be sent over a pairing made with an old token");
+            rotated = again;
+
             FakeExtension stale = new FakeExtension(rotating.getPort(), FakeExtension.ORIGIN, TOKEN);
             assertTrue(stale.connectBlocking(3, TimeUnit.SECONDS));
             assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, stale.closed.get(3, TimeUnit.SECONDS));
