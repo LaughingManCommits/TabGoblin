@@ -44,6 +44,9 @@ public final class BrowserService {
     private final ObjectMapper json;
     private final Duration defaultTimeout;
     private final String startupProblem;
+    /** How long the first call after a (re)start waits for the extension to find this server. */
+    private final Duration connectGrace;
+    private volatile boolean graceUsed;
     /** Outcome per submission id, so a repeated id is answered from memory instead of re-submitted. */
     private final Map<String, String> submissions = new LinkedHashMap<>() {
         @Override
@@ -53,14 +56,43 @@ public final class BrowserService {
     };
 
     public BrowserService(WebSocketBridge bridge, String startupProblem) {
-        this(bridge, startupProblem, Duration.ofSeconds(30));
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10));
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout) {
+        this(bridge, startupProblem, defaultTimeout, Duration.ZERO);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace) {
         this.bridge = bridge;
         this.json = bridge.json();
         this.startupProblem = startupProblem;
         this.defaultTimeout = defaultTimeout;
+        this.connectGrace = connectGrace;
+    }
+
+    /**
+     * An agent often calls a tool moments after its server started, before the extension has found
+     * the new server. Wait for that once, instead of reporting "not connected" too early.
+     */
+    private void awaitExtension() {
+        if (bridge.isExtensionConnected()) {
+            graceUsed = false;
+            return;
+        }
+        if (graceUsed || startupProblem != null) {
+            return;
+        }
+        graceUsed = true;
+        long deadline = System.nanoTime() + connectGrace.toNanos();
+        while (!bridge.isExtensionConnected() && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     ObjectMapper json() {
@@ -75,6 +107,7 @@ public final class BrowserService {
     /** Runs one tool. Never throws: failures come back as an error result with a stable code. */
     public ToolResult call(String tool, JsonNode args) {
         JsonNode a = args == null || !args.isObject() ? json.createObjectNode() : args;
+        awaitExtension();
         try {
             return switch (tool) {
                 case "browser_status" -> status(a);
@@ -123,7 +156,8 @@ public final class BrowserService {
             sb.append("Extension: not connected\n");
             sb.append("Listening on: ws://127.0.0.1:").append(bridge.getPort()).append('\n');
             sb.append("Ask the user to load the Browser Context MCP extension in Chrome, open its popup, ")
-                    .append("and pair it with this server's pairing token.");
+                    .append("and pair it with this server's pairing token. A paired extension finds a new server ")
+                    .append("within about 30 seconds, or at once when its popup is opened.");
             return ToolResult.ok(sb.toString());
         }
         ObjectNode p = json.createObjectNode();

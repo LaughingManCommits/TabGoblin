@@ -178,17 +178,32 @@ try {
   const row = (id, selector) => `.session[data-session="${id}"] ${selector}`;
   async function setMode(id, mode, agent = one) {
     const popup = await openPopup();
+    // Set in one step inside the page: the popup may rebuild a row between a lookup and a click.
     await popup.waitForSelector(row(id, '.mode'));
-    await popup.select(row(id, '.mode'), mode);
+    await popup.$eval(row(id, '.mode'), (el, value) => {
+      el.value = value;
+      el.dispatchEvent(new Event('change'));
+    }, mode);
     const label = { read: 'read only', explore: 'explore', write: 'read/write' }[mode];
     await until(async () => (await agent.tool('browser_status')).text.includes(`Session ${id}\n  Authorized origin`)
       && new RegExp(`Session ${id}\\n.*\\n  Access: ${label}`).test((await agent.tool('browser_status')).text), `${id} to be ${mode}`);
   }
+  /** Presses a session's Pause/Resume button until it reads `wanted`. */
   async function togglePause(id, wanted) {
     const popup = await openPopup();
-    await popup.waitForSelector(row(id, '.pause'));
-    await popup.click(row(id, '.pause'));
-    await popup.waitForFunction((sel, text) => document.querySelector(sel)?.textContent === text, {}, row(id, '.pause'), wanted);
+    const selector = row(id, '.pause');
+    const reads = (sel, text) => document.querySelector(sel)?.textContent === text;
+    for (let attempt = 0; ; attempt++) {
+      await popup.waitForSelector(selector);
+      if (await popup.evaluate(reads, selector, wanted)) return;
+      await popup.$eval(selector, (el) => el.click());
+      try {
+        await popup.waitForFunction(reads, { timeout: 5000 }, selector, wanted);
+        return;
+      } catch (e) {
+        if (attempt >= 2) throw e;
+      }
+    }
   }
   async function setConfirmation(on, agent = one) {
     const popup = await openPopup();
@@ -945,7 +960,7 @@ try {
   console.log('\nDisconnecting and recovering');
   await step('the user can disconnect one agent; the other keeps working', async () => {
     const popup = await openPopup();
-    await popup.click(`#agents li[data-client="${twoId}"] .disconnect`);
+    await popup.$eval(`#agents li[data-client="${twoId}"] .disconnect`, (el) => el.click());
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
     const refused = await two.tool('browser_snapshot');
     fails(refused, 'NOT_CONNECTED');
@@ -954,7 +969,8 @@ try {
     fails(await two.tool('browser_snapshot'), 'NOT_CONNECTED');
     ok(await one.tool('browser_snapshot', { session: sA }));
 
-    await popup.click('#agents .allow-agent');
+    await popup.waitForSelector('#agents .allow-agent');
+    await popup.$eval('#agents .allow-agent', (el) => el.click());
     await until(async () => !(await two.tool('browser_snapshot')).isError, 'the agent to be allowed back', 15000);
     has(ok(await two.tool('browser_snapshot')).text, 'Page: Notes App');
   });
@@ -979,9 +995,14 @@ try {
   });
   await step('the extension\'s service worker can be stopped and restarted without losing sessions', async () => {
     const before = (await one.tool('browser_status')).text;
+    await (await worker()).evaluate(() => { globalThis.__beforeRestart = true; });
     await (await worker()).close();
-    await until(async () => (await one.tool('browser_status')).text.includes('Extension: not connected'), 'the connection to drop');
     const popup = await openPopup(); // the popup's polling wakes the worker, which reconnects
+    // A worker without the marker is a new one: everything it knows came from storage.
+    await until(async () => {
+      const fresh = (await extension.workers())[0];
+      return fresh ? fresh.evaluate(() => globalThis.__beforeRestart !== true).catch(() => false) : false;
+    }, 'a fresh service worker', 20000);
     await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the worker to reconnect', 20000);
     await until(async () => !(await two.tool('browser_status')).text.includes('not connected'), 'the second agent to reconnect', 20000);
     const after = (await one.tool('browser_status')).text;
@@ -993,7 +1014,7 @@ try {
   });
   await step('revoking one session leaves the others; closing a tab ends its session', async () => {
     const popup = await openPopup();
-    await popup.click(row(sC, '.revoke'));
+    await popup.$eval(row(sC, '.revoke'), (el) => el.click());
     await until(async () => (await one.tool('browser_snapshot', { session: sC })).text.includes('Error [UNKNOWN_SESSION]'), 'revocation');
     has(ok(await one.tool('browser_snapshot')).text, 'Page: Demo Tracker: Issues');
     await pageB.close();

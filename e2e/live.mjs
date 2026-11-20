@@ -88,7 +88,7 @@ try {
         await popup.type('#token', token);
         await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
         await popup.click('#pair');
-        await popup.waitForFunction(() => document.getElementById('connection').textContent === 'Connected');
+        await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('agent connected'));
         paired = true;
       }
       await popup.waitForFunction(() => !document.getElementById('authorizeBox').hidden && !document.getElementById('authorize').disabled);
@@ -108,11 +108,13 @@ try {
       if (snap.isError) throw new Error(snap.text);
       const lines = snap.text.split('\n');
       const count = (re) => lines.filter((l) => re.test(l)).length;
-      console.log(`snapshot: ${lines.length} lines in ${snap.ms}ms (headings ${count(/\] Heading/)}, links ${count(/\] Link/)}, buttons ${count(/\] Button/)}, fields ${count(/\] (Textbox|Combobox|Checkbox|Radio)/)}, clickable ${count(/\] Clickable/)}, text ${count(/^Text:/)})`);
-      console.log(lines.slice(0, 16).map((l) => `    ${l.slice(0, 110)}`).join('\n'));
+      console.log(`snapshot: ${lines.length} lines in ${snap.ms}ms (headings ${count(/\] Heading/)}, links ${count(/\] Link/)}, buttons ${count(/\] Button/)}, fields ${count(/\] (Textbox|Combobox|Checkbox|Radio)/)}, clickable ${count(/\] Clickable/)}, text ${count(/^\s*(Text|Row):/)}, containers ${count(/\] (Navigation|Main|Section|List|Table|Article|Form|Banner|Footer)/)})`);
+      console.log(lines.slice(2, 22).map((l) => `    ${l.slice(0, 110)}`).join('\n'));
 
       const extract = await timed('browser_extract', { max_chars: 3000 });
-      console.log(`extract: ${extract.isError ? extract.text : extract.text.split('\n')[2]} in ${extract.ms}ms`);
+      console.log(`extract: ${extract.isError ? extract.text : extract.text.split('\n').filter((l) => /^(Text|Completeness):/.test(l)).join(' | ')} in ${extract.ms}ms`);
+      const outline = await timed('browser_extract', { outline: true });
+      console.log(`outline: ${outline.isError ? outline.text : outline.text.split('\n').find((l) => l.startsWith('Outline:'))} in ${outline.ms}ms`);
 
       const scroll = await mcp.tool('browser_scroll', { direction: 'down' });
       console.log(`scroll: ${scroll.text.replace(/\s+/g, ' ')}`);
@@ -122,18 +124,20 @@ try {
       const shot = await mcp.tool('browser_screenshot');
       console.log(`screenshot: ${shot.image ? `${shot.image.mimeType}, ${Math.round(shot.image.data.length * 0.75 / 1024)} KB` : shot.text}`);
 
-      const field = lines.find((l) => /^\[\d+\] Textbox/.test(l) && !/read-only|disabled|value hidden/.test(l));
+      const field = lines.find((l) => /^\s*\[\d+\] Textbox/.test(l) && !/read-only|disabled|value hidden/.test(l));
       if (field) {
-        const fill = await mcp.tool('browser_fill', { ref: Number(/^\[(\d+)\]/.exec(field)[1]), text: 'hello from the agent' });
-        console.log(`fill ${field.slice(0, 60)}: ${fill.text.replace(/\s+/g, ' ')}`);
+        const fill = await mcp.tool('browser_fill', { ref: Number(/^\s*\[(\d+)\]/.exec(field)[1]), text: 'hello from the agent' });
+        console.log(`fill ${field.trim().slice(0, 60)}: ${fill.text.replace(/\s+/g, ' ')}`);
       } else {
         console.log('fill: no text box in the snapshot');
       }
 
-      const link = lines.find((l) => /^\[\d+\] Link: .+ -> \/[^#]/.test(l) && !l.includes('(external'));
+      const link = lines.find((l) => /^\s*\[\d+\] Link: .+ -> \/[^#]/.test(l) && !l.includes('(external') && !l.includes('new tab'));
       if (link) {
-        const click = await mcp.tool('browser_click', { ref: Number(/^\[(\d+)\]/.exec(link)[1]) });
-        console.log(`click ${link.slice(0, 70)}: ${click.text.replace(/\s+/g, ' ').slice(0, 200)}`);
+        const click = await mcp.tool('browser_click', { ref: Number(/^\s*\[(\d+)\]/.exec(link)[1]) });
+        console.log(`click ${link.trim().slice(0, 70)}: ${click.text.replace(/\s+/g, ' ').slice(0, 200)}`);
+        const back = await mcp.tool('browser_navigate', { history: 'back' });
+        console.log(`back: ${back.text.replace(/\s+/g, ' ').slice(0, 160)}`);
         const after = await mcp.tool('browser_snapshot', { interactive_only: true });
         console.log(`after click: ${after.isError ? after.text : after.text.split('\n').slice(0, 2).join(' | ')}`);
       }

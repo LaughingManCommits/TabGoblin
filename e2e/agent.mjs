@@ -110,7 +110,8 @@ function runAgent(prompt, allowed, configPath, cwd) {
         }
         if (event.type === 'user' && block.type === 'tool_result') {
           const text = JSON.stringify(block.content ?? '');
-          if (text.includes('Not shown:')) cues.add('"Not shown" line');
+          const completeness = /Completeness: (PARTIAL|TRUNCATED|BLOCKED|UNKNOWN)/.exec(text);
+          if (completeness) cues.add(`Completeness: ${completeness[1]}`);
           if (text.includes('shows only the visible viewport')) cues.add('screenshot coverage note');
           if (text.includes('loadedMore')) cues.add('loadedMore on scroll');
           if (text.includes('More below:')) cues.add('"More below" scroll line');
@@ -138,7 +139,7 @@ const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(
 const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' }))[1];
 const configPath = join(work, 'mcp.json');
 writeFileSync(configPath, JSON.stringify({ mcpServers: { [SERVER]: { command: 'java', args: serverArgs } } }));
-const demo = await startDemo(0, 0);
+const demo = await startDemo(0, 0, 0);
 let browser;
 let failed = 0;
 
@@ -185,11 +186,13 @@ try {
       await popup.click('#pair');
       paired = true;
     }
-    // Same tab and origin as the previous task: it is still authorized, only the access level changes.
-    await popup.waitForFunction(() => !document.getElementById('accessRow').hidden
-      || (!document.getElementById('authorizeBox').hidden && !document.getElementById('authorize').disabled));
-    if (await popup.$eval('#authorizeBox', (el) => el.hidden)) {
-      await popup.select('#access', task.access);
+    // Same tab and origin as the previous task: its session is still there, only the access level changes.
+    const sessionHere = () => [...document.querySelectorAll('.session')]
+      .find((row) => [...row.querySelectorAll('.chip')].some((c) => c.textContent === 'this tab'))?.dataset.session;
+    await popup.waitForFunction(`(${sessionHere})() || (!document.getElementById('authorizeBox').hidden && !document.getElementById('authorize').disabled)`);
+    const existing = await popup.evaluate(sessionHere);
+    if (existing) {
+      await popup.select(`.session[data-session="${existing}"] .mode`, task.access);
     } else {
       await popup.select('#newAccess', task.access);
       await popup.click('#authorize');

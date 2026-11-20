@@ -347,7 +347,9 @@ export function containerOf(el: Element): { role: string; name: string } | null 
       return { role: 'List', name: items ? `${items} item${items === 1 ? '' : 's'}` : '' };
     }
     case 'table': {
+      // Tables used only for layout are not a level of structure; data tables announce themselves.
       const caption = el.querySelector('caption');
+      if (!caption && !ariaName(el) && !el.querySelector('th, thead')) return null;
       return { role: 'Table', name: ariaName(el) || (caption ? clip(norm(ownText(caption)), MAX_NAME) : '') };
     }
     case 'blockquote': return { role: 'Quote', name: '' };

@@ -30,6 +30,7 @@ const DUPLICATE_WINDOW_MS = 120_000;
 const VERIFY_WINDOW_MS = 6000;
 const COMMANDS_PER_SECOND = 20;
 const COMMAND_BURST = 40;
+const REF_RANGE_SIZE = 100_000;
 
 interface Config {
   token: string;
@@ -54,6 +55,8 @@ interface SubmissionRecord {
 interface SessionRecord extends SessionAuth {
   /** Highest element ref handed out so far; new documents continue after it. */
   refHigh: number;
+  /** Which block of ref numbers this session draws from. Live sessions never share one. */
+  refRange: number;
   /** Identity of the document last seen in the tab; refs do not survive a change. */
   documentId: string | null;
   generation: number;
@@ -76,6 +79,8 @@ interface Persisted {
   activitySeq: number;
   /** Agents the user disconnected; they are refused until allowed again. */
   blockedClients: string[];
+  /** Highest ref ever used in each block, so a number is never handed out twice in a browser run. */
+  refRanges: number[];
   /** Recent operations: ids, types, durations and error codes only. */
   diagnostics: { session: string | null; action: string; ms: number; code: string }[];
 }
@@ -109,7 +114,7 @@ interface Operation {
 }
 
 let config: Config = { token: '', port: DEFAULT_PORT, confirmSubmissions: true, indicator: true };
-let persisted: Persisted = { sessions: [], sessionSeq: 0, activity: [], activitySeq: 0, blockedClients: [], diagnostics: [] };
+let persisted: Persisted = { sessions: [], sessionSeq: 0, activity: [], activitySeq: 0, blockedClients: [], refRanges: [], diagnostics: [] };
 const clients = new Map<number, Client>();
 const operations = new Map<string, Operation>();
 const queues = new Map<string, Promise<void>>();
@@ -136,7 +141,9 @@ const ready: Promise<void> = (async () => {
   };
   const saved = (await chrome.storage.session.get('state')).state as Persisted | undefined;
   if (saved) {
-    persisted = saved;
+    // Tolerate state written by an earlier version of this extension in the same browser run.
+    persisted = { ...persisted, ...saved };
+    persisted.sessions.forEach((s, i) => { s.refRange ??= i; });
     // Anything still "running" or mid-submission belonged to a worker that no longer exists.
     persisted.activity = persisted.activity.filter((a) => a.status !== 'running');
     for (const session of persisted.sessions) {
@@ -254,6 +261,10 @@ async function authorize(tabId: number, mode: Mode, clientId: string | null, min
   // One authorization per tab: a new one replaces the old.
   const existing = persisted.sessions.find((s) => s.tabId === tabId);
   if (existing) endSession(existing, 'Replaced by a new authorization');
+  // Each live session numbers its refs in its own block, so a ref from one tab never resolves in
+  // another; a block is taken up again where it left off, so numbers stay small and never repeat.
+  let refRange = 0;
+  while (persisted.sessions.some((s) => s.refRange === refRange)) refRange++;
   const session: SessionRecord = {
     id: `s${++persisted.sessionSeq}`,
     authorizationId: crypto.randomUUID(),
@@ -264,8 +275,8 @@ async function authorize(tabId: number, mode: Mode, clientId: string | null, min
     clientId: owner ? owner.clientId : null,
     clientName: owner ? owner.name : null,
     expiresAt: minutes ? Date.now() + minutes * 60_000 : null,
-    // Each session numbers its refs in its own range, so a ref from one tab never resolves in another.
-    refHigh: (persisted.sessionSeq - 1) * 100_000,
+    refHigh: Math.max(persisted.refRanges[refRange] ?? 0, refRange * REF_RANGE_SIZE),
+    refRange,
     documentId: null,
     generation: 0,
     submissions: [],
@@ -326,6 +337,10 @@ chrome.tabs.onCreated.addListener((tab) => {
   if (tab.openerTabId !== undefined) newTabs.set(tab.openerTabId, Date.now());
 });
 
+// The user being active in the browser is a good moment to look for a server that has just
+// been started, without waiting for the next alarm.
+chrome.tabs.onActivated.addListener(() => scan(false, 10000));
+
 // ---------------------------------------------------------------- talking to the page
 
 interface PageReply {
@@ -368,7 +383,10 @@ async function waitWhileLoading(tabId: number, maxMs: number): Promise<chrome.ta
 
 function noteDocument(session: SessionRecord, reply: PageReply | undefined): void {
   if (!reply) return;
-  if (typeof reply.highestRef === 'number' && reply.highestRef > session.refHigh) session.refHigh = reply.highestRef;
+  if (typeof reply.highestRef === 'number' && reply.highestRef > session.refHigh) {
+    session.refHigh = reply.highestRef;
+    persisted.refRanges[session.refRange] = reply.highestRef;
+  }
   if (typeof reply.docId === 'string' && reply.docId !== session.documentId) session.documentId = reply.docId;
   if (typeof reply.generation === 'number') session.generation = reply.generation;
 }
@@ -1113,12 +1131,12 @@ function connectPort(port: number): void {
  * the first free port, but other software may hold ports in between, so the whole range is tried.
  * Throttled, because the popup asks for it while it is open.
  */
-function scan(force: boolean): void {
+function scan(force: boolean, minGapMs = 2500): void {
   void ready.then(() => {
     // A wrong token will not fix itself: wait for the user to pair again.
     if (!config.token || pairingFailed) return;
     const now = Date.now();
-    if (!force && now - lastScan < 2500) return;
+    if (!force && now - lastScan < minGapMs) return;
     lastScan = now;
     for (let port = config.port; port < config.port + PORT_RANGE; port++) connectPort(port);
   });
@@ -1307,4 +1325,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onInstalled.addListener(() => scan(true));
 chrome.runtime.onStartup.addListener(() => scan(true));
 void chrome.alarms.create('reconnect', { periodInMinutes: 0.5 });
+// While at least one agent is connected the worker is awake anyway: find further agents quickly.
+setInterval(() => {
+  if ([...clients.values()].some((c) => c.authenticated)) scan(false);
+}, 3000);
 scan(true);
