@@ -171,8 +171,53 @@ can reach.
 | "This tab cannot be authorized" | Browser pages and the Web Store are off limits | Use a normal `http(s)` page |
 | Screenshot refused | The tab is not the visible one in its window | Bring the tab to the front |
 | The page stopped responding | A native `alert` or `confirm` dialog is open | Dismiss the dialog |
+| The jar "hangs" in a terminal | Run without `--show-token` it starts a server and waits | Press Ctrl+C; see [Stopping](#8-stopping) |
 
-## 8. Settings
+## 8. Stopping
+
+**Stopping what an agent is doing.** In the popup: **Pause** on a session stops the agent in that
+tab at once, **Revoke** ends the session, and **Disconnect** next to an agent cuts that agent off
+from every tab until you allow it again. None of these stop the server; they do not need to.
+
+**Stopping a server.** A server belongs to the agent that started it and exits by itself when
+that agent closes or disconnects from it. Normally there is nothing to stop: close the IDE or end
+the CLI session, and its server is gone a moment later.
+
+**A server you started by hand.** If you run the jar in a terminal without `--show-token` or
+`--rotate-token`, it starts a server and waits for an agent to talk to it through that terminal.
+It says so, and how to stop it:
+
+```text
+TabGoblin MCP server, running on 127.0.0.1:47821.
+It is normally started by your agent (IDE or CLI), which talks to it through this input and output. …
+Press Ctrl+C to stop it. Other uses: --show-token, --rotate-token, --help.
+```
+
+Press **Ctrl+C**. `--show-token`, `--rotate-token` and `--help` print and return on their own;
+there is nothing to stop.
+
+**A server that is left over.** If a port stays taken after its agent is gone, or Ctrl+C does
+nothing because the terminal does not pass it on (some IDE terminals do not), find the server and
+end it:
+
+```powershell
+# Windows (PowerShell): list the servers with their ports, then stop one by its process id
+Get-NetTCPConnection -State Listen -LocalPort (47821..47828) -ErrorAction SilentlyContinue |
+  Select-Object LocalPort, OwningProcess
+Stop-Process -Id <OwningProcess>
+```
+
+```sh
+# macOS and Linux
+lsof -nP -iTCP:47821-47828 -sTCP:LISTEN
+kill <PID>
+```
+
+Each line is one agent's server; the popup shows the same ports next to the agents. Stopping a
+server only disconnects its agent: sessions, the pairing and the token are kept, and the agent
+starts a new server the next time it needs one.
+
+## 9. Settings
 
 | Setting | Where | Default |
 |---|---|---|
