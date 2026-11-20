@@ -2,73 +2,115 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Browser Context MCP</title>
+  <title>TabGoblin</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <header>
-    <div class="title">
-      <strong>Browser Context MCP</strong>
-      <span id="dot" class="dot" aria-hidden="true"></span>
-    </div>
-    <div id="connection" class="muted">Connecting…</div>
-  </header>
-
-  <section id="pairing" hidden>
-    <h2>Pair with the local server</h2>
-    <p class="muted">Run <code>java -jar browser-context-mcp.jar --show-token</code> and paste the token here.</p>
-    <label for="token">Pairing token</label>
-    <input id="token" type="password" autocomplete="off" spellcheck="false">
-    <label for="port">Port</label>
-    <input id="port" type="number" min="1" max="65535">
-    <button id="pair" class="primary">Save and connect</button>
-  </section>
-
-  <section id="confirm" class="confirm" hidden>
-    <h2>Allow this submission?</h2>
-    <p>The agent wants to submit by clicking <strong id="confirmLabel"></strong>.</p>
-    <div class="row">
-      <button id="allow" class="primary">Allow</button>
-      <button id="deny">Deny</button>
-    </div>
-  </section>
-
-  <section>
-    <h2>Origin</h2>
-    <div id="origin" class="origin">Not authorized</div>
-    <div id="accessRow" class="row" hidden>
-      <label for="access">Access</label>
-      <select id="access">
-        <option value="read">Read</option>
-        <option value="write">Read / Write</option>
-      </select>
-    </div>
-    <div id="authorizeBox" hidden>
-      <p id="authorizeHint" class="muted"></p>
-      <div class="row">
-        <select id="newAccess" aria-label="Access to grant">
-          <option value="read">Read</option>
-          <option value="write">Read / Write</option>
-        </select>
-        <button id="authorize" class="primary">Authorize</button>
+  <header class="masthead">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 128 128" aria-hidden="true">
+        <rect width="128" height="128" rx="30" fill="var(--logo-bg)"/>
+        <path d="M32 64 6 38l36 6zM96 64l26-26-36 6z" fill="var(--logo-ear)"/>
+        <path d="M64 28c-22 0-38 15-38 36 0 22 16 38 38 38s38-16 38-38c0-21-16-36-38-36z" fill="var(--logo-skin)"/>
+        <ellipse cx="50" cy="62" rx="9" ry="10" fill="var(--logo-bg)"/>
+        <ellipse cx="78" cy="62" rx="9" ry="10" fill="var(--logo-bg)"/>
+        <circle cx="53" cy="59" r="3" fill="#f4fff8"/>
+        <circle cx="81" cy="59" r="3" fill="#f4fff8"/>
+        <path d="M48 82c5 6 27 6 32 0" stroke="var(--logo-bg)" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="m58 85 3 7 3-6z" fill="#f4fff8"/>
+      </svg>
+      <div>
+        <div class="name">TabGoblin</div>
+        <div class="tagline">Agents in your tabs, on your terms</div>
       </div>
     </div>
-    <label class="check">
-      <input id="confirmSubmissions" type="checkbox">
-      Ask me before the agent submits anything
-    </label>
-  </section>
+    <div class="status">
+      <span id="dot" class="dot" aria-hidden="true"></span>
+      <span id="connection">Connecting…</span>
+    </div>
+  </header>
 
-  <section>
-    <h2>Agent Activity</h2>
-    <ul id="activity" class="activity"></ul>
-  </section>
+  <main>
+    <section id="pairing" class="card" hidden>
+      <h2>Pair with the local server</h2>
+      <p class="muted">Run <code>java -jar browser-context-mcp.jar --show-token</code> and paste the token here.</p>
+      <label for="token">Pairing token</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false">
+      <label for="port">First port</label>
+      <input id="port" type="number" min="1" max="65527">
+      <div class="row top">
+        <button id="pair" class="primary">Save and connect</button>
+        <button id="forget">Forget pairing</button>
+      </div>
+    </section>
 
-  <p id="error" class="error" hidden></p>
+    <section id="confirm" class="card confirm" hidden>
+      <h2 id="confirmTitle">Allow this submission?</h2>
+      <p>The agent wants to submit by clicking <strong id="confirmLabel"></strong> in session <span id="confirmSession" class="sid"></span>.</p>
+      <div class="row">
+        <button id="allow" class="primary">Allow</button>
+        <button id="deny">Deny</button>
+      </div>
+    </section>
 
-  <footer class="row">
-    <button id="pause">Pause</button>
-    <button id="revoke">Revoke</button>
+    <!-- Ordered by how often it is needed: the popup window is short, the rest scrolls. -->
+    <section class="card">
+      <h2>Sessions</h2>
+      <div id="sessions"></div>
+      <div id="resumeBox" class="callout" hidden>
+        <p id="resumeHint"></p>
+        <div class="row">
+          <button id="resume" class="primary">Resume</button>
+          <button id="addOrigin" class="primary">Add this site</button>
+        </div>
+      </div>
+      <div id="authorizeBox" class="callout" hidden>
+        <p id="authorizeHint"></p>
+        <div class="row">
+          <select id="newAccess" aria-label="Access to grant">
+            <option value="read">Read</option>
+            <option value="explore">Explore</option>
+            <option value="write">Read / Write</option>
+          </select>
+          <select id="newExpiry" aria-label="How long">
+            <option value="0">Until revoked</option>
+            <option value="60">1 hour</option>
+            <option value="480">8 hours</option>
+          </select>
+        </div>
+        <select id="newAgent" aria-label="Agent" hidden></select>
+        <button id="authorize" class="primary">Authorize</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="heading">
+        <h2>Activity</h2>
+        <button id="clearActivity" class="link">Clear</button>
+      </div>
+      <ul id="activity" class="activity"></ul>
+    </section>
+
+    <section id="agentsSection" class="card" hidden>
+      <h2>Agents</h2>
+      <ul id="agents" class="list"></ul>
+    </section>
+
+    <section class="card settings">
+      <label class="check">
+        <input id="confirmSubmissions" type="checkbox">
+        <span>Ask me before the agent submits anything</span>
+      </label>
+      <label class="check">
+        <input id="indicator" type="checkbox">
+        <span>Show an indicator in the page while the agent works</span>
+      </label>
+    </section>
+
+    <p id="error" class="error" hidden></p>
+  </main>
+
+  <footer>
     <button id="settings" class="link">Connection…</button>
   </footer>
 

@@ -1,0 +1,5 @@
+{
+  "navigation" : "new-document",
+  "url" : "http://127.0.0.1:8933/guide.html",
+  "title" : "Widget Guide"
+}

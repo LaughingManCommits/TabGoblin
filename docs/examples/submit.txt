@@ -1,0 +1,12 @@
+{
+  "submissionId" : "sub-4f2a9c1e7b3d",
+  "state" : "CONFIRMED",
+  "verified" : "content",
+  "evidence" : [ "the expected text is now visible on the page", "the submitted fields were cleared", "status message appeared: \"Comment posted. Total posts: 1\"" ],
+  "steps" : [ "PREPARED", "FILLED", "SUBMITTING", "VERIFYING", "CONFIRMED" ],
+  "dispatched" : true,
+  "navigated" : false,
+  "navigation" : "none",
+  "url" : "http://127.0.0.1:8931/",
+  "title" : "Demo Tracker: Issues"
+}

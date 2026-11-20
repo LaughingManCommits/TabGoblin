@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Live example</title></head>
+<body style="font: 14px system-ui, sans-serif; margin: 8px">
+  <p>Frame example: the widget renders here.</p>
+  <button type="button" id="run">Run example</button>
+  <span id="out"></span>
+  <script>
+    document.getElementById('run').addEventListener('click', () => {
+      document.getElementById('out').textContent = 'Example ran inside the frame.';
+    });
+  </script>
+</body>
+</html>

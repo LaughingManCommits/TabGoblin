@@ -110,7 +110,8 @@ function runAgent(prompt, allowed, configPath, cwd) {
         }
         if (event.type === 'user' && block.type === 'tool_result') {
           const text = JSON.stringify(block.content ?? '');
-          if (text.includes('Not shown:')) cues.add('"Not shown" line');
+          const completeness = /Completeness: (PARTIAL|TRUNCATED|BLOCKED|UNKNOWN)/.exec(text);
+          if (completeness) cues.add(`Completeness: ${completeness[1]}`);
           if (text.includes('shows only the visible viewport')) cues.add('screenshot coverage note');
           if (text.includes('loadedMore')) cues.add('loadedMore on scroll');
           if (text.includes('More below:')) cues.add('"More below" scroll line');
@@ -138,7 +139,7 @@ const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(
 const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' }))[1];
 const configPath = join(work, 'mcp.json');
 writeFileSync(configPath, JSON.stringify({ mcpServers: { [SERVER]: { command: 'java', args: serverArgs } } }));
-const demo = await startDemo(0, 0);
+const demo = await startDemo(0, 0, 0);
 let browser;
 let failed = 0;
 
@@ -185,15 +186,22 @@ try {
       await popup.click('#pair');
       paired = true;
     }
-    // Same tab and origin as the previous task: it is still authorized, only the access level changes.
-    await popup.waitForFunction(() => !document.getElementById('accessRow').hidden
-      || (!document.getElementById('authorizeBox').hidden && !document.getElementById('authorize').disabled));
-    if (await popup.$eval('#authorizeBox', (el) => el.hidden)) {
-      await popup.select('#access', task.access);
-    } else {
+    // On the site of the previous task the tab's session is still there and only the access level
+    // changes. On another site that session is suspended, and the tab is authorized afresh.
+    await sleep(1000); // one refresh of the popup's state
+    const authorizable = await popup.$eval('#authorizeBox', (el) => !el.hidden);
+    if (authorizable) {
+      await popup.waitForFunction(() => !document.getElementById('authorize').disabled);
       await popup.select('#newAccess', task.access);
       await popup.click('#authorize');
       await popup.waitForFunction(() => document.getElementById('authorizeBox').hidden);
+    } else {
+      const existing = await popup.evaluate(() => [...document.querySelectorAll('.session')]
+        .find((row) => [...row.querySelectorAll('.chip')].some((c) => c.textContent === 'this tab')).dataset.session);
+      await popup.$eval(`.session[data-session="${existing}"] .mode`, (el, value) => {
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
+      }, task.access);
     }
     await sleep(300);
     await page.bringToFront();

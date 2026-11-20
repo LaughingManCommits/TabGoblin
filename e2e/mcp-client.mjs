@@ -3,7 +3,9 @@
 import { spawn } from 'node:child_process';
 
 export class McpClient {
-  constructor(command, args) {
+  /** @param name how this client introduces itself to the server (shown as the agent's name) */
+  constructor(command, args, name = 'bcmcp-e2e') {
+    this.name = name;
     this.proc = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     this.stderr = '';
     this.stdoutNoise = [];
@@ -59,7 +61,7 @@ export class McpClient {
     const result = await this.request('initialize', {
       protocolVersion: '2025-06-18',
       capabilities: {},
-      clientInfo: { name: 'bcmcp-e2e', version: '0.1.0' },
+      clientInfo: { name: this.name, version: '0.2.0' },
     });
     this.notify('notifications/initialized');
     return result;

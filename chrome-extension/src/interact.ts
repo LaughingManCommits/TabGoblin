@@ -1,10 +1,11 @@
-// Generic page interactions: click, fill, scroll, wait. Pure DOM code (no chrome.*).
+// Generic page interactions: click, fill, type, keys, scroll, wait. Pure DOM code (no chrome.*).
 // Nothing here knows about any particular website, and nothing evaluates agent-supplied code.
 
+import { visibleText } from './extract.ts';
 import { looksLikeSubmission, type ClickTarget } from './policy.ts';
 import {
-  DomError, accessibleName, isDisabled, isScrollable, isSensitiveField, isVisible, mainScroller, norm, roleOf,
-  visibleText, type RefRegistry,
+  DomError, accessibleName, checkedState, isDisabled, isEditingHost, isScrollable, isSensitiveField, isVisible,
+  mainScroller, norm, roleOf, type PageState, type RefRegistry,
 } from './snapshot.ts';
 
 function viewOf(el: Element): Window & typeof globalThis {
@@ -13,11 +14,6 @@ function viewOf(el: Element): Window & typeof globalThis {
 
 function inputType(el: Element): string {
   return (el.getAttribute('type') || '').toLowerCase();
-}
-
-function isEditingHost(el: Element): boolean {
-  const v = el.getAttribute('contenteditable');
-  return v !== null && v.toLowerCase() !== 'false';
 }
 
 /** A GET form that is explicitly a search box: submitting it only reads. */
@@ -31,6 +27,7 @@ export function describeClickTarget(el: Element): ClickTarget {
   const tag = el.localName;
   const type = inputType(el);
   const label = accessibleName(el).slice(0, 60);
+  const role = roleOf(el);
   let readSafe = false;
   let externalLink = false;
   let submit: ClickTarget['submit'] = null;
@@ -43,6 +40,7 @@ export function describeClickTarget(el: Element): ClickTarget {
   } else if (tag === 'summary') {
     readSafe = true;
   }
+  const disclosure = tag === 'summary' || el.hasAttribute('aria-expanded') || role === 'Tab';
 
   const form = (el as HTMLButtonElement).form ?? null;
   const submitsForm = (tag === 'button' && (type === 'submit' || type === '') && !!form)
@@ -52,11 +50,10 @@ export function describeClickTarget(el: Element): ClickTarget {
   } else {
     // Outside a form only the label hints at a submission. Apply that guess to button-like
     // controls only: tabs, links, checkboxes and options with such words are navigation or state.
-    const role = roleOf(el);
     const buttonLike = role === 'Button' || role === 'Menuitem' || role === null;
     if (buttonLike && !readSafe && looksLikeSubmission(label)) submit = 'likely';
   }
-  return { readSafe, externalLink, submit, label };
+  return { readSafe, disclosure, externalLink, submit, label };
 }
 
 export interface ClickResult {
@@ -64,7 +61,7 @@ export interface ClickResult {
   note?: string;
 }
 
-/** Dispatches a full pointer/mouse click sequence at the element's centre. */
+/** Dispatches a full pointer/mouse click sequence at the element's centre. Cannot be undone. */
 export function clickElement(el: Element): ClickResult {
   if (isDisabled(el)) {
     throw new DomError('ELEMENT_DISABLED', 'The element is disabled, so it was not clicked.');
@@ -103,7 +100,7 @@ export function clickElement(el: Element): ClickResult {
 
 export interface FillResult {
   filled: true;
-  /** Whether the field now holds exactly the requested text (masks and formatters may alter it). */
+  /** Whether the field now holds exactly the requested content (masks and formatters may alter it). */
   valueMatches: boolean;
   note?: string;
 }
@@ -112,11 +109,13 @@ const SETTABLE_INPUT_TYPES = new Set([
   '', 'text', 'search', 'email', 'url', 'tel', 'number',
   'date', 'time', 'datetime-local', 'month', 'week', 'color', 'range',
 ]);
+/** Types where text can be typed key by key (date pickers and the like take a whole value). */
+const TYPEABLE_INPUT_TYPES = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'number']);
 
-function fireInput(el: Element, text: string): void {
+function fireInput(el: Element, text: string, inputType = 'insertText'): void {
   const view = viewOf(el);
   const InputEv = view.InputEvent ?? view.Event;
-  el.dispatchEvent(new InputEv('input', { bubbles: true, composed: true, inputType: 'insertText', data: text } as InputEventInit));
+  el.dispatchEvent(new InputEv('input', { bubbles: true, composed: true, inputType, data: text } as InputEventInit));
 }
 
 function fireChange(el: Element): void {
@@ -132,15 +131,84 @@ function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: strin
   else el.value = value;
 }
 
-/** Enters text into an input, textarea, select or basic contenteditable element. */
-export function fillElement(el: Element, text: string, append: boolean): FillResult {
-  const tag = el.localName;
-  const html = el as HTMLElement;
+const KEY_CODES: Record<string, [code: string, keyCode: number]> = {
+  Enter: ['Enter', 13], Escape: ['Escape', 27], Tab: ['Tab', 9], ' ': ['Space', 32],
+  Backspace: ['Backspace', 8], Delete: ['Delete', 46],
+  ArrowUp: ['ArrowUp', 38], ArrowDown: ['ArrowDown', 40], ArrowLeft: ['ArrowLeft', 37], ArrowRight: ['ArrowRight', 39],
+  Home: ['Home', 36], End: ['End', 35], PageUp: ['PageUp', 33], PageDown: ['PageDown', 34],
+};
+
+/** Dispatches one keyboard event; returns false if a handler cancelled it. */
+function fireKey(el: Element, type: 'keydown' | 'keypress' | 'keyup', key: string, shift = false): boolean {
+  const view = viewOf(el);
+  const known = KEY_CODES[key];
+  const code = known ? known[0] : /^[a-z]$/i.test(key) ? `Key${key.toUpperCase()}` : /^\d$/.test(key) ? `Digit${key}` : '';
+  const keyCode = known ? known[1] : key.toUpperCase().charCodeAt(0);
+  // keyCode/which are legacy, but many sites still read them.
+  const init = { key, code, keyCode, which: keyCode, shiftKey: shift, bubbles: true, cancelable: true, composed: true, view };
+  return el.dispatchEvent(new view.KeyboardEvent(type, init as KeyboardEventInit));
+}
+
+function placeCaret(el: Element, selectAll: boolean): boolean {
+  const doc = el.ownerDocument;
+  const selection = doc.getSelection?.();
+  if (!selection) return false;
+  const range = doc.createRange();
+  range.selectNodeContents(el);
+  if (!selectAll) range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
+/** Inserts text into an editing host through the browser's editing pipeline, with a plain fallback. */
+function insertIntoEditable(el: Element, text: string): void {
+  const doc = el.ownerDocument;
+  const inserted = typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, text);
+  if (!inserted) {
+    el.textContent = (el.textContent ?? '') + text;
+    fireInput(el, text);
+  }
+}
+
+function assertWritable(el: Element): void {
   if (isSensitiveField(el)) {
     throw new DomError('SENSITIVE_FIELD', 'Password and other credential fields cannot be filled by the agent. The user must type into them.');
   }
   if (isDisabled(el) || (el as HTMLInputElement).readOnly === true) {
     throw new DomError('ELEMENT_DISABLED', 'The field is disabled or read-only.');
+  }
+}
+
+/** Sets a checkbox, radio button or switch to the wanted state; does nothing if it is already there. */
+function setChecked(el: Element, wanted: boolean): FillResult {
+  const current = checkedState(el);
+  if (current === wanted) return { filled: true, valueMatches: true, note: 'It already had that state; nothing was clicked.' };
+  if (!wanted && roleOf(el) === 'Radio') {
+    throw new DomError('UNSUPPORTED_ELEMENT', 'A radio button cannot be unchecked; choose another option of its group instead.');
+  }
+  clickElement(el);
+  return checkedState(el) === wanted
+    ? { filled: true, valueMatches: true }
+    : { filled: true, valueMatches: false, note: 'The control did not change state after the click. Take a snapshot to check.' };
+}
+
+/**
+ * Enters content into a form control: text into inputs, textareas and contenteditable regions, an
+ * option into a select, true/false into a checkbox, radio button or switch.
+ */
+export function fillElement(el: Element, text: string, append: boolean, method: 'set' | 'type' = 'set'): FillResult {
+  const tag = el.localName;
+  const html = el as HTMLElement;
+  assertWritable(el);
+
+  if (checkedState(el) !== null) {
+    const wanted = /^(true|on|yes|checked|1)$/i.test(text.trim()) ? true
+      : /^(false|off|no|unchecked|0)$/i.test(text.trim()) ? false : null;
+    if (wanted === null) {
+      throw new DomError('UNSUPPORTED_ELEMENT', 'This is a checkbox, radio button or switch: fill it with "true" or "false", or toggle it with browser_click.');
+    }
+    return setChecked(el, wanted);
   }
 
   if (tag === 'select') {
@@ -162,14 +230,28 @@ export function fillElement(el: Element, text: string, append: boolean): FillRes
   if (tag === 'input' || tag === 'textarea') {
     const type = tag === 'input' ? inputType(el) : '';
     if (tag === 'input' && !SETTABLE_INPUT_TYPES.has(type)) {
-      const hint = type === 'checkbox' || type === 'radio' ? ' Use browser_click to toggle it.' : '';
-      throw new DomError('UNSUPPORTED_ELEMENT', `Input type "${type}" cannot be filled with text.${hint}`);
+      throw new DomError('UNSUPPORTED_ELEMENT', `Input type "${type}" cannot be filled with text.`);
     }
     const field = el as HTMLInputElement | HTMLTextAreaElement;
     const value = append ? field.value + text : text;
     html.focus?.({ preventScroll: true });
-    setNativeValue(field, value);
-    fireInput(el, text);
+    if (method === 'type' && (tag === 'textarea' || TYPEABLE_INPUT_TYPES.has(type))) {
+      if (!append && field.value) {
+        setNativeValue(field, '');
+        fireInput(el, '', 'deleteContentBackward');
+      }
+      for (const char of text) {
+        if (fireKey(el, 'keydown', char)) {
+          fireKey(el, 'keypress', char);
+          setNativeValue(field, field.value + char);
+          fireInput(el, char);
+        }
+        fireKey(el, 'keyup', char);
+      }
+    } else {
+      setNativeValue(field, value);
+      fireInput(el, text);
+    }
     fireChange(el);
     const matches = field.value === value;
     return matches
@@ -178,23 +260,37 @@ export function fillElement(el: Element, text: string, append: boolean): FillRes
   }
 
   if (isEditingHost(el)) {
-    const doc = el.ownerDocument;
     const before = el.textContent ?? '';
     html.focus?.({ preventScroll: true });
-    let inserted = false;
-    const selection = doc.getSelection?.();
-    if (selection && typeof doc.execCommand === 'function') {
-      const range = doc.createRange();
-      range.selectNodeContents(el);
-      if (append) range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
+    const selected = placeCaret(el, !append);
+    if (!append && !selected) el.textContent = '';
+    if (method === 'type') {
+      if (!append && selected && before) {
+        const doc = el.ownerDocument;
+        if (!(typeof doc.execCommand === 'function' && doc.execCommand('delete'))) el.textContent = '';
+      }
+      for (const char of text) {
+        if (fireKey(el, 'keydown', char)) {
+          fireKey(el, 'keypress', char);
+          insertIntoEditable(el, char);
+        }
+        fireKey(el, 'keyup', char);
+      }
+    } else if (!text) {
+      // Clearing: remove the selected content.
+      const doc = el.ownerDocument;
+      if (!(selected && typeof doc.execCommand === 'function' && doc.execCommand('delete'))) {
+        el.textContent = append ? before : '';
+        fireInput(el, '', 'deleteContentBackward');
+      }
+    } else {
       // Goes through the browser's editing pipeline, which rich-text editors listen to.
-      inserted = doc.execCommand('insertText', false, text);
-    }
-    if (!inserted) {
-      el.textContent = append ? before + text : text;
-      fireInput(el, text);
+      const doc = el.ownerDocument;
+      const inserted = selected && typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, text);
+      if (!inserted) {
+        el.textContent = append ? before + text : text;
+        fireInput(el, text);
+      }
     }
     const expected = norm(append ? before + text : text);
     const matches = norm(el.textContent) === expected;
@@ -205,6 +301,105 @@ export function fillElement(el: Element, text: string, append: boolean): FillRes
 
   throw new DomError('UNSUPPORTED_ELEMENT',
     'This element is not a standard text field, select or editable region. Custom editors and widgets cannot be filled generically.');
+}
+
+/** What pressing Enter here would mean, so the policy can treat a form submission as one. */
+export function describeKeyTarget(el: Element, key: string): { submit: 'form' | null; label: string } {
+  const label = accessibleName(el).slice(0, 60);
+  if (key !== 'Enter' || el.localName !== 'input') return { submit: null, label };
+  const form = (el as HTMLInputElement).form;
+  if (!form || !SETTABLE_INPUT_TYPES.has(inputType(el)) || isSearchForm(form)) return { submit: null, label };
+  return { submit: 'form', label };
+}
+
+function tabbables(doc: Document): HTMLElement[] {
+  const selector = 'a[href], button, input, select, textarea, summary, [tabindex], [contenteditable]';
+  return (Array.from(doc.querySelectorAll(selector)) as HTMLElement[]).filter((el) =>
+    el.tabIndex >= 0 && !isDisabled(el) && inputType(el) !== 'hidden' && isVisible(el));
+}
+
+export interface KeyResult {
+  dispatched: true;
+  /** What the key did beyond the page's own handlers, if anything. */
+  effect: string;
+}
+
+/**
+ * Presses one key on an element (or the focused one). Synthetic key events do not trigger the
+ * browser's built-in behaviour, so the common defaults are carried out here: activation, form
+ * submission, focus movement, text entry.
+ */
+export function pressKey(doc: Document, target: Element | null, key: string): KeyResult {
+  const shift = key === 'Shift+Tab';
+  const name = shift ? 'Tab' : key;
+  const el = target ?? doc.activeElement ?? doc.body;
+  const html = el as HTMLElement;
+  if (target && typeof html.focus === 'function') html.focus({ preventScroll: true });
+  const tag = el.localName;
+  const type = inputType(el);
+  const textField = (tag === 'input' && TYPEABLE_INPUT_TYPES.has(type)) || tag === 'textarea';
+  const printable = [...name].length === 1;
+  // Keys that would change a field's content are subject to the same rules as filling it.
+  if ((printable || name === 'Backspace') && (tag === 'input' || tag === 'textarea' || isEditingHost(el))) assertWritable(el);
+
+  const allowed = fireKey(el, 'keydown', name, shift);
+  let effect = allowed ? 'none beyond the page\'s own key handlers' : 'the page handled the key itself';
+  if (allowed) {
+    if (printable || name === 'Enter') fireKey(el, 'keypress', name, shift);
+    const role = roleOf(el);
+    const activatable = role === 'Button' || role === 'Link' || role === 'Toggle' || role === 'Tab' || role === 'Menuitem';
+    if (name === 'Enter' && tag === 'input' && (el as HTMLInputElement).form && SETTABLE_INPUT_TYPES.has(type)) {
+      const form = (el as HTMLInputElement).form as HTMLFormElement;
+      if (typeof form.requestSubmit === 'function') form.requestSubmit();
+      else form.dispatchEvent(new (viewOf(el).Event)('submit', { bubbles: true, cancelable: true }));
+      effect = 'submitted the form';
+    } else if ((name === 'Enter' && activatable) || (name === ' ' && (activatable || checkedState(el) !== null))) {
+      if (isDisabled(el)) throw new DomError('ELEMENT_DISABLED', 'The element is disabled.');
+      html.click?.();
+      effect = 'activated the element';
+    } else if (name === 'Enter' && tag === 'textarea') {
+      const field = el as HTMLTextAreaElement;
+      setNativeValue(field, field.value + '\n');
+      fireInput(el, '\n', 'insertLineBreak');
+      effect = 'inserted a line break';
+    } else if (name === 'Enter' && isEditingHost(el)) {
+      const ok = typeof doc.execCommand === 'function' && doc.execCommand('insertParagraph');
+      effect = ok ? 'inserted a new paragraph' : effect;
+    } else if (name === 'Tab') {
+      const order = tabbables(el.ownerDocument);
+      const index = order.indexOf(html);
+      const next = order.length ? order[(index + (shift ? -1 : 1) + order.length) % order.length] : null;
+      if (next) {
+        next.focus({ preventScroll: false });
+        effect = `moved focus to ${roleOf(next) ?? 'the next element'}: ${accessibleName(next).slice(0, 60) || '(unnamed)'}`;
+      }
+    } else if (printable && textField) {
+      const field = el as HTMLInputElement;
+      setNativeValue(field, field.value + name);
+      fireInput(el, name);
+      effect = 'typed the character';
+    } else if (printable && isEditingHost(el)) {
+      placeCaret(el, false);
+      insertIntoEditable(el, name);
+      effect = 'typed the character';
+    } else if (name === 'Backspace' && textField) {
+      const field = el as HTMLInputElement;
+      setNativeValue(field, field.value.slice(0, -1));
+      fireInput(el, '', 'deleteContentBackward');
+      effect = 'deleted the last character';
+    } else if ((name === 'ArrowDown' || name === 'ArrowUp') && tag === 'select') {
+      const select = el as HTMLSelectElement;
+      const index = Math.min(Math.max(select.selectedIndex + (name === 'ArrowDown' ? 1 : -1), 0), select.options.length - 1);
+      if (index !== select.selectedIndex) {
+        select.selectedIndex = index;
+        fireInput(el, select.value);
+        fireChange(el);
+      }
+      effect = 'moved the selection';
+    }
+  }
+  fireKey(el, 'keyup', name, shift);
+  return { dispatched: true, effect };
 }
 
 export interface ScrollResult {
@@ -224,7 +419,9 @@ export interface ScrollResult {
 const SCROLL_SETTLE_MS = 350;
 
 /** Scrolls the page, or the given element (into view if it is not itself scrollable). */
-export async function scrollPage(doc: Document, direction: string, amount: number | undefined, target: Element | null): Promise<ScrollResult> {
+export async function scrollPage(
+  doc: Document, direction: string, amount: number | undefined, target: Element | null, state?: PageState,
+): Promise<ScrollResult> {
   const view = doc.defaultView as Window;
   const root = doc.scrollingElement ?? doc.documentElement;
   let scroller: Element = root;
@@ -282,6 +479,9 @@ export async function scrollPage(doc: Document, direction: string, amount: numbe
   if (scroller.scrollHeight > heightBefore + 40) {
     result.loadedMore = true;
     result.note = 'The page loaded more content after this scroll. Read again (browser_extract or browser_snapshot) and keep scrolling until nothing new loads.';
+    if (state) state.reachedEnd = false;
+  } else if (state && kind !== 'element-into-view' && result.atBottom) {
+    state.reachedEnd = true;
   }
   return result;
 }
@@ -307,34 +507,47 @@ export function viewportCoverage(doc: Document): string {
     + `Not in the image: ${top}px above and ${below}px below. Use browser_scroll and capture again to see more, or browser_extract to read all of the text at once.`;
 }
 
+export type WaitCondition = 'visible' | 'gone' | 'enabled' | 'disabled';
+
 export interface WaitParams {
   text?: string;
   ref?: number;
-  gone?: boolean;
+  condition: WaitCondition;
   timeoutMs: number;
+  /** Set `cancelled` to stop waiting early. */
+  signal?: { cancelled: boolean };
 }
 
-/** Bounded wait for visible text, or for a referenced element to be visible (or gone). */
+/** Bounded wait for a UI condition: visible text, or an element becoming visible, gone, enabled or disabled. */
 export async function waitFor(doc: Document, registry: RefRegistry, params: WaitParams): Promise<{ satisfied: true; elapsedMs: number }> {
   const needle = params.text ? norm(params.text).toLowerCase() : null;
   const timeoutMs = Math.min(Math.max(params.timeoutMs, 0), 30000);
   const started = Date.now();
-  const present = (): boolean => {
+  const element = (): Element | null => registry.peek(params.ref as number);
+  const met = (): boolean => {
     if (needle !== null) {
-      return !!doc.body && norm(visibleText(doc.body)).toLowerCase().includes(needle);
+      const present = !!doc.body && norm(visibleText(doc.body)).toLowerCase().includes(needle);
+      return params.condition === 'gone' ? !present : present;
     }
-    const el = registry.peek(params.ref as number);
-    return !!el && isVisible(el);
+    const el = element();
+    const visible = !!el && isVisible(el);
+    switch (params.condition) {
+      case 'gone': return !visible;
+      case 'enabled': return visible && !isDisabled(el as Element);
+      case 'disabled': return visible && isDisabled(el as Element);
+      default: return visible;
+    }
   };
-  if (needle === null && !params.gone && registry.peek(params.ref as number) === null) {
+  if (needle === null && params.condition !== 'gone' && element() === null) {
     throw new DomError('STALE_REF', `Ref [${params.ref}] is not known in this document. Call browser_snapshot first.`);
   }
   for (;;) {
-    if (present() !== !!params.gone) return { satisfied: true, elapsedMs: Date.now() - started };
+    if (params.signal?.cancelled) throw new DomError('CANCELLED', 'The wait was cancelled.');
+    if (met()) return { satisfied: true, elapsedMs: Date.now() - started };
     if (Date.now() - started >= timeoutMs) {
       const what = needle !== null ? 'The text' : `Ref [${params.ref}]`;
-      throw new DomError('WAIT_TIMEOUT',
-        `${what} ${params.gone ? 'was still visible' : 'did not become visible'} within ${timeoutMs}ms.`);
+      const wanted = params.condition === 'gone' ? 'was still visible' : `did not become ${params.condition}`;
+      throw new DomError('WAIT_TIMEOUT', `${what} ${wanted} within ${timeoutMs}ms.`);
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }

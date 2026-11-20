@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { clickElement, describeClickTarget, fillElement, waitFor } from '../src/interact.ts';
-import { DomError, RefRegistry, takeSnapshot } from '../src/snapshot.ts';
+import {
+  clickElement, describeClickTarget, describeKeyTarget, fillElement, pressKey, waitFor,
+} from '../src/interact.ts';
+import { DomError, PageState, takeSnapshot } from '../src/snapshot.ts';
 import { page, refOf } from './helpers.ts';
 
 function errorCode(fn: () => unknown): string {
@@ -23,9 +25,9 @@ test('a ref from the snapshot resolves to the element and click reaches its hand
   }
   button.addEventListener('click', () => { doc.getElementById('out')!.textContent = 'clicked'; });
 
-  const registry = new RefRegistry();
-  const snap = takeSnapshot(doc, registry).text;
-  const result = clickElement(registry.resolve(refOf(snap, 'Button: Go')));
+  const state = new PageState();
+  const snap = takeSnapshot(doc, state).text;
+  const result = clickElement(state.registry.resolve(refOf(snap, 'Button: Go')));
   assert.deepEqual(result, { dispatched: true });
   assert.deepEqual(events, ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
   assert.equal(doc.getElementById('out')!.textContent, 'clicked');
@@ -53,15 +55,41 @@ test('fill sets inputs and textareas and fires the events frameworks listen for'
 
   fillElement(input, ' Lovelace', true);
   assert.equal(input.value, 'Ada Lovelace');
+  fillElement(input, '', false);
+  assert.equal(input.value, '', 'empty text clears the field');
 
   const note = doc.getElementById('note') as HTMLTextAreaElement;
   fillElement(note, 'line 1\nline 2', false);
   assert.equal(note.value, 'line 1\nline 2');
 });
 
-test('fill selects options by label or value, and edits contenteditable regions', () => {
+test('typing sends key events per character, and a handler can refuse a key', () => {
+  const { doc } = page('<input id="q" value="x"><input id="digits">');
+  const input = doc.getElementById('q') as HTMLInputElement;
+  const events: string[] = [];
+  for (const type of ['keydown', 'keypress', 'input', 'keyup']) {
+    input.addEventListener(type, (e) => events.push(`${type}:${(e as KeyboardEvent).key ?? input.value}`));
+  }
+  assert.equal(fillElement(input, 'ab', false, 'type').valueMatches, true);
+  assert.equal(input.value, 'ab');
+  assert.deepEqual(events.slice(-8), [
+    'keydown:a', 'keypress:a', 'input:a', 'keyup:a',
+    'keydown:b', 'keypress:b', 'input:ab', 'keyup:b',
+  ]);
+
+  const digits = doc.getElementById('digits') as HTMLInputElement;
+  digits.addEventListener('keydown', (e) => { if (!/\d/.test(e.key)) e.preventDefault(); });
+  const result = fillElement(digits, '1a2', false, 'type');
+  assert.equal(digits.value, '12');
+  assert.equal(result.valueMatches, false, 'the field dropped a character and that is reported');
+});
+
+test('fill selects options, sets checkboxes and radios, and edits contenteditable regions', () => {
   const { doc } = page(`
     <select id="s"><option value="lo">Low</option><option value="hi">High</option></select>
+    <input type="checkbox" id="cb">
+    <input type="radio" name="r" id="r1" checked><input type="radio" name="r" id="r2">
+    <div role="switch" aria-checked="false" id="sw">Dark</div>
     <div id="e" contenteditable="true">draft</div>
   `);
   const select = doc.getElementById('s') as HTMLSelectElement;
@@ -74,6 +102,24 @@ test('fill selects options by label or value, and edits contenteditable regions'
   assert.equal(changed, 2);
   assert.equal(errorCode(() => fillElement(select, 'Medium', false)), 'OPTION_NOT_FOUND');
 
+  const cb = doc.getElementById('cb') as HTMLInputElement;
+  let clicks = 0;
+  cb.addEventListener('click', () => clicks++);
+  assert.equal(fillElement(cb, 'true', false).valueMatches, true);
+  assert.equal(cb.checked, true);
+  assert.match(fillElement(cb, 'true', false).note ?? '', /already had that state/);
+  assert.equal(clicks, 1, 'setting the state it already has does not click');
+  fillElement(cb, 'false', false);
+  assert.equal(cb.checked, false);
+  assert.equal(errorCode(() => fillElement(cb, 'maybe', false)), 'UNSUPPORTED_ELEMENT');
+
+  fillElement(doc.getElementById('r2')!, 'true', false);
+  assert.equal((doc.getElementById('r2') as HTMLInputElement).checked, true);
+  assert.equal(errorCode(() => fillElement(doc.getElementById('r2')!, 'false', false)), 'UNSUPPORTED_ELEMENT');
+
+  // A custom switch that ignores the click is reported, not assumed.
+  assert.equal(fillElement(doc.getElementById('sw')!, 'true', false).valueMatches, false);
+
   const editor = doc.getElementById('e')!;
   let inputs = 0;
   editor.addEventListener('input', () => inputs++);
@@ -81,7 +127,9 @@ test('fill selects options by label or value, and edits contenteditable regions'
   assert.equal(editor.textContent, 'final text');
   fillElement(editor, '!', true);
   assert.equal(editor.textContent, 'final text!');
-  assert.ok(inputs >= 2);
+  fillElement(editor, '', false);
+  assert.equal(editor.textContent, '');
+  assert.ok(inputs >= 3);
 });
 
 test('fill refuses password and credential fields, read-only fields and non-text elements', () => {
@@ -91,31 +139,33 @@ test('fill refuses password and credential fields, read-only fields and non-text
     <input autocomplete="cc-number" id="cc">
     <input id="ro" readonly value="fixed">
     <input id="dis" disabled>
-    <input type="checkbox" id="cb">
     <input type="file" id="file">
     <button id="btn">B</button>
     <p id="p">text</p>
   `);
   const el = (id: string): Element => doc.getElementById(id)!;
-  assert.equal(errorCode(() => fillElement(el('pw'), 'x', false)), 'SENSITIVE_FIELD');
-  assert.equal(errorCode(() => fillElement(el('otp'), '123456', false)), 'SENSITIVE_FIELD');
-  assert.equal(errorCode(() => fillElement(el('cc'), '4111', false)), 'SENSITIVE_FIELD');
-  assert.equal(errorCode(() => fillElement(el('ro'), 'x', false)), 'ELEMENT_DISABLED');
-  assert.equal(errorCode(() => fillElement(el('dis'), 'x', false)), 'ELEMENT_DISABLED');
-  assert.equal(errorCode(() => fillElement(el('cb'), 'x', false)), 'UNSUPPORTED_ELEMENT');
+  for (const method of ['set', 'type'] as const) {
+    assert.equal(errorCode(() => fillElement(el('pw'), 'x', false, method)), 'SENSITIVE_FIELD');
+    assert.equal(errorCode(() => fillElement(el('otp'), '123456', false, method)), 'SENSITIVE_FIELD');
+    assert.equal(errorCode(() => fillElement(el('cc'), '4111', false, method)), 'SENSITIVE_FIELD');
+    assert.equal(errorCode(() => fillElement(el('ro'), 'x', false, method)), 'ELEMENT_DISABLED');
+    assert.equal(errorCode(() => fillElement(el('dis'), 'x', false, method)), 'ELEMENT_DISABLED');
+  }
   assert.equal(errorCode(() => fillElement(el('file'), 'C:\\secret.txt', false)), 'UNSUPPORTED_ELEMENT');
   assert.equal(errorCode(() => fillElement(el('btn'), 'x', false)), 'UNSUPPORTED_ELEMENT');
   assert.equal(errorCode(() => fillElement(el('p'), 'x', false)), 'UNSUPPORTED_ELEMENT');
+  assert.equal(errorCode(() => pressKey(doc, el('pw'), 'a')), 'SENSITIVE_FIELD', 'keys cannot type into a password field either');
   assert.equal((el('pw') as HTMLInputElement).value, 'keep');
   assert.equal((el('ro') as HTMLInputElement).value, 'fixed');
 });
 
-test('click targets are classified: links, toggles, form submissions, likely submissions', () => {
+test('click targets are classified: links, expanders, form submissions, likely submissions', () => {
   const { doc } = page(`
     <a id="same" href="/next">Next</a>
     <a id="ext" href="https://other.example/">Elsewhere</a>
     <a id="js" href="javascript:void(0)">Run</a>
     <details><summary id="sum">More</summary>x</details>
+    <button id="exp" type="button" aria-expanded="false">Show statistics</button>
     <form method="post" action="/save">
       <button id="implicit">Save</button>
       <button id="plain" type="button">Preview</button>
@@ -124,16 +174,17 @@ test('click targets are classified: links, toggles, form submissions, likely sub
     <form role="search"><input type="search"><button id="search">Search</button></form>
     <form><input name="comment"><button id="getform">Add</button></form>
     <button id="del" type="button">Delete draft</button>
-    <button id="show" type="button">Show statistics</button>
     <div id="tab" role="tab">Archive</div>
     <div id="divbtn" role="button">Publish</div>
   `);
   const d = (id: string) => describeClickTarget(doc.getElementById(id)!);
-  assert.deepEqual(d('same'), { readSafe: true, externalLink: false, submit: null, label: 'Next' });
+  assert.deepEqual(d('same'), { readSafe: true, disclosure: false, externalLink: false, submit: null, label: 'Next' });
   assert.equal(d('ext').externalLink, true);
   assert.equal(d('ext').readSafe, false);
   assert.equal(d('js').readSafe, false, 'javascript: links are controls, not navigation');
-  assert.equal(d('sum').readSafe, true);
+  assert.deepEqual([d('sum').readSafe, d('sum').disclosure], [true, true]);
+  assert.deepEqual([d('exp').disclosure, d('exp').submit], [true, null]);
+  assert.deepEqual([d('tab').disclosure, d('tab').submit], [true, null], 'tabs are navigation even when the label sounds like an action');
   assert.equal(d('implicit').submit, 'form', 'a button in a form submits by default');
   assert.equal(d('isub').submit, 'form');
   assert.equal(d('plain').submit, null);
@@ -141,30 +192,96 @@ test('click targets are classified: links, toggles, form submissions, likely sub
   assert.equal(d('getform').submit, 'form', 'other forms are submissions even without method=post');
   assert.equal(d('del').submit, 'likely');
   assert.equal(d('divbtn').submit, 'likely');
-  assert.equal(d('show').submit, null);
-  assert.equal(d('tab').submit, null, 'tabs are navigation even when the label sounds like an action');
-  for (const id of ['implicit', 'plain', 'del', 'show', 'divbtn', 'tab']) assert.equal(d(id).readSafe, false, id);
+  for (const id of ['implicit', 'plain', 'del', 'divbtn']) assert.equal(d(id).disclosure, false, id);
 });
 
-test('wait_for resolves when text appears or an element shows, and is bounded', async () => {
-  const { doc } = page('<p id="status">Loading</p><button id="later" style="display:none">Later</button><button id="now">Now</button>');
-  const registry = new RefRegistry();
-  const snap = takeSnapshot(doc, registry).text;
+test('keys carry out their usual effect: activate, submit, move focus, type, delete', () => {
+  const { doc } = page(`
+    <button id="b">Go</button>
+    <form id="f"><input id="q" value="ab"><input id="other"></form>
+    <textarea id="t">one</textarea>
+    <div id="menu" tabindex="0">Menu</div>
+    <select id="s"><option>A</option><option>B</option></select>
+  `);
+  let clicked = 0;
+  let submitted = 0;
+  doc.getElementById('b')!.addEventListener('click', () => clicked++);
+  doc.getElementById('f')!.addEventListener('submit', (e) => { e.preventDefault(); submitted++; });
+
+  assert.equal(pressKey(doc, doc.getElementById('b'), 'Enter').effect, 'activated the element');
+  pressKey(doc, doc.getElementById('b'), ' ');
+  assert.equal(clicked, 2);
+
+  const q = doc.getElementById('q') as HTMLInputElement;
+  assert.equal(pressKey(doc, q, 'Enter').effect, 'submitted the form');
+  assert.equal(submitted, 1);
+  pressKey(doc, q, 'c');
+  assert.equal(q.value, 'abc');
+  pressKey(doc, q, 'Backspace');
+  assert.equal(q.value, 'ab');
+
+  assert.match(pressKey(doc, q, 'Tab').effect, /moved focus to Textbox/);
+  assert.equal(doc.activeElement, doc.getElementById('other'));
+  pressKey(doc, null, 'Shift+Tab');
+  assert.equal(doc.activeElement, q, 'without a ref the focused element receives the key');
+
+  const t = doc.getElementById('t') as HTMLTextAreaElement;
+  pressKey(doc, t, 'Enter');
+  assert.equal(t.value, 'one\n');
+
+  const s = doc.getElementById('s') as HTMLSelectElement;
+  pressKey(doc, s, 'ArrowDown');
+  assert.equal(s.value, 'B');
+
+  // A key the page handles itself is left to the page.
+  const menu = doc.getElementById('menu')!;
+  const seen: string[] = [];
+  menu.addEventListener('keydown', (e) => { seen.push(`${e.key}:${e.keyCode}`); e.preventDefault(); });
+  assert.equal(pressKey(doc, menu, 'Escape').effect, 'the page handled the key itself');
+  assert.deepEqual(seen, ['Escape:27']);
+});
+
+test('Enter in a form field is recognised as a submission before it is pressed', () => {
+  const { doc } = page(`
+    <form method="post"><input id="title"><textarea id="body"></textarea></form>
+    <form role="search"><input id="q" type="search"></form>
+    <input id="loose">
+  `);
+  const d = (id: string, key = 'Enter') => describeKeyTarget(doc.getElementById(id)!, key).submit;
+  assert.equal(d('title'), 'form');
+  assert.equal(d('title', 'Tab'), null);
+  assert.equal(d('body'), null, 'Enter in a textarea is a line break');
+  assert.equal(d('q'), null, 'an explicit GET search form only reads');
+  assert.equal(d('loose'), null);
+});
+
+test('wait_for resolves on text, visibility and enabled state, is bounded, and can be cancelled', async () => {
+  const { doc } = page('<p id="status">Loading</p><button id="now">Now</button><button id="save" disabled>Save</button>');
+  const state = new PageState();
+  const registry = state.registry;
+  const snap = takeSnapshot(doc, state).text;
 
   setTimeout(() => { doc.getElementById('status')!.textContent = 'All done'; }, 150);
-  const appeared = await waitFor(doc, registry, { text: 'all DONE', timeoutMs: 2000 });
-  assert.equal(appeared.satisfied, true);
-
-  const gone = await waitFor(doc, registry, { text: 'Loading', gone: true, timeoutMs: 500 });
-  assert.equal(gone.satisfied, true);
-
-  await assert.rejects(waitFor(doc, registry, { text: 'never shown', timeoutMs: 250 }),
+  assert.equal((await waitFor(doc, registry, { text: 'all DONE', condition: 'visible', timeoutMs: 2000 })).satisfied, true);
+  assert.equal((await waitFor(doc, registry, { text: 'Loading', condition: 'gone', timeoutMs: 500 })).satisfied, true);
+  await assert.rejects(waitFor(doc, registry, { text: 'never shown', condition: 'visible', timeoutMs: 250 }),
     (e: unknown) => e instanceof DomError && e.code === 'WAIT_TIMEOUT');
 
+  const save = refOf(snap, 'Button: Save');
+  assert.equal((await waitFor(doc, registry, { ref: save, condition: 'disabled', timeoutMs: 300 })).satisfied, true);
+  setTimeout(() => { (doc.getElementById('save') as HTMLButtonElement).disabled = false; }, 150);
+  assert.equal((await waitFor(doc, registry, { ref: save, condition: 'enabled', timeoutMs: 2000 })).satisfied, true);
+
   const now = refOf(snap, 'Button: Now');
-  assert.equal((await waitFor(doc, registry, { ref: now, timeoutMs: 300 })).satisfied, true);
   setTimeout(() => doc.getElementById('now')!.remove(), 100);
-  assert.equal((await waitFor(doc, registry, { ref: now, gone: true, timeoutMs: 2000 })).satisfied, true);
-  await assert.rejects(waitFor(doc, registry, { ref: 4242, timeoutMs: 100 }),
+  assert.equal((await waitFor(doc, registry, { ref: now, condition: 'gone', timeoutMs: 2000 })).satisfied, true);
+  await assert.rejects(waitFor(doc, registry, { ref: 4242, condition: 'visible', timeoutMs: 100 }),
     (e: unknown) => e instanceof DomError && e.code === 'STALE_REF');
+
+  const signal = { cancelled: false };
+  setTimeout(() => { signal.cancelled = true; }, 150);
+  const started = Date.now();
+  await assert.rejects(waitFor(doc, registry, { text: 'never shown', condition: 'visible', timeoutMs: 20000, signal }),
+    (e: unknown) => e instanceof DomError && e.code === 'CANCELLED');
+  assert.ok(Date.now() - started < 2000, 'a cancelled wait stops promptly');
 });
