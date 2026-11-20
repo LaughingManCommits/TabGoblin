@@ -79,3 +79,38 @@ jobs:
       - name: Run the end-to-end suite
         working-directory: e2e
         run: npm test
+
+  # Text entry into real rich-text and code editors, checked against each editor's own model.
+  editors:
+    name: Editors
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            chrome-extension/package-lock.json
+            e2e/package-lock.json
+            e2e/editors/package-lock.json
+      - name: Build the server
+        run: mvn -B -f java-server/pom.xml package -DskipTests
+      - name: Build the extension
+        working-directory: chrome-extension
+        run: |
+          npm ci
+          npm run build
+      - name: Install the test runner and the editors
+        run: |
+          npm ci --prefix e2e
+          npm ci --prefix e2e/editors
+      - name: Run the editor lab
+        working-directory: e2e/editors
+        run: npm test

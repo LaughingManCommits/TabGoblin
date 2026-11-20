@@ -84,13 +84,12 @@ test('typing sends key events per character, and a handler can refuse a key', ()
   assert.equal(result.valueMatches, false, 'the field dropped a character and that is reported');
 });
 
-test('fill selects options, sets checkboxes and radios, and edits contenteditable regions', () => {
+test('fill selects options and sets checkboxes, radios and switches', () => {
   const { doc } = page(`
     <select id="s"><option value="lo">Low</option><option value="hi">High</option></select>
     <input type="checkbox" id="cb">
     <input type="radio" name="r" id="r1" checked><input type="radio" name="r" id="r2">
     <div role="switch" aria-checked="false" id="sw">Dark</div>
-    <div id="e" contenteditable="true">draft</div>
   `);
   const select = doc.getElementById('s') as HTMLSelectElement;
   let changed = 0;
@@ -119,17 +118,6 @@ test('fill selects options, sets checkboxes and radios, and edits contenteditabl
 
   // A custom switch that ignores the click is reported, not assumed.
   assert.equal(fillElement(doc.getElementById('sw')!, 'true', false).valueMatches, false);
-
-  const editor = doc.getElementById('e')!;
-  let inputs = 0;
-  editor.addEventListener('input', () => inputs++);
-  assert.equal(fillElement(editor, 'final text', false).valueMatches, true);
-  assert.equal(editor.textContent, 'final text');
-  fillElement(editor, '!', true);
-  assert.equal(editor.textContent, 'final text!');
-  fillElement(editor, '', false);
-  assert.equal(editor.textContent, '');
-  assert.ok(inputs >= 3);
 });
 
 test('fill refuses password and credential fields, read-only fields and non-text elements', () => {

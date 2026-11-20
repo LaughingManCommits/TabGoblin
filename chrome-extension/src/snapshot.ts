@@ -101,6 +101,49 @@ function hiddenSubtree(el: Element, cs: CSSStyleDeclaration): boolean {
   return false;
 }
 
+/** Whether the element takes text through an EditContext: editors that draw their own text. */
+function hasEditContext(el: Element): boolean {
+  return !!(el as unknown as { editContext?: unknown }).editContext;
+}
+
+const EDITOR_SEARCH_DEPTH = 4;
+
+/**
+ * Code editors often take the keyboard through an element the user never sees: a tiny or
+ * transparent textarea, or an EditContext host without a box of its own. For such an element this
+ * returns the visible box the user thinks of as the editor; for everything else, null.
+ *
+ * A hidden field that a form submits is not one of these: an editor's keyboard input has no name,
+ * stays reachable by keyboard, and sits inside the box it belongs to.
+ */
+export function editorSurface(el: Element): Element | null {
+  const context = hasEditContext(el);
+  if (!context) {
+    if (el.localName !== 'textarea') return null;
+    const area = el as HTMLTextAreaElement;
+    if (area.name || area.disabled || area.readOnly) return null;
+    if (el.getAttribute('aria-hidden') === 'true' || el.getAttribute('tabindex') === '-1') return null;
+  }
+  const cs = styleOf(el);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return null;
+  const big = (r: DOMRect): boolean => r.width >= 40 && r.height >= 16;
+  const rect = el.getBoundingClientRect();
+  const parent = el.parentElement;
+  const unseen = cs.opacity === '0' || !big(rect) || (parent !== null && hiddenSubtree(parent, styleOf(parent)));
+  if (!unseen) return context ? el : null;
+  let node = parent;
+  for (let depth = 0; node && depth < EDITOR_SEARCH_DEPTH; depth++, node = node.parentElement) {
+    if (node.localName === 'body' || node.localName === 'form') return null;
+    const style = styleOf(node);
+    if (!boxVisible(node, style) || hiddenSubtree(node, style)) continue;
+    const box = node.getBoundingClientRect();
+    if (big(box) && rect.left >= box.left - 2 && rect.left <= box.right + 2 && rect.top >= box.top - 2 && rect.top <= box.bottom + 2) {
+      return node;
+    }
+  }
+  return null;
+}
+
 /** True when the element itself occupies visible space. */
 export function boxVisible(el: Element, cs: CSSStyleDeclaration): boolean {
   if (cs.visibility === 'hidden' || cs.visibility === 'collapse') return false;
@@ -158,6 +201,8 @@ function firstSummary(details: Element): Element | null {
 /** Visible right now: rendered, not hidden by any ancestor. Used when resolving refs. */
 export function isVisible(el: Element): boolean {
   if (!el.isConnected) return false;
+  const surface = editorSurface(el);
+  if (surface && surface !== el) return isVisible(surface);
   if (!boxVisible(el, styleOf(el))) return false;
   for (let node: Element | null = el; node; node = parentOf(node)) {
     if (hiddenSubtree(node, styleOf(node))) return false;
@@ -201,7 +246,7 @@ export function roleOf(el: Element): string | null {
     case 'select':
       return 'Combobox';
     case 'textarea':
-      return 'Textbox';
+      return editorSurface(el) ? 'Editor' : 'Textbox';
     case 'input': {
       const type = inputType(el);
       if (type === 'hidden') return null;
@@ -221,6 +266,7 @@ export function roleOf(el: Element): string | null {
     case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
       return 'Heading';
   }
+  if (hasEditContext(el)) return 'Editor';
   if (ARIA_ROLES[aria]) return ARIA_ROLES[aria];
   if (isEditingHost(el)) return 'Editable';
   return null;
@@ -363,6 +409,8 @@ export function containerOf(el: Element): { role: string; name: string } | null 
 /** Identity of an element as the agent saw it: if this changes, its ref is stale. */
 function signatureOf(el: Element): string {
   const role = roleOf(el) ?? containerOf(el)?.role ?? 'Clickable';
+  // An editor relabels its keyboard input as the cursor moves; it is still the same editor.
+  if (role === 'Editor') return 'Editor|';
   const container = roleOf(el) ? null : containerOf(el);
   return `${role}|${container ? container.name : accessibleName(el)}`;
 }
@@ -489,7 +537,12 @@ export function walkVisible(el: Element, cs: CSSStyleDeclaration, v: Visitor, dr
     }
     if (SKIP_TAGS.has(tag)) continue;
     const childStyle = styleOf(child);
-    if (hiddenSubtree(child, childStyle)) continue;
+    if (hiddenSubtree(child, childStyle)) {
+      // The one thing that matters in a hidden subtree: the keyboard input of a visible editor.
+      const input = editorSurface(child) ? child : Array.from(child.children).find((c) => editorSurface(c) !== null);
+      if (input) v.element(input, styleOf(input));
+      continue;
+    }
     const display = childStyle.display;
     const cell = display === 'table-cell';
     const block = !cell && display !== '' && display !== 'contents' && !display.startsWith('inline');
@@ -547,7 +600,7 @@ function describe(el: Element, role: string, name: string, ref: number): string 
   const tag = el.localName;
   const type = inputType(el);
   if (role === 'Heading') line += ` (h${headingLevel(el)})`;
-  if (tag === 'textarea') line += ' (multiline)';
+  if (tag === 'textarea' && role !== 'Editor') line += ' (multiline)';
   if (tag === 'input' && (role === 'Input' || (role === 'Textbox' && type && type !== 'text'))) line += ` (${type})`;
   line += `: ${name || '(unnamed)'}`;
 
@@ -568,6 +621,8 @@ function describe(el: Element, role: string, name: string, ref: number): string 
     line += ` = "${clip(selected, MAX_VALUE)}"`;
     const options = Array.from(select.options).slice(0, 12).map((o) => clip(norm(o.textContent), 40));
     line += ` (options: ${options.join(' | ')}${select.options.length > 12 ? ' | …' : ''})`;
+  } else if (role === 'Editor') {
+    // What the editor holds is the text shown around it, not the value of its keyboard input.
   } else if ((tag === 'input' && !BUTTON_INPUT_TYPES.has(type) && !isCheckable(el) && type !== 'file') || tag === 'textarea') {
     const value = (el as HTMLInputElement).value ?? '';
     if (value) line += ` = "${clip(norm(value), MAX_VALUE)}"`;
@@ -833,8 +888,15 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
         if (tag === 'caption' || tag === 'legend') return 'skip';
         return 'descend';
       }
+      // A field taken out of both keyboard and accessibility reach is the page's own plumbing.
+      if ((tag === 'textarea' || tag === 'input') && el.getAttribute('aria-hidden') === 'true' && el.getAttribute('tabindex') === '-1') {
+        return 'skip';
+      }
       const wrapper = role === 'Heading' || role === 'Clickable';
-      const shown = boxVisible(el, cs) && (!options.viewportOnly || inViewport(el.getBoundingClientRect(), view));
+      const surface = role === 'Editor' ? editorSurface(el) : null;
+      const box = surface ?? el;
+      const shown = (surface ? isVisible(el) : boxVisible(el, cs))
+        && (!options.viewportOnly || inViewport(box.getBoundingClientRect(), view));
       if (!shown) return wrapper ? 'descend' : 'skip';
 
       flush();
@@ -845,6 +907,8 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
         push(() => describe(el, listed, name, registry.assign(el)), role === 'Heading');
         elements++;
       }
+      // An editor that draws its text inside its own element: that text is still to be read.
+      if (surface === el) return 'descend';
       // Headings and clickable containers may wrap links or buttons: list those, not the text again.
       return wrapper ? 'no-text' : 'skip';
     },

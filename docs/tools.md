@@ -92,8 +92,9 @@ How to read it:
 - Field values appear as `= "…"`, except for password and credential-like fields.
 
 Roles: Heading, Link, Button, Textbox, Password, Checkbox, Radio, Switch, Combobox, Slider, File,
-Input, Editable, Toggle, Tab, Menuitem, Option, Treeitem, Clickable (an element that only signals
-clickability through its cursor). Containers: Navigation, Main, Banner, Footer, Complementary,
+Input, Editable (a rich-text region), Editor (a code editor that draws its own text; its content is
+the text shown next to it), Toggle, Tab, Menuitem, Option, Treeitem, Clickable (an element that
+only signals clickability through its cursor). Containers: Navigation, Main, Banner, Footer, Complementary,
 Section, Search, Form, Group, Dialog, Article, List, Table, Quote, Frame, Tabs, Tabpanel, Menu,
 Tree, Listbox, Feed.
 
@@ -235,7 +236,8 @@ break*. Enter in a form field is a submission and needs `intent: "submit"`.
 
 | Control | `text` |
 |---|---|
-| Input, textarea, contenteditable | The text. Empty clears. |
+| Input, textarea | The text. Empty clears. |
+| Rich-text or code editor (`Editable`, `Editor`, some `Textbox`) | The text, with line breaks and indentation as given. Empty clears. See [Editors](editors.md). |
 | Select | The option's label or value |
 | Checkbox, radio, switch | `"true"` or `"false"`; nothing is clicked if it already has that state |
 | Date, time, colour, range | A value in the control's own format, e.g. `1990-12-10` |
@@ -247,7 +249,17 @@ Password and credential-like fields are refused (`SENSITIVE_FIELD`).
 { "filled": true, "valueMatches": true }
 ```
 
-`valueMatches: false` means the control did not keep the exact content.
+`valueMatches: false` means the control does not show the exact content, and `note` says why:
+
+| Note says | Meaning | What to do |
+|---|---|---|
+| did not take the text | Nothing changed | The editor is not supported; tell the user |
+| does not show exactly the requested text | The editor changed, differently | Snapshot, then correct it |
+| changed the indentation | The words are in, leading spaces are not as given | Snapshot; matters for code |
+| could not be checked | The tab is in the background and the editor does not redraw there | Do **not** fill again; snapshot once the tab is visible |
+
+Never repeat a fill only because it was not confirmed: an editor may have taken the text without
+showing it yet.
 
 ## browser_submit
 

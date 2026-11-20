@@ -4,7 +4,7 @@
 
 import { extractPage, type LinkStyle } from './extract.ts';
 import {
-  clickElement, describeClickTarget, describeKeyTarget, fillElement, pressKey, scrollPage, viewportCoverage, waitFor,
+  clickElement, describeClickTarget, describeKeyTarget, fill, press, scrollPage, viewportCoverage, waitFor,
   type WaitCondition,
 } from './interact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
@@ -143,11 +143,11 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
     case 'click':
       return clickElement(registry.resolve(ref));
     case 'fill':
-      return fillElement(registry.resolve(ref), String(msg.text ?? ''), msg.append === true, msg.method === 'type' ? 'type' : 'set');
+      return await fill(registry.resolve(ref), String(msg.text ?? ''), msg.append === true, msg.method === 'type' ? 'type' : 'set');
     case 'key_describe':
       return describeKeyTarget(optionalRef(msg, state) ?? document.activeElement ?? document.body, String(msg.key));
     case 'press_key':
-      return pressKey(document, optionalRef(msg, state) ?? null, String(msg.key));
+      return await press(document, optionalRef(msg, state) ?? null, String(msg.key));
     case 'scroll':
       return scrollPage(
         document,

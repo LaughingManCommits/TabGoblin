@@ -199,10 +199,13 @@ public final class McpMain {
                         "ref":{"type":"integer","description":"Element ref from the latest browser_snapshot."}""", """
                         "intent":{"type":"string","enum":["interact","submit"],"description":"\\"interact\\" (default) for ordinary UI; \\"submit\\" to submit or change data on the user's explicit request."}""")));
         specs.add(tool(service, mapper, "browser_fill", false,
-                "Enter text into an input, textarea, select or contenteditable element by ref. Needs Write access. "
-                        + "Replaces the content unless append is true; empty text clears it. For a select use the "
+                "Enter text into an input, textarea, select, or a rich-text or code editor (listed as Textbox, "
+                        + "Editable or Editor) by ref. Needs Write access. Replaces the content unless append is true; "
+                        + "empty text clears it. Several lines and code are entered as given. For a select use the "
                         + "option label or value; for a checkbox, radio button or switch use \"true\" or \"false\". "
-                        + "method=\"type\" sends real key events per character, for fields that react to typing. "
+                        + "method=\"type\" sends key events per character, for fields that react to typing. "
+                        + "The result says whether the element shows the text afterwards (valueMatches). If it does "
+                        + "not, take a snapshot before trying again: never repeat a fill blindly. "
                         + "Password fields are not supported. Does not submit anything.",
                 schema("\"ref\",\"text\"", """
                         "ref":{"type":"integer","description":"Element ref from the latest browser_snapshot."}""", """

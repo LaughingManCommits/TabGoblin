@@ -66,6 +66,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 | [Installation](docs/installation.md) | Build the server and the extension, load it in Chrome, connect your agent, pair |
 | [User guide](docs/user-guide.md) | Authorize tabs, the popup, submissions, troubleshooting |
 | [Tool reference](docs/tools.md) | Every tool with real outputs, completeness, every error code |
+| [Editors](docs/editors.md) | Which rich-text and code editors can be filled, how, and what was measured |
 | [Architecture](docs/architecture.md) | Processes, protocol, sessions, refs, navigation, submissions |
 | [Security model](docs/security.md) | What an agent can reach, how it is enforced, what remains your risk |
 | [Development](docs/development.md) | Build, tests, demo sites, conventions, protocol reference |
@@ -74,8 +75,9 @@ The [installation guide](docs/installation.md) walks through each step with what
 
 ```sh
 mvn -f java-server/pom.xml test         # 52 tests
-cd chrome-extension && npm run check    # 82 tests, type-check, build
+cd chrome-extension && npm run check    # 91 tests, type-check, build
 cd e2e && npm install && npm test       # 81 steps in your Chrome, against three demo sites
+cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries
 ```
 
 ## Limits worth knowing
@@ -86,7 +88,9 @@ cd e2e && npm install && npm test       # 81 steps in your Chrome, against three
 - Each time a tab changes website Chrome withdraws the extension's access, so a session spanning
   two websites needs one click from you per move.
 - Frames from another website and closed shadow roots are not read.
-- Complex custom editors may reject generic input; the tool then says so.
+- Rich-text and code editors are filled without real keystrokes, which a page script cannot
+  produce. Fourteen common editor libraries are tested ([results](docs/editors.md)); editors that
+  draw to a canvas, such as Google Docs, are out of reach.
 - Recognising submit-like and high-impact buttons outside forms relies on English labels.
 - Not yet tried with IntelliJ's own agent: the tools are verified with a generic MCP client and
   with the `claude` CLI.
