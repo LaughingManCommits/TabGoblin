@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: Java server
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Build and test
+        run: mvn -B -f java-server/pom.xml package
+
+  extension:
+    name: Chrome extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: chrome-extension/package-lock.json
+      - name: Install
+        working-directory: chrome-extension
+        run: npm ci
+      - name: Type-check, test and build
+        working-directory: chrome-extension
+        run: npm run check
+
+  # The whole chain in a real Chrome: two servers, the unmodified extension, three demo sites.
+  # Runs on Windows because that is where the suite is developed and known to pass.
+  e2e:
+    name: End to end
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            chrome-extension/package-lock.json
+            e2e/package-lock.json
+      - name: Build the server
+        run: mvn -B -f java-server/pom.xml package -DskipTests
+      - name: Build the extension
+        working-directory: chrome-extension
+        run: |
+          npm ci
+          npm run build
+      - name: Install the test runner
+        working-directory: e2e
+        run: npm ci
+      - name: Run the end-to-end suite
+        working-directory: e2e
+        run: npm test
