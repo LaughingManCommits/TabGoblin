@@ -95,8 +95,17 @@ try {
   const example = (name, text) => writeFileSync(join(EXAMPLES, name), text.replaceAll(/[0-9a-f]{8}\.(\d+)/g, 'a1b2c3d4.$1') + '\n');
   const ref = (snapshot, fragment) => Number(/^\s*\[(\d+)\]/.exec(snapshot.split('\n').find((l) => l.includes(fragment)))[1]);
 
-  // 1. Not paired yet.
+  // 0. Chrome's own extensions page, as the installation guide describes it.
   const a = (await browser.pages())[0];
+  await a.goto('chrome://extensions/');
+  await a.evaluate(() => new Promise((done) => chrome.developerPrivate.updateProfileConfiguration({ inDeveloperMode: true }, done)));
+  await sleep(800);
+  await a.reload();
+  await sleep(1500);
+  await a.screenshot({ path: join(IMAGES, 'install-extensions-page.png'), captureBeyondViewport: false });
+  console.log('install-extensions-page.png');
+
+  // 1. Not paired yet.
   await a.goto(demo.originA + '/');
   let popup = await open(a);
   await popup.waitForFunction(() => !document.getElementById('pairing').hidden);

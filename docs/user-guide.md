@@ -6,7 +6,9 @@ running extension against the demo sites, so they show what the current build do
 
 ## 1. Install
 
-You need Java 21 or newer, Node 24 or newer, Maven, and Chrome 120 or newer.
+The [installation guide](installation.md) covers this step by step, with checks and fixes for
+common problems. In short: you need Java 21 or newer, Node 24 or newer, Maven, and Chrome 120 or
+newer.
 
 ```sh
 mvn -f java-server/pom.xml package                    # builds java-server/target/browser-context-mcp.jar

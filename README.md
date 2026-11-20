@@ -55,11 +55,14 @@ cd chrome-extension && npm install && npm run build
 3. Run the jar with `--show-token` and paste the token into the popup.
 4. Open a website, click the goblin on that tab, pick an access level, and press **Authorize**.
 
+The [installation guide](docs/installation.md) walks through each step with what you should see.
+
 ## Documentation
 
 | | |
 |---|---|
-| [User guide](docs/user-guide.md) | Install, pair, authorize, the popup, submissions, troubleshooting |
+| [Installation](docs/installation.md) | Build the server and the extension, load it in Chrome, connect your agent, pair |
+| [User guide](docs/user-guide.md) | Authorize tabs, the popup, submissions, troubleshooting |
 | [Tool reference](docs/tools.md) | Every tool with real outputs, completeness, every error code |
 | [Architecture](docs/architecture.md) | Processes, protocol, sessions, refs, navigation, submissions |
 | [Security model](docs/security.md) | What an agent can reach, how it is enforced, what remains your risk |

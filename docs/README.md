@@ -7,7 +7,8 @@ own Chrome with your own logins, without handing them cookies, tokens or the abi
 
 | Document | Read it when you want to… |
 |---|---|
-| [User guide](user-guide.md) | install it, pair it, authorize a tab, and understand what the popup shows |
+| [Installation](installation.md) | build it and get it into Chrome, step by step |
+| [User guide](user-guide.md) | authorize a tab, and understand what the popup shows and does |
 | [Tool reference](tools.md) | know what each tool takes and returns, with real outputs and every error code |
 | [Architecture](architecture.md) | understand how the pieces fit: processes, protocol, sessions, refs, submissions |
 | [Security model](security.md) | know exactly what an agent can and cannot reach, and what is still your risk |
