@@ -461,6 +461,12 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
     const spaced = append ? squash(`${before} ${text}`) : wanted;
     const joined = append ? squash(before + text) : wanted;
     if (after !== spaced && after !== joined) {
+      // Appending moves the editor to its end. One that draws only what is on screen then shows
+      // other lines than it did before, so "what was there plus the new text" cannot be compared:
+      // what counts is that the new text is what it now ends with.
+      if (append && wanted && after !== before && after.endsWith(wanted)) {
+        return { filled: true, valueMatches: true, note: PARTLY_SHOWN };
+      }
       // A code editor draws only the part of a long text that is on screen: the start, the end
       // near the cursor, or both with a gap between them.
       const within = (whole: string): boolean =>

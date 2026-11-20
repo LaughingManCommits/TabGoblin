@@ -3,9 +3,20 @@
 // not what any site's content means. Pure DOM code (no chrome.*).
 
 import {
-  UNTRUSTED_NOTE, accessibleName, assess, boxVisible, clip, containerOf, headingLevel, labelControl, norm, roleOf,
-  scrollLine, styleOf, walkFrom, walkVisible, type Completeness, type PageState, type RefRegistry, type Visitor,
+  UNTRUSTED_NOTE, accessibleName, assess, boxVisible, clip, containerOf, headingLevel, holdsLongText, isScrollable,
+  isWithin, labelControl, norm, preLines, roleOf, scrollLine, sectionScope, styleOf, walkFrom, walkVisible,
+  type Completeness, type PageState, type RefRegistry, type Visitor,
 } from './snapshot.ts';
+
+/** The box an editor scrolls in, if its content is taller than what it shows. */
+export function scrollerOf(el: Element): Element | null {
+  let node: Element | null = el;
+  for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+    if (node.localName === 'body' || node.localName === 'html') return null;
+    if (isScrollable(node)) return node;
+  }
+  return null;
+}
 
 export type LinkStyle = 'none' | 'ref' | 'url';
 
@@ -33,6 +44,11 @@ interface RenderOptions {
 
 const MAX_BLOCK = 2000;
 const MAX_ELEMENTS = 60000;
+/** Between short pieces of one list entry that the page shows as separate boxes. */
+const JOIN = ' · ';
+const TRAILING_JOINS = /(\s*·\s*)+$/;
+const MAX_JOINED_PIECE = 60;
+const MAX_JOINED_LINE = 240;
 
 /** Renders an element's visible content to lines. */
 function render(root: Element, options: RenderOptions, includeRoot: boolean): Rendered {
@@ -41,6 +57,8 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
   const registry = options.registry;
   const withRefs = !!registry && options.links !== 'none';
   let buffer = '';
+  /** null: nothing buffered; true: only preformatted text so far; false: ordinary text too. */
+  let bufferPre: boolean | null = null;
   let row: string[] | null = null;
   let rowIsHeader = true;
   let marker = '';
@@ -55,10 +73,41 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
   };
   const prefix = (): string => '  '.repeat(Math.min(depthOf(), 8)) + '> '.repeat(open.filter((o) => o.kind === 'quote').length);
 
+  /** A run of lines holding consecutive numbers (a line-number column): where it starts, and its range. */
+  let run: { at: number; first: number; last: number } | null = null;
+
+  /**
+   * Line numbers, one per line, are kept as their range instead of a line each. Returns whether
+   * `text` was such a number and has been dealt with.
+   */
+  const emitNumber = (text: string, line: string): boolean => {
+    if (!options.collapse || !/^\s*\d{1,7}$/.test(text)) {
+      run = null;
+      return false;
+    }
+    const n = Number(text);
+    const last = lines.length - 1;
+    const held = run ? Math.min(run.last - run.first + 1, 4) : 0;
+    if (run && n === run.last + 1 && last === run.at + (held < 4 ? held - 1 : 0)) {
+      run.last = n;
+      if (held < 3) {
+        lines.push(line);
+      } else {
+        // From the fourth number on, the run is one line.
+        lines.splice(run.at, lines.length - run.at, `${prefix()}${run.first}–${n} (consecutive numbers, one per line)`);
+      }
+      return true;
+    }
+    run = { at: lines.length, first: n, last: n };
+    lines.push(line);
+    return true;
+  };
+
   const emit = (text: string): void => {
     const line = prefix() + marker + text;
     marker = '';
     const last = lines.length - 1;
+    if (emitNumber(text, line)) return;
     // Repeated identical blocks (banners, separators) are collapsed instead of sent again.
     const repeat = options.collapse && last >= 0 ?/^(.*?)(?: \(×(\d+)\))?$/.exec(lines[last]) : null;
     if (repeat && repeat[1] === line) {
@@ -68,16 +117,48 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
     lines.push(line);
   };
 
+  /** Code and other preformatted text: line by line as shown, never merged or collapsed. */
+  const emitPre = (text: string): void => {
+    const indent = prefix();
+    for (const line of preLines(text)) {
+      const full = line ? indent + marker + clip(line, MAX_BLOCK) : '';
+      marker = '';
+      // The line-number column of a code view is preformatted too.
+      if (!emitNumber(line, full)) lines.push(full);
+    }
+  };
+
   const flush = (): void => {
-    const text = norm(buffer);
+    const raw = buffer.replace(TRAILING_JOINS, '');
+    const pre = bufferPre === true;
     buffer = '';
+    bufferPre = null;
+    const text = norm(raw);
     if (!text) return;
     if (row) {
       row.push(text);
       return;
     }
+    if (pre && !open.some((o) => o.kind === 'status')) {
+      emitPre(raw);
+      return;
+    }
     const status = open.some((o) => o.kind === 'status') ? '(status) ' : '';
     emit(status + clip(text, MAX_BLOCK));
+  };
+
+  /**
+   * Inside a list item, short pieces that the page lays out as separate boxes (an author, a date,
+   * a badge) are one entry to a reader: they go on one line instead of a line each.
+   */
+  const joinInItem = (): boolean => {
+    if (!options.collapse || bufferPre === true || open[open.length - 1]?.kind !== 'item') return false;
+    const text = norm(buffer);
+    if (!text) return true;
+    const piece = text.slice(text.lastIndexOf(JOIN.trim()) + 1);
+    if (norm(piece).length > MAX_JOINED_PIECE || text.length > MAX_JOINED_LINE) return false;
+    if (!TRAILING_JOINS.test(buffer)) buffer += JOIN;
+    return true;
   };
 
   const endRow = (): void => {
@@ -109,11 +190,12 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
     boundary(kind) {
       if (kind === 'cell') {
         if (row) flush();
-      } else if (!row) {
+      } else if (!row && !joinInItem()) {
         flush();
       }
     },
-    text(text) {
+    text(text, _node, pre) {
+      if (norm(text)) bufferPre = bufferPre === null ? pre : bufferPre && pre;
       buffer += text;
     },
     leave(el) {
@@ -147,12 +229,30 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
           || (role === 'Textbox' && tag !== 'a');
         if (field && !registry) return 'skip';
         // Links sit inside sentences: no padding. Other controls are separate things: keep them apart.
-        if (boxVisible(el, cs)) buffer += role === 'Link' ? token(el, role) : ` ${token(el, role)} `;
+        if (boxVisible(el, cs)) {
+          buffer += role === 'Link' ? token(el, role) : ` ${token(el, role)} `;
+          bufferPre = false;
+          // A document or code file in an editable region is content: it is read, under its label.
+          if (holdsLongText(el)) {
+            flush();
+            const scroller = scrollerOf(el);
+            if (scroller) emit('(this editor scrolls and may draw only the lines in view: scroll it by its ref to read the others)');
+            return 'descend';
+          }
+          // A tree item that is open holds the items under it.
+          if (role === 'Treeitem' && el.querySelector('[role="treeitem"]')) {
+            flush();
+            return 'no-text';
+          }
+        }
         return 'skip';
       }
       if (tag === 'img') {
         const alt = norm(el.getAttribute('alt'));
-        if (alt) buffer += ` [image: ${clip(alt, 80)}] `;
+        if (alt) {
+          buffer += ` [image: ${clip(alt, 80)}] `;
+          bufferPre = false;
+        }
         return 'skip';
       }
       if (tag === 'label' && labelControl(el)) return registry ? 'no-text' : 'descend';
@@ -219,7 +319,11 @@ export function visibleText(root: Element): string {
 
 /** The lines of one heading's section: from the heading to the next heading of the same or a higher level. */
 function sectionLines(rendered: Rendered, heading: HeadingMark): string[] {
-  const next = rendered.headings.find((h) => h.line > heading.line && h.level <= heading.level);
+  // A section also ends where the part of the page its heading belongs to ends: the headings of
+  // a sidebar are not subsections of the article next to it.
+  const scope = sectionScope(heading.el);
+  const next = rendered.headings.find((h) => h.line > heading.line
+    && (h.level <= heading.level || (scope !== null && !isWithin(scope, h.el))));
   return rendered.lines.slice(heading.line, next ? next.line : rendered.lines.length);
 }
 

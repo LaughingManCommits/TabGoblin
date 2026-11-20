@@ -265,6 +265,34 @@ test('a code editor with a hidden keyboard input is listed as an editor and can 
   assert.equal(state.registry.resolve(ref), input, 'and the ref is still good after all that');
 });
 
+test('appending to an editor that draws only the lines in view is confirmed by what it ends with', async () => {
+  const lines = (from: number, to: number): string =>
+    Array.from({ length: to - from + 1 }, (_, i) => `line ${from + i} of the document`).join('\n');
+  // Shows the top of a long file; after an edit at its end it shows the end instead.
+  const { doc, win } = page(`<div id="e" contenteditable="true" tabindex="0" data-inert>${lines(1, 40)}</div>`);
+  installEditing(doc, win);
+  const editor = doc.getElementById('e')!;
+  editor.addEventListener('beforeinput', (e) => {
+    e.preventDefault();
+    editor.textContent = `${lines(30, 60)}${(e as InputEvent).data}`;
+  });
+
+  const result = await fill(editor, '\n\n<!-- appended -->\n    indented', true);
+  assert.equal(result.valueMatches, true);
+  assert.match(result.note ?? '', /only part of its content/);
+});
+
+test('an append that the editor turned into something else is still reported', async () => {
+  const { doc, win } = page('<div id="e" contenteditable="true" tabindex="0" data-inert>some text that is there</div>');
+  installEditing(doc, win);
+  const editor = doc.getElementById('e')!;
+  editor.addEventListener('beforeinput', (e) => {
+    e.preventDefault();
+    editor.textContent = 'some text that is there, plus SOMETHING ELSE';
+  });
+  assert.equal((await fill(editor, ' plus this', true)).valueMatches, false);
+});
+
 test('hidden fields that are not an editor\'s keyboard input are not offered', () => {
   const hidden = (attributes: string): string => `<div class="box"><p>Visible text</p><textarea data-zero ${attributes}></textarea></div>`;
   const listed = (html: string): string => content(takeSnapshot(page(html).doc, new PageState('d1')).text);

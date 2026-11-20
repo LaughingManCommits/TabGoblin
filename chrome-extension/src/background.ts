@@ -82,7 +82,7 @@ interface Persisted {
   /** Highest ref ever used in each block, so a number is never handed out twice in a browser run. */
   refRanges: number[];
   /** Recent operations: ids, types, durations and error codes only. */
-  diagnostics: { session: string | null; action: string; ms: number; code: string }[];
+  diagnostics: { client?: string; session: string | null; action: string; ms: number; code: string }[];
 }
 
 /** One authenticated server connection, i.e. one agent. */
@@ -509,7 +509,10 @@ async function statusResult(client: Client, diagnostics: boolean): Promise<objec
     client: { id: client.clientId, name: client.name, port: client.port },
     confirmSubmissions: config.confirmSubmissions,
     sessions: await sessionsFor(client),
-    ...(diagnostics ? { diagnostics: persisted.diagnostics.slice(-20) } : {}),
+    // Only this agent's own operations: what another agent did in its tabs is not this one's to see.
+    ...(diagnostics
+      ? { diagnostics: persisted.diagnostics.filter((d) => d.client === client.clientId).slice(-20).map(({ client: _, ...rest }) => rest) }
+      : {}),
   };
 }
 
@@ -647,20 +650,37 @@ async function settle(session: SessionRecord, before: { url: string | undefined;
     };
   }
   let navigation = 'none';
+  let title = tab?.title;
+  let blocked = false;
   try {
     await ensureContentScript(session);
     navigation = session.documentId !== before.docId ? 'new-document' : tab?.url !== before.url ? 'same-document' : 'none';
-  } catch {
+    if (navigation === 'same-document') {
+      // The address changed without a new document: the site is still swapping its content in.
+      // Reading now would return the old page under the new address, so wait for it to finish.
+      const quiet = await sendToPage(session.tabId, { bcmcp: 1, op: 'quiet', origins: session.origins, maxMs: 3000 }, 6000)
+        .catch(() => undefined);
+      const settled = quiet?.result as { title?: string } | undefined;
+      title = (await getTab(session.tabId))?.title ?? settled?.title ?? title;
+    }
+  } catch (e) {
     navigation = 'unknown';
+    blocked = e instanceof CommandError && e.code === 'PAGE_TIMEOUT';
   }
   save();
   const opened = (newTabs.get(session.tabId) ?? 0) >= before.at;
+  const notes: string[] = [];
+  if (blocked) {
+    notes.push('The page stopped answering after this action. It may be showing a browser dialog (for example "Leave site?") that only the user can answer, or still be loading. Ask the user to look at the tab, or take a snapshot in a moment.');
+  }
+  if (opened) notes.push('A new tab was opened. It is not part of this session; the user can authorize it separately.');
   return {
     navigated: navigation !== 'none',
     navigation,
     url: tab?.url,
-    title: tab?.title,
-    ...(opened ? { openedNewTab: true, note: 'A new tab was opened. It is not part of this session; the user can authorize it separately.' } : {}),
+    title,
+    ...(opened ? { openedNewTab: true } : {}),
+    ...(notes.length ? { note: notes.join(' ') } : {}),
   };
 }
 
@@ -721,6 +741,9 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   checkpoint(op);
   await ensureContentScript(session);
   const before = { url: tab.url, docId: session.documentId };
+  // Text typed into the page and not sent is lost when the tab moves on: the agent is told.
+  const unsaved = await sendToPage(session.tabId, { bcmcp: 1, op: 'unsaved', origins: session.origins }, 3000)
+    .then((reply) => Number((reply?.result as { fields?: number } | undefined)?.fields) || 0, () => 0);
   const loaded = trackLoad(session.tabId, 20000);
   if (history === 'back' || history === 'forward') {
     // Done inside the page, towards a known entry of this origin; it refuses when there is none.
@@ -765,12 +788,18 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   }
   save();
   const strip = (u: string | undefined): string => (u ?? '').split('#')[0];
+  const notes: string[] = [];
+  if (navigation === 'timeout') notes.push('The page is still loading.');
+  if (unsaved && navigation === 'new-document') {
+    notes.push(`The page that was left had ${unsaved} field${unsaved === 1 ? '' : 's'} with text that was entered and not sent; it is gone.`);
+  }
   return {
     navigation,
     url: after?.url,
     title: after?.title,
     ...(requested && strip(after?.url) !== strip(requested) ? { redirected: true, requestedUrl: requested } : {}),
-    ...(navigation === 'timeout' ? { note: 'The page is still loading.' } : {}),
+    ...(unsaved && navigation === 'new-document' ? { discardedInput: unsaved } : {}),
+    ...(notes.length ? { note: notes.join(' ') } : {}),
   };
 }
 
@@ -954,8 +983,8 @@ function respond(client: Client, body: object): void {
   if (client.ws.readyState === WebSocket.OPEN) client.ws.send(JSON.stringify(body));
 }
 
-function recordDiagnostic(session: string | null, action: string, ms: number, code: string): void {
-  persisted.diagnostics = persisted.diagnostics.concat({ session, action, ms, code }).slice(-DIAGNOSTICS_KEPT);
+function recordDiagnostic(client: string, session: string | null, action: string, ms: number, code: string): void {
+  persisted.diagnostics = persisted.diagnostics.concat({ client, session, action, ms, code }).slice(-DIAGNOSTICS_KEPT);
 }
 
 async function execute(op: Operation, command: CommandMessage): Promise<void> {
@@ -989,7 +1018,7 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
     const session = sessionById(op.sessionId);
     if (session) hideIndicatorSoon(session);
   }
-  recordDiagnostic(op.sessionId, command.action, Date.now() - started, code);
+  recordDiagnostic(op.client.clientId, op.sessionId, command.action, Date.now() - started, code);
   save();
   respond(op.client, response);
   respond(op.client, { type: 'event', event: 'activity', data: { id: command.id, session: op.sessionId, action: command.action, ms: Date.now() - started, code } });
@@ -998,7 +1027,7 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
 /** Validates, rate-limits and routes one command to its session's queue. */
 async function onCommand(client: Client, command: CommandMessage): Promise<void> {
   const refuse = (code: string, message: string): void => {
-    recordDiagnostic(command.session ?? null, command.action, 0, code);
+    recordDiagnostic(client.clientId, command.session ?? null, command.action, 0, code);
     respond(client, { id: command.id, success: false, error: { code, message } });
   };
   if (!client.seen.add(command.id)) {

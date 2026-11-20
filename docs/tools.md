@@ -21,7 +21,8 @@ sites. Longer ones are shortened on this page; the complete outputs are in
 
 ## browser_status
 
-`diagnostics` (boolean): also list recent operations with durations and error codes.
+`diagnostics` (boolean): also list this agent's recent operations with durations and error codes.
+Operations of other agents are not shown.
 
 ```text
 Extension: connected (protocol 2)
@@ -46,7 +47,13 @@ A suspended session adds a `State: suspended …` line; a session spanning sever
 | `viewport_only` | Only what is scrolled into view |
 | `ref` | Only this section, list, table, or the section under this heading |
 | `max_lines`, `start_line` | Paging (default 250 lines, from 0) |
-| `diff` | Only lines added or removed since the previous snapshot |
+| `diff` | Only lines added or removed since the previous snapshot, whatever part of the page that one showed |
+
+Code and other preformatted text is listed one line per line with its indentation. A document in an
+editable region is listed under its field. A column of line numbers is given as its range
+(`Text: 1–157 (consecutive numbers, one per line)`). An open tree item is followed by the items
+under it. An open dialog is announced in the header (`Dialog open: …`), because it comes last in
+the page.
 
 ```text
 Page: Demo Tracker: Issues
@@ -162,7 +169,8 @@ headings it starts.
 ## browser_scroll
 
 `direction` (`up`, `down`, `left`, `right`, `top`, `bottom`), `amount` in pixels, `ref` to scroll
-an element, or to bring a non-scrollable one into view.
+an element, or to bring a non-scrollable one into view. The ref of an editor scrolls the box the
+editor scrolls in, which is how the rest of a long file is brought into view for reading.
 
 ```json
 { "x": 0, "y": 644, "maxY": 6901, "atTop": false, "atBottom": false, "moved": true, "target": "page" }

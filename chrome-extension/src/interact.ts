@@ -2,7 +2,7 @@
 // Nothing here knows about any particular website, and nothing evaluates agent-supplied code.
 
 import { editorKind, fillEditor, fireKey, pressEditorKey, type FillResult } from './editor.ts';
-import { visibleText } from './extract.ts';
+import { scrollerOf, visibleText } from './extract.ts';
 import { looksLikeSubmission, type ClickTarget } from './policy.ts';
 import {
   DomError, accessibleName, checkedState, frameDocument, isDisabled, isScrollable, isSensitiveField, isVisible,
@@ -344,6 +344,51 @@ export async function press(doc: Document, target: Element | null, key: string):
   return pressKey(doc, target, key);
 }
 
+/**
+ * Waits until the page has stopped changing: no element added, removed or rewritten for `quietMs`.
+ * A site that swaps its content without loading a new document changes the address first and the
+ * page a moment later; reading in between returns the old page under the new address.
+ */
+export function waitForQuiet(doc: Document, quietMs: number, maxMs: number): Promise<{ quiet: boolean; waitedMs: number }> {
+  const view = viewOf(doc.documentElement);
+  const started = Date.now();
+  return new Promise((resolve) => {
+    if (typeof view.MutationObserver !== 'function' || !doc.body) {
+      resolve({ quiet: true, waitedMs: 0 });
+      return;
+    }
+    let idle: ReturnType<typeof setTimeout>;
+    const finish = (quiet: boolean): void => {
+      observer.disconnect();
+      clearTimeout(idle);
+      clearTimeout(limit);
+      resolve({ quiet, waitedMs: Date.now() - started });
+    };
+    const observer = new view.MutationObserver(() => {
+      clearTimeout(idle);
+      idle = setTimeout(() => finish(true), quietMs);
+    });
+    observer.observe(doc.body, { childList: true, subtree: true, characterData: true });
+    idle = setTimeout(() => finish(true), quietMs);
+    const limit = setTimeout(() => finish(false), maxMs);
+  });
+}
+
+/**
+ * How many fields hold text the user or the agent entered and the page has not sent: what a
+ * navigation would throw away. Counted, never read.
+ */
+export function unsavedFields(doc: Document): number {
+  let count = 0;
+  for (const el of Array.from(doc.querySelectorAll('input, textarea')).slice(0, 500)) {
+    const field = el as HTMLInputElement | HTMLTextAreaElement;
+    if (el.localName === 'input' && !['', 'text', 'email', 'url', 'tel', 'number'].includes(inputType(el))) continue;
+    if (field.disabled || field.readOnly || !isVisible(el)) continue;
+    if (field.value.trim() !== '' && field.value !== field.defaultValue) count++;
+  }
+  return count;
+}
+
 export interface ScrollResult {
   x: number;
   y: number;
@@ -369,7 +414,12 @@ export async function scrollPage(
   let scroller: Element = root;
   let kind: ScrollResult['target'] = 'page';
 
-  if (target && !isScrollable(target)) {
+  // An editor scrolls in a box around its text: the ref of the editor means that box.
+  const editorBox = target && !isScrollable(target) && editorKind(target) ? scrollerOf(target) : null;
+  if (editorBox) {
+    scroller = editorBox;
+    kind = 'element';
+  } else if (target && !isScrollable(target)) {
     kind = 'element-into-view';
   } else if (target) {
     scroller = target;
