@@ -21,10 +21,17 @@ final class FakeExtension extends WebSocketClient {
     static final ObjectMapper JSON = new ObjectMapper();
 
     final List<JsonNode> commands = new CopyOnWriteArrayList<>();
+    /** Ids of commands the server cancelled. */
+    final List<String> cancels = new CopyOnWriteArrayList<>();
+    final List<String> clientNames = new CopyOnWriteArrayList<>();
     final CompletableFuture<Boolean> paired = new CompletableFuture<>();
     final CompletableFuture<Integer> closed = new CompletableFuture<>();
     /** Produces the full response for a command, or null to stay silent. */
     volatile Function<JsonNode, JsonNode> responder = cmd -> ok(cmd, JSON.createObjectNode());
+    /** Protocol version announced in the handshake; 0 announces none, like a pre-versioning extension. */
+    volatile int version = Protocol.VERSION;
+    volatile String clientId;
+    volatile JsonNode challenge;
     private final String token;
     private final String clientNonce = Pairing.randomHex(16);
     private volatile String serverNonce;
@@ -60,22 +67,35 @@ final class FakeExtension extends WebSocketClient {
         return resp;
     }
 
+    void reply(JsonNode response) {
+        send(JSON.writeValueAsString(response));
+    }
+
     @Override
     public void onMessage(String message) {
         JsonNode msg = JSON.readTree(message);
         String type = msg.path("type").asString("");
         if (type.equals("challenge")) {
+            challenge = msg;
             if (token != null) {
                 serverNonce = msg.path("nonce").asString();
                 ObjectNode auth = JSON.createObjectNode();
                 auth.put("type", "auth");
                 auth.put("nonce", clientNonce);
                 auth.put("proof", Pairing.clientProof(token, serverNonce, clientNonce));
+                if (version > 0) {
+                    auth.put("version", version);
+                }
                 send(JSON.writeValueAsString(auth));
             }
         } else if (type.equals("auth_ok")) {
+            clientId = msg.path("clientId").asString(null);
             paired.complete(msg.path("proof").asString("")
                     .equals(Pairing.serverProof(token, serverNonce, clientNonce)));
+        } else if (type.equals("cancel")) {
+            cancels.add(msg.path("id").asString());
+        } else if (type.equals("client")) {
+            clientNames.add(msg.path("name").asString());
         } else if (msg.has("id") && msg.has("action")) {
             commands.add(msg);
             JsonNode resp = responder.apply(msg);

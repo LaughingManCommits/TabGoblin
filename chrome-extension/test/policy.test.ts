@@ -1,13 +1,24 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CommandError, activityLabel, checkClick, checkGate, failureNote, looksLikeSubmission, originOf,
-  resolveNavigation, type Authorization, type ClickTarget,
+  CommandError, RateLimiter, RecentIds, activityLabel, checkClick, checkGate, failureNote, isHighImpact,
+  judgeSubmission, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
+  type ClickTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
 
 const ORIGIN = 'https://app.example';
-const auth = (access: 'read' | 'write' = 'read'): Authorization => ({ tabId: 7, origin: ORIGIN, access });
 const HERE = 'https://app.example/issues/12?tab=all';
+const READ_ACTIONS = ['snapshot', 'extract', 'scroll', 'screenshot', 'wait_for'];
+const EXPLORE_ACTIONS = ['navigate', 'click', 'press_key'];
+const WRITE_ACTIONS = ['fill', 'submit'];
+const ALL_ACTIONS = [...READ_ACTIONS, ...EXPLORE_ACTIONS, ...WRITE_ACTIONS];
+
+function session(over: Partial<SessionAuth> = {}): SessionAuth {
+  return {
+    id: 's1', authorizationId: 'a1', tabId: 7, origin: ORIGIN, mode: 'read', paused: false,
+    clientId: 'c-me', clientName: 'IDE', expiresAt: null, ...over,
+  };
+}
 
 function code(fn: () => unknown): string {
   try {
@@ -28,54 +39,94 @@ test('origin is scheme + hostname + port; only http(s) pages have one', () => {
   }
 });
 
-test('every command is refused until the user authorizes an origin', () => {
-  for (const action of ['snapshot', 'extract', 'click', 'fill', 'scroll', 'navigate', 'screenshot', 'wait_for']) {
-    assert.equal(code(() => checkGate({ auth: null, paused: false }, action, HERE)), 'NOT_AUTHORIZED', action);
+test('every command is refused until the user authorizes a tab', () => {
+  for (const action of ALL_ACTIONS) {
+    assert.equal(code(() => checkGate(null, action, HERE)), 'NOT_AUTHORIZED', action);
   }
-  assert.equal(code(() => checkGate({ auth: null, paused: false }, 'status', undefined)), 'ok');
+  assert.equal(code(() => checkGate(null, 'status', undefined)), 'ok');
 });
 
-test('the authorized origin allows reading; other origins do not', () => {
-  const state = { auth: auth(), paused: false };
-  assert.equal(code(() => checkGate(state, 'snapshot', HERE)), 'ok');
-  assert.equal(code(() => checkGate(state, 'navigate', 'https://app.example/other')), 'ok');
+test('Read looks, Explore also navigates, Write also operates', () => {
+  const allowed: Record<Mode, string[]> = {
+    read: READ_ACTIONS,
+    explore: [...READ_ACTIONS, ...EXPLORE_ACTIONS],
+    write: ALL_ACTIONS,
+  };
+  for (const mode of ['read', 'explore', 'write'] as const) {
+    for (const action of ALL_ACTIONS) {
+      const expected = allowed[mode].includes(action) ? 'ok'
+        : WRITE_ACTIONS.includes(action) ? 'WRITE_NOT_AUTHORIZED' : 'EXPLORE_NOT_AUTHORIZED';
+      assert.equal(code(() => checkGate(session({ mode }), action, HERE)), expected, `${mode} ${action}`);
+    }
+  }
+});
+
+test('other origins, subdomains, schemes and ports are outside the authorization', () => {
   const elsewhere = [
     'https://evil.example/issues/12',
-    'https://sub.app.example/',        // subdomains are not included
-    'https://example/',                // nor parent domains
-    'http://app.example/',             // other scheme
-    'https://app.example:8443/',       // other port
+    'https://sub.app.example/',
+    'https://example/',
+    'http://app.example/',
+    'https://app.example:8443/',
     'https://app.example.evil.test/',
     'chrome://settings',
     'about:blank',
   ];
   for (const url of elsewhere) {
-    assert.equal(code(() => checkGate(state, 'snapshot', url)), 'ORIGIN_MISMATCH', url);
+    assert.equal(code(() => checkGate(session({ mode: 'write' }), 'snapshot', url)), 'ORIGIN_MISMATCH', url);
   }
+  assert.equal(code(() => checkGate(session({ mode: 'write' }), 'click', undefined)), 'ORIGIN_MISMATCH', 'unknown URL fails closed');
 });
 
-test('an unknown tab URL fails closed', () => {
-  assert.equal(code(() => checkGate({ auth: auth('write'), paused: false }, 'click', undefined)), 'ORIGIN_MISMATCH');
-});
-
-test('pause blocks everything except status', () => {
-  const state = { auth: auth('write'), paused: true };
-  for (const action of ['snapshot', 'extract', 'click', 'fill', 'scroll', 'navigate', 'screenshot', 'wait_for']) {
-    assert.equal(code(() => checkGate(state, action, HERE)), 'PAUSED', action);
+test('pause and expiry block everything except status', () => {
+  for (const action of ALL_ACTIONS) {
+    assert.equal(code(() => checkGate(session({ mode: 'write', paused: true }), action, HERE)), 'PAUSED', action);
+    assert.equal(code(() => checkGate(session({ mode: 'write', expiresAt: 1000 }), action, HERE, 1000)), 'AUTHORIZATION_EXPIRED', action);
   }
-  assert.equal(code(() => checkGate(state, 'status', HERE)), 'ok');
-});
-
-test('entering text needs write access', () => {
-  assert.equal(code(() => checkGate({ auth: auth('read'), paused: false }, 'fill', HERE)), 'WRITE_NOT_AUTHORIZED');
-  assert.equal(code(() => checkGate({ auth: auth('write'), paused: false }, 'fill', HERE)), 'ok');
+  assert.equal(code(() => checkGate(session({ mode: 'write', expiresAt: 1000 }), 'snapshot', HERE, 999)), 'ok');
+  assert.equal(code(() => checkGate(session({ paused: true }), 'status', HERE)), 'ok');
 });
 
 test('there are no actions for scripts, cookies, storage or raw requests', () => {
-  const state = { auth: auth('write'), paused: false };
   for (const action of ['evaluate', 'eval', 'cookies', 'storage', 'headers', 'request', 'fetch', 'debugger', '']) {
-    assert.equal(code(() => checkGate(state, action, HERE)), 'UNSUPPORTED_ACTION', action);
+    assert.equal(code(() => checkGate(session({ mode: 'write' }), action, HERE)), 'UNSUPPORTED_ACTION', action);
   }
+});
+
+test('an agent reaches only its own sessions, and must name one when it has several', () => {
+  const mine = session({ id: 's1', clientId: 'c-me' });
+  const theirs = session({ id: 's2', clientId: 'c-other', clientName: 'Other', origin: 'https://docs.example' });
+  const me = { id: 'c-me', name: 'IDE' };
+  const connected = new Set(['c-me', 'c-other']);
+
+  assert.deepEqual(resolveSession([mine, theirs], me, undefined, connected), { session: mine, claim: false });
+  assert.deepEqual(resolveSession([mine, theirs], me, 's1', connected), { session: mine, claim: false });
+  assert.equal(code(() => resolveSession([mine, theirs], me, 's2', connected)), 'SESSION_NOT_OWNED');
+  assert.equal(code(() => resolveSession([mine, theirs], me, 's9', connected)), 'UNKNOWN_SESSION');
+  assert.equal(code(() => resolveSession([theirs], me, undefined, connected)), 'NOT_AUTHORIZED');
+
+  const second = session({ id: 's3', clientId: 'c-me', origin: 'https://wiki.example' });
+  assert.equal(code(() => resolveSession([mine, second], me, undefined, connected)), 'SESSION_REQUIRED');
+  assert.deepEqual(resolveSession([mine, second], me, 's3', connected), { session: second, claim: false });
+});
+
+test('an unclaimed session goes to the first agent that uses it', () => {
+  const open = session({ clientId: null, clientName: null });
+  const resolved = resolveSession([open], { id: 'c-me', name: 'IDE' }, undefined, new Set(['c-me']));
+  assert.equal(resolved.session, open);
+  assert.equal(resolved.claim, true);
+});
+
+test('a restarted agent takes its sessions back, but never those of an agent that is still there', () => {
+  const left = session({ clientId: 'c-old', clientName: 'IDE' });
+  const reborn = { id: 'c-new', name: 'IDE' };
+  // The old server process is gone: the same-named agent continues.
+  assert.deepEqual(resolveSession([left], reborn, 's1', new Set(['c-new'])), { session: left, claim: true });
+  // The owner is still connected: no takeover, even with the same name.
+  assert.equal(code(() => resolveSession([left], reborn, 's1', new Set(['c-new', 'c-old']))), 'SESSION_NOT_OWNED');
+  // A different agent never inherits, and a nameless one matches nobody.
+  assert.equal(code(() => resolveSession([left], { id: 'c-x', name: 'Other' }, 's1', new Set(['c-x']))), 'SESSION_NOT_OWNED');
+  assert.equal(code(() => resolveSession([session({ clientId: 'c-old', clientName: null })], { id: 'c-x', name: '' }, 's1', new Set(['c-x']))), 'SESSION_NOT_OWNED');
 });
 
 test('navigation resolves relative URLs and stays inside the origin', () => {
@@ -89,12 +140,12 @@ test('navigation resolves relative URLs and stays inside the origin', () => {
 test('navigation outside the origin is rejected', () => {
   const blocked = [
     'https://evil.example/',
-    '//evil.example/path',               // scheme-relative
+    '//evil.example/path',
     'https://sub.app.example/',
     'http://app.example/',
     'https://app.example:8443/',
-    'https://app.example@evil.example/', // userinfo trick
-    'https://user:pw@app.example/',      // embedded credentials
+    'https://app.example@evil.example/',
+    'https://user:pw@app.example/',
     'javascript:alert(1)',
     'data:text/html,<h1>x</h1>',
     'file:///etc/passwd',
@@ -109,48 +160,121 @@ test('navigation outside the origin is rejected', () => {
 });
 
 const target = (over: Partial<ClickTarget> = {}): ClickTarget =>
-  ({ readSafe: false, externalLink: false, submit: null, label: 'Thing', ...over });
+  ({ readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Thing', ...over });
 
-test('read access may only click same-origin links and disclosure toggles', () => {
-  assert.equal(checkClick('read', 'interact', target({ readSafe: true })), 'interact');
-  assert.equal(code(() => checkClick('read', 'interact', target())), 'WRITE_NOT_AUTHORIZED');
-  assert.equal(code(() => checkClick('read', 'interact', target({ submit: 'form' }))), 'WRITE_NOT_AUTHORIZED');
-  assert.equal(code(() => checkClick('read', 'submit', target({ submit: 'form' }))), 'WRITE_NOT_AUTHORIZED');
-  assert.equal(code(() => checkClick('read', 'submit', target({ readSafe: true }))), 'WRITE_NOT_AUTHORIZED');
+test('Read cannot click; Explore clicks links and expanders only', () => {
+  assert.equal(code(() => checkClick('read', 'interact', target({ readSafe: true }))), 'EXPLORE_NOT_AUTHORIZED');
+  assert.equal(checkClick('explore', 'interact', target({ readSafe: true })), 'interact');
+  assert.equal(checkClick('explore', 'interact', target({ disclosure: true })), 'interact');
+  assert.equal(code(() => checkClick('explore', 'interact', target())), 'WRITE_NOT_AUTHORIZED');
+  assert.equal(code(() => checkClick('explore', 'interact', target({ submit: 'form' }))), 'WRITE_NOT_AUTHORIZED');
+  assert.equal(code(() => checkClick('explore', 'interact', target({ disclosure: true, submit: 'likely' }))), 'WRITE_NOT_AUTHORIZED');
+  assert.equal(code(() => checkClick('explore', 'submit', target({ readSafe: true }))), 'WRITE_NOT_AUTHORIZED');
 });
 
-test('write access clicks ordinary controls but submissions need explicit intent', () => {
+test('Write clicks ordinary controls but submissions need explicit intent', () => {
   assert.equal(checkClick('write', 'interact', target()), 'interact');
   assert.equal(code(() => checkClick('write', 'interact', target({ submit: 'form' }))), 'SUBMIT_INTENT_REQUIRED');
   assert.equal(code(() => checkClick('write', 'interact', target({ submit: 'likely' }))), 'SUBMIT_INTENT_REQUIRED');
   assert.equal(checkClick('write', 'submit', target({ submit: 'form' })), 'submit');
-  assert.equal(checkClick('write', 'submit', target({ submit: 'likely' })), 'submit');
-  // Declaring a submission is always treated as one, so it can be put in front of the user.
   assert.equal(checkClick('write', 'submit', target()), 'submit');
 });
 
 test('links that leave the origin are never clicked', () => {
-  for (const access of ['read', 'write'] as const) {
+  for (const mode of ['read', 'explore', 'write'] as const) {
     for (const intent of ['interact', 'submit'] as const) {
-      assert.equal(code(() => checkClick(access, intent, target({ externalLink: true }))), 'NAVIGATION_BLOCKED');
+      assert.equal(code(() => checkClick(mode, intent, target({ externalLink: true }))), 'NAVIGATION_BLOCKED');
     }
   }
 });
 
-test('submission wording is recognised, ordinary UI wording is not', () => {
+test('submission and high-impact wording is recognised, ordinary UI wording is not', () => {
   for (const label of ['Submit', 'Save changes', 'Post comment', 'Delete draft', 'Send', 'Place order', 'Sign up', 'Log out', 'Merge pull request']) {
     assert.ok(looksLikeSubmission(label), label);
   }
   for (const label of ['Show statistics', 'Next page', 'Open menu', 'Load updates', 'Expand all', 'Postpone view', 'Savings', '']) {
     assert.ok(!looksLikeSubmission(label), label);
   }
+  for (const label of ['Delete account', 'Pay now', 'Buy', 'Transfer funds', 'Publish release', 'Remove member']) {
+    assert.ok(isHighImpact(label), label);
+  }
+  for (const label of ['Save draft', 'Post comment', 'Search', 'Update profile', 'Payment history']) {
+    assert.ok(!isHighImpact(label), label);
+  }
+});
+
+test('keys are normalised; moving around needs Explore, typing and Enter need Write', () => {
+  assert.deepEqual(parseKey('enter'), { key: 'Enter', mode: 'write' });
+  assert.deepEqual(parseKey('Esc'), { key: 'Escape', mode: 'explore' });
+  assert.deepEqual(parseKey('shift+tab'), { key: 'Shift+Tab', mode: 'explore' });
+  assert.deepEqual(parseKey('ArrowDown'), { key: 'ArrowDown', mode: 'explore' });
+  assert.deepEqual(parseKey('Space'), { key: ' ', mode: 'write' });
+  assert.deepEqual(parseKey('a'), { key: 'a', mode: 'write' });
+  assert.deepEqual(parseKey('é'), { key: 'é', mode: 'write' });
+  for (const bad of ['Control+A', 'F5', 'ab', 'Meta', '']) {
+    assert.equal(code(() => parseKey(bad)), 'INVALID_ARGUMENT', bad);
+  }
+});
+
+const signals = (over: Partial<SubmitSignals> = {}): SubmitSignals => ({
+  expectSeen: false, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: false,
+  urlChanged: false, documentChanged: false, ...over,
+});
+
+test('a dispatched click alone is never a confirmed submission', () => {
+  const silent = judgeSubmission(signals(), false);
+  assert.equal(silent.state, 'UNCERTAIN');
+  assert.equal(silent.verified, null);
+  assert.match(silent.evidence[0], /no visible reaction/);
+});
+
+test('submissions are confirmed by content or by the page reacting, and failed by error signals', () => {
+  const seen = judgeSubmission(signals({ expectSeen: true, fieldsCleared: true }), true);
+  assert.deepEqual([seen.state, seen.verified], ['CONFIRMED', 'content']);
+
+  // Expected text was named but never showed up: not confirmed, however the page reacted.
+  const missing = judgeSubmission(signals({ fieldsCleared: true, newStatuses: ['Saved'] }), true);
+  assert.equal(missing.state, 'UNCERTAIN');
+  assert.ok(missing.evidence.includes('the expected text did not appear'));
+
+  for (const reaction of [{ fieldsCleared: true }, { formGone: true }, { documentChanged: true }, { urlChanged: true }, { newStatuses: ['Saved'] }]) {
+    const verdict = judgeSubmission(signals(reaction), false);
+    assert.deepEqual([verdict.state, verdict.verified], ['CONFIRMED', 'reaction'], JSON.stringify(reaction));
+  }
+
+  // An error wins over everything else, including the expected text.
+  const failed = judgeSubmission(signals({ expectSeen: true, newAlerts: ['Title is required'], invalidFields: ['Title'] }), true);
+  assert.equal(failed.state, 'FAILED');
+  assert.match(failed.evidence.join(' | '), /Title is required/);
+  assert.equal(judgeSubmission(signals({ invalidFields: ['Email'] }), false).state, 'FAILED');
+});
+
+test('the rate limiter allows a burst and then the steady rate', () => {
+  const limiter = new RateLimiter(10, 3, 0);
+  assert.deepEqual([limiter.tryTake(0), limiter.tryTake(0), limiter.tryTake(0), limiter.tryTake(0)], [true, true, true, false]);
+  assert.equal(limiter.tryTake(100), true, 'one token back after 100ms at 10/s');
+  assert.equal(limiter.tryTake(100), false);
+  assert.equal(limiter.tryTake(10_000), true);
+});
+
+test('replayed command ids are recognised', () => {
+  const seen = new RecentIds(3);
+  assert.equal(seen.add('1'), true);
+  assert.equal(seen.add('1'), false);
+  seen.add('2');
+  seen.add('3');
+  seen.add('4');
+  assert.equal(seen.add('4'), false);
+  assert.equal(seen.add('1'), true, 'the oldest id has aged out of the bounded memory');
 });
 
 test('activity wording is fixed text that cannot carry page content', () => {
   assert.deepEqual(activityLabel('fill'), { running: 'Entering text', done: 'Entered text' });
-  assert.deepEqual(activityLabel('click'), { running: 'Clicking element', done: 'Clicked element' });
   assert.deepEqual(activityLabel('click', 'submit'), { running: 'Submitting', done: 'Submitted' });
+  assert.deepEqual(activityLabel('submit'), { running: 'Submitting', done: 'Submitted' });
+  assert.deepEqual(activityLabel('press_key'), { running: 'Pressing key', done: 'Pressed key' });
   assert.deepEqual(activityLabel('<img src=x onerror=alert(1)>'), { running: 'Working', done: 'Done' });
   assert.equal(failureNote('WRITE_NOT_AUTHORIZED'), 'needs Write access');
+  assert.equal(failureNote('SESSION_NOT_OWNED'), 'another agent\'s session');
   assert.equal(failureNote('whatever the page says'), 'failed');
 });

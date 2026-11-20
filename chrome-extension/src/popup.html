@@ -19,37 +19,47 @@
     <p class="muted">Run <code>java -jar browser-context-mcp.jar --show-token</code> and paste the token here.</p>
     <label for="token">Pairing token</label>
     <input id="token" type="password" autocomplete="off" spellcheck="false">
-    <label for="port">Port</label>
-    <input id="port" type="number" min="1" max="65535">
-    <button id="pair" class="primary">Save and connect</button>
+    <label for="port">First port</label>
+    <input id="port" type="number" min="1" max="65527">
+    <div class="row top">
+      <button id="pair" class="primary">Save and connect</button>
+      <button id="forget">Forget pairing</button>
+    </div>
   </section>
 
   <section id="confirm" class="confirm" hidden>
-    <h2>Allow this submission?</h2>
-    <p>The agent wants to submit by clicking <strong id="confirmLabel"></strong>.</p>
+    <h2 id="confirmTitle">Allow this submission?</h2>
+    <p>The agent wants to submit by clicking <strong id="confirmLabel"></strong> in session <span id="confirmSession"></span>.</p>
     <div class="row">
       <button id="allow" class="primary">Allow</button>
       <button id="deny">Deny</button>
     </div>
   </section>
 
+  <section id="agentsSection" hidden>
+    <h2>Agents</h2>
+    <ul id="agents" class="list"></ul>
+  </section>
+
   <section>
-    <h2>Origin</h2>
-    <div id="origin" class="origin">Not authorized</div>
-    <div id="accessRow" class="row" hidden>
-      <label for="access">Access</label>
-      <select id="access">
-        <option value="read">Read</option>
-        <option value="write">Read / Write</option>
-      </select>
-    </div>
+    <h2>Sessions</h2>
+    <div id="sessions"></div>
     <div id="authorizeBox" hidden>
       <p id="authorizeHint" class="muted"></p>
       <div class="row">
         <select id="newAccess" aria-label="Access to grant">
           <option value="read">Read</option>
+          <option value="explore">Explore</option>
           <option value="write">Read / Write</option>
         </select>
+        <select id="newExpiry" aria-label="How long">
+          <option value="0">Until revoked</option>
+          <option value="60">1 hour</option>
+          <option value="480">8 hours</option>
+        </select>
+      </div>
+      <div class="row">
+        <select id="newAgent" aria-label="Agent" hidden></select>
         <button id="authorize" class="primary">Authorize</button>
       </div>
     </div>
@@ -57,18 +67,23 @@
       <input id="confirmSubmissions" type="checkbox">
       Ask me before the agent submits anything
     </label>
+    <label class="check">
+      <input id="indicator" type="checkbox">
+      Show an indicator in the page while the agent works
+    </label>
   </section>
 
   <section>
-    <h2>Agent Activity</h2>
+    <div class="heading">
+      <h2>Agent Activity</h2>
+      <button id="clearActivity" class="link">Clear</button>
+    </div>
     <ul id="activity" class="activity"></ul>
   </section>
 
   <p id="error" class="error" hidden></p>
 
   <footer class="row">
-    <button id="pause">Pause</button>
-    <button id="revoke">Revoke</button>
     <button id="settings" class="link">Connection…</button>
   </footer>
 

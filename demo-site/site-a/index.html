@@ -18,6 +18,8 @@
   <nav>
     <a href="/">Issues</a>
     <a href="/page2.html">Settings</a>
+    <a href="/form.html">Profile form</a>
+    <a href="/page2.html" target="_blank">Settings in a new tab</a>
     <a href="/redirect-out">Partner portal</a>
     <a href="__OTHER_ORIGIN__/">Notes app (other site)</a>
   </nav>
@@ -70,6 +72,8 @@
   <ul id="comments"></ul>
 
   <button type="button" id="delete-draft">Delete draft</button>
+  <!-- A control whose effect is invisible: a submission through it cannot be verified. -->
+  <button type="button" id="save-prefs">Save preferences</button>
 
   <h2>Sign in again</h2>
   <form id="login" method="post" action="/login">
