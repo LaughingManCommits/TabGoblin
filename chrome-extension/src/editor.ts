@@ -6,15 +6,15 @@
 //
 //   edit     a `beforeinput` event, then - unless the editor cancels it, which means it applied
 //            the change itself - the browser's own editing command, which changes the DOM and fires
-//            `input`. Editors that run on `beforeinput` (Lexical, Slate, CKEditor) and editors that
-//            watch the DOM (ProseMirror, Quill, CodeMirror 6, TinyMCE) both get what they wait for.
+//            `input`. Editors that run on `beforeinput` and editors that watch the DOM for changes
+//            both get what they wait for.
 //   paste    a `paste` event carrying only the given text. Nearly every editor handles it, and it
 //            is how multi-line text and code get in unchanged, without auto-indent or bracket
 //            completion rewriting them.
 //
 // Editors that draw their text themselves take the keyboard through an element of their own: a
-// hidden textarea (CodeMirror 5, Ace) or an EditContext (Monaco). Those get the editor's own
-// shortcuts for selecting, then a paste.
+// hidden textarea or an EditContext. Those get the editor's own shortcuts for selecting, then a
+// paste.
 //
 // A second way is tried only when the first demonstrably did nothing: the editor neither claimed
 // the event nor changed what it shows. Text is never entered twice to be on the safe side.

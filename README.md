@@ -75,7 +75,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 
 ```sh
 mvn -f java-server/pom.xml test         # 52 tests
-cd chrome-extension && npm run check    # 91 tests, type-check, build
+cd chrome-extension && npm run check    # 93 tests, type-check, build
 cd e2e && npm install && npm test       # 81 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries
 ```

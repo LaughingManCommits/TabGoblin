@@ -116,6 +116,9 @@ Run them by hand with `node demo-site/server.mjs`.
 
 - **No website-specific code.** If a change needs a selector, hostname or product name, it does
   not belong here.
+- **No library-specific code either.** An editor or widget is recognised by what it is in the DOM
+  (an editing host, an EditContext, a role), never by a library's name, class names or attributes.
+  The editor lab names libraries; the product does not, and a test (`agnostic.test.ts`) keeps it so.
 - **Rules are pure.** Anything that decides whether something is allowed goes into `policy.ts` as
   a function without `chrome.*` or DOM access, with a test.
 - **DOM code is pure too.** `snapshot`, `extract`, `interact` and `submit` take a document and run
