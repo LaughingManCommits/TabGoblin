@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Demo Tracker: Issues</title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    nav a { margin-right: 12px; }
+    fieldset, details, form, section { margin: 16px 0; }
+    textarea { width: 100%; height: 80px; }
+    .sr-collapsed { height: 0; overflow: hidden; }
+    .invisible { visibility: hidden; }
+    .spacer { height: 1400px; background: linear-gradient(#f4f6f8, #dfe5eb); }
+    #status { color: #15803d; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/">Issues</a>
+    <a href="/page2.html">Settings</a>
+    <a href="/redirect-out">Partner portal</a>
+    <a href="__OTHER_ORIGIN__/">Notes app (other site)</a>
+  </nav>
+
+  <h1>Issues</h1>
+  <p>Welcome back. You have <strong id="count">3</strong> open issues.</p>
+
+  <form role="search" id="search-form">
+    <label for="q">Search issues</label>
+    <input type="search" id="q" name="q" placeholder="Filter by title">
+    <button type="submit">Search</button>
+  </form>
+  <p id="search-result" aria-live="polite"></p>
+
+  <ul id="issues">
+    <li><a href="/issue.html?id=1">Login page shows a blank screen</a></li>
+    <li><a href="/issue.html?id=2">Export to CSV drops the last row</a></li>
+    <li><a href="/issue.html?id=3">Dark mode contrast is too low</a></li>
+  </ul>
+
+  <h2>Details</h2>
+  <details>
+    <summary>Release notes</summary>
+    <p>Version 2.4 fixes the export bug and adds keyboard shortcuts.</p>
+  </details>
+
+  <button type="button" id="more-toggle" aria-expanded="false" aria-controls="more">Show statistics</button>
+  <div id="more" hidden>
+    <p>Statistics: 12 issues closed this week, median time to close 2 days.</p>
+  </div>
+
+  <button type="button" id="load">Load updates</button>
+  <div id="updates"></div>
+
+  <h2>Add a comment</h2>
+  <form id="comment-form" method="post" action="/comments">
+    <label for="comment">Comment</label>
+    <textarea id="comment" name="comment"></textarea>
+    <label><input type="checkbox" id="notify" name="notify"> Notify watchers</label>
+    <label for="priority">Priority</label>
+    <select id="priority" name="priority">
+      <option value="low">Low</option>
+      <option value="normal" selected>Normal</option>
+      <option value="high">High</option>
+    </select>
+    <input type="hidden" name="csrf" value="HIDDEN-CSRF-TOKEN-9d2f">
+    <button type="submit">Post comment</button>
+  </form>
+  <p id="status" role="status"></p>
+  <ul id="comments"></ul>
+
+  <button type="button" id="delete-draft">Delete draft</button>
+
+  <h2>Sign in again</h2>
+  <form id="login" method="post" action="/login">
+    <label for="user">Username</label>
+    <input id="user" name="user" value="demo-user">
+    <label for="pw">Password</label>
+    <input id="pw" name="pw" type="password" value="hunter2-secret-password">
+    <button type="submit">Sign in</button>
+  </form>
+
+  <!-- Things a snapshot must not report -->
+  <div style="display:none">DISPLAY-NONE-TEXT <button>Hidden button</button></div>
+  <div class="invisible">VISIBILITY-HIDDEN-TEXT</div>
+  <div class="sr-collapsed">COLLAPSED-TEXT <a href="/collapsed">Collapsed link</a></div>
+  <script>window.INLINE_SCRIPT_SECRET = 'SCRIPT-CONTENT-SECRET';</script>
+
+  <div class="spacer"></div>
+  <h2 id="footer-heading">Footer</h2>
+  <p>End of page. <a href="/page2.html#about">About this tracker</a></p>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    $('search-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const q = $('q').value.trim().toLowerCase();
+      let shown = 0;
+      for (const li of $('issues').children) {
+        const match = li.textContent.toLowerCase().includes(q);
+        li.hidden = !match;
+        if (match) shown++;
+      }
+      $('search-result').textContent = q ? `${shown} result(s) for "${q}"` : '';
+    });
+    $('more-toggle').addEventListener('click', () => {
+      const open = $('more').hidden;
+      $('more').hidden = !open;
+      $('more-toggle').setAttribute('aria-expanded', String(open));
+      $('more-toggle').textContent = open ? 'Hide statistics' : 'Show statistics';
+    });
+    $('load').addEventListener('click', () => {
+      $('updates').textContent = 'Loading…';
+      setTimeout(() => {
+        $('updates').innerHTML = '<p>Update loaded: build 512 passed all checks.</p>';
+      }, 800);
+    });
+    let posts = 0;
+    $('comment-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = $('comment').value.trim();
+      if (!text) { $('status').textContent = 'Comment is empty.'; return; }
+      posts++;
+      setTimeout(() => {
+        const li = document.createElement('li');
+        li.textContent = `${text} (priority: ${$('priority').value}${$('notify').checked ? ', watchers notified' : ''})`;
+        $('comments').append(li);
+        $('comment').value = '';
+        $('status').textContent = `Comment posted. Total posts: ${posts}`;
+      }, 300);
+    });
+    $('delete-draft').addEventListener('click', () => {
+      $('comment').value = '';
+      $('status').textContent = 'Draft deleted.';
+    });
+    $('login').addEventListener('submit', (e) => e.preventDefault());
+  </script>
+</body>
+</html>

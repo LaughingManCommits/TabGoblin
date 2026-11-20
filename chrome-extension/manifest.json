@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Context MCP",
+  "version": "0.1.0",
+  "description": "Lets your local AI agent read and operate the one tab and website origin you authorize.",
+  "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwXyAXbKB236z3I0I8bSUPpda6aDx/yDWITESUatgRT0NsPdgatY1nvNwswkjZZHLebioSJAtR/NYz/N7zcNJrM691vggL6ms4dyP6vWPcnFtL72XC3TFoH1NNmmCSVByURo93T73Jtoijagj4IugtSiLP/XdxBETNkfosMxvwJ+IiOCoJarCKkhEdMffVA9QIybqk2lyXWLZyEuj8augw7Pio47TIA2NX8w+K5O/iRG0LoZnn/GwwhwC4V7TUDpe/GF0o26L8+AuKznMJbWHyZnDgh7HTZ43XhWjhCbORwvKqkHmJe1oHuiigWFUm6nNST4DBsefbd9hDsiTkzMXMQIDAQAB",
+  "permissions": ["activeTab", "scripting", "storage", "alarms"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Browser Context MCP",
+    "default_popup": "popup.html"
+  }
+}

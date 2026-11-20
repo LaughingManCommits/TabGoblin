@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Demo Tracker: Issue</title>
+  <style>body { font: 15px/1.5 system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }</style>
+</head>
+<body>
+  <nav><a href="/">Back to issues</a></nav>
+  <h1 id="title">Issue</h1>
+  <p id="body"></p>
+  <script>
+    const id = new URLSearchParams(location.search).get('id') || '?';
+    document.getElementById('title').textContent = `Issue #${id}`;
+    document.getElementById('body').textContent = `Details for issue number ${id}. Status: open.`;
+  </script>
+</body>
+</html>

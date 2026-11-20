@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Notes App</title>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { font: 15px/1.5 system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+    .bar { display: flex; gap: 4px; padding: 8px 12px; background: #20242b; color: #fff; }
+    .tab { padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+    .tab[aria-selected="true"] { background: #3b82f6; }
+    .main { flex: 1; overflow-y: auto; padding: 16px; }
+    .card { border: 1px solid #c8d0d8; border-radius: 6px; padding: 10px; margin: 8px 0; cursor: pointer; }
+    .btn { display: inline-block; padding: 6px 14px; border-radius: 4px; background: #e8ecf0; cursor: pointer; user-select: none; }
+    .editor { border: 1px solid #c8d0d8; border-radius: 4px; min-height: 60px; padding: 8px; }
+    .editor:empty::before { content: attr(data-placeholder); color: #8a94a0; }
+    .toggle input { position: absolute; opacity: 0; }
+    .toggle span { padding-left: 4px; cursor: pointer; }
+    .filler { height: 1200px; }
+  </style>
+</head>
+<body>
+  <div class="bar" role="tablist">
+    <div class="tab" role="tab" id="tab-notes" aria-selected="true">Notes</div>
+    <div class="tab" role="tab" id="tab-archive" aria-selected="false">Archive</div>
+  </div>
+  <div class="main" id="main"></div>
+
+  <script>
+    const state = { view: 'notes', notes: ['Buy milk', 'Call the plumber'], archived: ['Old idea'], pinned: false };
+    const main = document.getElementById('main');
+
+    class NoteCount extends HTMLElement {
+      connectedCallback() {
+        const root = this.attachShadow({ mode: 'open' });
+        root.innerHTML = `<p>Shadow summary: <b>${this.getAttribute('count')}</b> notes in this view.</p>`;
+      }
+    }
+    customElements.define('note-count', NoteCount);
+
+    function el(tag, props = {}, ...children) {
+      const node = Object.assign(document.createElement(tag), props);
+      node.append(...children);
+      return node;
+    }
+
+    function render() {
+      document.getElementById('tab-notes').setAttribute('aria-selected', String(state.view === 'notes'));
+      document.getElementById('tab-archive').setAttribute('aria-selected', String(state.view === 'archive'));
+      const list = state.view === 'notes' ? state.notes : state.archived;
+      main.replaceChildren(
+        el('div', { className: 'title', role: 'heading', ariaLevel: '1', textContent: state.view === 'notes' ? 'My notes' : 'Archived notes' }),
+        ...list.map((text, i) => {
+          const card = el('div', { className: 'card' }, el('span', { textContent: text }));
+          card.addEventListener('click', () => { document.getElementById('opened').textContent = `Opened note: ${text}`; });
+          return card;
+        }),
+        el('div', { id: 'opened' }),
+      );
+      const count = document.createElement('note-count');
+      count.setAttribute('count', String(list.length));
+      main.append(count);
+
+      if (state.view === 'notes') {
+        const editor = el('div', { className: 'editor', id: 'editor', contentEditable: 'true' });
+        editor.setAttribute('role', 'textbox');
+        editor.setAttribute('aria-label', 'New note');
+        editor.dataset.placeholder = 'Write a note…';
+        const pin = el('label', { className: 'toggle' },
+          el('input', { type: 'checkbox', id: 'pin', checked: state.pinned }),
+          el('span', { textContent: 'Pin to top' }));
+        pin.querySelector('input').addEventListener('change', (e) => { state.pinned = e.target.checked; });
+        const save = el('div', { className: 'btn', id: 'save', textContent: 'Save note', tabIndex: 0 });
+        save.setAttribute('role', 'button');
+        save.addEventListener('click', () => {
+          const text = editor.textContent.trim();
+          if (!text) return;
+          setTimeout(() => {
+            if (state.pinned) state.notes.unshift(text); else state.notes.push(text);
+            render();
+            document.getElementById('opened').textContent = 'Note saved.';
+          }, 250);
+        });
+        main.append(el('div', { role: 'heading', ariaLevel: '2', textContent: 'New note' }), editor, pin, save);
+      }
+      main.append(el('div', { className: 'filler' }), el('div', { id: 'bottom', textContent: 'Notes are sorted by date.' }));
+    }
+
+    function go(view, push = true) {
+      state.view = view;
+      if (push) history.pushState({ view }, '', view === 'notes' ? '/' : '/archive');
+      render();
+    }
+    document.getElementById('tab-notes').addEventListener('click', () => go('notes'));
+    document.getElementById('tab-archive').addEventListener('click', () => go('archive'));
+    window.addEventListener('popstate', (e) => go(e.state?.view ?? 'notes', false));
+    render();
+
+    // Like a feed: reaching the bottom loads older notes, once.
+    main.addEventListener('scroll', () => {
+      if (state.loadedOlder || main.scrollTop + main.clientHeight < main.scrollHeight - 50) return;
+      state.loadedOlder = true;
+      setTimeout(() => {
+        main.append(
+          el('div', { id: 'older', textContent: 'Older notes loaded: Renew passport' }),
+          el('div', { className: 'filler' }));
+      }, 120);
+    });
+  </script>
+</body>
+</html>

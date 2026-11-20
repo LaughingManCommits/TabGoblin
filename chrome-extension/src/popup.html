@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Browser Context MCP</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <div class="title">
+      <strong>Browser Context MCP</strong>
+      <span id="dot" class="dot" aria-hidden="true"></span>
+    </div>
+    <div id="connection" class="muted">Connecting…</div>
+  </header>
+
+  <section id="pairing" hidden>
+    <h2>Pair with the local server</h2>
+    <p class="muted">Run <code>java -jar browser-context-mcp.jar --show-token</code> and paste the token here.</p>
+    <label for="token">Pairing token</label>
+    <input id="token" type="password" autocomplete="off" spellcheck="false">
+    <label for="port">Port</label>
+    <input id="port" type="number" min="1" max="65535">
+    <button id="pair" class="primary">Save and connect</button>
+  </section>
+
+  <section id="confirm" class="confirm" hidden>
+    <h2>Allow this submission?</h2>
+    <p>The agent wants to submit by clicking <strong id="confirmLabel"></strong>.</p>
+    <div class="row">
+      <button id="allow" class="primary">Allow</button>
+      <button id="deny">Deny</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Origin</h2>
+    <div id="origin" class="origin">Not authorized</div>
+    <div id="accessRow" class="row" hidden>
+      <label for="access">Access</label>
+      <select id="access">
+        <option value="read">Read</option>
+        <option value="write">Read / Write</option>
+      </select>
+    </div>
+    <div id="authorizeBox" hidden>
+      <p id="authorizeHint" class="muted"></p>
+      <div class="row">
+        <select id="newAccess" aria-label="Access to grant">
+          <option value="read">Read</option>
+          <option value="write">Read / Write</option>
+        </select>
+        <button id="authorize" class="primary">Authorize</button>
+      </div>
+    </div>
+    <label class="check">
+      <input id="confirmSubmissions" type="checkbox">
+      Ask me before the agent submits anything
+    </label>
+  </section>
+
+  <section>
+    <h2>Agent Activity</h2>
+    <ul id="activity" class="activity"></ul>
+  </section>
+
+  <p id="error" class="error" hidden></p>
+
+  <footer class="row">
+    <button id="pause">Pause</button>
+    <button id="revoke">Revoke</button>
+    <button id="settings" class="link">Connection…</button>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "browser-context-mcp-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node run.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.18.1"
+  }
+}
