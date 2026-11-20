@@ -1,5 +1,7 @@
 # TabGoblin
 
+[![CI](https://github.com/LaughingManCommits/TabGoblin/actions/workflows/ci.yml/badge.svg)](https://github.com/LaughingManCommits/TabGoblin/actions/workflows/ci.yml)
+
 <img src="chrome-extension/icons/icon128.png" width="64" align="left" alt="">
 
 Lets AI agents on your machine read and operate **the browser tabs you authorize**, in your own
@@ -91,3 +93,7 @@ cd e2e && npm install && npm test       # 81 steps in your Chrome, against three
 
 Some technical names predate the product name and are kept for compatibility: the jar and MCP
 server (`browser-context-mcp`), the token directory, and the `BCMCP_*` variables.
+
+## Licence
+
+[MIT](LICENSE).

@@ -56,6 +56,18 @@ interface. Run the script with `HEADED=1`: a visible Chrome gives the popup its 
 the exception: they lay the popup's live content out at full length in an ordinary tab, to show
 what is below the fold and what the light theme looks like.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and on every pull request:
+
+| Job | Runs on | Does |
+|---|---|---|
+| Java server | Linux | `mvn package`: compile, test, build the jar |
+| Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
+| End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
+
+The end-to-end job runs on Windows because that is where the suite is developed.
+
 ## The demo sites
 
 Three fixtures, each on its own port and therefore its own origin. Nothing in the extension or the
