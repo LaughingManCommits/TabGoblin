@@ -1,0 +1,10 @@
+Extension: connected (protocol 2)
+This agent: c-1a2b3c4d on port 47821
+Submissions need user confirmation: yes
+Sessions: 1
+Session s1
+  Authorized origin: http://127.0.0.1:8931
+  Access: read/write
+  Paused: no
+  Tab: Demo Tracker: Issues
+  URL: http://127.0.0.1:8931/

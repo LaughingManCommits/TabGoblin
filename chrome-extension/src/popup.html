@@ -53,11 +53,7 @@
       </div>
     </section>
 
-    <section id="agentsSection" class="card" hidden>
-      <h2>Agents</h2>
-      <ul id="agents" class="list"></ul>
-    </section>
-
+    <!-- Ordered by how often it is needed: the popup window is short, the rest scrolls. -->
     <section class="card">
       <h2>Sessions</h2>
       <div id="sessions"></div>
@@ -87,6 +83,19 @@
       </div>
     </section>
 
+    <section class="card">
+      <div class="heading">
+        <h2>Activity</h2>
+        <button id="clearActivity" class="link">Clear</button>
+      </div>
+      <ul id="activity" class="activity"></ul>
+    </section>
+
+    <section id="agentsSection" class="card" hidden>
+      <h2>Agents</h2>
+      <ul id="agents" class="list"></ul>
+    </section>
+
     <section class="card settings">
       <label class="check">
         <input id="confirmSubmissions" type="checkbox">
@@ -96,14 +105,6 @@
         <input id="indicator" type="checkbox">
         <span>Show an indicator in the page while the agent works</span>
       </label>
-    </section>
-
-    <section class="card">
-      <div class="heading">
-        <h2>Activity</h2>
-        <button id="clearActivity" class="link">Clear</button>
-      </div>
-      <ul id="activity" class="activity"></ul>
     </section>
 
     <p id="error" class="error" hidden></p>

@@ -186,17 +186,22 @@ try {
       await popup.click('#pair');
       paired = true;
     }
-    // Same tab and origin as the previous task: its session is still there, only the access level changes.
-    const sessionHere = () => [...document.querySelectorAll('.session')]
-      .find((row) => [...row.querySelectorAll('.chip')].some((c) => c.textContent === 'this tab'))?.dataset.session;
-    await popup.waitForFunction(`(${sessionHere})() || (!document.getElementById('authorizeBox').hidden && !document.getElementById('authorize').disabled)`);
-    const existing = await popup.evaluate(sessionHere);
-    if (existing) {
-      await popup.select(`.session[data-session="${existing}"] .mode`, task.access);
-    } else {
+    // On the site of the previous task the tab's session is still there and only the access level
+    // changes. On another site that session is suspended, and the tab is authorized afresh.
+    await sleep(1000); // one refresh of the popup's state
+    const authorizable = await popup.$eval('#authorizeBox', (el) => !el.hidden);
+    if (authorizable) {
+      await popup.waitForFunction(() => !document.getElementById('authorize').disabled);
       await popup.select('#newAccess', task.access);
       await popup.click('#authorize');
       await popup.waitForFunction(() => document.getElementById('authorizeBox').hidden);
+    } else {
+      const existing = await popup.evaluate(() => [...document.querySelectorAll('.session')]
+        .find((row) => [...row.querySelectorAll('.chip')].some((c) => c.textContent === 'this tab')).dataset.session);
+      await popup.$eval(`.session[data-session="${existing}"] .mode`, (el, value) => {
+        el.value = value;
+        el.dispatchEvent(new Event('change'));
+      }, task.access);
     }
     await sleep(300);
     await page.bringToFront();

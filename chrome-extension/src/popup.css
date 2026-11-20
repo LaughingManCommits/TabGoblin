@@ -46,6 +46,9 @@
 
 * { box-sizing: border-box; }
 
+/* The popup window is short and scrolls: keep the scrollbar slim and in theme. */
+html { background: var(--bg); scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
 body {
   width: 344px;
   margin: 0;
@@ -55,14 +58,14 @@ body {
 }
 
 /* ---------- header ---------- */
-.masthead { padding: 12px 12px 10px; }
+.masthead { padding: 10px 12px 8px; }
 .brand { display: flex; align-items: center; gap: 10px; }
-.logo { width: 34px; height: 34px; flex: none; }
+.logo { width: 30px; height: 30px; flex: none; }
 .name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
 .tagline { color: var(--muted); font-size: 11.5px; }
 .status {
   display: flex; align-items: center; gap: 8px;
-  margin-top: 10px; padding: 6px 10px;
+  margin-top: 8px; padding: 5px 10px;
   background: var(--card); border: 1px solid var(--line); border-radius: 999px;
   font-size: 12px; box-shadow: var(--shadow);
 }
@@ -157,7 +160,7 @@ button.link:hover { color: var(--fg); }
 .list button { height: 26px; padding: 0 10px; font-size: 12px; }
 
 /* ---------- sessions ---------- */
-.session { padding: 9px 10px; margin-bottom: 8px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; }
+.session { padding: 8px 10px; margin-bottom: 8px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; }
 .session .line { display: flex; align-items: center; gap: 6px; }
 .sid {
   flex: none; padding: 0 6px; border-radius: 6px;
@@ -172,10 +175,10 @@ button.link:hover { color: var(--fg); }
 .session select, .session button { height: 28px; font-size: 12px; }
 .session select { background-color: var(--card); }
 .session button { background: var(--card); padding: 0 10px; }
-.empty { color: var(--muted); margin-bottom: 8px; }
+.empty { color: var(--muted); }
+#sessions > :last-child { margin-bottom: 0; }
 
-.callout { padding: 9px 10px; border: 1px dashed var(--line); border-radius: 10px; }
-.callout + .callout { margin-top: 8px; }
+.callout { margin-top: 8px; padding: 9px 10px; border: 1px dashed var(--line); border-radius: 10px; }
 .callout p { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 .callout > select { margin-bottom: 6px; }
 .callout > button { width: 100%; overflow: hidden; text-overflow: ellipsis; }
@@ -199,4 +202,4 @@ button.link:hover { color: var(--fg); }
 
 /* ---------- misc ---------- */
 p.error { margin: 0; padding: 8px 10px; color: var(--bad); background: var(--bad-soft); border: 1px solid var(--bad); border-radius: 10px; }
-footer { display: flex; justify-content: flex-end; padding: 8px 14px 12px; }
+footer { display: flex; justify-content: flex-end; padding: 8px 14px 10px; }

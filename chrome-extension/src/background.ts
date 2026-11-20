@@ -22,7 +22,7 @@ const DEFAULT_PORT = 47821;
 const PORT_RANGE = 8;
 const MAX_INBOUND_CHARS = 1_000_000;
 const CONFIRM_TIMEOUT_MS = 60_000;
-const ACTIVITY_KEPT = 8;
+const ACTIVITY_KEPT = 6;
 const DIAGNOSTICS_KEPT = 50;
 const SUBMISSIONS_KEPT = 20;
 /** An identical submission within this window is refused unless explicitly repeated. */

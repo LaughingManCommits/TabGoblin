@@ -1,0 +1,1 @@
+Error [SESSION_SUSPENDED]: The tab left the sites authorized for this session, so the session is suspended and nothing can be read. Ask the user to click the TabGoblin icon on that tab and resume it.

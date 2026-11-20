@@ -1,0 +1,130 @@
+# Development
+
+## Layout
+
+```text
+java-server/         the MCP server (Java 21, Maven)
+chrome-extension/    the extension (TypeScript, Manifest V3, esbuild)
+  src/               sources
+  test/              unit tests (node:test, jsdom)
+  icons/             goblin.svg and the PNGs rendered from it
+  dist/              build output: load this folder in Chrome
+demo-site/           three local demo websites on three origins (test fixtures)
+e2e/                 end-to-end suite and helper scripts (Puppeteer, your Chrome)
+docs/                this documentation, screenshots, example outputs
+```
+
+## Build
+
+```sh
+mvn -f java-server/pom.xml package                    # tests + java-server/target/browser-context-mcp.jar
+cd chrome-extension && npm install && npm run check   # type-check, unit tests, build to dist/
+```
+
+After rebuilding the extension, press the reload button on its card in `chrome://extensions`.
+
+## Tests
+
+| Command | What it covers |
+|---|---|
+| `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel |
+| `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, and the background worker against a fake Chrome |
+| `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
+
+How the end-to-end run works:
+
+- It starts real server processes and speaks MCP to them over stdio, like an IDE does.
+- It launches your installed Chrome with a temporary profile, installs the unmodified extension,
+  and triggers its toolbar button the way a click does, so Chrome's real `activeTab` grant is used.
+- It drives the popup through its real controls.
+- `HEADED=1 npm test` shows the browser; `BCMCP_CHROME=<path>` picks another Chrome.
+
+Other scripts in `e2e/`:
+
+| Script | Purpose |
+|---|---|
+| `node live.mjs <url> …` | Read-only smoke check on real websites |
+| `node agent.mjs` | Hands the tools to a real model (the `claude` CLI) with questions that need expanding, scrolling or loading more; prints the tool calls. Costs a few cents. |
+| `HEADED=1 node screenshots.mjs` | Regenerates `docs/images` and `docs/examples` |
+| `node make-icons.mjs` | Renders the icon PNGs from `chrome-extension/icons/goblin.svg` |
+
+### About the screenshots
+
+The popup pictures are captures of the real popup window, taken through the browser's debugging
+interface. Run the script with `HEADED=1`: a visible Chrome gives the popup its real size
+(354 × 600), a headless one a different window. `popup-full.png` and `popup-full-light.png` are
+the exception: they lay the popup's live content out at full length in an ordinary tab, to show
+what is below the fold and what the light theme looks like.
+
+## The demo sites
+
+Three fixtures, each on its own port and therefore its own origin. Nothing in the extension or the
+server knows about them.
+
+| Site | Port | What it exercises |
+|---|---|---|
+| A, classic HTML | 8931 | Forms, a search form, a server-side form post, validation, collapsed sections, dynamic content, a password field, a redirect to another origin, a link that opens a new tab |
+| B, single-page app | 8932 | `div`-based controls with ARIA roles, client-side routing, contenteditable, a custom checkbox, shadow DOM, a list that loads more on scroll, an inner scrolling area |
+| C, documentation | 8933 | Nested headings, lists, a data table, a nested discussion, a same-origin frame, a frame from another origin, a "load more" button, text addressed to AI agents |
+
+Run them by hand with `node demo-site/server.mjs`.
+
+## Conventions
+
+- **No website-specific code.** If a change needs a selector, hostname or product name, it does
+  not belong here.
+- **Rules are pure.** Anything that decides whether something is allowed goes into `policy.ts` as
+  a function without `chrome.*` or DOM access, with a test.
+- **DOM code is pure too.** `snapshot`, `extract`, `interact` and `submit` take a document and run
+  under jsdom.
+- **Fail closed.** An unknown tab address, an unparseable message or a missing owner means no.
+- **Nothing is retried.** A command is sent once; unknown outcomes are reported as unknown.
+- **Only allowlisted information leaves the page.** New output fields need a reason and a test
+  that hidden content and credentials stay out.
+- **Errors are for the agent.** Each has a stable code and says what to do next.
+
+## Adding a tool
+
+1. Add the action to `ACTIONS` and its minimum access level to `REQUIRED` in `policy.ts`.
+2. Implement the page operation in `interact.ts` (or a new pure module) and route it in `content.ts`.
+3. Route the action in `runCommand` in `background.ts`.
+4. Add the tool in `BrowserService.java` (argument validation) and `McpMain.java` (definition).
+5. Test at each level: rule, DOM, routing, end to end.
+
+## Protocol reference
+
+Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
+
+```json
+{ "type": "challenge", "nonce": "…", "versions": [2] }
+{ "type": "auth", "nonce": "…", "proof": "…", "version": 2 }
+{ "type": "auth_ok", "proof": "…", "version": 2, "clientId": "c-1a2b3c4d", "clientName": "…" }
+
+{ "id": "17", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
+{ "id": "17", "success": true, "result": {} }
+{ "id": "17", "success": false, "error": { "code": "NOT_AUTHORIZED", "message": "…" } }
+
+{ "type": "cancel", "id": "17" }
+{ "type": "client", "name": "IntelliJ IDEA" }
+{ "type": "event", "event": "sessions", "data": { "sessions": [] } }
+{ "type": "event", "event": "activity", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
+{ "type": "ping" }   { "type": "pong" }
+```
+
+| Close code | Meaning |
+|---|---|
+| 4401 | Pairing failed, timed out, or the token was rotated |
+| 4403 | The user disconnected this agent |
+| 4406 | No common protocol version |
+| 4409 | Replaced by a newer connection |
+| 4429 | Too many messages |
+
+Proofs are `HMAC-SHA256(token, "client:" + serverNonce + ":" + clientNonce)` and the same with
+`"server:"`, hex-encoded. A shared test vector is asserted in both `PairingTest.java` and
+`pairing.test.ts`.
+
+## Names
+
+The product is TabGoblin. Some technical names predate it and are kept so existing setups keep
+working: the jar and MCP server name (`browser-context-mcp`), the Java package (`browsercontext`),
+the token directory (`~/.browser-context-mcp`) and the `BCMCP_*` environment variables.
