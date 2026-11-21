@@ -395,10 +395,10 @@ test('Enter in a text box is refused without intent, and with it the user is ask
   assert.equal(sent.result.key, 'Enter');
 
   // With confirmations switched off by the user, the declared intent is enough.
-  await popup({ type: 'setConfirm', value: false });
+  await popup({ type: 'setAsk', value: 'never' });
   assert.equal(code(await enter({ intent: 'submit' })), 'ok');
   assert.equal(code(await enter()), 'SUBMIT_INTENT_REQUIRED', 'but it still has to be declared');
-  await popup({ type: 'setConfirm', value: true });
+  await popup({ type: 'setAsk', value: 'always' });
 
   // A field of a form: Enter submits the form for certain, and the user is told that.
   box('form', 'Email');
@@ -416,9 +416,9 @@ test('Enter in a text box is refused without intent, and with it the user is ask
   // Enter that the page left to the browser sent nothing: no submission is recorded for it.
   box('enter', 'Notes');
   pageResults.set('submit_fire', { dispatched: true, effect: 'inserted a new paragraph' });
-  await popup({ type: 'setConfirm', value: false });
+  await popup({ type: 'setAsk', value: 'never' });
   const line = await enter({ intent: 'submit' });
-  await popup({ type: 'setConfirm', value: true });
+  await popup({ type: 'setAsk', value: 'always' });
   assert.equal(code(line), 'ok');
   assert.deepEqual([line.result.submitted, line.result.effect, line.result.state], [false, 'inserted a new paragraph', undefined]);
   assert.match(line.result.note, /sent nothing/);
@@ -426,7 +426,7 @@ test('Enter in a text box is refused without intent, and with it the user is ask
 });
 
 test('the same text is not sent twice by Enter', async () => {
-  await popup({ type: 'setConfirm', value: false });
+  await popup({ type: 'setAsk', value: 'never' });
   const enter = (params: object = {}): Promise<any> => one.command('press_key', { params: { key: 'Enter', intent: 'submit', ...params } });
   const fires = (): number => pageLog.filter((entry) => entry === '1:submit_fire').length;
   pageResults.set('key_describe', { submit: 'text', click: null, label: 'Message' });
@@ -451,7 +451,7 @@ test('the same text is not sent twice by Enter', async () => {
   assert.equal(fires(), before + 1);
 
   for (const op of ['key_describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
-  await popup({ type: 'setConfirm', value: true });
+  await popup({ type: 'setAsk', value: 'always' });
 });
 
 test('a no stands: what the user declined is not asked again until they take it back', async () => {
@@ -520,6 +520,83 @@ test('a no stands: what the user declined is not asked again until they take it 
   await answer(true);
   assert.equal(code(await fifth), 'ok');
 
+  for (const op of ['key_describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
+});
+
+test('automatic: the user is asked the first time for each control, and what they allowed passes for a while', async () => {
+  const ask = (label: string): Promise<any> => {
+    pageResults.set('key_describe', { submit: 'text', click: null, label });
+    pageResults.set('submit_prepare', {
+      target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label }, by: 'enter', how: 'enter', label, digest: null,
+    });
+    return one.command('press_key', { params: { key: 'Enter', intent: 'submit' } });
+  };
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  pageResults.set('submit_fire', { dispatched: true, effect: 'the page handled the key itself' });
+  pageResults.set('submit_observe', {
+    expectSeen: false, submittedSeen: true, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: true,
+    urlChanged: false, documentChanged: false,
+  });
+  // `lasts`: what the prompt says an Allow would reach, in minutes; null when it is for this once.
+  const asked = async (label: string, lasts: number | null = 15): Promise<void> => {
+    const request = ask(label);
+    await until(async () => (await state()).pendingConfirm !== null, `the user to be asked about ${label}`);
+    assert.equal((await state()).pendingConfirm.label, label);
+    assert.equal((await state()).pendingConfirm.lasts, lasts, `what the prompt says about an Allow for “${label}”`);
+    await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
+    assert.equal(code(await request), 'ok');
+  };
+  // The activity list keeps its newest entries only, so the newest of its kind is what tells.
+  const lastAutomatic = async (): Promise<number> => Math.max(0, ...(await state()).activity
+    .filter((entry: any) => entry.label.startsWith('Allowed automatically')).map((entry: any) => entry.id));
+  const unasked = async (label: string): Promise<void> => {
+    const before = await lastAutomatic();
+    assert.equal(code(await ask(label)), 'ok');
+    assert.equal((await state()).pendingConfirm, null);
+    assert.ok(await lastAutomatic() > before, `${label} is marked in the activity list as allowed automatically`);
+  };
+  const session = async (): Promise<any> => (await state()).sessions.find((x: any) => x.id === 's1');
+  await popup({ type: 'askAgain', session: 's1' });
+  await popup({ type: 'setAsk', session: 's1', value: 'auto' });
+  assert.equal((await session()).ask, 'auto');
+  assert.equal((await state()).ask, 'always', 'the general setting is as it was');
+  // The agent is told both: the general setting, and for each of its sessions what holds there.
+  const told = (await one.command('status')).result;
+  assert.equal(told.confirmation, 'always');
+  assert.equal(told.sessions.find((x: any) => x.session === 's1').confirmation, 'auto');
+
+  await asked('Message');
+  assert.deepEqual((await session()).passes, [{ how: 'enter', label: 'Message', minutes: 15 }]);
+  await unasked('Message');
+  await asked('Reply');
+  // A high-impact name is asked about every time, and is not remembered.
+  await asked('Delete thread', null);
+  await asked('Delete thread', null);
+  // So is a control without a name: it could not be told from another one, nor be shown to the user.
+  await asked('', null);
+  await asked('', null);
+  assert.deepEqual((await session()).passes.map((pass: any) => pass.label), ['Message', 'Reply']);
+
+  // A burst: after five unasked in a minute the next is put to the user.
+  for (let i = 0; i < 4; i++) await unasked('Message');
+  await asked('Message');
+
+  // What was allowed is forgotten when the session is paused, when its access changes, and on the user's word.
+  await popup({ type: 'pause', session: 's1' });
+  await popup({ type: 'resume', session: 's1' });
+  assert.deepEqual((await session()).passes, []);
+  await asked('Reply');
+  await popup({ type: 'setMode', session: 's1', mode: 'write' });
+  assert.deepEqual((await session()).passes, []);
+  await asked('Reply');
+  await popup({ type: 'forgetAllowed', session: 's1' });
+  assert.deepEqual((await session()).passes, []);
+
+  // The general setting replaces what a session had of its own.
+  await popup({ type: 'setAsk', value: 'always' });
+  assert.equal((await session()).ask, 'always');
+  await asked('Reply', null);
+  await asked('Reply', null);
   for (const op of ['key_describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
 });
 

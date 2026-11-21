@@ -12,6 +12,19 @@ interface ActivityEntry {
   note?: string;
 }
 
+type AskMode = 'always' | 'auto' | 'never';
+
+/** The settings for asking, as a session's own control names them. */
+const ASKS: [AskMode, string][] = [['always', 'Ask every time'], ['auto', 'Ask the first time'], ['never', 'Do not ask']];
+
+/** What each setting means, under the general control. */
+const ASK_HINTS: Record<AskMode, string> = {
+  always: 'You are asked about every submission.',
+  auto: 'You are asked the first time for each button or text box. What you allow then passes for 15 minutes. '
+    + 'Deleting, paying and publishing always ask.',
+  never: 'You are asked only about deleting, paying, publishing and the like.',
+};
+
 interface SessionView {
   id: string;
   tabId: number;
@@ -27,6 +40,9 @@ interface SessionView {
   lastSubmission: string | null;
   /** Requests of this session that are not put to the user for now: those they declined, or all. */
   notAsked: { labels: string[]; all: boolean };
+  /** When the user is asked in this session, and what passes without a question right now. */
+  ask: AskMode;
+  passes: { how: 'click' | 'form' | 'enter'; label: string; minutes: number }[];
 }
 
 interface ClientView {
@@ -39,7 +55,8 @@ interface State {
   connection: 'unpaired' | 'connected' | 'disconnected' | 'pairing_failed' | 'version_mismatch';
   port: number;
   hasToken: boolean;
-  confirmSubmissions: boolean;
+  /** When the user is asked about a submission: the general setting. */
+  ask: AskMode;
   indicator: boolean;
   clients: ClientView[];
   blockedClients: string[];
@@ -47,7 +64,7 @@ interface State {
   activity: ActivityEntry[];
   pendingConfirm: {
     id: string; session: string; label: string; highImpact: boolean; word: string | null; how: 'click' | 'form' | 'enter';
-    origin: string | null; preview: { field: string; text: string }[];
+    origin: string | null; preview: { field: string; text: string }[]; lasts: number | null;
   } | null;
 }
 
@@ -217,6 +234,34 @@ function renderSessions(s: State): void {
         row.append(held);
       }
       row.append(controls);
+      // Asking is a matter of submitting, which only a session with write access can do.
+      if (session.mode === 'write') {
+        const asking = el('div', 'row asking');
+        const ask = el('select', 'ask');
+        ask.setAttribute('aria-label', `When to ask before ${session.id} submits`);
+        for (const [value, label] of ASKS) {
+          const option = el('option', '', label);
+          option.value = value;
+          ask.append(option);
+        }
+        ask.value = session.ask;
+        ask.addEventListener('change', () => void request({ type: 'setAsk', session: session.id, value: ask.value }));
+        asking.append(el('span', 'caption', 'Submissions'), ask);
+        row.append(asking);
+      }
+      // What the user allowed and now passes without a question: there to see, and to end.
+      if (session.passes.length) {
+        const passing = el('div', 'passing');
+        // An Allow is for a kind of request on a control of that name: Enter in it, or a click on it.
+        // The time it has left stays in one piece when the line breaks.
+        const names = session.passes.map((pass) => `${pass.how === 'click' ? 'clicking' : 'Enter in'} “${pass.label}” (${pass.minutes}\u00a0min)`);
+        passing.append(el('span', '', `Passes without asking: ${names.join(', ')}.`));
+        // One button ends all of them, and says so.
+        const forget = el('button', 'link forget', session.passes.length > 1 ? 'Ask about them again' : 'Ask about it again');
+        forget.addEventListener('click', () => void request({ type: 'forgetAllowed', session: session.id }));
+        passing.append(forget);
+        row.append(passing);
+      }
       box.append(row);
     }
   });
@@ -349,6 +394,10 @@ function render(): void {
       line.append(el('span', 'text', `“${part.text}”`));
       return line;
     }));
+    // What an Allow would reach. Empty when it is for this once: the prompt is described by this line too.
+    const lasts = s.pendingConfirm.lasts;
+    $('confirmLasts').hidden = lasts === null;
+    $('confirmLasts').textContent = lasts === null ? '' : `Automatic is on: after Allow, this passes without asking for ${lasts} minutes.`;
     // Why this one always asks.
     $('confirmImpact').hidden = !s.pendingConfirm.word;
     $('confirmImpact').textContent = s.pendingConfirm.word ? `Always asked about: its name says “${s.pendingConfirm.word}”.` : '';
@@ -360,7 +409,9 @@ function render(): void {
   renderAgents(s);
   renderSessions(s);
   renderActivity(s);
-  $<HTMLInputElement>('confirmSubmissions').checked = s.confirmSubmissions;
+  $<HTMLSelectElement>('askMode').value = s.ask;
+  const own = s.sessions.some((x) => x.ask !== s.ask);
+  $('askHint').textContent = `${ASK_HINTS[s.ask]}${own ? ' Some sessions are set differently; choosing here sets them all.' : ''}`;
   $<HTMLInputElement>('indicator').checked = s.indicator;
 }
 
@@ -386,7 +437,7 @@ $('authorize').addEventListener('click', () => {
 const sessionOfThisTab = (): string | undefined => state?.sessions.find((x) => x.tabId === currentTab?.id)?.id;
 $('resume').addEventListener('click', () => void request({ type: 'resumeSession', session: sessionOfThisTab(), tabId: currentTab?.id }));
 $('addOrigin').addEventListener('click', () => void request({ type: 'addOrigin', session: sessionOfThisTab(), tabId: currentTab?.id }));
-$('confirmSubmissions').addEventListener('change', () => void request({ type: 'setConfirm', value: $<HTMLInputElement>('confirmSubmissions').checked }));
+$('askMode').addEventListener('change', () => void request({ type: 'setAsk', value: $<HTMLSelectElement>('askMode').value }));
 $('indicator').addEventListener('change', () => void request({ type: 'setIndicator', value: $<HTMLInputElement>('indicator').checked }));
 $('clearActivity').addEventListener('click', () => void request({ type: 'clearActivity' }));
 $('allow').addEventListener('click', () => void request({ type: 'confirm', id: state?.pendingConfirm?.id, allow: true }));

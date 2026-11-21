@@ -25,7 +25,8 @@ IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┼�
 - **Reading.** A structured snapshot with numbered elements, and structured text with an outline;
   both bounded, and both say how complete they are.
 - **Acting.** Click, fill, type, press keys, scroll, navigate, go back, wait, take screenshots.
-- **Submitting.** Declared by the agent, confirmed by you, sent once, and verified against the
+- **Submitting.** Declared by the agent, confirmed by you (every time, or the first time for each
+  control, as you choose), sent once, and verified against the
   page: confirmed, failed or uncertain, with the evidence. Pressing Enter in a message box counts
   as submitting.
 - **Control.** Pause or revoke a session, disconnect an agent, watch what happens. If a tab leaves
@@ -75,9 +76,9 @@ The [installation guide](docs/installation.md) walks through each step with what
 ## Verify
 
 ```sh
-mvn -f java-server/pom.xml verify       # 54 tests, then the built jar checked against the protocol
-cd chrome-extension && npm run check    # 127 tests, type-check, build
-cd e2e && npm install && npm test       # 90 steps in your Chrome, against three demo sites
+mvn -f java-server/pom.xml verify       # 55 tests, then the built jar checked against the protocol
+cd chrome-extension && npm run check    # 130 tests, type-check, build
+cd e2e && npm install && npm test       # 91 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries
 ```
 
@@ -85,7 +86,7 @@ cd e2e/editors && npm install && npm test   # text entry into 14 real editor lib
 
 - Whatever is visible in an authorized tab is sent to your agent and its model provider.
 - Page content is untrusted input and may try to steer an agent within the access you granted.
-  Keep submission confirmation on where a wrong submission would hurt.
+  Keep "Ask me every time" where a wrong submission would hurt.
 - Each time a tab changes website Chrome withdraws the extension's access, so a session spanning
   two websites needs one click from you per move.
 - Frames from another website and closed shadow roots are not read.

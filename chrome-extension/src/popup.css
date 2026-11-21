@@ -157,6 +157,10 @@ button.link:hover { color: var(--fg); }
 .confirm .ask .unnamed { font-weight: inherit; }
 .confirm .why { color: var(--muted); font-size: 12px; margin-bottom: 8px; text-wrap: balance; }
 .confirm .where { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 12px; }
+/* What an Allow would reach beyond this request: the extension's own words, not to be missed above the buttons. */
+.confirm .lasts {
+  margin-bottom: 10px; padding-left: 8px; border-left: 2px solid var(--warn-line); font-size: 12px; text-wrap: balance;
+}
 .confirm .where .origin { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* What would be sent: a quotation, set apart from the extension's own words. */
 .confirm .sent {
@@ -198,6 +202,18 @@ button.link:hover { color: var(--fg); }
 .chip { flex: none; padding: 0 7px; border-radius: 999px; font-size: 10.5px; line-height: 17px; background: var(--card); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .chip.state { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn); }
 .session .meta { color: var(--muted); font-size: 11.5px; margin: 3px 0 8px; }
+/* When this session asks, and what it lets pass. */
+.session .asking { margin-top: 6px; }
+.session .asking .caption { flex: none; color: var(--muted); font-size: 11.5px; }
+.session .asking select { flex: 1; min-width: 0; }
+.session .passing {
+  margin-top: 8px; padding: 6px 8px; border-radius: 8px; font-size: 11.5px;
+  background: var(--accent-soft); border: 1px solid var(--accent); color: var(--fg); overflow-wrap: anywhere;
+}
+.session .passing button.link { display: block; margin-top: 3px; padding: 0; height: auto; font-size: 11.5px; color: var(--accent); }
+.settings .setting { margin-top: 0; }
+.settings select { width: 100%; }
+.settings .hint { margin: 5px 0 10px; color: var(--muted); font-size: 11.5px; }
 /* A no that still stands, and the way to take it back. */
 .session .held {
   margin: -2px 0 8px; padding: 6px 8px; border-radius: 8px; font-size: 11.5px;

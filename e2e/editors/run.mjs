@@ -128,7 +128,7 @@ try {
   await popup.click('#authorize');
   await popup.waitForFunction(() => document.getElementById('authorizeBox').hidden);
   // The user of this lab does not want to be asked before each Enter: the setting for that is off.
-  if (await popup.$eval('#confirmSubmissions', (el) => el.checked)) await popup.click('#confirmSubmissions');
+  await popup.select('#askMode', 'never');
   await until(async () => (await agent.tool('browser_status')).text.includes('Submissions need user confirmation: no'), 'confirmations to be off');
   await popup.close().catch(() => undefined);
   await page.bringToFront();

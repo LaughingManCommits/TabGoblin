@@ -31,6 +31,12 @@ is still running; a call it cancels is stopped and not answered.
 `diagnostics` (boolean): also list this agent's recent operations with durations and error codes.
 Operations of other agents are not shown.
 
+The line about confirmation gives the user's general setting: *yes*; *yes, the first time for each
+control; what the user allowed passes for a while*; or *no (only high-impact ones are put to the
+user)*. A session with write access that the user set differently says so in its own block, in
+the same words: `Submissions need user confirmation in this session: …`. An agent does not need
+to act on either line: a submission is declared the same way under every setting.
+
 ```text
 Extension: connected (protocol 2)
 This agent: c-1a2b3c4d on port 47821

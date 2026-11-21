@@ -3,6 +3,73 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `automatic-mode`, WP-8
+
+Points 1 and 2 of WP-8: the status tool names a session that asks differently, and the popup
+names the kind of request that passes. All on the final build of the branch.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 55 tests; `McpConformanceIT` on the built jar: 8 tests |
+| `cd chrome-extension && npm run check` | type-check clean, 130 tests, build |
+| `cd e2e && npm test` | 91 passed, 0 failed. New in existing steps: the status tool names the session that asks differently, and no longer does once the general setting is chosen again; the popup lists Enter and a click as two things that pass, with one button for both. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node screenshots.mjs prompts` | 28 pictures of 14 views. Looked at: a session with two things that pass in both colour schemes, and with one (light). |
+| `HEADED=1 node screenshots.mjs` | run twice. `popup-automatic.png` was looked at both times and is the one picture kept. `popup-authorize.png`, `popup-full.png` and `popup-full-light.png` came out different too and were put back unopened: they show the agents' ports, which differ from run to run, and nothing this change touches. |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: no suite. The first picture for the documentation broke "(15 min)" over two
+lines; number and unit are now held together. And a log of the editor lab was read that an
+earlier run of the day had left under the same name; the numbers above are from this run.
+
+Not tried: nothing new. CI on GitHub: see the entry that follows this one in time.
+
+## 2026-11-21, on `automatic-mode`, after WP-7
+
+Going over WP-7 once more. The prompt now says when an Allow will stand, a control without a
+name is never remembered, and what the entry below lists as not tried was tried.
+
+| Command | Result |
+|---|---|
+| `cd chrome-extension && npm run check` | type-check clean, 130 tests, build |
+| `cd e2e && npm test` | 91 passed, 0 failed. New in existing steps: an Allow ends when the tab leaves its site, and the user is asked again after the return; five pass within a minute and the next is asked; the prompt of a session on two sites names the site the tab is on; the line about what an Allow reaches is in the prompt in the automatic mode and not otherwise. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node screenshots.mjs prompts` | 26 pictures of 13 views. Looked at: the prompt in the automatic mode in both colour schemes, and the ordinary Enter prompt (dark) next to it. From the run before, now opened: the session in the automatic mode (light), "Do not ask me" (dark), and `docs/images/popup-full-light.png`. |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: two steps in the first run end to end. The new checks read the popup before
+its next refresh; they now wait for it.
+
+Not run: the server's suites (nothing in the server changed since the entry below) and
+`HEADED=1 node screenshots.mjs` (the documentation's pictures show nothing that changed).
+
+Not tried: a control without a name in the automatic mode in a real browser (rule and worker
+tests only). CI on GitHub has still not been seen.
+
+## 2026-11-21, on `automatic-mode`, WP-7
+
+The automatic mode for confirmations. All on the final build of the branch.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 54 tests; `McpConformanceIT` on the built jar: 8 tests |
+| `cd chrome-extension && npm run check` | type-check clean, 129 tests, build |
+| `cd e2e && npm test` | 91 passed, 0 failed. In a real Chrome: asked the first time, not the second; another control asked about; ended by the popup, by a pause, and by a restart of the worker. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node screenshots.mjs prompts` | 24 pictures of 12 views. Looked at: the session in the automatic mode (dark), the setting on every time (dark) and on automatic (light). The other new ones were not opened. |
+| `HEADED=1 node screenshots.mjs` | the pictures that changed were looked at one by one, except `popup-full-light.png`, the twin of `popup-full.png` |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: one new worker test, for a reason of its own. It counted entries in the
+activity list, which keeps only its newest; it now looks at the newest of the kind.
+
+Not tried: that an Allow ends when the tab leaves the site (the code path is the one that ends
+it on a pause, which was tried), and the limit of five a minute in a real browser (rule and
+worker tests only). CI on GitHub has still not been seen.
+
 ## 2026-11-21, on `confirmations`, WP-4, WP-5 and WP-6
 
 All on the final build of the branch.
@@ -149,57 +216,11 @@ the background: fourteen hold the text, and Editor.js reports its one-paragraph-
 Failed: none. Not run: `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`. CI on
 GitHub has still not been seen.
 
-## 2026-11-21, `29fea3e` on `editor-keys`
+## Earlier, in one line each
 
-Key presses in editors, on top of `7090b45`. Same machine and versions as the entry below.
-
-Passed, all on the final build:
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml package` | 52 tests, jar built |
-| `cd chrome-extension && npm run check` | type-check clean, 110 tests, build |
-| `cd e2e && npm test` | 82 passed, 0 failed |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-The six new tests in `chrome-extension/test/editor.test.ts` were also run against the source
-before the change: five failed, as they should, and so did one existing test, which now sees that
-a key used to be typed at the start of an editor.
-
-Failed: none. The cells that do not pass are the limits listed in `docs/editors.md`.
-
-Run once, not kept: two temporary lab checks, a key into an editor that was never focused, and a
-text with a line break typed key by key. The second is WP-2 in `TODO.md`.
-
-Not run: `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`. CI on GitHub has still
-not been seen.
-
-## 2026-11-21, `0591970` on `editor-compatibility`
-
-Working tree: clean except for untracked `TODO.md` and the agent files being added. Windows 11,
-JDK 26 (the build targets release 21), Maven 3.8.1, Node 24.15.0, Chrome 157.
-
-Passed:
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml package` | 52 tests, jar built |
-| `cd chrome-extension && npm run check` | type-check clean, 105 tests, build |
-| `cd chrome-extension && node --test test/agnostic.test.ts` | 2 tests |
-| `mvn -B -f java-server/pom.xml test -Dtest=PairingTest` | passed |
-| `cd e2e && npm test` | 81 passed, 0 failed |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`; the three `fail` cells are the Editor.js limits in `docs/editors.md` |
-| `node docs/agents/check-links.mjs` | all relative links and anchors resolve |
-
-Exit 1, as documented:
-
-- `BACKGROUND=1 npm test` in `e2e/editors`: 219 of 225. Two `SILENT` cells, Enter in Trix and in
-  Editor.js, which `docs/editors.md` lists as known (footnote ³). Same cells as before `f5c6b82`.
-
-Inspected, not run:
-
-- `.github/workflows/ci.yml`. Its commands were read and match the runbook; no run on GitHub has
-  been seen.
-- `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`, `node make-icons.mjs`.
+- 2026-11-21, `29fea3e` on `editor-keys`: server 52 tests, extension 110, end to end 82 of 82,
+  editor lab 222 of 225 in front and 220 of 225 in the background, no `SILENT`. CI on GitHub not
+  seen.
+- 2026-11-21, `0591970` on `editor-compatibility`: server 52 tests, extension 105, end to end 81
+  of 81, editor lab 222 of 225 in front and 219 of 225 in the background with two `SILENT` cells
+  (Enter in two editors, known then, fixed since). CI on GitHub not seen.

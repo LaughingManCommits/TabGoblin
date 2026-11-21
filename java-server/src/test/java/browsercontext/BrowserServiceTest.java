@@ -319,6 +319,28 @@ class BrowserServiceTest {
     }
 
     @Test
+    void statusSaysWhenASessionAsksDifferentlyFromTheGeneralSetting() {
+        ext.responder = cmd -> {
+            ObjectNode s = args().put("confirmSubmissions", false).put("confirmation", "never");
+            tools.jackson.databind.node.ArrayNode sessions = s.putArray("sessions");
+            sessions.addObject().put("session", "s1").put("origin", "https://chat.example").put("mode", "write")
+                    .put("paused", false).put("owner", "you").put("confirmation", "auto");
+            sessions.addObject().put("session", "s2").put("origin", "https://example.com").put("mode", "write")
+                    .put("paused", false).put("owner", "you").put("confirmation", "never");
+            // Without write access nothing can be submitted: the setting says nothing there.
+            sessions.addObject().put("session", "s3").put("origin", "https://docs.example").put("mode", "explore")
+                    .put("paused", false).put("owner", "you").put("confirmation", "always");
+            return FakeExtension.ok(cmd, s);
+        };
+        String text = service.call("browser_status", args()).text();
+        assertTrue(text.contains("Submissions need user confirmation: no (only high-impact ones are put to the user)\n"), text);
+        assertTrue(text.contains("Session s1\n  Authorized origin: https://chat.example\n  Access: read/write\n  Paused: no\n"
+                + "  Submissions need user confirmation in this session: yes, the first time for each control; "
+                + "what the user allowed passes for a while\n"), text);
+        assertEquals(1, text.split("in this session", -1).length - 1, text);
+    }
+
+    @Test
     void statusWithoutSessionsTellsTheAgentWhatToAskFor() {
         ext.responder = cmd -> {
             ObjectNode s = args().put("confirmSubmissions", false);

@@ -4,17 +4,19 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `728edfd`: the merge of `mcp-standard`, made by the owner on
+- `main` = `origin/main` = `654e955`: the merge of `confirmations`, made by the owner on
   2026-11-21. Earlier branches are merged and gone.
-- Branch `confirmations`: not merged. On top of `728edfd`: WP-6 (Enter as a full submission), WP-5
-  (a no stands), WP-4 (what the prompt says, and its pictures). The owner pushed it up to `80ea261`
-  (WP-6 and WP-5); the commits after that, starting with WP-4, are local.
+- Branch `automatic-mode`: on the remote up to `cd624c0` (WP-7, pushed by the owner), not
+  merged. Two commits on top of it are local only: what going over WP-7 once more turned up,
+  and WP-8.
+
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| Push and merge `confirmations` | Waiting for the owner, who pushes and merges | git |
-| WP-7: an automatic mode for confirmations | Proposed by the owner; four decisions open. Everything it depended on is done. | [TODO.md](../../TODO.md) |
+| Push the last commits of `automatic-mode`, then merge the branch | Waiting for the owner, who pushes and merges | git |
+
+The backlog in [TODO.md](../../TODO.md) is empty.
 
 ## Blockers and unknowns
 
@@ -29,7 +31,8 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, on `confirmations`, all on its final build: the server's
+- **Last verification:** 2026-11-21, on `automatic-mode`, all on its final build: the server's
   tests and the conformance check, the extension's tests, the end-to-end suite, and the editor lab
   in front and in the background. Details in the [validation log](validation-log.md).
-- **Next action:** the owner's decisions for WP-7 in `TODO.md`. Nothing else is open.
+- **Next action:** none is planned. What was never checked is listed under "Blockers and
+  unknowns" above.

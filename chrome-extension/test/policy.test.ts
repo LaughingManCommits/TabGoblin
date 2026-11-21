@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNWELCOME_AFTER, activityLabel, checkAsk, checkClick, checkGate, checkKey,
-  failureNote, highImpactWord, inScope, isHighImpact, noteAnswer, standingRefusals,
+  ALLOW_LASTS_MS, CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNASKED_PER_MINUTE, UNWELCOME_AFTER, activityLabel, askModeOf,
+  checkAsk, checkClick, checkGate, checkKey, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
+  rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
@@ -311,6 +312,61 @@ test('a session whose requests are refused again and again is not heard for a wh
   mixed = noteAnswer(mixed, 'click:C', 'C', 'allow', t0);
   mixed = noteAnswer(mixed, 'click:D', 'D', 'deny', t0);
   assert.equal(code(() => checkAsk(mixed, 'click:E', false, t0 + 1000)), 'ok');
+});
+
+test('an Allow stands in the automatic mode only, and never for a high-impact control or one without a name', () => {
+  const site = 'https://chat.example';
+  assert.equal(remembersAllow('auto', null, 'Message', site), true);
+  assert.equal(remembersAllow('always', null, 'Message', site), false);
+  assert.equal(remembersAllow('never', null, 'Message', site), false);
+  assert.equal(remembersAllow('auto', 'delete', 'Delete thread', site), false);
+  // Without a name it could not be told from another control without one, nor be shown to the user.
+  assert.equal(remembersAllow('auto', null, '', site), false);
+  assert.equal(remembersAllow('auto', null, '  ', site), false);
+  assert.equal(remembersAllow('auto', null, 'Message', null), false, 'a tab whose address is not known');
+});
+
+test('asking every time, never, or the first time for each control', () => {
+  const site = 'https://chat.example';
+  const t0 = 1_000_000;
+  // Every time, and never: nothing that was allowed before matters.
+  const allowed = rememberAllow(undefined, 'enter:Message', 'enter', 'Message', site, t0);
+  assert.equal(needsAsking('always', null, allowed, 'enter:Message', site, t0 + 1000), true);
+  assert.equal(needsAsking('never', null, undefined, 'enter:Message', site, t0), false);
+  // A high-impact action is asked about under every setting, also right after it was allowed.
+  const deleted = rememberAllow(undefined, 'click:Delete thread', 'click', 'Delete thread', site, t0);
+  for (const mode of ['always', 'auto', 'never'] as const) {
+    assert.equal(needsAsking(mode, 'delete', deleted, 'click:Delete thread', site, t0 + 1000), true, mode);
+  }
+
+  // Automatic: the first time yes, then not, for the same control only.
+  assert.equal(needsAsking('auto', null, undefined, 'enter:Message', site, t0), true, 'never allowed');
+  assert.equal(needsAsking('auto', null, allowed, 'enter:Message', site, t0 + 1000), false);
+  assert.equal(needsAsking('auto', null, allowed, 'enter:Reply', site, t0 + 1000), true, 'another name');
+  assert.equal(needsAsking('auto', null, allowed, 'click:Message', site, t0 + 1000), true, 'another kind of request');
+  assert.equal(needsAsking('auto', null, allowed, 'enter:Message', 'https://other.example', t0 + 1000), true, 'another website');
+  assert.equal(needsAsking('auto', null, allowed, 'enter:Message', null, t0 + 1000), true, 'a tab whose address is not known');
+  // It ends by itself.
+  assert.equal(needsAsking('auto', null, allowed, 'enter:Message', site, t0 + ALLOW_LASTS_MS - 1), false);
+  assert.equal(needsAsking('auto', null, allowed, 'enter:Message', site, t0 + ALLOW_LASTS_MS), true);
+  assert.deepEqual(standingAllows(allowed, t0 + 1000), [{ how: 'enter', label: 'Message', minutes: 15 }]);
+  assert.deepEqual(standingAllows(allowed, t0 + ALLOW_LASTS_MS - 30_000), [{ how: 'enter', label: 'Message', minutes: 1 }]);
+  assert.deepEqual(standingAllows(allowed, t0 + ALLOW_LASTS_MS), []);
+  // A click and Enter on controls of one name are two things to allow, and are shown as two.
+  const both = rememberAllow(allowed, 'click:Message', 'click', 'Message', site, t0 + 1000);
+  assert.deepEqual(standingAllows(both, t0 + 2000).map((pass) => `${pass.how} ${pass.label}`), ['enter Message', 'click Message']);
+
+  // An Allow does not cover a burst: after a few in a minute the user is asked again.
+  let busy = allowed;
+  for (let i = 0; i < UNASKED_PER_MINUTE; i++) {
+    assert.equal(needsAsking('auto', null, busy, 'enter:Message', site, t0 + 2000 + i), false, `pass ${i + 1}`);
+    busy = notePassed(busy, t0 + 2000 + i);
+  }
+  assert.equal(needsAsking('auto', null, busy, 'enter:Message', site, t0 + 3000), true);
+  assert.equal(needsAsking('auto', null, busy, 'enter:Message', site, t0 + 3000 + 60_000), false, 'a minute later it passes again');
+
+  // A setting that is not one of the three means the careful one.
+  assert.deepEqual(['auto', 'never', 'always', 'sometimes', undefined, true].map(askModeOf), ['auto', 'never', 'always', 'always', 'always', 'always']);
 });
 
 test('only one request waits for the user at a time', () => {

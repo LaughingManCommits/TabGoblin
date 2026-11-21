@@ -44,7 +44,7 @@
       </div>
     </section>
 
-    <section id="confirm" class="card confirm" role="alertdialog" aria-labelledby="confirmTitle" aria-describedby="confirmAsk" tabindex="-1" hidden>
+    <section id="confirm" class="card confirm" role="alertdialog" aria-labelledby="confirmTitle" aria-describedby="confirmAsk confirmLasts" tabindex="-1" hidden>
       <h2 id="confirmTitle">Allow this submission?</h2>
       <p class="ask" id="confirmAsk">
         <span id="confirmWho">The agent</span>
@@ -55,6 +55,8 @@
       <p id="confirmWhy" class="why" hidden></p>
       <div id="confirmSent" class="sent" hidden></div>
       <div class="where"><span id="confirmSession" class="sid"></span><span id="confirmOrigin" class="origin"></span></div>
+      <!-- In the automatic mode an Allow reaches further than this one request: said where the answer is given. -->
+      <p id="confirmLasts" class="lasts" hidden></p>
       <!-- Deny comes first for the keyboard: a key that was on its way elsewhere declines. Allow is shown first. -->
       <div class="row answers">
         <button id="deny">Deny</button>
@@ -106,10 +108,13 @@
     </section>
 
     <section class="card settings">
-      <label class="check">
-        <input id="confirmSubmissions" type="checkbox">
-        <span>Ask me before the agent submits anything</span>
-      </label>
+      <label for="askMode" class="setting">Before an agent submits anything</label>
+      <select id="askMode" aria-describedby="askHint">
+        <option value="always">Ask me every time</option>
+        <option value="auto">Ask me the first time (automatic)</option>
+        <option value="never">Do not ask me</option>
+      </select>
+      <p id="askHint" class="hint"></p>
       <label class="check">
         <input id="indicator" type="checkbox">
         <span>Show an indicator in the page while the agent works</span>

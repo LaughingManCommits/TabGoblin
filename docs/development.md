@@ -61,8 +61,9 @@ what is below the fold and what the light theme looks like.
 The confirmation prompt has more cases than the documentation shows. `node screenshots.mjs prompts`
 pictures all of them, in the dark and the light colour scheme, into `e2e/prompt-pictures/` (not in
 git), and prints the text of each: a click, a click on a high-impact control, Enter in a text
-box, with a long name, without a name, with a high-impact name, Enter in a field of a form, and a
-session on which a no stands. Look at them after any change to the prompt. The end-to-end suite
+box, with a long name, without a name, with a high-impact name, Enter in a field of a form; then a
+session on which a no stands, the prompt in the automatic mode, a session in that mode with
+one thing that passes and with two, and the general setting with each of its three values. Look at them after any change to the prompt. The end-to-end suite
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 ## Continuous integration
