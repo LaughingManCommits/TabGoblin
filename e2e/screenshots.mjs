@@ -154,6 +154,7 @@ try {
   await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
   await sleep(800);
   await capture(popup, 'popup-confirm.png');
+  await popup.waitForFunction(() => !document.getElementById('allow').disabled);
   await popup.click('#allow');
   example('submit.txt', (await pending).text.replace(/sub-[0-9a-f-]+/, 'sub-4f2a9c1e7b3d').replace(/"url" : "[^"]+"/, '"url" : "http://127.0.0.1:8931/"'));
 
@@ -164,6 +165,7 @@ try {
   await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
   await sleep(800);
   await capture(popup, 'popup-confirm-enter.png');
+  await popup.waitForFunction(() => !document.getElementById('deny').disabled);
   await popup.click('#deny');
   await key;
 

@@ -151,6 +151,8 @@ button.link:hover { color: var(--fg); }
 /* ---------- confirmation ---------- */
 .confirm { background: var(--warn-soft); border-color: var(--warn-line); }
 .confirm p { margin-bottom: 10px; }
+.confirm:focus { outline: none; }
+.confirm .answers #allow { order: -1; }
 .confirm .ask { margin-bottom: 6px; }
 .confirm .ask .unnamed { font-weight: inherit; }
 .confirm .why { color: var(--muted); font-size: 12px; margin-bottom: 8px; text-wrap: balance; }

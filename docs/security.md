@@ -88,6 +88,11 @@ which content scripts cannot read. It is never logged.
 - Enter or Space on a button or link is a click on it, and no way around the rules for clicks.
 - A key is pressed only on the element it was checked on. If the keyboard has moved by the time
   you allow it, nothing is pressed.
+- The prompt opens by itself, which moves the keyboard from the page into the popup. That is
+  kept, because a request nobody sees runs out after a minute. So that it cannot turn into
+  consent, the prompt takes no answer for the first 0.7 seconds, nothing in it is focused but
+  the prompt as a whole, and the first stop for Tab is Deny: a key or a click that was on its
+  way to the page declines at worst.
 - You are asked before anything is typed. Declining leaves the page untouched.
 - A submission id is processed once. Identical content within two minutes is refused unless
   explicitly repeated. An unknown outcome is recorded as uncertain and never resent.
@@ -147,6 +152,7 @@ content, typed text, full URLs, cookies, headers or the token.
 | Enter in a text box needs intent and the user's consent; a declined one is not pressed | Rules, DOM, worker, end-to-end |
 | Enter or Space on a control that submits is refused like a click on it | Rules, DOM, worker, end-to-end |
 | A key allowed for one element is not pressed on another | End-to-end |
+| A prompt that has only just appeared takes no answer; from the keyboard Deny comes first | End-to-end |
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |

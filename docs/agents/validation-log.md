@@ -3,6 +3,22 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `typed-lines`, WP-3
+
+The prompt cannot be answered by accident; its sentence for a field of a form is corrected.
+
+| What | Result |
+|---|---|
+| `cd chrome-extension && npm run check` | type-check clean, 120 tests, build |
+| `cd e2e && npm test` | 87 passed, 0 failed. The new step answers a prompt the instant it appears, then by Tab and Enter. |
+| The prompt for a field of a form, headless: its first moment, afterwards in both colour schemes, and after Tab | 4 pictures looked at: the buttons are dim at first, Allow is still shown first, Tab reaches Deny |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Before the change, in a visible Chrome: Tab and then Enter typed into a prompt that had just come
+up allowed the request. That script was not kept; the end-to-end step takes its place.
+
+Not run again: the Java build and the editor lab, which this does not touch.
+
 ## 2026-11-21, on `typed-lines`, third commit
 
 The look of the confirmation prompt, checked by eye. No change to what is asked or when.

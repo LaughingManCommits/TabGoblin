@@ -98,8 +98,12 @@ interface Client {
 }
 
 type ConfirmAnswer = 'allow' | 'deny' | 'timeout' | 'cancelled';
-/** How a submission that the user is asked about would be made: by a click on a control, or by Enter in a text box. */
-type ConfirmHow = 'click' | 'enter';
+/**
+ * How a submission that the user is asked about would be made: by a click on a control, by Enter
+ * in a field of a form, which submits the form, or by Enter in another text box, which may send
+ * what is written there.
+ */
+type ConfirmHow = 'click' | 'form' | 'enter';
 
 /** A command in flight, with what is needed to stop it at a safe point. */
 interface Operation {
@@ -626,7 +630,7 @@ function askUser(op: Operation, label: string, highImpact: boolean, how: Confirm
 async function confirmWithUser(op: Operation, session: SessionRecord, label: string, how: ConfirmHow = 'click'): Promise<void> {
   const highImpact = isHighImpact(label);
   if (!config.confirmSubmissions && !highImpact) return;
-  const nothing = how === 'enter' ? 'Nothing was pressed.' : 'Nothing was clicked.';
+  const nothing = how === 'click' ? 'Nothing was clicked.' : 'Nothing was pressed.';
   const answer = await askUser(op, label, highImpact, how);
   if (answer === 'deny') {
     throw new CommandError('SUBMIT_DENIED', `The user declined this submission. ${nothing}`);
@@ -717,7 +721,7 @@ async function pressKey(op: Operation, session: SessionRecord, params: Record<st
     return submit(op, session, { ref: Number(params.ref), fields: [], expectText: undefined, submissionId: undefined, repeat: false });
   }
   if (verdict === 'ask') {
-    await confirmWithUser(op, session, target.label, 'enter');
+    await confirmWithUser(op, session, target.label, target.submit === 'form' ? 'form' : 'enter');
   }
   const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
   const result = await page<object>(op, session, 'press_key', { ref: params.ref, key });

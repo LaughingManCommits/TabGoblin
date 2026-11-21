@@ -224,7 +224,10 @@ try {
       return (await p.$eval('#confirm', (el) => !el.hidden)) ? p : null;
     }, 'the confirmation prompt');
     const shownPrompt = { title: await popup.$eval('#confirmTitle', (el) => el.textContent), label: await popup.$eval('#confirmLabel', (el) => el.textContent) };
-    await popup.click(allow ? '#allow' : '#deny');
+    const answer = allow ? '#allow' : '#deny';
+    // A prompt takes no answer in its first moment.
+    await popup.waitForFunction((selector) => !document.querySelector(selector).disabled, {}, answer);
+    await popup.click(answer);
     return shownPrompt;
   }
   async function worker() {
@@ -1056,6 +1059,45 @@ try {
     await answerPrompt(true);
     assert(json(await allowed).dispatched, 'the key should be pressed once the user allows it');
     assert(await sent() === 1, `pressed once, counted ${await sent()}`);
+  });
+  await step('a prompt that has only just appeared takes no answer, and the keyboard reaches Deny first', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const editor = ref(snapshot, 'Textbox: New note');
+    // The popup is open, as when the user was looking at it: the prompt appears under their hands.
+    const popup = await openPopup();
+    await popup.waitForFunction(() => document.getElementById('confirm').hidden);
+    const pending = two.tool('browser_press_key', { ref: editor, key: 'Enter', intent: 'submit' });
+    // The instant it is there: a click that was on its way to something else lands on Allow.
+    const atOnce = await popup.evaluate(() => new Promise((done) => {
+      const look = setInterval(() => {
+        if (document.getElementById('confirm').hidden) return;
+        clearInterval(look);
+        const allow = document.getElementById('allow');
+        const held = allow.disabled && document.getElementById('deny').disabled;
+        allow.click();
+        done({ held, keyboard: document.activeElement?.id });
+      }, 5);
+    }));
+    assert(atOnce.held, 'the prompt must not take an answer in its first moment');
+    assert(atOnce.keyboard === 'confirm', `the keyboard should be on the prompt as a whole, it is on "${atOnce.keyboard}"`);
+    // What assistive technology is told: a dialog that needs an answer, named by its question.
+    const told = await popup.accessibility.snapshot({ root: await popup.$('#confirm'), interestingOnly: false });
+    // (The title is set in capitals by the style sheet, and that is how its name is passed on.)
+    assert(told?.role === 'alertdialog' && /^allow pressing enter\?$/i.test(told?.name ?? ''), `announced as ${JSON.stringify({ role: told?.role, name: told?.name })}`);
+    // Keys that were on their way to the page. Whether they come within the pause or after it,
+    // they must not allow: within it nothing answers, after it the first stop for Tab is Deny.
+    await popup.keyboard.press('Tab');
+    await popup.keyboard.press('Enter');
+    await popup.waitForFunction(() => !document.getElementById('allow').disabled || document.getElementById('confirm').hidden);
+    if (await popup.$eval('#confirm', (el) => !el.hidden)) {
+      await popup.$eval('#confirm', (el) => el.focus());
+      await popup.keyboard.press('Tab');
+      const stop = await popup.evaluate(() => document.activeElement?.id);
+      assert(stop === 'deny', `the first stop for Tab should be Deny, it is "${stop}"`);
+      await popup.keyboard.press('Enter');
+    }
+    fails(await pending, 'SUBMIT_DENIED');
+    assert(await pageB.evaluate(() => window.__sent) === 1, 'no key may have reached the editor');
   });
   await step('a key the user allowed for one element is not pressed on another', async () => {
     // The editor has the keyboard. While the user is asked, the page moves it to the Save control.

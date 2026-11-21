@@ -15,12 +15,11 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 | Item | Status | Authoritative source |
 |---|---|---|
 | Push and merge `typed-lines` | Waiting for the owner, who pushes and merges | git |
-| WP-3: consent that cannot be given by accident | Open, not started. First. | [TODO.md](../../TODO.md) |
-| WP-4: a prompt that says what is asked | Open, not started. Its task 1 at once. | [TODO.md](../../TODO.md) |
+| WP-1: follow the MCP standard with the official SDK | **Next**, by the owner's word on 2026-11-21 | [TODO.md](../../TODO.md) |
+| WP-4: a prompt that says what is asked | Open; its first task is done | [TODO.md](../../TODO.md) |
 | WP-5: requests one at a time, and not again after a no | Open, not started | [TODO.md](../../TODO.md) |
 | WP-6: Enter as a full submission, with tighter exceptions | Open, not started | [TODO.md](../../TODO.md) |
 | WP-7: an automatic mode for confirmations | Proposed by the owner; four decisions open | [TODO.md](../../TODO.md) |
-| WP-1: follow the MCP standard with the official SDK | Open, not started, no owner | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
@@ -39,9 +38,8 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
   `typed-lines`, the editor lab in front and in the background. After the third commit, which
   changes the popup, only the extension's tests and the end-to-end suite were run again. Details
   in the [validation log](validation-log.md).
-- **Next action:** WP-3 in `TODO.md` (consent given by accident from the keyboard), and task 1 of
-  WP-4 (a wrong sentence in the prompt for a field of a form). WP-7 waits for the owner's
-  decisions, which are listed in it.
+- **Next action:** WP-1 in `TODO.md`, starting at its task 1 ("Pin the reference"). WP-7 waits for
+  the owner's decisions, which are listed in it.
 - **After that, if the owner asks for it:** start WP-1 at task 1 ("Pin the reference") in
   `TODO.md`. It begins with reading the specification revision that SDK 2.2.0 implements, before
   any code changes.

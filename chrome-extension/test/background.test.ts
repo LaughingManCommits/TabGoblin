@@ -376,6 +376,14 @@ test('Enter in a text box is refused without intent, and with it the user is ask
   assert.equal(code(await enter()), 'SUBMIT_INTENT_REQUIRED', 'but it still has to be declared');
   await popup({ type: 'setConfirm', value: true });
 
+  // A field of a form: Enter submits the form for certain, and the user is told that.
+  pageResults.set('key_describe', { submit: 'form', click: null, label: 'Email' });
+  const form = enter({ intent: 'submit' });
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked about the form');
+  assert.equal((await state()).pendingConfirm.how, 'form');
+  await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: false });
+  assert.equal(code(await form), 'SUBMIT_DENIED');
+
   // Other keys, and Enter where it submits nothing, go through.
   pageResults.set('key_describe', { submit: null, click: null, label: 'Search' });
   assert.equal(code(await enter()), 'ok');

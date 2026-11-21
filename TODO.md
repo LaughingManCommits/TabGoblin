@@ -4,55 +4,18 @@
 
 | Package | About | Depends on | Suggested order |
 |---|---|---|---|
-| [WP-3](#wp-3-consent-that-cannot-be-given-by-accident) | The prompt cannot be answered by accident | | 1 |
-| [WP-4](#wp-4-a-prompt-that-says-what-is-asked) | What the prompt tells the user, and how it looks | | 2 (its task 1 at once) |
+| [WP-4](#wp-4-a-prompt-that-says-what-is-asked) | What the prompt tells the user, and how it looks | | 2 |
 | [WP-5](#wp-5-requests-one-at-a-time-and-not-again-after-a-no) | Asking in order, and not again after a no | | 3 |
 | [WP-6](#wp-6-enter-as-a-full-submission-with-tighter-exceptions) | Enter gets what other submissions get | | 4 |
-| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | WP-3, WP-5, WP-6, and the owner's decisions | 5 |
-| [WP-1](#wp-1-follow-the-mcp-standard-with-the-official-sdk) | The server and the MCP standard | | independent |
+| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | WP-5, WP-6, and the owner's decisions | 5 |
+| [WP-1](#wp-1-follow-the-mcp-standard-with-the-official-sdk) | The server and the MCP standard | | **1: next, by the owner's word on 2026-11-21** |
 
-WP-2 (text with line breaks, typed key by key) is done and is not listed. Numbers are not reused.
+Done and not listed: WP-2 (text with line breaks, typed key by key) and WP-3 (consent that cannot
+be given by accident: issues A1, A2 and B6). Numbers are not reused.
 
-WP-3 to WP-6 come from a critical look at the work on Enter as a submission, on 2026-11-21. Their
+WP-4 to WP-6 come from a critical look at the work on Enter as a submission, on 2026-11-21. Their
 issues keep the letters they were noted under (A1 ... D3). In the tables, "checked" means it was
 run or looked at; "read" means it follows from the source and was not run.
-
-## WP-3: Consent that cannot be given by accident
-
-**Status:** open, not started. **Owner:** unassigned.
-
-### Goal
-
-An answer to the prompt is something the user meant. A key that was on its way to the page, or a
-click that was on its way elsewhere, never allows a submission.
-
-### Issues
-
-| # | Issue | How it is known |
-|---|---|---|
-| A1 | The prompt opens by itself and takes the keyboard away from the page. Nothing is focused, so Space or Enter alone do nothing, but Allow is the first stop for Tab: Tab, then Enter or Space, allows the request. Someone tabbing through a form when the prompt comes up is two keys from consent. | Checked, in a visible Chrome |
-| A2 | The buttons accept a click from the instant they appear, under wherever the pointer was heading. | Read |
-| B6 | The prompt is not announced to assistive technology. It is a section with a heading: no role, no live region. | Read, from the markup |
-
-### Tasks
-
-1. Reproduce A1 as an end-to-end step: with the prompt up, Tab and Enter typed into the popup must
-   not allow the request. The script that showed it was not kept.
-2. Make Deny the first stop for Tab, before Allow.
-3. Ignore keys and clicks on both buttons for a short time after the prompt appears (proposal:
-   700 ms), and show it: the buttons look inactive for that time.
-4. Announce the prompt: `role="alertdialog"`, labelled by its title and described by its question.
-   If focus is moved, it goes to the dialog, never to a button.
-5. Decide whether the prompt should take the keyboard at all. `chrome.action.openPopup()` moves it
-   from the page into the popup. The alternatives are the badge alone, or a notice in the page
-   that takes no focus. Record the decision in `docs/security.md`.
-
-### Acceptance
-
-- No sequence of two keys typed into a freshly opened prompt allows a request (end-to-end).
-- A click on Allow within the delay does nothing (end-to-end).
-- A screen reader is told about the prompt (checked by hand, or by the accessibility tree).
-- `docs/user-guide.md` and `docs/security.md` say how the prompt guards against accidents.
 
 ## WP-4: A prompt that says what is asked
 
@@ -67,7 +30,6 @@ sentence in it is true for the case at hand.
 
 | # | Issue | How it is known |
 |---|---|---|
-| B1 | The Enter prompt always says "In a message or comment box, Enter sends what is written". For a field of a form, Enter submits the form for certain. | Read: the popup is not told which of the two it is |
 | B2 | The prompt names the text box, not its content: it does not show what would be sent. For a click it does not show the fields either. | Looked at |
 | B3 | It says "The agent", not which one. With two agents the user has to look the session's owner up in the list below. | Looked at |
 | B4 | The website shown is the session's first site. A session can span several, so it may not be the one the tab is on. | Read; not tried with a session over two sites |
@@ -78,8 +40,7 @@ sentence in it is true for the case at hand.
 
 ### Tasks
 
-1. **B1, at once.** Tell the popup which kind of Enter it is, and word each: a field of a form
-   ("This submits the form."), any other text box (the present sentence).
+1. Done: the prompt for a field of a form says that Enter submits the form (B1).
 2. Name the agent (B3), with the id added when two agents have the same name, as in the lists.
 3. Show the website the tab is on (B4). Try it with a session over two sites.
 4. Show what would be sent (B2): the beginning of the text in the box for Enter; for a click, the
@@ -235,7 +196,7 @@ they do not remove it. `docs/security.md` has to say so under what remains the u
 
 ### Depends on
 
-- WP-3: an Allow that can be given by accident must not be remembered.
+- WP-3, which is done: an Allow that can be given by accident must not be remembered.
 - WP-5: the limits on asking, and the memory of a no.
 - WP-6: repeats are refused, so that an Allow is not a licence to send the same thing again.
 
