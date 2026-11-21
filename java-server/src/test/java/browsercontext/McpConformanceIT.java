@@ -181,6 +181,15 @@ class McpConformanceIT {
         }
     }
 
+    @Test
+    void aMistypedCommandDoesNotStartAServer() throws Exception {
+        try (Server server = new Server("--show-tokn")) {
+            assertTrue(server.process.waitFor(10, TimeUnit.SECONDS), "it must not sit there waiting for a client");
+            assertEquals(2, server.process.exitValue());
+            assertTrue(server.written.isEmpty(), "and writes nothing where a client would read: " + server.written);
+        }
+    }
+
     /**
      * A client of the 2026-07-28 revision starts with {@code server/discover} instead of a
      * handshake. That revision tells it to take any error but "unsupported protocol version"

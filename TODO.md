@@ -293,7 +293,6 @@ specification, because some of these were written from memory of the protocol an
 | 5 | Tools have no title | Annotations are built with a null title | Give each tool a human-readable title |
 | 6 | Server identity is hard-coded and off-brand | `serverInfo("browser-context-mcp", "0.2.0")` in code, the version repeated from `pom.xml` | Name and title that match the product; the version read from the build |
 | 7 | Shutdown is abrupt | `System.exit(0)` 200 ms after input ends | Close the server and the WebSocket in order, then exit; the same path for Ctrl+C |
-| 8 | Unknown command-line flags are ignored | A mistyped `--show-tokn` silently starts a server | Reject unknown flags with the usage text and a non-zero exit code |
 | 9 | Java naming is not conventional | Package `browsercontext`, Maven groupId `browsercontext` | A reverse-domain package and groupId |
 
 ### Tasks
@@ -302,8 +301,9 @@ specification, because some of these were written from memory of the protocol an
 2. Done: `McpConformanceIT` starts the built jar and drives it as a client would. It runs with
    `mvn verify`, also in CI. Not done: cancelling a call there, which needs a browser and is left to
    the end-to-end suite; and the MCP Inspector, which was not tried.
-3. **Close the gaps**, one commit each, each with a test. Order: 7 and 8 (small, no protocol
-   change), 5 and 6 (metadata), 1 (cancellation), 2 (progress), 4 (structured results).
+3. **Close the gaps**, one commit each, each with a test. Done: 8 (a mistyped option is refused).
+   Order for the rest: 7 (shutdown), 5 and 6 (metadata), 1 (cancellation), 2 (progress),
+   4 (structured results).
 4. **Gap 4 needs care.** Agents read today's text results. Keep the text identical, add the
    structured form next to it, and run the end-to-end suite before and after.
 5. **Decide gap 9 separately.** Renaming the package touches every file and the jar's entry point.

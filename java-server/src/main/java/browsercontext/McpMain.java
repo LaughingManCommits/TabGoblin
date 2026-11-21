@@ -72,24 +72,33 @@ public final class McpMain {
         System.setOut(System.err);
         System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
 
-        int port = Integer.parseInt(setting(args, "--port", "BCMCP_PORT", String.valueOf(DEFAULT_PORT)));
-        Path tokenFile = Path.of(setting(args, "--token-file", "BCMCP_TOKEN_FILE",
-                Pairing.defaultTokenFile().toString()));
-        String extensionOrigin = setting(args, "--extension-origin", "BCMCP_EXTENSION_ORIGIN",
-                DEFAULT_EXTENSION_ORIGIN);
+        Options options;
+        try {
+            options = Options.parse(args, System::getenv);
+        } catch (UsageException e) {
+            // Nothing is started for a command line that was not understood.
+            System.err.println(e.getMessage());
+            System.err.println();
+            System.err.println(USAGE);
+            System.exit(2);
+            return;
+        }
+        int port = options.port();
+        Path tokenFile = options.tokenFile();
+        String extensionOrigin = options.extensionOrigin();
 
-        if (List.of(args).contains("--help") || List.of(args).contains("-h")) {
+        if (options.help()) {
             mcpOut.println(USAGE);
             return;
         }
-        if (List.of(args).contains("--rotate-token")) {
+        if (options.rotateToken()) {
             // Printed only on explicit request, for pasting into the extension popup. Never logged.
             mcpOut.println("New pairing token: " + Pairing.rotateToken(tokenFile));
             mcpOut.println("Running servers stop accepting the old token. Pair the extension again.");
             return;
         }
         String token = Pairing.loadOrCreateToken(tokenFile);
-        if (List.of(args).contains("--show-token")) {
+        if (options.showToken()) {
             mcpOut.println("Pairing token: " + token);
             mcpOut.println("Port:          " + port);
             return;
@@ -371,14 +380,73 @@ public final class McpMain {
         return b.build();
     }
 
-    /** Command-line flag, then environment variable, then default. */
-    private static String setting(String[] args, String flag, String env, String fallback) {
-        for (int i = 0; i < args.length - 1; i++) {
-            if (args[i].equals(flag)) {
-                return args[i + 1];
-            }
+    /** A command line that cannot be carried out. The message says why. */
+    static final class UsageException extends Exception {
+        private static final long serialVersionUID = 1L;
+
+        UsageException(String message) {
+            super(message);
         }
-        String value = System.getenv(env);
-        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    /** What the command line and the environment ask for. */
+    record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin) {
+
+        /**
+         * Reads the command line strictly: a mistyped option must not start a server, which then
+         * sits there waiting for a client. Each setting is the option, else the environment
+         * variable, else the default.
+         */
+        static Options parse(String[] args, java.util.function.UnaryOperator<String> environment) throws UsageException {
+            boolean help = false;
+            boolean showToken = false;
+            boolean rotateToken = false;
+            String port = null;
+            String tokenFile = null;
+            String origin = null;
+            for (int i = 0; i < args.length; i++) {
+                String arg = args[i];
+                switch (arg) {
+                    case "--help", "-h" -> help = true;
+                    case "--show-token" -> showToken = true;
+                    case "--rotate-token" -> rotateToken = true;
+                    case "--port", "--token-file", "--extension-origin" -> {
+                        if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
+                            throw new UsageException(arg + " needs a value.");
+                        }
+                        String value = args[++i];
+                        if (arg.equals("--port")) {
+                            port = value;
+                        } else if (arg.equals("--token-file")) {
+                            tokenFile = value;
+                        } else {
+                            origin = value;
+                        }
+                    }
+                    default -> throw new UsageException("Unknown option: " + arg);
+                }
+            }
+            String portText = firstSet(port, environment.apply("BCMCP_PORT"), String.valueOf(DEFAULT_PORT));
+            int number;
+            try {
+                number = Integer.parseInt(portText.trim());
+            } catch (NumberFormatException e) {
+                throw new UsageException("The port must be a number, not \"" + portText + "\".");
+            }
+            int highest = 65535 - PORT_RANGE + 1;
+            if (number < 1 || number > highest) {
+                throw new UsageException("The port must be between 1 and " + highest + ", not " + number + ".");
+            }
+            return new Options(help, showToken, rotateToken, number,
+                    Path.of(firstSet(tokenFile, environment.apply("BCMCP_TOKEN_FILE"), Pairing.defaultTokenFile().toString())),
+                    firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN));
+        }
+
+        private static String firstSet(String option, String variable, String fallback) {
+            if (option != null) {
+                return option;
+            }
+            return variable == null || variable.isBlank() ? fallback : variable;
+        }
     }
 }
