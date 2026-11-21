@@ -26,9 +26,13 @@ function installEditing(doc: Document, win: Window, calls: string[] = []): strin
     // `data-inert`: an editor whose DOM the browser cannot usefully edit (it draws from its model).
     if (active.getAttribute('contenteditable') !== 'true' || active.hasAttribute('data-inert')) return false;
     const selection = doc.getSelection()!;
-    const selected = selection.rangeCount > 0 && !selection.getRangeAt(0).collapsed;
+    const range = selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    const selected = range !== null && !range.collapsed;
     const text = active.textContent ?? '';
-    if (name === 'insertText') active.textContent = selected ? value : text + value;
+    // A caret at the very start types there; anywhere else in these tests means the end.
+    const atStart = range !== null && range.collapsed && range.startOffset === 0
+      && (range.startContainer === active || range.startContainer === active.firstChild);
+    if (name === 'insertText') active.textContent = selected ? value : atStart ? value + text : text + value;
     else if (name === 'delete') active.textContent = selected ? '' : text.slice(0, -1);
     else if (name === 'insertParagraph') active.textContent = `${text}\n`;
     else return false;
@@ -193,6 +197,126 @@ test('keys in an editor: characters, Backspace and Enter do what the browser wou
   editor.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'x') e.preventDefault(); });
   assert.equal((await press(doc, editor, 'x')).effect, 'the page handled the key itself');
   assert.ok(!(doc.getElementById('e')!.textContent ?? '').includes('x'));
+});
+
+function caretInto(doc: Document, el: Element): void {
+  const caret = doc.createRange();
+  caret.selectNodeContents(el);
+  caret.collapse(false);
+  const selection = doc.getSelection()!;
+  selection.removeAllRanges();
+  selection.addRange(caret);
+}
+
+const inBackground = (doc: Document): void => {
+  Object.defineProperty(doc, 'visibilityState', { value: 'hidden', configurable: true });
+};
+
+test('a key pressed in an editor that does not hold the caret goes to its end', async () => {
+  const { doc, win } = page('<p id="p">Other text</p><div id="e" contenteditable="true" tabindex="0">ab</div>');
+  installEditing(doc, win);
+  const editor = doc.getElementById('e')!;
+  caretInto(doc, doc.getElementById('p')!);
+
+  // Getting the keyboard puts the caret at the start of an editable region, in Chrome and in jsdom.
+  assert.equal((await press(doc, editor, 'c')).effect, 'typed the character');
+  assert.equal(editor.textContent, 'abc', 'at the end, not where focusing put the caret');
+  // With the caret in it, the key goes where the caret is.
+  assert.equal((await press(doc, editor, 'd')).effect, 'typed the character');
+  assert.equal(editor.textContent, 'abcd');
+});
+
+test('without a target, typing goes to the editable region that holds the caret', async () => {
+  const { doc, win } = page(`
+    <div id="one" contenteditable="true" tabindex="0">first</div>
+    <div id="two" contenteditable="true" tabindex="0"></div>
+    <button id="b">Other</button>`);
+  installEditing(doc, win);
+  const one = doc.getElementById('one') as HTMLElement;
+  const two = doc.getElementById('two')!;
+
+  // A block editor answers Enter by moving the caret into a new block. In a window that is not in
+  // front the browser does not move the keyboard along: it stays on the old block.
+  one.focus();
+  caretInto(doc, two);
+  assert.equal(doc.activeElement, one);
+  assert.equal((await press(doc, null, 'x')).effect, 'typed the character');
+  assert.equal(two.textContent, 'x');
+  assert.equal(one.textContent, 'first');
+
+  // A caret left behind in an editor does not take keys from a control that has the keyboard.
+  doc.getElementById('b')!.focus();
+  caretInto(doc, one);
+  await press(doc, null, 'y');
+  assert.equal(one.textContent, 'first');
+  assert.equal(two.textContent, 'x');
+});
+
+test('a key the editor takes without changing anything is not reported as done', async () => {
+  const { doc, win } = page('<div id="e" contenteditable="true" tabindex="0">locked</div>');
+  const commands = installEditing(doc, win);
+  const editor = doc.getElementById('e')!;
+  // Read-only in its own way: claims every edit and applies none.
+  editor.addEventListener('beforeinput', (e) => e.preventDefault());
+
+  for (const key of ['x', 'Backspace', 'Enter']) {
+    const result = await press(doc, editor, key);
+    assert.equal(result.effect, 'the editor took the key, but nothing on the page changed', key);
+    assert.equal(result.note, undefined);
+  }
+  assert.equal(editor.textContent, 'locked');
+  assert.deepEqual(commands, [], 'and the browser was not asked to edit behind its back');
+});
+
+test('in a tab that is not drawn, a key whose effect cannot be seen is reported as unchecked', async () => {
+  const { doc, win } = page('<div id="e" contenteditable="true" tabindex="0" data-inert>Initial</div>');
+  installEditing(doc, win);
+  const editor = doc.getElementById('e')!;
+  inBackground(doc);
+
+  // Nobody claimed the key and nothing shows: the editor may still have taken it.
+  const unknown = await press(doc, editor, 'x');
+  assert.equal(unknown.effect, 'the editor gave no sign of taking the key');
+  assert.match(unknown.note ?? '', /Do not press the key again/);
+
+  // Claimed into a model that is drawn only when the tab is.
+  const model: string[] = [];
+  editor.addEventListener('beforeinput', (e) => {
+    e.preventDefault();
+    model.push((e as InputEvent).inputType);
+  });
+  const unseen = await press(doc, editor, 'x');
+  assert.equal(unseen.effect, 'the editor accepted the key');
+  assert.match(unseen.note ?? '', /could not be checked/);
+  assert.deepEqual(model, ['insertText'], 'entered once');
+});
+
+test('in a tab that is not drawn, a new paragraph made by the browser comes with a warning about what follows', async () => {
+  const { doc, win } = page('<div id="e" contenteditable="true" tabindex="0">one</div>');
+  installEditing(doc, win);
+  const editor = doc.getElementById('e')!;
+
+  const front = await press(doc, editor, 'Enter');
+  assert.deepEqual(front, { dispatched: true, effect: 'inserted a new paragraph' }, 'no warning while the tab is drawn');
+
+  inBackground(doc);
+  const back = await press(doc, editor, 'Enter');
+  assert.equal(back.effect, 'inserted a new paragraph');
+  assert.match(back.note ?? '', /what is entered next may land in the wrong place/);
+  // A character is checked against the page as usual.
+  assert.deepEqual(await press(doc, editor, 'x'), { dispatched: true, effect: 'typed the character' });
+
+  // Typed text with a line break in it gets the same caution, as a fill that is not confirmed.
+  const typed = await fill(editor, 'a\nb', false, 'type');
+  assert.equal(typed.valueMatches, false);
+  assert.match(typed.note ?? '', /typed line by line/);
+  // An editor that makes its own paragraphs is not in doubt.
+  editor.addEventListener('beforeinput', (e) => {
+    if ((e as InputEvent).inputType !== 'insertParagraph') return;
+    e.preventDefault();
+    editor.textContent = `${editor.textContent}\n`;
+  });
+  assert.deepEqual(await press(doc, editor, 'Enter'), { dispatched: true, effect: 'inserted a new paragraph' });
 });
 
 const CODE_EDITOR = `

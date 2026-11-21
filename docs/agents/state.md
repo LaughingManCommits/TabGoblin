@@ -16,6 +16,7 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 |---|---|---|
 | Merge `editor-compatibility` into `main` | Waiting for the owner, who merges | git |
 | WP-1: follow the MCP standard with the official SDK | Open, not started, no owner | [TODO.md](../../TODO.md) |
+| WP-2: text with line breaks, typed key by key | Open, found 2026-11-21, no owner | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
@@ -30,7 +31,8 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-21 at `0591970`, all four suites passed locally. Details in the
+- **Last verification:** 2026-11-21, all four suites passed locally on the code of the last commit,
+  the editor lab in front and in the background. Details in the
   [validation log](validation-log.md).
 - **Next action, if the owner asks for it:** start WP-1 at task 1 ("Pin the reference") in
   `TODO.md`. It begins with reading the specification revision that SDK 2.2.0 implements, before

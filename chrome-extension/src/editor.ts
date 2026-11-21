@@ -136,13 +136,51 @@ const REGION_DEPTH = 3;
  * to the one that was addressed; that is a reaction, even though the addressed block is unchanged.
  */
 function regionReader(el: Element): () => string {
+  const region = regionOf(el);
+  return () => squash(shownText(region));
+}
+
+function regionOf(el: Element): Element {
   let region = editorSurface(el) ?? el;
   for (let depth = 0; depth < REGION_DEPTH; depth++) {
     const parent = region.parentElement;
     if (!parent || parent.localName === 'body' || parent.localName === 'html') break;
     region = parent;
   }
-  return () => squash(shownText(region));
+  return region;
+}
+
+interface Changes {
+  /** Whether anything changed so far, giving the editor a moment to draw if nothing has yet. */
+  seen(): Promise<boolean>;
+  stop(): void;
+}
+
+/**
+ * Notes whether the content in and around the editor changes: its text or its structure, not its
+ * styling. Unlike a comparison of texts this also sees an empty paragraph, a space at the end of
+ * a line, and one blank line fewer.
+ */
+function watchChanges(el: Element): Changes {
+  const Observer = viewOf(el).MutationObserver;
+  if (typeof Observer !== 'function') return { seen: async () => false, stop: () => undefined };
+  let changed = false;
+  const observer = new Observer(() => { changed = true; });
+  observer.observe(regionOf(el), { childList: true, characterData: true, subtree: true });
+  const now = (): boolean => changed || observer.takeRecords().length > 0;
+  return {
+    async seen() {
+      await tick(el);
+      if (now()) return true;
+      // Timers in a background tab run about once a second: one wait there, not two.
+      for (const wait of isHidden(el) ? [20] : [20, 40]) {
+        await pause(wait);
+        if (now()) return true;
+      }
+      return false;
+    },
+    stop: () => observer.disconnect(),
+  };
 }
 
 /** Waits until the text differs from `was`, or gives up. */
@@ -156,11 +194,15 @@ async function changedFrom(el: Element, read: () => string, was: string, patient
   return false;
 }
 
+/** Who is known to have carried an edit out: the editor, which claimed the event, or the browser. */
+type By = 'editor' | 'browser';
+
 /**
- * One way of entering something. Returns true when it is known to have arrived: the editor
- * claimed the event by cancelling it, or the browser carried out the edit.
+ * One way of entering something. Says who carried it out when that is known: the editor claimed
+ * the event by cancelling it, or the browser made the edit and announced it. Null when neither
+ * happened; the attempt then counts only if the page shows a change.
  */
-type Attempt = (el: Element, text: string) => boolean;
+type Attempt = (el: Element, text: string) => By | null;
 
 function announce(el: Element, inputType: string, text: string): boolean {
   const view = viewOf(el);
@@ -193,24 +235,25 @@ function run(el: Element, commandName: string, text: string): boolean {
  * change itself, and otherwise the browser's own edit, which fires `input`.
  */
 const edit = (inputType: string, commandName: string): Attempt => (el, text) =>
-  announce(el, inputType, text) || run(el, commandName, text);
+  (announce(el, inputType, text) ? 'editor' : run(el, commandName, text) ? 'browser' : null);
 
 /**
  * Only the announcement of an edit. An editor that runs on `beforeinput` applies it; any other
  * ignores it, and nothing has happened.
  */
-const offer = (inputType: string): Attempt => (el, text) => announce(el, inputType, text);
+const offer = (inputType: string): Attempt => (el, text) => (announce(el, inputType, text) ? 'editor' : null);
 
 /** The browser's editing command alone: all a textarea needs. */
-const command = (name: string): Attempt => (el, text) => run(el, name, text);
+const command = (name: string): Attempt => (el, text) => (run(el, name, text) ? 'browser' : null);
 
 /** A paste that carries just this text. The user's clipboard is not involved. */
 const paste: Attempt = (el, text) => {
   const view = viewOf(el);
-  if (typeof view.DataTransfer !== 'function' || typeof view.ClipboardEvent !== 'function') return false;
+  if (typeof view.DataTransfer !== 'function' || typeof view.ClipboardEvent !== 'function') return null;
   const data = new view.DataTransfer();
   data.setData('text/plain', text);
-  return !el.dispatchEvent(new view.ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true, composed: true }));
+  const taken = !el.dispatchEvent(new view.ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true, composed: true }));
+  return taken ? 'editor' : null;
 };
 
 interface EditContextLike extends EventTarget {
@@ -224,7 +267,7 @@ interface EditContextLike extends EventTarget {
 const textUpdate: Attempt = (el, text) => {
   const context = (el as unknown as { editContext?: EditContextLike }).editContext;
   const Update = (viewOf(el) as unknown as { TextUpdateEvent?: new (type: string, init: object) => Event }).TextUpdateEvent;
-  if (!context || typeof Update !== 'function') return false;
+  if (!context || typeof Update !== 'function') return null;
   const start = Math.min(context.selectionStart, context.selectionEnd);
   const end = Math.max(context.selectionStart, context.selectionEnd);
   const caret = start + text.length;
@@ -234,7 +277,7 @@ const textUpdate: Attempt = (el, text) => {
     text, updateRangeStart: start, updateRangeEnd: end, selectionStart: caret, selectionEnd: caret,
   }));
   // An editor built on an EditContext has no other source of typed text: it took this.
-  return true;
+  return 'editor';
 };
 
 const INSERT = edit('insertText', 'insertText');
@@ -366,6 +409,8 @@ async function focus(el: Element): Promise<void> {
 interface Outcome {
   /** The attempt the editor took, if any. */
   worked: Attempt | null;
+  /** Who carried it out. An attempt nobody claimed, but which the page shows, is the editor's. */
+  by: By | null;
   /** Whether the editor showed a change, as opposed to only claiming the event. */
   seen: boolean;
 }
@@ -381,14 +426,14 @@ async function firstThatWorks(
   for (const attempt of attempts) {
     if (place) await place();
     const was = watch();
-    const claimed = attempt(el, text);
-    if (claimed) {
+    const by = attempt(el, text);
+    if (by) {
       await tick(el);
-      return { worked: attempt, seen: watch() !== was };
+      return { worked: attempt, by, seen: watch() !== was };
     }
-    if (await changedFrom(el, watch, was, patient)) return { worked: attempt, seen: true };
+    if (await changedFrom(el, watch, was, patient)) return { worked: attempt, by: 'editor', seen: true };
   }
-  return { worked: null, seen: false };
+  return { worked: null, by: null, seen: false };
 }
 
 /** Lines of `expected` that the editor's surface shows, for editors that draw only what is on screen. */
@@ -404,6 +449,14 @@ const DIFFERENT = 'The editor changed, but it does not show exactly the requeste
 const PARTLY_SHOWN = 'The editor draws only part of its content at a time; the part it shows matches the requested text.';
 const PARTIAL_PROBE = 200;
 const REINDENTED = 'The text is in, but the editor changed the indentation of some lines. Take a snapshot to check.';
+const UNSEEN_KEY = 'The editor accepted the key, but its tab is in the background, where it does not redraw, so the result could not be checked. '
+  + 'Do not press it again; take a snapshot once the tab is visible.';
+const UNKNOWN_KEY = 'The tab is in the background, where an editor can take a key without showing it, so this could not be checked. '
+  + 'Do not press the key again; take a snapshot once the tab is visible.';
+const UNSETTLED_KEY = 'The new paragraph is on the page, but the tab is in the background, where some editors finish an edit only when they are '
+  + 'drawn: what is entered next may land in the wrong place. Safer: put the whole text, line breaks included, into one browser_fill.';
+const UNSETTLED_TEXT = 'The text is on the page, but it was typed line by line while the tab is in the background, where some editors finish a '
+  + 'new paragraph only when they are drawn: lines may have run together. Fill again without method "type", or take a snapshot once the tab is visible.';
 const UNSEEN = 'The editor accepted the text, but its tab is in the background, where it does not redraw, so the result could not be checked. '
   + 'Do not enter it again; take a snapshot once the tab is visible.';
 
@@ -430,6 +483,7 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
   const around = watch();
   const place = (): Promise<void> => select(el, kind, !append);
   let claimed = false;
+  let unsettled = false;
 
   if (text === '') {
     await place();
@@ -444,7 +498,7 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
       claimed = (await firstThatWorks(el, deletions(el, kind), '', watch, place)).worked !== null;
     }
   } else if (method === 'type') {
-    claimed = await typeText(el, kind, text, watch, place);
+    ({ took: claimed, unsettled } = await typeText(el, kind, text, watch, place));
   } else {
     // Several lines shown means several blocks to replace.
     const overBlocks = !append && shownText(editorSurface(el) ?? el).trim().includes('\n');
@@ -477,7 +531,7 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
     if (!append && /\n +\S/.test(text) && indentation(shownText(el)) !== indentation(text)) {
       return { filled: true, valueMatches: false, note: REINDENTED };
     }
-    return { filled: true, valueMatches: true };
+    return unsettled ? { filled: true, valueMatches: false, note: UNSETTLED_TEXT } : { filled: true, valueMatches: true };
   }
   // The surface shows more than the text (line numbers) and maybe not all of it (only what is on screen).
   const shown = compareShown(after, text);
@@ -485,12 +539,23 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
   return shown === 'all' ? { filled: true, valueMatches: true } : { filled: true, valueMatches: true, note: PARTLY_SHOWN };
 }
 
-/** Enters text character by character, with the key events around each one. Returns whether the editor took it. */
+/**
+ * In a tab that is not drawn, a new paragraph that the editor left to the browser is on the page,
+ * but an editor that completes its edits when it draws has not caught up: it may place what
+ * follows by a page that is no longer the one it drew.
+ */
+const leftUnsettled = (el: Element, kind: Kind, by: By | null): boolean => by === 'browser' && kind === 'host' && isHidden(el);
+
+/**
+ * Enters text character by character, with the key events around each one. Says whether the
+ * editor took it, and whether a line break in it may not have settled.
+ */
 async function typeText(
   el: Element, kind: Kind, text: string, watch: () => string, place: () => Promise<void>,
-): Promise<boolean> {
+): Promise<{ took: boolean; unsettled: boolean }> {
   let technique: Attempt | null = null;
   let took = false;
+  let unsettled = false;
   let first = true;
   for (const char of text) {
     const enter = char === '\n';
@@ -499,7 +564,7 @@ async function typeText(
     if (fireKey(el, 'keydown', key)) {
       fireKey(el, 'keypress', key);
       if (enter) {
-        for (const attempt of paragraphs(el, kind)) attempt(el, '');
+        for (const attempt of paragraphs(el, kind)) unsettled = leftUnsettled(el, kind, attempt(el, '')) || unsettled;
       } else if (technique) {
         technique(el, char);
       } else {
@@ -514,41 +579,68 @@ async function typeText(
     await tick(el);
     first = false;
   }
-  return took;
+  return { took, unsettled };
+}
+
+export interface KeyEffect {
+  effect: string;
+  /** Present when the effect could not be confirmed, or may not hold for what is entered next. */
+  note?: string;
 }
 
 /**
  * Presses one key in an editor and carries out what the key would do if the page left it to the
- * browser. Returns a description of the effect.
+ * browser. Says what the key did, as far as the page shows it.
  */
-export async function pressEditorKey(el: Element, key: string, shift: boolean): Promise<string> {
+export async function pressEditorKey(el: Element, key: string, shift: boolean): Promise<KeyEffect> {
   const kind = editorKind(el);
   if (!kind) throw new Error('not an editor');
+  // Asked before the editor gets the keyboard: focusing an editable region puts the caret at its start.
+  const hadCaret = caretInside(el);
   await focus(el);
   const watch = regionReader(el);
+  const changes = watchChanges(el);
   const printable = [...key].length === 1;
   let effect: string;
+  let note: string | undefined;
 
-  if (!fireKey(el, 'keydown', key, { shift })) {
-    effect = 'the page handled the key itself';
-  } else {
-    if (printable || key === 'Enter') fireKey(el, 'keypress', key, { shift });
-    const attempts = printable ? insertions(el, kind, key, true)
-      : key === 'Enter' ? paragraphs(el, kind)
-        : key === 'Backspace' ? deletions(el, kind)
-          : key === 'Delete' ? deletions(el, kind, true) : [];
-    if (attempts.length === 0) {
-      effect = 'none beyond the page\'s own key handlers';
+  try {
+    if (!fireKey(el, 'keydown', key, { shift })) {
+      effect = 'the page handled the key itself';
     } else {
-      // Type where the caret is; if it is somewhere else on the page, at the end of the editor.
-      const place = kind === 'host' && !caretInside(el) ? (): Promise<void> => select(el, kind, false) : null;
-      const { worked } = await firstThatWorks(el, attempts, printable ? key : '', watch, place);
-      effect = !worked ? 'the editor did not react to the key'
-        : printable ? 'typed the character'
-          : key === 'Enter' ? 'inserted a new paragraph' : 'deleted a character';
+      if (printable || key === 'Enter') fireKey(el, 'keypress', key, { shift });
+      const attempts = printable ? insertions(el, kind, key, true)
+        : key === 'Enter' ? paragraphs(el, kind)
+          : key === 'Backspace' ? deletions(el, kind)
+            : key === 'Delete' ? deletions(el, kind, true) : [];
+      if (attempts.length === 0) {
+        effect = 'none beyond the page\'s own key handlers';
+      } else {
+        // Type where the caret is; if it is somewhere else on the page, at the end of the editor.
+        const place = kind === 'host' && !hadCaret ? (): Promise<void> => select(el, kind, false) : null;
+        const { worked, by, seen } = await firstThatWorks(el, attempts, printable ? key : '', watch, place);
+        if (!worked && isHidden(el)) {
+          // Nobody claimed the key and nothing shows, but nothing would show: it cannot be told.
+          effect = 'the editor gave no sign of taking the key';
+          note = UNKNOWN_KEY;
+        } else if (!worked) {
+          effect = 'the editor did not react to the key';
+        } else if (seen || await changes.seen()) {
+          effect = printable ? 'typed the character' : key === 'Enter' ? 'inserted a new paragraph' : 'deleted a character';
+          if (key === 'Enter' && leftUnsettled(el, kind, by)) note = UNSETTLED_KEY;
+        } else if (isHidden(el)) {
+          effect = 'the editor accepted the key';
+          note = UNSEEN_KEY;
+        } else {
+          // An editor that takes a key and does nothing with it: Backspace in an empty one, a read-only one.
+          effect = 'the editor took the key, but nothing on the page changed';
+        }
+      }
     }
+  } finally {
+    changes.stop();
   }
   fireKey(el, 'keyup', key, { shift });
   await tick(el);
-  return effect;
+  return note ? { effect, note } : { effect };
 }

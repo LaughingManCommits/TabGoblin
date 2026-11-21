@@ -3,6 +3,33 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, key presses in editors, on `editor-compatibility`
+
+The commit after `0a22b67`. Same machine and versions as the entry below.
+
+Passed, all on the final build:
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml package` | 52 tests, jar built |
+| `cd chrome-extension && npm run check` | type-check clean, 110 tests, build |
+| `cd e2e && npm test` | 82 passed, 0 failed |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+The six new tests in `chrome-extension/test/editor.test.ts` were also run against the source
+before the change: five failed, as they should, and so did one existing test, which now sees that
+a key used to be typed at the start of an editor.
+
+Failed: none. The cells that do not pass are the limits listed in `docs/editors.md`.
+
+Run once, not kept: two temporary lab checks, a key into an editor that was never focused, and a
+text with a line break typed key by key. The second is WP-2 in `TODO.md`.
+
+Not run: `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`. CI on GitHub has still
+not been seen.
+
 ## 2026-11-21, `0591970` on `editor-compatibility`
 
 Working tree: clean except for untracked `TODO.md` and the agent files being added. Windows 11,
