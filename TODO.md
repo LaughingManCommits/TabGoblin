@@ -287,7 +287,6 @@ specification, because some of these were written from memory of the protocol an
 
 | # | Gap | Today | Standard way |
 |---|---|---|---|
-| 2 | No progress for long calls | `browser_submit` can wait 95 seconds for the user's confirmation in silence | Send `notifications/progress` when the client gave a progress token |
 | 4 | Results are JSON printed as text | `browser_click`, `browser_scroll`, `browser_navigate`, `browser_fill`, `browser_wait_for`, `browser_submit` return a JSON string in a text block | Declare an output schema and return structured content, with the text kept for older clients |
 | 9 | Java naming is not conventional | Package `browsercontext`, Maven groupId `browsercontext` | A reverse-domain package and groupId |
 
@@ -300,8 +299,8 @@ specification, because some of these were written from memory of the protocol an
 3. **Close the gaps**, one commit each, each with a test. Done: 8 (a mistyped option is refused)
    and 7 (the server ends in order; the path for Ctrl+C is the same code but was not tried,
    because a test cannot send that signal on Windows), 5 (each tool has a title) and 6 (the server states the product's name as its title, and the
-   version of the build) and 1 (a cancelled call is not answered). Left: 2 (progress),
-   4 (structured results).
+   version of the build) 1 (a cancelled call is not answered) and 2 (a client that asks is told that a long call is still
+   running). Left: 4 (structured results).
 4. **Gap 4 needs care.** Agents read today's text results. Keep the text identical, add the
    structured form next to it, and run the end-to-end suite before and after.
 5. **Decide gap 9 separately.** Renaming the package touches every file and the jar's entry point.

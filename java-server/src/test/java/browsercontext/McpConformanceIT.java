@@ -219,6 +219,49 @@ class McpConformanceIT {
         }
     }
 
+    /** A client that sends a progress token is told that a long call is still running; another is not. */
+    @Test
+    void aLongCallReportsProgressOnlyWhenTheClientAsks() throws Exception {
+        try (Server server = new Server()) {
+            server.handshake(NEWEST_WITH_HANDSHAKE);
+            FakeExtension browser = server.browser();
+            browser.responder = command -> null; // a submission waiting for the user, say
+            server.send("{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"browser_snapshot\",\"arguments\":{},"
+                    + "\"_meta\":{\"progressToken\":\"p-1\"}}}");
+            await(() -> progress(server).size() >= 2, "two progress notifications");
+            List<JsonNode> told = progress(server);
+            for (JsonNode notification : told) {
+                assertEquals("p-1", notification.path("params").path("progressToken").asString(), "the client's own token");
+                assertFalse(notification.path("params").path("message").asString("").isEmpty(), "with words a person can read");
+            }
+            assertTrue(told.get(1).path("params").path("progress").asDouble() > told.get(0).path("params").path("progress").asDouble(),
+                    "the value increases");
+
+            // The call ends, here because the client gives it up: nothing more is reported for it.
+            server.send("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":9}}");
+            await(() -> !browser.cancels.isEmpty(), "the browser to be told to stop");
+            assertTrue(server.request(10, "ping", null).path("result").isObject());
+            int reported = progress(server).size();
+
+            // A call without a token runs as long, and is not reported on.
+            server.send("{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"browser_snapshot\",\"arguments\":{}}}");
+            Thread.sleep(Progress.EVERY_MS + 1500);
+            assertEquals(reported, progress(server).size(), "no progress after the call ended, and none unasked");
+            browser.close();
+        }
+    }
+
+    private static List<JsonNode> progress(Server server) {
+        List<JsonNode> found = new ArrayList<>();
+        for (String line : server.written) {
+            JsonNode message = JSON.readTree(line);
+            if (message.path("method").asString("").equals("notifications/progress")) {
+                found.add(message);
+            }
+        }
+        return found;
+    }
+
     /** The server ends in order: the browser is told, instead of finding the connection gone. */
     @Test
     void endOfInputClosesTheConnectionToTheBrowserInOrder() throws Exception {

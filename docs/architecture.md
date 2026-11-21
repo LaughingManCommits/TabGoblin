@@ -216,6 +216,13 @@ recorded as `UNCERTAIN`.
 A safe point is any moment before something is dispatched to the page. For a submission the last
 one is immediately before the click. What was dispatched is never undone.
 
+## A call that takes long
+
+A submission can wait up to a minute and a half, most of it for the user's answer in the popup.
+A client that sent a progress token with the call is told every three seconds that it is still
+running, and for a submission that it may be waiting for the user. The server does not know how
+far the call is: what it reports is the time the call has run.
+
 ## How a server ends
 
 A server ends when its MCP client closes the input, on Ctrl+C, or on a signal to stop. Each time

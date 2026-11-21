@@ -428,9 +428,14 @@ public final class McpMain {
                     String callId = tap == null ? null : tap.begin(name, arguments);
                     BrowserService.ToolResult result = null;
                     boolean givenUp = false;
+                    // Only a client that sent a progress token is told that the call is still running.
+                    Progress progress = Progress.start(exchange, request.progressToken(), stillRunning(name, arguments));
                     try {
                         result = service.call(name, arguments);
                     } finally {
+                        if (progress != null) {
+                            progress.stop();
+                        }
                         givenUp = tap != null && tap.end(callId);
                     }
                     // A call the client cancelled gets no answer: the specification asks for none, and
@@ -438,6 +443,15 @@ public final class McpMain {
                     return givenUp ? null : toMcp(result);
                 })
                 .build();
+    }
+
+    /** What a client that asked for progress is told while a call runs. */
+    private static String stillRunning(String tool, JsonNode arguments) {
+        boolean submission = tool.equals("browser_submit")
+                || (arguments != null && "submit".equals(arguments.path("intent").asString("")));
+        return submission
+                ? "Still running. If the user is asked to allow this in the TabGoblin popup, it waits for their answer."
+                : "Still running in the browser.";
     }
 
     /** Passes the MCP client's name on, so the popup can show which agent a session belongs to. */

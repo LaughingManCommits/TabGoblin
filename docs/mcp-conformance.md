@@ -41,7 +41,7 @@ it and the server only has to use it as intended.
 | An unknown tool, and an unknown method, are protocol errors | Met | SDK: `-32602` and `-32601` |
 | `ping` is answered | Met | SDK |
 | A cancelled request stops, and is not answered (`notifications/cancelled`) | Met | By hand, in `StdinTap`: this API of the SDK has no handler for it. The call is stopped in the browser, and no answer is sent for it. |
-| Progress for long requests (optional) | Not used | Gap 2 |
+| Progress for long requests (optional) | Met | `Progress`: a client that sent a progress token is told every three seconds that the call is still running, with the time it has run. Nothing is sent after the call ended, and nothing to a client that did not ask. |
 | Structured results with an output schema (optional) | Not used | Gap 4 |
 | Log messages to the client (optional) | Not used | The SDK declares the `logging` capability by itself; the server sends nothing through it. See below. |
 
