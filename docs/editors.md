@@ -46,23 +46,27 @@ what the page displays. Fifteen checks per editor:
 | Lexical | Facebook, WhatsApp Web | 15 of 15 | 15 of 15 |
 | Slate | Discord, GitBook | 15 of 15 | 15 of 15 |
 | Quill | Slack, LinkedIn | 15 of 15 | 15 of 15 |
-| Draft.js | older React applications | 15 of 15 | 15 of 15 |
+| Draft.js | older React applications | 15 of 15 ⁵ | 15 of 15 ⁵ |
 | TinyMCE | WordPress's classic editor | 15 of 15 | 15 of 15 |
 | CKEditor 5 | Drupal, enterprise CMS | 15 of 15 | 14 of 15 ² |
 | Trix | Basecamp, HEY | 15 of 15 | 14 of 15 ³ |
-| Editor.js | block editors in the style of Notion | 12 of 15 ⁴ | 11 of 15 ³ ⁴ |
+| Editor.js | block editors in the style of Notion | 12 of 15 ⁴ ⁵ | 11 of 15 ³ ⁴ |
 | **All** | | **222 of 225** | **219 of 225** |
 
 ¹ The text is in the editor, but these two redraw only while their tab is visible, so the tool
 cannot see it and says so instead of confirming.
 ² Indented lines arrive with one space less of indentation; the tool reports it.
 ³ Enter does not start a new paragraph while the tab is in the background, and the tool does not
-notice.
+notice. The lab marks these two checks `SILENT`, so the background run ends with a failing exit
+code.
 ⁴ One block holds one paragraph: several lines sent to a block become new blocks after it, and
 content spread over several blocks is not replaced from one of them. The tool reports that the
 block does not show the requested text.
+⁵ Two lines into an emptied editor arrive as asked, but the tool reports them as not confirmed.
 
 In no check, in either condition, was text entered twice.
+
+Counts are from 21 November 2026, at commit `0591970`.
 
 Before this work the first twelve checks gave: 6 editors that worked, 2 that did nothing while
 the tool reported success, 3 that could not be addressed at all, and 4 that worked in part.
