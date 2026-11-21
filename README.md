@@ -77,7 +77,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 
 ```sh
 mvn -f java-server/pom.xml verify       # 54 tests, then the built jar checked against the protocol
-cd chrome-extension && npm run check    # 129 tests, type-check, build
+cd chrome-extension && npm run check    # 130 tests, type-check, build
 cd e2e && npm install && npm test       # 91 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries
 ```
@@ -86,7 +86,7 @@ cd e2e/editors && npm install && npm test   # text entry into 14 real editor lib
 
 - Whatever is visible in an authorized tab is sent to your agent and its model provider.
 - Page content is untrusted input and may try to steer an agent within the access you granted.
-  Keep submission confirmation on where a wrong submission would hurt.
+  Keep "Ask me every time" where a wrong submission would hurt.
 - Each time a tab changes website Chrome withdraws the extension's access, so a session spanning
   two websites needs one click from you per move.
 - Frames from another website and closed shadow roots are not read.

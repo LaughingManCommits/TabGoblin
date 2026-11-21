@@ -157,6 +157,10 @@ button.link:hover { color: var(--fg); }
 .confirm .ask .unnamed { font-weight: inherit; }
 .confirm .why { color: var(--muted); font-size: 12px; margin-bottom: 8px; text-wrap: balance; }
 .confirm .where { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 12px; }
+/* What an Allow would reach beyond this request: the extension's own words, not to be missed above the buttons. */
+.confirm .lasts {
+  margin-bottom: 10px; padding-left: 8px; border-left: 2px solid var(--warn-line); font-size: 12px; text-wrap: balance;
+}
 .confirm .where .origin { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* What would be sent: a quotation, set apart from the extension's own words. */
 .confirm .sent {

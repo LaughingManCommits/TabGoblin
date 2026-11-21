@@ -3,6 +3,29 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `automatic-mode`, after WP-7
+
+Going over WP-7 once more. The prompt now says when an Allow will stand, a control without a
+name is never remembered, and what the entry below lists as not tried was tried.
+
+| Command | Result |
+|---|---|
+| `cd chrome-extension && npm run check` | type-check clean, 130 tests, build |
+| `cd e2e && npm test` | 91 passed, 0 failed. New in existing steps: an Allow ends when the tab leaves its site, and the user is asked again after the return; five pass within a minute and the next is asked; the prompt of a session on two sites names the site the tab is on; the line about what an Allow reaches is in the prompt in the automatic mode and not otherwise. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node screenshots.mjs prompts` | 26 pictures of 13 views. Looked at: the prompt in the automatic mode in both colour schemes, and the ordinary Enter prompt (dark) next to it. From the run before, now opened: the session in the automatic mode (light), "Do not ask me" (dark), and `docs/images/popup-full-light.png`. |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: two steps in the first run end to end. The new checks read the popup before
+its next refresh; they now wait for it.
+
+Not run: the server's suites (nothing in the server changed since the entry below) and
+`HEADED=1 node screenshots.mjs` (the documentation's pictures show nothing that changed).
+
+Not tried: a control without a name in the automatic mode in a real browser (rule and worker
+tests only). CI on GitHub has still not been seen.
+
 ## 2026-11-21, on `automatic-mode`, WP-7
 
 The automatic mode for confirmations. All on the final build of the branch.
@@ -198,30 +221,8 @@ text with a line break typed key by key. The second is WP-2 in `TODO.md`.
 Not run: `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`. CI on GitHub has still
 not been seen.
 
-## 2026-11-21, `0591970` on `editor-compatibility`
+## Earlier, in one line each
 
-Working tree: clean except for untracked `TODO.md` and the agent files being added. Windows 11,
-JDK 26 (the build targets release 21), Maven 3.8.1, Node 24.15.0, Chrome 157.
-
-Passed:
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml package` | 52 tests, jar built |
-| `cd chrome-extension && npm run check` | type-check clean, 105 tests, build |
-| `cd chrome-extension && node --test test/agnostic.test.ts` | 2 tests |
-| `mvn -B -f java-server/pom.xml test -Dtest=PairingTest` | passed |
-| `cd e2e && npm test` | 81 passed, 0 failed |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`; the three `fail` cells are the Editor.js limits in `docs/editors.md` |
-| `node docs/agents/check-links.mjs` | all relative links and anchors resolve |
-
-Exit 1, as documented:
-
-- `BACKGROUND=1 npm test` in `e2e/editors`: 219 of 225. Two `SILENT` cells, Enter in Trix and in
-  Editor.js, which `docs/editors.md` lists as known (footnote ³). Same cells as before `f5c6b82`.
-
-Inspected, not run:
-
-- `.github/workflows/ci.yml`. Its commands were read and match the runbook; no run on GitHub has
-  been seen.
-- `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`, `node make-icons.mjs`.
+- 2026-11-21, `0591970` on `editor-compatibility`: server 52 tests, extension 105, end to end 81
+  of 81, editor lab 222 of 225 in front and 219 of 225 in the background with two `SILENT` cells
+  (Enter in two editors, known then, fixed since). CI on GitHub not seen.

@@ -161,6 +161,12 @@ filling in fields.
 - A session with Read / Write access has the same choice of its own, next to **Submissions** in
   its row: a chat can be on automatic while everything else asks every time. Choosing at the foot
   of the popup sets all sessions.
+- In the automatic mode the prompt tells you what an Allow reaches, before you answer: *Automatic
+  is on: after Allow, this passes without asking for 15 minutes.* Where that line is missing, the
+  Allow is for this once. That is so for anything that deletes, pays or publishes, and for a
+  control without a name, which could not be told from another one.
+- A control is known by its name on its website. After you allowed "Save" on one page, "Save" on
+  another page of that website passes too, for the rest of the 15 minutes.
 - In the automatic mode a session shows what currently passes without a question, and for how
   long, with **Ask about it again** to end it. It also ends when you pause the session, change
   its access, when the tab leaves its website, and when Chrome restarts the extension. No more

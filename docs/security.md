@@ -110,7 +110,9 @@ which content scripts cannot read. It is never logged.
   automatic mode an Allow stands for the same control only (the same session, the same website,
   the same kind of request, the same name), for 15 minutes, for at most five submissions a
   minute. It is kept in memory only: it ends with a pause, a change of access, the tab leaving
-  the site and a restart of the extension, and the popup shows it with a way to end it.
+  the site and a restart of the extension, and the popup shows it with a way to end it. The
+  prompt says, before you answer, when an Allow will stand. A control without a name is asked
+  about every time: it could not be told from another one without a name.
 - A no stands. What you declined is not put to you again for five minutes, and a session whose
   last three requests you declined or did not answer may not ask at all for that long. The popup
   says so on the session, with a way to let it ask again.
@@ -179,7 +181,7 @@ content, typed text, full URLs, cookies, headers or the token.
 | A prompt that has only just appeared takes no answer; from the keyboard Deny comes first | End-to-end |
 | What the user declined is not asked again until they take it back; a run of refusals silences a session; one request waits at a time | Rules, worker, end-to-end |
 | The prompt names the agent, the control, the site and what would be sent, for every kind of request; a password is never shown in it | DOM, worker, end-to-end |
-| Automatic: asked the first time for each control; an Allow does not reach another control, another site or a high-impact action, does not cover a burst, and is gone after a pause and after a restart | Rules, worker, end-to-end |
+| Automatic: asked the first time for each control, and the prompt says that an Allow will stand; an Allow does not reach another control, another site, a high-impact action or a control without a name, does not cover a burst, and is gone after a pause, after the tab left the site and after a restart | Rules, worker, end-to-end |
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |
@@ -199,13 +201,14 @@ Chrome.
   authorized tab go to your agent and its model provider.
 - **Explore loads pages.** A site that changes state on a plain link (some logout or vote links)
   can be affected. Read does not navigate at all.
-- **A misled agent.** See prompt injection above. Keep submission confirmation on where a wrong
+- **A misled agent.** See prompt injection above. Keep "Ask me every time" where a wrong
   submission would hurt.
 - **"Confirmed by reaction"** means the page behaved as if it accepted, not that the server stored
   anything.
 - **What you allowed once, in the automatic mode.** After you allowed "Enter in Message", an
   agent that is misled by a page can send anything there for fifteen minutes: the Allow is for the
-  control, not for the text. The time limit, the limit of five a minute, the refusal of a repeat
+  control, not for the text. And a control is known only by its name on that site, as the page
+  gives it: after "Save" on one page, "Save" on another page of the site passes too. The time limit, the limit of five a minute, the refusal of a repeat
   and the list in the popup reduce that. They do not remove it. Use this mode where a wrong
   message would be a nuisance, not where it would do harm.
 - **Not asking at all.** With "Do not ask me", an agent that declares a submission is not held up

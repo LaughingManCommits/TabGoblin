@@ -64,7 +64,7 @@ interface State {
   activity: ActivityEntry[];
   pendingConfirm: {
     id: string; session: string; label: string; highImpact: boolean; word: string | null; how: 'click' | 'form' | 'enter';
-    origin: string | null; preview: { field: string; text: string }[];
+    origin: string | null; preview: { field: string; text: string }[]; lasts: number | null;
   } | null;
 }
 
@@ -391,6 +391,10 @@ function render(): void {
       line.append(el('span', 'text', `“${part.text}”`));
       return line;
     }));
+    // What an Allow would reach. Empty when it is for this once: the prompt is described by this line too.
+    const lasts = s.pendingConfirm.lasts;
+    $('confirmLasts').hidden = lasts === null;
+    $('confirmLasts').textContent = lasts === null ? '' : `Automatic is on: after Allow, this passes without asking for ${lasts} minutes.`;
     // Why this one always asks.
     $('confirmImpact').hidden = !s.pendingConfirm.word;
     $('confirmImpact').textContent = s.pendingConfirm.word ? `Always asked about: its name says “${s.pendingConfirm.word}”.` : '';

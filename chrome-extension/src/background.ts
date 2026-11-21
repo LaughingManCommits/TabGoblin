@@ -7,8 +7,8 @@
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, failureNote, highImpactWord, inScope,
-  needsAsking, noteAnswer, notePassed, rememberAllow, standingAllows, standingRefusals,
+  ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, failureNote, highImpactWord, inScope,
+  needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
   type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
@@ -154,6 +154,8 @@ interface ConfirmFacts {
   origin: string | null;
   /** The beginning of what would be sent, by field. */
   preview: { field: string; text: string }[];
+  /** The minutes an Allow would stand for this control (automatic mode), or null when it is for this once. */
+  lasts: number | null;
 }
 
 const pendingConfirms = new Map<string, ConfirmFacts & { id: string; session: string; finish: (a: ConfirmAnswer) => void }>();
@@ -680,7 +682,9 @@ async function confirmWithUser(
   const nothing = how === 'click' ? 'Nothing was clicked.' : 'Nothing was pressed.';
   // Not while another request waits, not about what was just declined, not after a run of refusals.
   checkAsk(session.asks, key, pendingConfirms.size > 0, Date.now());
-  const answer = await askUser(op, { label, how, word, origin, preview });
+  // What an Allow would reach is said in the prompt, before the user answers.
+  const lasting = remembersAllow(mode, word, label, origin);
+  const answer = await askUser(op, { label, how, word, origin, preview, lasts: lasting ? ALLOW_LASTS_MS / 60_000 : null });
   if (answer !== 'cancelled') {
     session.asks = noteAnswer(session.asks, key, label, answer, Date.now());
     save();
@@ -697,9 +701,9 @@ async function confirmWithUser(
     throw new CommandError('SUBMIT_NOT_CONFIRMED',
       `The user did not confirm the submission within 60 seconds. ${nothing} Ask them to confirm in the TabGoblin popup before trying again.`);
   }
-  // In the automatic mode what was allowed passes for a while. Never a high-impact action, and
+  // In the automatic mode what was allowed passes for a while: only if the prompt said so, and
   // only under the setting the session has now.
-  if ((session.ask ?? config.ask) === 'auto' && word === null && origin !== null) {
+  if (lasting && origin !== null && remembersAllow(session.ask ?? config.ask, word, label, origin)) {
     allows.set(session.id, rememberAllow(allows.get(session.id), key, label, origin, Date.now()));
     pushState();
   }
@@ -1372,6 +1376,7 @@ function popupState(): object {
     activity: persisted.activity,
     pendingConfirm: [...pendingConfirms.values()].map((c) => ({
       id: c.id, session: c.session, label: c.label, highImpact: c.word !== null, word: c.word, how: c.how, origin: c.origin, preview: c.preview,
+      lasts: c.lasts,
     }))[0] ?? null,
   };
 }

@@ -333,6 +333,16 @@ export function needsAsking(
 }
 
 /** The user allowed a control: in the automatic mode it passes from now on, for a while. */
+/**
+ * Whether an Allow would stand for a while, so that the same control passes without a question:
+ * in the automatic mode only, never for a high-impact action, and never for a control without a
+ * name, which could not be told from another one without a name, nor be shown to the user.
+ * The prompt says so before the user answers.
+ */
+export function remembersAllow(mode: AskMode, word: string | null, label: string, origin: string | null): boolean {
+  return mode === 'auto' && word === null && origin !== null && label.trim() !== '';
+}
+
 export function rememberAllow(memory: AllowMemory | undefined, key: string, label: string, origin: string, now: number): AllowMemory {
   const allowed = (memory?.allowed ?? []).filter((a) => now - a.at < ALLOW_LASTS_MS && !(a.key === key && a.origin === origin));
   return { allowed: [...allowed, { key, label, origin, at: now }], passed: memory?.passed ?? [] };

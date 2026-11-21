@@ -125,9 +125,10 @@ After a change to the confirmation prompt, picture all its cases and look at the
 cd e2e && node screenshots.mjs prompts          # into e2e/prompt-pictures/, not in git
 ```
 
-Success: twenty-four pictures of twelve views, and one printed line of text for each view: seven
-cases of the prompt, a session on which a no stands, a session in the automatic mode, and the
-setting with each of its three values. It leaves `docs/` alone and needs no visible window.
+Success: twenty-six pictures of thirteen views, and one printed line of text for each view: seven
+cases of the prompt, a session on which a no stands, the prompt in the automatic mode, a session
+in that mode, and the setting with each of its three values. It leaves `docs/` alone and needs no
+visible window.
 
 ## Change the version
 

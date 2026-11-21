@@ -537,10 +537,12 @@ test('automatic: the user is asked the first time for each control, and what the
     expectSeen: false, submittedSeen: true, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: true,
     urlChanged: false, documentChanged: false,
   });
-  const asked = async (label: string): Promise<void> => {
+  // `lasts`: what the prompt says an Allow would reach, in minutes; null when it is for this once.
+  const asked = async (label: string, lasts: number | null = 15): Promise<void> => {
     const request = ask(label);
     await until(async () => (await state()).pendingConfirm !== null, `the user to be asked about ${label}`);
     assert.equal((await state()).pendingConfirm.label, label);
+    assert.equal((await state()).pendingConfirm.lasts, lasts, `what the prompt says about an Allow for “${label}”`);
     await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
     assert.equal(code(await request), 'ok');
   };
@@ -564,8 +566,11 @@ test('automatic: the user is asked the first time for each control, and what the
   await unasked('Message');
   await asked('Reply');
   // A high-impact name is asked about every time, and is not remembered.
-  await asked('Delete thread');
-  await asked('Delete thread');
+  await asked('Delete thread', null);
+  await asked('Delete thread', null);
+  // So is a control without a name: it could not be told from another one, nor be shown to the user.
+  await asked('', null);
+  await asked('', null);
   assert.deepEqual((await session()).passes.map((pass: any) => pass.label), ['Message', 'Reply']);
 
   // A burst: after five unasked in a minute the next is put to the user.
@@ -586,8 +591,8 @@ test('automatic: the user is asked the first time for each control, and what the
   // The general setting replaces what a session had of its own.
   await popup({ type: 'setAsk', value: 'always' });
   assert.equal((await session()).ask, 'always');
-  await asked('Reply');
-  await asked('Reply');
+  await asked('Reply', null);
+  await asked('Reply', null);
   for (const op of ['key_describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
 });
 

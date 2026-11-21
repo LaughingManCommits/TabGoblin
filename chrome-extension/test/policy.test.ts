@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import {
   ALLOW_LASTS_MS, CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNASKED_PER_MINUTE, UNWELCOME_AFTER, activityLabel, askModeOf,
   checkAsk, checkClick, checkGate, checkKey, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
-  rememberAllow, standingAllows, standingRefusals,
+  rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
@@ -312,6 +312,18 @@ test('a session whose requests are refused again and again is not heard for a wh
   mixed = noteAnswer(mixed, 'click:C', 'C', 'allow', t0);
   mixed = noteAnswer(mixed, 'click:D', 'D', 'deny', t0);
   assert.equal(code(() => checkAsk(mixed, 'click:E', false, t0 + 1000)), 'ok');
+});
+
+test('an Allow stands in the automatic mode only, and never for a high-impact control or one without a name', () => {
+  const site = 'https://chat.example';
+  assert.equal(remembersAllow('auto', null, 'Message', site), true);
+  assert.equal(remembersAllow('always', null, 'Message', site), false);
+  assert.equal(remembersAllow('never', null, 'Message', site), false);
+  assert.equal(remembersAllow('auto', 'delete', 'Delete thread', site), false);
+  // Without a name it could not be told from another control without one, nor be shown to the user.
+  assert.equal(remembersAllow('auto', null, '', site), false);
+  assert.equal(remembersAllow('auto', null, '  ', site), false);
+  assert.equal(remembersAllow('auto', null, 'Message', null), false, 'a tab whose address is not known');
 });
 
 test('asking every time, never, or the first time for each control', () => {

@@ -224,6 +224,8 @@ try {
     popup = await open(a);
     await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
     await popup.waitForFunction(() => !document.getElementById('allow').disabled);
+    await shoot('enter-automatic');
+    console.log(`enter-automatic: ${await popup.$eval('#confirm', (el) => el.innerText.replace(/\s+/g, ' ').trim())}`);
     await popup.click('#allow');
     await allowed;
     popup = await open(a);
