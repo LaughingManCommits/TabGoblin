@@ -150,6 +150,17 @@ try {
   await freeze(popup, 'popup-full.png', 'dark');
   await freeze(popup, 'popup-full-light.png', 'light');
 
+  // 3b. The same, with every panel folded to one line, and unfolded again.
+  const panels = ['sessions', 'activity', 'agents', 'settings'];
+  for (const name of panels) await popup.click(`.panel[data-panel="${name}"] .fold`);
+  await popup.waitForFunction(() => document.querySelectorAll('.panel.folded').length === 4);
+  // The pointer off the last heading, and the arrows at rest.
+  await popup.mouse.move(0, 0);
+  await sleep(400);
+  await capture(popup, 'popup-folded.png');
+  for (const name of panels) await popup.click(`.panel[data-panel="${name}"] .fold`);
+  await popup.waitForFunction(() => document.querySelectorAll('.panel.folded').length === 0);
+
   if (PROMPTS) {
     await promptCases();
     console.log(`\nLook at the pictures in ${PROMPTS}`);
@@ -253,6 +264,23 @@ try {
       await shoot(`setting-${mode}`, true);
       console.log(`setting-${mode}: ${await popup.$eval('#askHint', (el) => el.textContent)}`);
     }
+
+    // The panels folded to one line each: first two of them, then all four. Unfolded again at the end.
+    const fold = async (name, folded) => {
+      await popup.click(`.panel[data-panel="${name}"] .fold`);
+      await popup.waitForFunction((panel, want) => document.querySelector(`.panel[data-panel="${panel}"]`).classList.contains('folded') === want, {}, name, folded);
+    };
+    const lines = () => popup.$$eval('.panel.folded .fold', (els) => els.map((el) => el.innerText.replace(/\s+/g, ' ').trim()).join(' | '));
+    await fold('agents', true);
+    await fold('settings', true);
+    await popup.mouse.move(0, 0);
+    await shoot('folded-two');
+    await fold('sessions', true);
+    await fold('activity', true);
+    await popup.mouse.move(0, 0);
+    await shoot('folded-all');
+    console.log(`folded-all: ${await lines()}`);
+    for (const name of ['sessions', 'activity', 'agents', 'settings']) await fold(name, false);
   }
 
   async function documentation() {

@@ -3,6 +3,41 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `folding-panels`: panels that fold
+
+Sessions, Activity, Agents and Settings fold to one line each, which says what is inside. All on
+the final build of the branch.
+
+| Command | Result |
+|---|---|
+| `cd chrome-extension && npm run check` | type-check clean, 136 tests, build |
+| `cd e2e && npm test` | 93 passed, 0 failed. The new step folds all four, reads each line, opens the popup again and finds them folded, and unfolds them. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `FULL=1 node screenshots.mjs prompts` | looked at: all four folded (dark), two folded (light). Without `FULL`: 32 pictures. |
+| `HEADED=1 node screenshots.mjs` | eleven pictures, one of them new (`popup-folded.png`); all eleven opened after the last run |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Found by the suite, and a fault of the feature, not of the test: a step presses Tab and Enter
+the instant a prompt appears, for keys that were on their way to the page. With the answers held
+for that moment, Tab went on to the heading of Sessions and Enter folded it; three later steps
+then could not find the Authorize button. For that moment the rest of the popup now takes no key
+or click. The step checks that no panel is folded afterwards.
+
+Failed on the way, besides that: the new step assumed two agents where one is connected, and
+left the panels folded when it failed; it now unfolds them whatever happens. A worker test asked
+for a wait of exactly 0 ms where 1 ms is in order. The first picture of the folded popup caught
+the arrows turning and the pointer on a heading; the script now waits and moves the pointer.
+
+And the commit was first made on `main`. The owner had merged `pairing-race` meanwhile; the
+command that committed printed the branch first, and nobody read it. The commit was moved to
+`folding-panels` and local `main` set back to the remote's. The working rule in `AGENTS.md` now
+says how to make the commit refuse.
+
+Not run: the server's suites (nothing in the server changed) and the Linux container (Docker
+was not running after a restart of the machine). Not tried: folding with the keyboard by hand,
+and a screen reader on the folded headings; the suite reads `aria-expanded` only.
+
 ## 2026-11-21, on `pairing-race`: the look of the popup
 
 A pass for alignment, asked for by the owner. What changed: a heading and the action beside it
@@ -223,31 +258,11 @@ test client now do what a client does: stop waiting, and note an answer that com
 Not run: the extension's tests, which this branch does not touch. Ctrl+C on a running server. A
 real client of revision 2026-07-28. The MCP Inspector. CI on GitHub has still not been seen.
 
-## 2026-11-21, on `mcp-standard`, WP-1, first part
-
-The reference pinned, the conformance check, and gaps 5 to 8. On top of `typed-lines`.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 54 tests; then `McpConformanceIT` on the built jar: 6 tests |
-| `cd e2e && npm test` | 87 passed, 0 failed, on the final jar |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Seen fail first, as it should: the check that the extension is told when the server ends. Before
-the change the extension got close code 1006; after it, 1001.
-
-By hand, on the built jar: `server/discover` is answered with `-32601`; `--show-tokn` prints the
-reason and the usage text and exits with 2.
-
-Not run: the extension's tests and the editor lab, which this branch does not touch. Ctrl+C on a
-running server. A real client of revision 2026-07-28. The MCP Inspector. CI on GitHub has still
-not been seen, and now runs `mvn verify`.
-
-Read, not run: the specification of revision 2026-07-28, through a summary of ten of its pages
-and its changelog. Its schema was not read.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `mcp-standard`, WP-1, first part (the conformance check): server 54 tests and 6
+  conformance tests, end to end 87 of 87. By hand: `server/discover` answered with `-32601`, a
+  mistyped option exits with 2. The extension's tests and the editor lab were not run.
 - 2026-11-21, on `typed-lines`, WP-3 (a prompt that cannot be answered by accident): extension
   120 tests, end to end 87 of 87, four pictures of the prompt looked at.
 - 2026-11-21, on `typed-lines`, third commit (the look of the confirmation prompt): 20 pictures of

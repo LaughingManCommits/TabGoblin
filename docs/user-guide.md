@@ -108,17 +108,24 @@ their outcome. It never shows page content or anything typed.
 **Agents** lists every connected agent and its port. *Disconnect* cuts one off; it stays out until
 you press *Allow again*.
 
-Two **switches** and the **Connection…** link close the popup. Scrolled out in full it looks like
+**Settings** and the **Connection…** link close the popup. Scrolled out in full it looks like
 this, in the dark and the light theme (TabGoblin follows your system setting):
 
 <img src="images/popup-full.png" width="330" alt="The whole popup laid out, dark theme"> <img src="images/popup-full-light.png" width="330" alt="The whole popup laid out, light theme">
+
+Each of the four panels folds to one line: click its heading, and click it again to unfold it. A
+folded panel says in that line what is inside: how many tabs are authorized and whether this one
+is, the latest activity, the agents by name, the two settings. The popup opens the way you left
+it. A confirmation prompt and the pairing form never fold.
+
+<img src="images/popup-folded.png" width="354" alt="The popup with its four panels folded to one line each">
 
 The toolbar badge says `ON` (an agent may act), `RUN` (it is acting), `II` (paused) or `?` (it is
 waiting for you).
 
 While an agent is acting, a small pill appears in the page itself, with a **Pause** button. It is
 not part of what the agent reads, scripts of the page cannot press it, and you can switch it off
-with the second toggle.
+under *Settings*.
 
 <img src="images/indicator.png" width="420" alt="The in-page indicator">
 

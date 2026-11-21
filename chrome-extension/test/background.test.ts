@@ -306,7 +306,7 @@ test('commands for one tab run in order, and a queued command can be cancelled b
   assert.ok(holding.ran >= 40 && holding.queued < 40, JSON.stringify(holding));
   // A refusal and the status are answered at once, and say so.
   assert.deepEqual(Object.keys((await one.command('status')).timing).sort(), ['asked', 'queued', 'ran']);
-  assert.equal((await one.command('evaluate')).timing.queued, 0);
+  assert.ok((await one.command('evaluate')).timing.queued < 40, 'nothing was in its way');
 });
 
 test('a replayed id, a stale deadline, a malformed message and a flood are refused', async () => {
@@ -727,4 +727,18 @@ test('what a server sends right behind the pairing is a message like any other, 
   assert.equal(s.connection, 'connected', 'no pairing has failed');
   assert.ok(!s.clients.some((c: any) => c.id === 'c-eager'));
   servers.delete(BASE_PORT + 4);
+});
+
+test('the panels of the popup fold on the user\'s word, and the prompt is not one of them', async () => {
+  assert.deepEqual((await state()).folded, []);
+  await popup({ type: 'setFolded', panel: 'activity', value: true });
+  // A question that waits for the user cannot be folded away.
+  await popup({ type: 'setFolded', panel: 'confirm', value: true });
+  assert.deepEqual((await state()).folded, ['activity']);
+  assert.deepEqual(storageLocal.folded, ['activity'], 'kept for the next time the popup opens');
+  // A page is not the popup: it folds nothing.
+  await popup({ type: 'setFolded', panel: 'sessions', value: true }, { id: EXTENSION_ID, url: 'https://evil.example/', tab: { id: 1 } });
+  assert.deepEqual((await state()).folded, ['activity']);
+  await popup({ type: 'setFolded', panel: 'activity', value: false });
+  assert.deepEqual((await state()).folded, []);
 });

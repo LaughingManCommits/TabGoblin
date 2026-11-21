@@ -4,18 +4,19 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `87e5a79`: the merge of `automatic-mode` (WP-7 and WP-8), made by the
-  owner on 2026-11-21. Earlier branches are merged.
-- Branch `pairing-race`: local, not pushed, not merged. On top of `87e5a79`, in this order: a
-  message that arrives at the moment of pairing is no longer taken for a failed pairing (the
-  cause of the CI failure described below); the popup says what kind of request was declined;
-  WP-9 filed; WP-9 built, the report of where the time went; a pass over the look of the popup.
+- `main` = `origin/main` = `5c9f4ab`: the merge of `pairing-race`, made by the owner on
+  2026-11-21. It holds the fix for the moment of pairing (the cause of the CI failure described
+  below), the declined box, WP-9 and the pass over the look of the popup. Earlier branches are
+  merged.
+- Branch `folding-panels`: local, not pushed, not merged. On top of `5c9f4ab`: the popup's panels
+  fold to one line.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| Push and merge `pairing-race`, then look at the CI run of that push | Waiting for the owner, who pushes and merges | git |
+| Push and merge `folding-panels` | Waiting for the owner, who pushes and merges | git |
+| The CI run of the push of `5c9f4ab`, the first with the fix for the pairing | Not seen by a session; the owner can show it | GitHub |
 
 The backlog in [TODO.md](../../TODO.md) is empty.
 
@@ -24,7 +25,7 @@ The backlog in [TODO.md](../../TODO.md) is empty.
 - **One CI result has been seen, and it was a failure.** On 2026-11-21 the owner showed the log
   of the "Chrome extension" job of one run: cancelled at its 15-minute limit, after the first
   test of `background.test.ts` failed and the next one never ended. The cause was found and fixed
-  on `pairing-race`; see the [validation log](validation-log.md) of that date. Not seen: which
+  in `34a81a8`, which is in `main` since `5c9f4ab`; see the [validation log](validation-log.md). Not seen: which
   commit that run was for, its other three jobs, and any run since. The repository is private
   and `gh` is not logged in on this machine: a result reaches a session only when the owner
   shows it.
@@ -37,10 +38,11 @@ The backlog in [TODO.md](../../TODO.md) is empty.
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, on `pairing-race`. The server and the extension's rules
-  were last verified with WP-9, on Windows and on Linux in a container. The last commit changes
-  only how the popup looks; for it the extension's check and the end-to-end suite were run and
-  every changed picture was looked at. Details in the [validation log](validation-log.md).
+- **Last verification:** 2026-11-21, on `pairing-race`, on its final build: the extension's
+  check, the end-to-end suite, the editor lab in front and in the background, and every picture
+  of the documentation looked at. The server was last verified with WP-9 and has not changed
+  since. Linux, in a container, was last run with WP-9 too. Details in the
+  [validation log](validation-log.md).
 - **Next action:** after the owner's push, the result of its CI run. Should the extension job
   fail again, its log now names the test and prints the failure: a test that hangs is ended
   after 60 seconds instead of running into the job's limit.

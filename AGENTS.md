@@ -48,7 +48,9 @@ Working rules for this repository:
 
 - The owner pushes and merges. Commit when asked; do not push unless asked.
 - The owner also merges and removes branches while a session is running. Look at `git status -sb`
-  right before a commit, and never commit on `main`: make a branch first.
+  right before a commit, and never commit on `main`: make a branch first. A check in the same
+  command line as the commit is printed, not read: twice a commit landed on `main` that way. Let
+  the commit refuse instead: `test "$(git branch --show-current)" != main && git commit …`.
 - Open every generated screenshot and check it shows what you claim before using it.
 - Documentation is plain and factual: what was measured, what was not, where it stops.
 
@@ -74,7 +76,7 @@ Commands are in the [runbook](docs/agents/runbook.md). Run the focused test firs
 | Change text entry into rich-text or code editors | `editor.ts` (entry), `snapshot.ts` `editorSurface` (recognition) | `editor.ts` | `test/editor.test.ts`, `test/agnostic.test.ts`, then the editor lab in front **and** with `BACKGROUND=1`; update the table in `docs/editors.md` |
 | Change submissions, or when the user is asked about them | `submit.ts` (signals, what a prompt shows of the content), `background.ts` (flow, asking), `policy.ts` (`checkKey`, `needsAsking`, `checkAsk`: what is a submission, and whether it is put to the user), `popup.ts` (the prompt), `BrowserService.java` (ids) | Same | `test/submit.test.ts`, `BrowserServiceTest`, end to end |
 | Change sessions, pairing or the connection | `background.ts`, `pairing.ts`, `protocol.ts`; `WebSocketBridge.java`, `ExtensionConnection.java`, `Pairing.java`, `Protocol.java` | Both sides must agree; the protocol is described in [development.md](docs/development.md#protocol-reference) | `PairingTest` and `pairing.test.ts` share a test vector; `WebSocketBridgeTest`, `test/protocol.test.ts`, end to end |
-| Change the popup | `popup.html`, `popup.ts`, `popup.css` | Same; requests go to `background.ts` | End to end drives the real popup and reads the prompt's text; for its look, `node screenshots.mjs prompts` and your eyes; regenerate the documentation's pictures if they changed |
+| Change the popup | `popup.html`, `popup.ts`, `popup.css`; `panels.ts` for which panels fold and what a folded one says | Same; requests go to `background.ts` | End to end drives the real popup and reads the prompt's text; for its look, `node screenshots.mjs prompts` and your eyes; regenerate the documentation's pictures if they changed |
 | Change MCP behaviour of the server (lifecycle, cancellation, tool metadata) | `McpMain.java`, `StdinTap.java` | [docs/mcp-conformance.md](docs/mcp-conformance.md) says which revision it is measured against and what is done by hand | `StdinTapTest`, `mvn verify` (runs `McpConformanceIT` on the built jar), end to end |
 | Change build wiring or CI | `java-server/pom.xml`, `chrome-extension/build.mjs`, `.github/workflows/ci.yml` | Same | Run the job's commands locally (runbook: "Reproduce a CI job") |
 | Edit documentation | `docs/`, root `README.md` | Each fact has one page: tools in `tools.md`, rules in `security.md`, editors in `editors.md`, flows in `architecture.md`, commands in `development.md` | Check links; regenerate images only with `HEADED=1 node screenshots.mjs` |

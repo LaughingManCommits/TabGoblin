@@ -272,4 +272,5 @@ chrome-extension/src/
   editor.ts                text entry into rich-text and code editors
   submit.ts                baseline and signals around a submission
   popup.html / .ts / .css  the user's controls
+  panels.ts                which panels of the popup fold, and what a folded one says
 ```
