@@ -721,7 +721,12 @@ async function pressKey(op: Operation, session: SessionRecord, params: Record<st
     return submit(op, session, { ref: Number(params.ref), fields: [], expectText: undefined, submissionId: undefined, repeat: false });
   }
   if (verdict === 'ask') {
-    await confirmWithUser(op, session, target.label, target.submit === 'form' ? 'form' : 'enter');
+    // Enter in a text box, declared: a submission like any other. Fingerprinted, refused as a
+    // repeat, put to the user, sent once, and judged by what the page does.
+    return submit(op, session, {
+      ref: params.ref === undefined || params.ref === null ? null : Number(params.ref),
+      fields: [], expectText: undefined, submissionId: undefined, repeat: params.repeat === true, by: 'enter',
+    });
   }
   const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
   const result = await page<object>(op, session, 'press_key', { ref: params.ref, key });
@@ -847,8 +852,14 @@ async function screenshot(op: Operation, session: SessionRecord): Promise<object
   return { data: dataUrl.slice(comma + 1), mimeType: 'image/jpeg', url: after.url, ...(note ? { note } : {}) };
 }
 
+/** What a key press reports when the page itself took Enter, or submitted a form on it: it may have sent something. */
+const SENT_BY_ENTER = new Set(['the page handled the key itself', 'submitted the form']);
+
 interface SubmitRequest {
-  ref: number;
+  /** The control to submit with. Null: the text box that has the keyboard, by Enter. */
+  ref: number | null;
+  /** Set when the agent asked for Enter. Otherwise the page says how the control submits. */
+  by?: 'enter';
   fields: { ref: number; text: string }[];
   expectText: string | undefined;
   submissionId: string | undefined;
@@ -899,10 +910,13 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
 
   try {
     // PREPARED: every ref resolves and the policy allows it, before anything is touched.
-    const prepared = await page<{ target: ClickTarget; digest: string | null }>(op, session, 'submit_prepare',
-      { ref: request.ref, fields: request.fields, submissionId: id });
+    const prepared = await page<{ target: ClickTarget; digest: string | null; by: 'click' | 'enter'; how: ConfirmHow; label: string }>(
+      op, session, 'submit_prepare', { ref: request.ref, fields: request.fields, submissionId: id, by: request.by });
     const target = prepared.target;
-    checkClick(session.mode, 'submit', target);
+    // A text box is submitted by Enter in it, anything else by a click on it.
+    const byEnter = prepared.by === 'enter';
+    if (byEnter) requireMode(session.mode, 'write');
+    else checkClick(session.mode, 'submit', target);
     const repeatOf = prepared.digest === null ? undefined : session.submissions.find((s) =>
       s.id !== id && s.digest === prepared.digest && Date.now() - s.time < DUPLICATE_WINDOW_MS
       && (s.state === 'CONFIRMED' || s.state === 'UNCERTAIN' || s.state === 'SUBMITTING' || s.state === 'VERIFYING'));
@@ -913,7 +927,7 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
     record.digest = prepared.digest;
     advance('PREPARED');
     // The user decides before a single character is entered: declining leaves the page untouched.
-    await confirmWithUser(op, session, target.label);
+    await confirmWithUser(op, session, byEnter ? prepared.label : target.label, byEnter ? prepared.how : 'click');
 
     for (const field of request.fields) {
       const filled = await page<{ valueMatches: boolean }>(op, session, 'fill',
@@ -938,17 +952,28 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
     advance('SUBMITTING');
 
     const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
-    let fired: { dispatched?: boolean; note?: string } = {};
+    let fired: { dispatched?: boolean; note?: string; effect?: string } = {};
     try {
-      fired = await page<{ dispatched: true; note?: string }>(op, session, 'submit_fire', { ref: request.ref, submissionId: id }, 15000, true);
+      fired = await page<{ dispatched: true; note?: string; effect?: string }>(
+        op, session, 'submit_fire', { ref: request.ref, submissionId: id }, 15000, true);
     } catch (e) {
       const code = e instanceof CommandError ? e.code : '';
       if (code === 'STALE_REF' || code === 'ELEMENT_DISABLED') {
         forgetSubmission(session, id);
         throw e; // refused inside the page before the click: nothing was dispatched
       }
-      return finish({ state: 'UNCERTAIN', verified: null, evidence: ['the page stopped answering while the click was being dispatched'] },
-        { dispatched: true });
+      return finish({ state: 'UNCERTAIN', verified: null,
+        evidence: [`the page stopped answering while the ${byEnter ? 'key was being pressed' : 'click was being dispatched'}`] },
+      { dispatched: true });
+    }
+    if (byEnter && !SENT_BY_ENTER.has(fired.effect ?? '')) {
+      // The page left the key to the browser: it started a new line, or did nothing. That is not a
+      // submission, so it is not recorded as one and does not stand in the way of a later one.
+      forgetSubmission(session, id);
+      void page(op, session, 'submit_done', { submissionId: id }, 3000, true).catch(() => undefined);
+      const settled = sessionById(session.id) ? await settle(session, before) : {};
+      const notes = [fired.note, (settled as { note?: string }).note, 'Enter sent nothing here: it started a new line, or did nothing.'];
+      return { dispatched: true, key: 'Enter', effect: fired.effect, submitted: false, ...settled, note: notes.filter(Boolean).join(' ') };
     }
     advance('VERIFYING');
     // The agent's own texts, to recognise them on the page afterwards even across a navigation.
@@ -956,6 +981,13 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
       .filter((t) => t.length >= 4 && !/^(true|false|on|off|yes|no|checked|unchecked)$/i.test(t));
     const verdict = await verify(op, session, id, baseline, request.expectText, submitted);
     const where = sessionById(session.id) ? await settle(session, before) : { leftAuthorizedOrigin: true };
+    if (byEnter) {
+      // What Enter does is the page's own business: when nothing shows, it may only have started a new line.
+      const evidence = verdict.state === 'UNCERTAIN'
+        ? [...verdict.evidence, 'Enter may only have started a new line here: look at the text box before pressing it again']
+        : verdict.evidence;
+      return finish({ ...verdict, evidence }, { dispatched: true, key: 'Enter', effect: fired.effect, ...where });
+    }
     return finish(verdict, { dispatched: true, ...(fired.note ? { clickNote: fired.note } : {}), ...where });
   } catch (e) {
     if (record.state === 'PREPARED' || record.state === 'FILLED') forgetSubmission(session, id);

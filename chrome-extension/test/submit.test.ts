@@ -127,6 +127,29 @@ test('submitted text is recognised on the page without the agent naming it', () 
   assert.equal(observeSubmission(after.doc, 'd2', baseline, undefined, null, [], ['Ship it on Friday']).submittedSeen, true);
 });
 
+test('an editor behind a keyboard input is judged by the text it shows, not by that input', () => {
+  const { doc } = page(`
+    <div id="editor"><div id="lines">let total = 1;</div><textarea id="in" data-zero></textarea></div>`);
+  const input = doc.getElementById('in') as HTMLTextAreaElement;
+  const lines = doc.getElementById('lines')!;
+  // Such an input holds a character or two while a key is handled, and is emptied afterwards.
+  input.value = 'x';
+  const baseline = captureBaseline(doc, 'd1', [input], undefined, submittedTexts(input, [input]));
+  assert.deepEqual(baseline.fieldValues, ['let total = 1;']);
+  // Enter started a new line: the input is empty again, the editor holds more than before.
+  input.value = '';
+  lines.textContent = 'let total = 1;\n';
+  const signals = observeSubmission(doc, 'd1', baseline, undefined, input, [input], submittedTexts(input, [input]));
+  assert.equal(signals.fieldsCleared, false, 'nothing was cleared, so nothing counts as sent');
+  assert.equal(judgeSubmission(signals, false).state, 'UNCERTAIN');
+  // The same content has the same fingerprint, whatever the input happens to hold.
+  lines.textContent = 'let total = 1;';
+  input.value = 'q';
+  const one = contentDigest(input, [input]);
+  input.value = '';
+  assert.equal(contentDigest(input, [input]), one);
+});
+
 test('short values, passwords and non-text fields are not used as evidence', () => {
   const { doc } = page(`
     <form><input id="a" value="ok"><input id="p" type="password" value="hunter2hunter2">

@@ -278,14 +278,23 @@ test('Enter in any text box may send what is written; search boxes and open opti
     <input id="hinted" placeholder="Filter by name">
     <div role="search"><input id="inside" aria-label="Words"></div>
     <div id="palette" contenteditable="true" role="searchbox" aria-label="Commands"></div>
-    <input id="combo" role="combobox" aria-expanded="true" aria-label="Assignee">
+    <input id="combo" role="combobox" aria-expanded="true" aria-controls="people" aria-label="Assignee">
+    <ul id="people" role="listbox"><li role="option" id="opt-1">Ada</li><li role="option" id="opt-2">Grace</li></ul>
     <div id="mention" contenteditable="true" aria-activedescendant="opt-2" aria-label="Message"></div>
-    <input id="closed" role="combobox" aria-expanded="false" aria-label="Assignee">
+    <input id="closed" role="combobox" aria-expanded="false" aria-controls="people-closed" aria-label="Assignee">
+    <ul id="people-closed" role="listbox" data-zero></ul>
+    <div id="composer" contenteditable="true" aria-expanded="true" aria-label="Message"></div>
+    <div id="dangling" contenteditable="true" aria-activedescendant="gone" aria-label="Message"></div>
+    <input id="panel" aria-expanded="true" aria-controls="details" aria-label="Title"><div id="details">More fields</div>
+    <textarea id="both" aria-label="Search the archive or write a message"></textarea>
     <input id="check" type="checkbox" aria-label="Done">
     <p id="text" tabindex="-1">Just text</p>
   `);
   const d = (id: string, key = 'Enter') => describeKeyTarget(doc.getElementById(id)!, key);
   for (const id of ['message', 'chat', 'todo', 'closed']) assert.equal(d(id).submit, 'text', id);
+  // Not enough to go unasked: an expanded composer, an option that is not there, a panel that is no list of options,
+  // and wording about search on a box where messages are written.
+  for (const id of ['composer', 'dangling', 'panel', 'both']) assert.equal(d(id).submit, 'text', id);
   assert.equal(d('chat').label, 'Write a reply', 'the label the user is shown');
   for (const id of ['find', 'named', 'hinted', 'inside', 'palette']) assert.equal(d(id).submit, null, `${id} searches`);
   for (const id of ['combo', 'mention']) assert.equal(d(id).submit, null, `${id} has a list of options open`);

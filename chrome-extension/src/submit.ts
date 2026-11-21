@@ -4,7 +4,7 @@
 
 import { visibleText } from './extract.ts';
 import type { SubmitSignals } from './policy.ts';
-import { accessibleName, clip, isSensitiveField, isVisible, norm, ownText } from './snapshot.ts';
+import { accessibleName, clip, editorSurface, isSensitiveField, isVisible, norm, ownText } from './snapshot.ts';
 
 /** State captured just before the submit control is clicked. Small and serialisable: it has to
  *  survive a navigation, when the document that took it no longer exists. */
@@ -53,6 +53,10 @@ function expectCount(doc: Document, fields: Element[], expectText: string | unde
 }
 
 function valueOf(el: Element): string | null {
+  // An editor that takes the keyboard through an element of its own shows its text elsewhere.
+  // That text is what it holds; the element itself is emptied after every key.
+  const surface = editorSurface(el);
+  if (surface) return norm((surface as HTMLElement).innerText ?? surface.textContent);
   const tag = el.localName;
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return (el as HTMLInputElement).value ?? '';
   if (el.getAttribute('contenteditable') !== null) return norm(el.textContent);

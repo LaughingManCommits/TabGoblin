@@ -242,9 +242,12 @@ export function looksLikeSubmission(label: string): boolean {
   return SUBMIT_WORDS.test(label);
 }
 
-const SEARCH_WORDS = /\b(search|find|filter|look ?up|go to|jump to)\b/i;
+const SEARCH_WORDS = /\b(search|find|filter)\b/i;
 
-/** Heuristic for a text box whose Enter runs a search or a filter, which changes nothing. */
+/**
+ * Heuristic for a one-line field whose Enter runs a search or a filter, which changes nothing.
+ * It is not applied to text areas and editors: that is where messages are written.
+ */
 export function looksLikeSearch(label: string): boolean {
   return SEARCH_WORDS.test(label);
 }

@@ -168,7 +168,8 @@ try {
           // A key press says what it did in words. One the editor ignored, or one that could not
           // be confirmed, is the tool saying so.
           const effect = /"effect"\s*:\s*"([^"]*)"/.exec(result.text)?.[1] ?? '';
-          const key = /did not react|nothing on the page changed/.test(effect) ? 'no effect' : /"note"\s*:/.test(result.text) ? 'unconfirmed' : 'done';
+          const doubt = /could not be checked|may land in the wrong place|gave no sign of taking/.test(result.text);
+          const key = /did not react|nothing on the page changed/.test(effect) ? 'no effect' : doubt ? 'unconfirmed' : 'done';
           outcome.said.push(code ?? (matched === 'true' ? 'ok' : matched === 'false' ? 'mismatch' : key));
           if (process.env.VERBOSE) console.log(`  ${fixture.id}/${check.id}: ${result.text.replace(/\s+/g, ' ').slice(0, 300)}`);
           return result;
@@ -177,7 +178,8 @@ try {
           fill: async (text, opts = {}) => { record(await agent.tool('browser_fill', { ref, text, ...opts })); await sleep(200); },
           // To the tool, Enter in an editor is a submission: it may send what is written. The lab declares it.
           key: async (key, { focused = false } = {}) => {
-            const intent = key === 'Enter' ? { intent: 'submit' } : {};
+            // The same text is entered in every editor, so the refusal of a repeat is lifted as well.
+            const intent = key === 'Enter' ? { intent: 'submit', repeat: true } : {};
             record(await agent.tool('browser_press_key', { key, ...(focused ? {} : { ref }), ...intent }));
             await sleep(150);
           },

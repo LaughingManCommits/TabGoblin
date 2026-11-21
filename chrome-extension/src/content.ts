@@ -4,7 +4,7 @@
 
 import { extractPage, type LinkStyle } from './extract.ts';
 import {
-  clickElement, describeClickTarget, describeKeyTarget, fill, keyElement, press, scrollPage, unsavedFields, viewportCoverage,
+  clickElement, describeClickTarget, describeKeyTarget, fill, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
@@ -30,7 +30,13 @@ const scope = globalThis as unknown as Record<string, unknown>;
 /** Operations that can be told to stop waiting. */
 const signals = new Map<string, { cancelled: boolean }>();
 /** Elements and texts of submissions in flight, for observing the outcome while this document lives. */
-const submissions = new Map<string, { control: Element; fields: Element[]; submitted: string[] }>();
+/**
+ * Submissions in progress. `by` says how the control submits: a click on it, or Enter in it when it
+ * is a text box. `named` is false when the control is whatever had the keyboard, not a ref.
+ */
+const submissions = new Map<string, {
+  control: Element; fields: Element[]; submitted: string[]; by: 'click' | 'enter'; named: boolean;
+}>();
 
 function optionalRef(msg: Request, state: PageState): Element | undefined {
   return msg.ref === undefined || msg.ref === null ? undefined : state.registry.resolve(Number(msg.ref));
@@ -203,14 +209,28 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
     }
     case 'submit_prepare': {
       // Everything is resolved before anything is touched: a stale ref stops the whole submission.
-      const control = registry.resolve(ref);
+      const named = msg.ref !== undefined && msg.ref !== null;
+      const control = named ? registry.resolve(ref) : keyElement(document, null);
       const given = (Array.isArray(msg.fields) ? msg.fields : []) as { ref: unknown; text?: unknown }[];
       const fields = given.map((f) => registry.resolve(Number(f.ref)));
-      submissions.set(String(msg.submissionId), { control, fields, submitted: [] });
+      const intended = given.map((f) => (typeof f.text === 'string' ? f.text : undefined));
+      // A text box is submitted by Enter in it, anything else by a click on it.
+      const by = msg.by === 'enter' || takesText(control) ? 'enter' : 'click';
+      // What Enter sends is what the box holds: it belongs to the content, also when it is not filled here.
+      if (by === 'enter' && !fields.includes(control)) {
+        fields.push(control);
+        intended.push(undefined);
+      }
+      submissions.set(String(msg.submissionId), { control, fields, submitted: [], by, named });
+      const key = describeKeyTarget(control, 'Enter');
       return {
         target: describeClickTarget(control),
+        by,
+        // For the question to the user: a field of a form, which Enter submits, or another text box.
+        how: by === 'click' ? 'click' : key.submit === 'form' ? 'form' : 'enter',
+        label: key.label,
         // Fingerprint of what would be submitted, taken before any field is touched.
-        digest: contentDigest(control, fields, given.map((f) => (typeof f.text === 'string' ? f.text : undefined))),
+        digest: contentDigest(control, fields, intended),
       };
     }
     case 'submit_baseline': {
@@ -225,6 +245,15 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
     case 'submit_fire': {
       const entry = submissions.get(String(msg.submissionId));
       if (!entry) throw new DomError('STALE_REF', 'The page changed while the submission was being prepared. Take a new snapshot.');
+      if (entry.by === 'enter') {
+        // The rules were applied to one element, and the user was asked about it. If the keyboard
+        // is somewhere else by now, the key would reach an element they were not applied to.
+        if (!entry.named && keyElement(document, null) !== entry.control) {
+          throw new DomError('STALE_REF',
+            'The element that has the keyboard changed while the key press was being checked. Nothing was pressed. Take a new snapshot.');
+        }
+        return await press(document, entry.named ? entry.control : null, 'Enter');
+      }
       return clickElement(registry.resolve(ref));
     }
     case 'submit_observe': {

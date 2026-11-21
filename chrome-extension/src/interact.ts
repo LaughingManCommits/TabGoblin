@@ -250,16 +250,41 @@ function fieldOfForm(el: Element): HTMLFormElement | null {
   return (el as HTMLInputElement).form;
 }
 
-/** A text box that searches or filters: Enter there changes nothing. */
+/**
+ * A text box that searches or filters: Enter there changes nothing. What the page says about the
+ * box counts first: its type, its role, a search landmark around it. Its wording counts only for
+ * a one-line field. A text area or an editor named "Search the archive or write a message" is
+ * still where a message is written.
+ */
 function isSearchBox(el: Element, label: string): boolean {
   if (inputType(el) === 'search' || el.getAttribute('role') === 'searchbox') return true;
   if (el.closest('[role="search"], search')) return true;
-  return looksLikeSearch(`${label} ${el.getAttribute('placeholder') ?? ''}`);
+  return el.localName === 'input' && looksLikeSearch(`${label} ${el.getAttribute('placeholder') ?? ''}`);
 }
 
-/** The element says a list of options is open on it: Enter takes the highlighted one. */
+const OPTION_LISTS = new Set(['listbox', 'menu', 'tree', 'grid']);
+
+/**
+ * A list of options is open on the element, so Enter takes the highlighted one. The element has
+ * to point to that list, and the list has to be there to see: `aria-expanded` alone is carried
+ * by text boxes for other reasons, an expanded composer for one.
+ */
 function choosesAnOption(el: Element): boolean {
-  return el.getAttribute('aria-expanded') === 'true' || !!el.getAttribute('aria-activedescendant');
+  const doc = el.ownerDocument;
+  const pointedAt = (attribute: string): Element[] => (el.getAttribute(attribute) ?? '').split(/\s+/).filter(Boolean)
+    .map((id) => doc.getElementById(id)).filter((found): found is HTMLElement => found !== null);
+  const isOpenList = (list: Element | null): boolean =>
+    list !== null && OPTION_LISTS.has(list.getAttribute('role') ?? '') && isVisible(list);
+  if ([...pointedAt('aria-controls'), ...pointedAt('aria-owns')].some(isOpenList)) return true;
+  // The highlighted option itself, inside such a list.
+  return pointedAt('aria-activedescendant').some((option) =>
+    isVisible(option) && isOpenList(option.closest('[role="listbox"], [role="menu"], [role="tree"], [role="grid"]')));
+}
+
+/** Whether text is written into the element: a field, a text area, an editor. */
+export function takesText(el: Element): boolean {
+  return (el.localName === 'input' && SETTABLE_INPUT_TYPES.has(inputType(el))) || el.localName === 'textarea'
+    || (checkedState(el) === null && editorKind(el) !== null);
 }
 
 /**
@@ -274,13 +299,12 @@ export function describeKeyTarget(el: Element, key: string): KeyTarget {
   const form = key === 'Enter' ? fieldOfForm(el) : null;
   if (form) return isSearchForm(form) ? none : { ...none, submit: 'form' };
   if (activates(el, key)) return { ...none, click: describeClickTarget(el) };
-  const takesText = (el.localName === 'input' && SETTABLE_INPUT_TYPES.has(inputType(el))) || el.localName === 'textarea'
-    || (checkedState(el) === null && editorKind(el) !== null);
+  const text = takesText(el);
   // A control of the page's own making, put in keyboard reach: its key handler decides what Enter
   // and Space do, and to the rules that is a click on it.
   const reachable = el.hasAttribute('tabindex') && (el as HTMLElement).tabIndex >= 0;
-  if ((key === 'Enter' || key === ' ') && !takesText && reachable) return { ...none, click: describeClickTarget(el) };
-  if (key !== 'Enter' || !takesText || choosesAnOption(el) || isSearchBox(el, label)) return none;
+  if ((key === 'Enter' || key === ' ') && !text && reachable) return { ...none, click: describeClickTarget(el) };
+  if (key !== 'Enter' || !text || choosesAnOption(el) || isSearchBox(el, label)) return none;
   return { ...none, submit: 'text' };
 }
 

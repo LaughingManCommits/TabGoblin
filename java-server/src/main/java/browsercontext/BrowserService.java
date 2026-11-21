@@ -299,6 +299,7 @@ public final class BrowserService {
         ObjectNode p = json.createObjectNode();
         p.put("key", key);
         p.put("intent", intent);
+        p.put("repeat", a.path("repeat").asBoolean(false));
         if (a.hasNonNull("ref")) {
             p.put("ref", requireInt(a, "ref"));
         }

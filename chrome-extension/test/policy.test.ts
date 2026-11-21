@@ -269,8 +269,8 @@ test('a key that activates a control is a click on it, with the rules of a click
 });
 
 test('search wording is recognised, so that Enter in a search box is not held up', () => {
-  for (const label of ['Search', 'Search issues…', 'Filter by name', 'Find in page', 'Go to file']) assert.ok(looksLikeSearch(label), label);
-  for (const label of ['Message', 'Write a comment', 'New note', 'Reply', 'Research notes', '']) assert.ok(!looksLikeSearch(label), label);
+  for (const label of ['Search', 'Search issues…', 'Filter by name', 'Find in page']) assert.ok(looksLikeSearch(label), label);
+  for (const label of ['Message', 'Write a comment', 'New note', 'Reply', 'Research notes', 'Go to file', 'Jump to…', '']) assert.ok(!looksLikeSearch(label), label);
 });
 
 const signals = (over: Partial<SubmitSignals> = {}): SubmitSignals => ({

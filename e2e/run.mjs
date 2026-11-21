@@ -1120,6 +1120,38 @@ try {
     lacks(ok(await two.tool('browser_snapshot')).text, 'Clickable: Remember this');
     json(await two.tool('browser_fill', { ref: ref(snapshot, 'Textbox: New note'), text: '' }));
   });
+  await step('a message sent with Enter is a submission like any other: sent once, with a verdict', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const box = ref(snapshot, 'Textbox: Message to the team');
+    const said = () => pageB.$$eval('#said .said', (els) => els.map((el) => el.textContent));
+    // Filled and sent in one call: the text box is the control, and Enter is how it submits.
+    const sent = json(await two.tool('browser_submit', {
+      ref: box, fields: [{ ref: box, text: 'Standup moved to ten' }], expect_text: 'Standup moved to ten',
+    }));
+    assert(sent.state === 'CONFIRMED' && sent.verified === 'content' && sent.key === 'Enter', JSON.stringify(sent));
+    assert((await said()).join('|') === 'Standup moved to ten', JSON.stringify(await said()));
+
+    // The same text again, this time by pressing the key: refused, and not sent a second time.
+    json(await two.tool('browser_fill', { ref: box, text: 'Standup moved to ten' }));
+    fails(await two.tool('browser_press_key', { ref: box, key: 'Enter', intent: 'submit' }), 'DUPLICATE_SUBMISSION');
+    assert((await said()).length === 1, 'the same message must not be sent twice');
+
+    // Another text by key press: sent, and judged by what the page shows.
+    json(await two.tool('browser_fill', { ref: box, text: 'Bring the laptop' }));
+    const pressed = json(await two.tool('browser_press_key', { ref: box, key: 'Enter', intent: 'submit' }));
+    assert(pressed.state === 'CONFIRMED' && pressed.verified === 'content' && /^sub-/.test(pressed.submissionId), JSON.stringify(pressed));
+    assert(pressed.effect === 'the page handled the key itself', JSON.stringify(pressed));
+    assert((await said()).join('|') === 'Standup moved to ten|Bring the laptop', JSON.stringify(await said()));
+
+    // Enter in a box where it only starts a new line sends nothing, and is not recorded as a submission.
+    const note = ref(snapshot, 'Textbox: New note');
+    json(await two.tool('browser_fill', { ref: note, text: 'First line' }));
+    const line = json(await two.tool('browser_press_key', { ref: note, key: 'Enter', intent: 'submit' }));
+    assert(line.submitted === false && line.effect === 'inserted a new paragraph' && !line.state, JSON.stringify(line));
+    const again = json(await two.tool('browser_press_key', { ref: note, key: 'Enter', intent: 'submit' }));
+    assert(again.submitted === false, 'a key that sent nothing does not block the next one: ' + JSON.stringify(again));
+    json(await two.tool('browser_fill', { ref: note, text: '' }));
+  });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();
     has(ok(await two.tool('browser_snapshot')).text, 'in an inner scrolling area. More below:');

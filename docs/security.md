@@ -82,9 +82,16 @@ which content scripts cannot read. It is never logged.
 - A submission must be declared by the agent, needs Write access, and by default your confirmation.
   Destructive, financial and publishing actions always ask.
 - Enter in a text box is a submission. The page does not say whether it sends what is written or
-  starts a new line, so it is treated as sending: declared by the agent, and allowed by you in
-  the popup, which names the text box. Search boxes are the exception, and a text box on which a
-  list of options is open, where Enter takes an option.
+  starts a new line, so it is treated as sending: declared by the agent, allowed by you in the
+  popup, which names the text box, sent once, refused as a repeat, and judged by what the page
+  does afterwards.
+- Two exceptions are pressed without all that, because Enter there submits nothing:
+  - A search box: an input of type `search`, an element with the role `searchbox`, or a text box
+    inside a search region. A one-line field also counts when its name or placeholder says
+    search, find or filter. A text area or an editor never counts by its name.
+  - A text box that points to a list of options (`aria-controls`, `aria-owns` or
+    `aria-activedescendant`) which exists, is visible and is a list by its role. Enter takes the
+    highlighted option. `aria-expanded` alone is not enough.
 - Enter or Space on a button or link is a click on it, and no way around the rules for clicks.
 - A key is pressed only on the element it was checked on. If the keyboard has moved by the time
   you allow it, nothing is pressed.
@@ -150,6 +157,8 @@ content, typed text, full URLs, cookies, headers or the token.
 | Editor text never entered twice; an unseen result not reported as success | DOM, editor lab |
 | A fill never presses Enter, in a text area or an editor | DOM, end-to-end |
 | Enter in a text box needs intent and the user's consent; a declined one is not pressed | Rules, DOM, worker, end-to-end |
+| A message sent with Enter gets a verdict, and the same text is not sent twice | DOM, worker, end-to-end |
+| A text box is not excused from the question by `aria-expanded`, a missing option, or search wording on a text area | DOM |
 | Enter or Space on a control that submits is refused like a click on it | Rules, DOM, worker, end-to-end |
 | A key allowed for one element is not pressed on another | End-to-end |
 | A prompt that has only just appeared takes no answer; from the keyboard Deny comes first | End-to-end |

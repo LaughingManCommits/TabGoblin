@@ -6,15 +6,17 @@
 |---|---|---|---|
 | [WP-4](#wp-4-a-prompt-that-says-what-is-asked) | What the prompt tells the user, and how it looks | | 2 |
 | [WP-5](#wp-5-requests-one-at-a-time-and-not-again-after-a-no) | Asking in order, and not again after a no | | 3 |
-| [WP-6](#wp-6-enter-as-a-full-submission-with-tighter-exceptions) | Enter gets what other submissions get | | 4 |
-| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | WP-5, WP-6, and the owner's decisions | 5 |
+| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | WP-5, and the owner's decisions | 5 |
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
-key) and WP-3 (consent that cannot be given by accident: issues A1, A2 and B6). Numbers are not
-reused.
+key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6) and WP-6 (Enter as a
+full submission, with tighter exceptions: issues C1, C2 and C3). Numbers are not reused.
 
-WP-4 to WP-6 come from a critical look at the work on Enter as a submission, on 2026-11-21. Their
+C4 stays as it was noted: that Enter and Space on a button used to pass without the rules of a
+click is read from the source before commit `1f41d8c`, and was never measured.
+
+WP-4 and WP-5 come from a critical look at the work on Enter as a submission, on 2026-11-21. Their
 issues keep the letters they were noted under (A1 ... D3). In the tables, "checked" means it was
 run or looked at; "read" means it follows from the source and was not run.
 
@@ -96,51 +98,6 @@ A no is final for a while, and the user is never asked about something they cann
 - A second request while one is pending is refused with its own error code, documented in
   `docs/tools.md`.
 
-## WP-6: Enter as a full submission, with tighter exceptions
-
-**Status:** open, not started. **Owner:** unassigned.
-
-### Goal
-
-A declared Enter gets what every other submission gets: sent once, and a verdict. The exceptions
-that let Enter through unasked cannot be met by accident.
-
-### Issues
-
-| # | Issue | How it is known |
-|---|---|---|
-| C1 | The exception for an open list of options is easy to meet: `aria-expanded="true"` or any `aria-activedescendant` on the text box is enough. A message box that carries `aria-expanded` for another reason needs neither intent nor consent. | Read; not tried on real products |
-| C2 | The exception for search goes by English words in the name or the placeholder: search, find, filter, look up, go to, jump to. A message box with such a word is not asked about; a search box named otherwise is. | Checked, by a test of the wording |
-| C3 | Enter is a submission without the rest: no submission id, no refusal of a repeat, no verdict of confirmed, failed or uncertain. Pressed twice, it sends twice. | Read |
-| C4 | That Enter and Space on a button used to pass without the rules of a click is read from the source before the change. It was not measured. | Read |
-
-### Tasks
-
-1. **C3.** Run a declared Enter through the submission flow: a submission id, a fingerprint of the
-   text in the box, refusal of the same content within two minutes unless repeated on purpose, and
-   a verdict from what the page does afterwards (the box emptied, the text appearing elsewhere).
-   Decide the tool surface first: `browser_press_key` returning the verdict when `intent` is
-   `submit`, or `browser_submit` taking a text box and "by Enter". The second keeps one tool for
-   submissions. Either changes a tool's result: `docs/tools.md` and the end-to-end suite.
-2. **C1.** Require a list that the text box points to (`aria-controls`, `aria-owns` or
-   `aria-activedescendant`), that exists, is visible, and is a list of options by its role.
-   `aria-expanded` alone is not enough.
-3. **C2.** Go by the type and role of the box first (`type="search"`, `role="searchbox"`, inside
-   `role="search"`). Decide which words remain, if any, and whether they apply to text areas and
-   editors at all. List the cases the decision rests on.
-4. See which boxes are exempt today: run the editor lab with `VERBOSE=1` and note for each editor
-   whether its Enter was asked about. None of them is a search box.
-5. C4 needs nothing, unless the claim is to be relied on. Then run the new tests against the
-   source before commit `1f41d8c`.
-
-### Acceptance
-
-- The same text sent twice by Enter is refused the second time (end-to-end).
-- The result of a declared Enter carries a verdict (end-to-end), and `docs/tools.md` describes it.
-- A message box with `aria-expanded="true"` and no list is asked about (unit test); a text box with
-  an open list of options is not.
-- The exceptions are listed in `docs/security.md` as they then are.
-
 ## WP-7: An automatic mode for confirmations
 
 **Status:** proposed by the owner on 2026-11-21. **Needs the owner's decisions before work
@@ -199,7 +156,8 @@ they do not remove it. `docs/security.md` has to say so under what remains the u
 
 - WP-3, which is done: an Allow that can be given by accident must not be remembered.
 - WP-5: the limits on asking, and the memory of a no.
-- WP-6: repeats are refused, so that an Allow is not a licence to send the same thing again.
+- WP-6, which is done: repeats are refused, so that an Allow is not a licence to send the same
+  thing again.
 
 ### Decisions for the owner
 
