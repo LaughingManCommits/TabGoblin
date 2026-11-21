@@ -4,26 +4,26 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `1b28c91`: the merge of `folding-panels`, made and pushed by the owner
-  on 2026-11-21. Earlier branches are merged.
-- Branch `ci-failures`: local, not pushed, not merged. On top of `1b28c91`, two commits: five
-  new packages in `TODO.md`, and the fix for the CI failures of the last two pushes (below).
+- `origin/main` = `9ea4734`: the merge of `ci-failures`, made and pushed by the owner on
+  2026-11-21. It holds five new packages in `TODO.md` and the fix for the CI failures of the two
+  pushes before it. Earlier branches are merged.
+- Local `main` is one commit ahead of it, not pushed: this page and one line of the validation
+  log, set right after that push. Committed on `main` on the owner's word of 2026-11-21, for
+  this change only; the working rule stands.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| Push and merge `ci-failures` | Waiting for the owner, who pushes and merges | git |
-| The CI run of that push, the first with the fix | Not run | GitHub |
 | WP-10 to WP-14 | Filed on 2026-11-21, none started. Each waits for the owner's decisions. The owner called WP-14, nothing personal in the repository, important | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
-- **CI failed on the last two pushes to `main`**: run #7 (`5c9f4ab`) in the Java server job, run
-  #8 (`1b28c91`) in the Java server job and end to end. The causes are in the
-  [validation log](validation-log.md), the fix is on `ci-failures`. Not shown: that the jobs
-  pass on GitHub. The Chrome extension job passed in both runs: the fix of `34a81a8`, whose
-  result had not been seen, holds there.
+- **CI passes on `main`.** Run #9 (`9ea4734`) passed in all four jobs, read on GitHub on
+  2026-11-21. The two runs before it had failed: #7 (`5c9f4ab`) in the Java server job, #8
+  (`1b28c91`) in the Java server job and end to end; causes and fix are in the
+  [validation log](validation-log.md). One passing run does not show that a fault of timing is
+  gone for good: it had passed in run #7 end to end, too.
 - **Which of two causes failed the end-to-end job in run #8 is not known.** Both give the
   message in its log; both are fixed. See the validation log.
 - **One test of the server failed once for a reason that was not looked into further:**
@@ -47,9 +47,9 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, on what `ci-failures` holds, before it was committed: the
-  server's suites with `verify`, also held to one and to two cores; the end-to-end suite. Not
-  run: the extension's check (only built; nothing in it changed), the editor lab, the Linux
-  container. Details in the [validation log](validation-log.md).
-- **Next action:** after the owner's push, the result of its CI run, which a session can read
-  as described above. Then the owner's decisions on WP-10 to WP-14, WP-14 first.
+- **Last verification:** 2026-11-21. Locally, on what `ci-failures` held before it was
+  committed: the server's suites with `verify`, also held to one and to two cores, and the
+  end-to-end suite; not the extension's check (only built; nothing in it changed), the editor
+  lab or the Linux container. On GitHub: run #9, all four jobs. Details in the
+  [validation log](validation-log.md).
+- **Next action:** the owner's decisions on WP-10 to WP-14, WP-14 first.

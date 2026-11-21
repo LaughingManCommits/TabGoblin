@@ -60,8 +60,10 @@ first, which it did in both runs on two cores. They now ask for the close code o
 flood test in the table above, which was left as it is; the state page has it.
 
 Not run: `npm run check` of the extension (nothing in it changed; it was built for the suite),
-the editor lab, the pictures, and the Linux container (Docker was not running). Not shown: that
-the jobs pass on GitHub.
+the editor lab, the pictures, and the Linux container (Docker was not running).
+
+On GitHub, after the owner's push: run #9 (`9ea4734`, the merge of `ci-failures`) passed in all
+four jobs: Java server, Chrome extension, End to end, Editors.
 
 Also in this session: WP-10 to WP-14 filed in `TODO.md`, none started. For WP-14 the tracked
 files and the history were searched for personal information; what was found is in the package.
