@@ -59,7 +59,8 @@ cd e2e && npm install && npm test
 
 Success: each step prints `ok`, the last line is `N passed, 0 failed`, and the process exits 0. It
 takes a few minutes and opens no window. Options: `HEADED=1` shows the browser, `BCMCP_CHROME=<path>` picks another Chrome,
-`SHOW_STDERR=1` prints the servers' logs at the end.
+`SHOW_STDERR=1` prints the servers' logs at the end, `SHOW_TIMES=1` the report of where the time
+of one agent's tool calls went.
 
 ## Run the editor lab
 

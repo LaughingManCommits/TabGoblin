@@ -3,6 +3,30 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `pairing-race`: WP-9, where the time went
+
+The status tool says, when asked for diagnostics, where the time of the last tool calls went.
+All on the final build of the branch.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 62 tests; `McpConformanceIT` on the built jar: 8 tests |
+| the same in a Linux container | 70 tests, none failed |
+| `cd chrome-extension && npm run check` | type-check clean, 132 tests, build |
+| the same in a Linux container (two cores) | 132 tests |
+| `cd e2e && SHOW_TIMES=1 npm test` | 92 passed, 0 failed. The new step lets the user wait 1.5 s before answering a prompt and reads the report: 1.6 s under the user, 5 ms under the extension and the page for that call. The example in `docs/tools.md` is from this run. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: two worker tests in the first run. New assertions used a command id that a
+later test uses too, and that test's command was refused as a duplicate. They have their own ids
+now.
+
+Not shown: the report with a real agent and model. In the suites the agent is a script, so the
+time between calls is milliseconds. Not shown either: an older extension against this server
+(the note about calls without times is tested with a fake extension only).
+
 ## 2026-11-21, on `pairing-race`: the declined box
 
 The popup names the kind of request the user declined ("You declined Enter in “Comment”"), as
@@ -212,23 +236,11 @@ up allowed the request. That script was not kept; the end-to-end step takes its 
 
 Not run again: the Java build and the editor lab, which this does not touch.
 
-## 2026-11-21, on `typed-lines`, third commit
-
-The look of the confirmation prompt, checked by eye. No change to what is asked or when.
-
-| What | Result |
-|---|---|
-| The prompt in the real popup, headless: click, Enter, a long name, a high-impact name, no name; each in the dark and the light theme | 20 pictures looked at; three defects found and fixed (a name cut mid-word, a missing name shown as a quotation, a high-impact prompt that looked routine) |
-| `HEADED=1 node screenshots.mjs` | all ten pictures written; the six that changed were looked at one by one. The example outputs came out identical. |
-| `cd chrome-extension && npm run check` | type-check clean, 120 tests, build |
-| `cd e2e && npm test` | 86 passed, 0 failed |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Not run again: the Java build and the editor lab. Neither is touched by this commit, which changes
-the popup, the wording of what has no name, and how a long name is shortened.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `typed-lines`, third commit (the look of the confirmation prompt): 20 pictures of
+  the prompt looked at, three defects fixed; extension 120 tests, end to end 86 of 86. The server
+  and the editor lab were not run again.
 - 2026-11-21, on `typed-lines`, second commit (Enter in a text box is a submission): server 52
   tests, extension 119, end to end 86 of 86, editor lab 222 of 225 in front and 220 of 225 in the
   background, no `SILENT`. CI on GitHub not seen.

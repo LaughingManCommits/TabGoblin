@@ -110,8 +110,22 @@ public final class BrowserService {
 
     /** Runs one tool. Never throws: failures come back as an error result with a stable code. */
     public ToolResult call(String tool, JsonNode args) {
+        // From here to the answer is one tool call; what came before it was the agent's time.
+        Timings.Running timed = bridge.timings().begin(tool);
+        ToolResult result = null;
+        try {
+            result = run(tool, args);
+            return result;
+        } finally {
+            bridge.timings().end(timed, result != null && !result.isError());
+        }
+    }
+
+    private ToolResult run(String tool, JsonNode args) {
         JsonNode a = args == null || !args.isObject() ? json.createObjectNode() : args;
+        long asked = System.nanoTime();
         awaitExtension();
+        bridge.timings().waited(System.nanoTime() - asked);
         try {
             return switch (tool) {
                 case "browser_status" -> status(a);
@@ -211,6 +225,10 @@ public final class BrowserService {
                 sb.append("  Tab: ").append(tab.path("title").asString("")).append('\n');
                 sb.append("  URL: ").append(tab.path("url").asString("")).append('\n');
             }
+        }
+        if (optBool(a, "diagnostics", false)) {
+            // Measured here, because only the server sees the agent, itself and the extension.
+            sb.append(bridge.timings().report());
         }
         if (s.path("diagnostics").isArray()) {
             sb.append("Recent operations (newest last):\n");

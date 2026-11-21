@@ -79,3 +79,22 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       return null;
   }
 }
+
+/** What the extension says about its part of a round trip, in milliseconds. */
+export interface CommandTiming {
+  ran: number;
+  queued: number;
+  asked: number;
+}
+
+/**
+ * How long a command ran here, how long it waited before that for its turn in the tab's queue, and
+ * how much of the running was waiting for the user's answer. The server cannot see inside the
+ * round trip, so it is told with each answer. Whole milliseconds, never negative, and the user's
+ * part never more than the running.
+ */
+export function commandTiming(receivedAt: number, startedAt: number, endedAt: number, askedMs: number): CommandTiming {
+  const whole = (ms: number): number => (Number.isFinite(ms) ? Math.max(0, Math.round(ms)) : 0);
+  const ran = whole(endedAt - startedAt);
+  return { ran, queued: whole(startedAt - receivedAt), asked: Math.min(ran, whole(askedMs)) };
+}

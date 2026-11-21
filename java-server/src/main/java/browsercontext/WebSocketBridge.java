@@ -56,7 +56,8 @@ public class WebSocketBridge extends WebSocketServer {
     private final String clientId = "c-" + Pairing.randomHex(4);
     private volatile String clientName = "";
     private final ObjectMapper json = new ObjectMapper();
-    private final ExtensionConnection connection = new ExtensionConnection(json);
+    private final Timings timings = new Timings();
+    private final ExtensionConnection connection = new ExtensionConnection(json, timings);
     private final CompletableFuture<Void> started = new CompletableFuture<>();
     private final Deque<Long> failedPairings = new ArrayDeque<>();
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -151,6 +152,11 @@ public class WebSocketBridge extends WebSocketServer {
     }
 
     /** Sends one command to the extension. Never retries. */
+    /** Where the time of the last tool calls went. */
+    Timings timings() {
+        return timings;
+    }
+
     public JsonNode send(String action, String session, JsonNode params, Duration timeout) {
         dropStalePairings();
         return connection.request(action, session, params, timeout);

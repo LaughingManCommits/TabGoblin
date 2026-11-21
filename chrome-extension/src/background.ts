@@ -13,7 +13,7 @@ import {
   type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
-  CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, parseServerMessage,
+  CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
   type CommandMessage,
 } from './protocol.ts';
 import type { SubmitBaseline } from './submit.ts';
@@ -120,6 +120,9 @@ interface Operation {
   action: string;
   /** Reason once cancelled; checked before every step that has not reached the page yet. */
   cancelled: string | null;
+  /** When the command arrived, and how long the user took to answer what it asked: told to the server with the answer. */
+  receivedAt: number;
+  askedMs: number;
   finishConfirm?: (answer: ConfirmAnswer) => void;
   /** Set while the page is waiting on behalf of this operation. */
   waitingInPage?: boolean;
@@ -686,7 +689,10 @@ async function confirmWithUser(
   checkAsk(session.asks, key, pendingConfirms.size > 0, Date.now());
   // What an Allow would reach is said in the prompt, before the user answers.
   const lasting = remembersAllow(mode, word, label, origin);
+  const asking = Date.now();
   const answer = await askUser(op, { label, how, word, origin, preview, lasts: lasting ? ALLOW_LASTS_MS / 60_000 : null });
+  // The time until the answer is the user's, not the extension's: the server is told it apart.
+  op.askedMs += Date.now() - asking;
   if (answer !== 'cancelled') {
     session.asks = noteAnswer(session.asks, key, how, label, answer, Date.now());
     save();
@@ -1134,17 +1140,22 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
     const session = sessionById(op.sessionId);
     if (session) hideIndicatorSoon(session);
   }
-  recordDiagnostic(op.client.clientId, op.sessionId, command.action, Date.now() - started, code);
+  // How long it ran, how long it waited for its turn before, and how much of the running was the user's.
+  const timing = commandTiming(op.receivedAt, started, Date.now(), op.askedMs);
+  recordDiagnostic(op.client.clientId, op.sessionId, command.action, timing.ran, code);
   save();
-  respond(op.client, response);
-  respond(op.client, { type: 'event', event: 'activity', data: { id: command.id, session: op.sessionId, action: command.action, ms: Date.now() - started, code } });
+  respond(op.client, { ...response, timing });
+  respond(op.client, { type: 'event', event: 'activity', data: { id: command.id, session: op.sessionId, action: command.action, ms: timing.ran, code } });
 }
 
 /** Validates, rate-limits and routes one command to its session's queue. */
 async function onCommand(client: Client, command: CommandMessage): Promise<void> {
+  const receivedAt = Date.now();
+  // Every answer says how long the command took here, for the server to take the round trip apart.
+  const unqueued = (): object => commandTiming(receivedAt, receivedAt, Date.now(), 0);
   const refuse = (code: string, message: string): void => {
     recordDiagnostic(client.clientId, command.session ?? null, command.action, 0, code);
-    respond(client, { id: command.id, success: false, error: { code, message } });
+    respond(client, { id: command.id, success: false, error: { code, message }, timing: unqueued() });
   };
   if (!client.seen.add(command.id)) {
     return refuse('DUPLICATE_COMMAND', 'A command with this id was already received on this connection; it was not run again.');
@@ -1157,7 +1168,8 @@ async function onCommand(client: Client, command: CommandMessage): Promise<void>
   }
   await ready;
   if (command.action === 'status') {
-    respond(client, { id: command.id, success: true, result: await statusResult(client, command.params.diagnostics === true) });
+    const result = await statusResult(client, command.params.diagnostics === true);
+    respond(client, { id: command.id, success: true, result, timing: unqueued() });
     return;
   }
   let session: SessionRecord;
@@ -1177,7 +1189,7 @@ async function onCommand(client: Client, command: CommandMessage): Promise<void>
   }
   const op: Operation = {
     key: `${client.port}:${command.id}`, client, commandId: command.id, sessionId: session.id,
-    action: command.action, cancelled: null,
+    action: command.action, cancelled: null, receivedAt, askedMs: 0,
   };
   operations.set(op.key, op);
   // One command at a time per tab, in arrival order; other tabs are not held up.

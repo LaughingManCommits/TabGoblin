@@ -26,6 +26,7 @@ import tools.jackson.databind.ObjectMapper;
 final class ExtensionConnection {
 
     private final ObjectMapper json;
+    private final Timings timings;
     private final Map<String, CompletableFuture<Protocol.Response>> pending = new ConcurrentHashMap<>();
     private final Map<String, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
     private final AtomicLong ids = new AtomicLong();
@@ -33,8 +34,9 @@ final class ExtensionConnection {
     private volatile List<Protocol.Session> sessions = List.of();
     private volatile int lastCloseCode;
 
-    ExtensionConnection(ObjectMapper json) {
+    ExtensionConnection(ObjectMapper json, Timings timings) {
         this.json = json;
+        this.timings = timings;
     }
 
     boolean isConnected() {
@@ -100,26 +102,34 @@ final class ExtensionConnection {
         // Status is never queued behind a long-running operation.
         ReentrantLock lock = action.equals("status") ? null
                 : sessionLocks.computeIfAbsent(session == null ? "" : session, k -> new ReentrantLock(true));
+        long asked = System.nanoTime();
         if (lock != null) {
             lock.lock();
         }
         String id = Long.toString(ids.incrementAndGet());
         long started = System.nanoTime();
+        // Behind another call on the same session: that is waiting, not the round trip.
+        timings.waited(started - asked);
         String errorCode = null;
+        // What the extension says happened inside the round trip, if it answered and says so.
+        Protocol.Timing[] inside = new Protocol.Timing[1];
         try {
-            return exchange(id, action, session, params, timeout);
+            return exchange(id, action, session, params, timeout, inside);
         } catch (BrowserException e) {
             errorCode = e.code();
             throw e;
         } finally {
-            Log.command(id, session, action, (System.nanoTime() - started) / 1_000_000, errorCode);
+            long trip = System.nanoTime() - started;
+            Log.command(id, session, action, trip / 1_000_000, errorCode);
+            timings.trip(trip, inside[0]);
             if (lock != null) {
                 lock.unlock();
             }
         }
     }
 
-    private JsonNode exchange(String id, String action, String session, JsonNode params, Duration timeout) {
+    private JsonNode exchange(String id, String action, String session, JsonNode params, Duration timeout,
+            Protocol.Timing[] inside) {
         WebSocket c = conn;
         if (c == null || !c.isOpen()) {
             throw new BrowserException("NOT_CONNECTED", switch (lastCloseCode) {
@@ -139,6 +149,7 @@ final class ExtensionConnection {
         try {
             c.send(command.toJson(json));
             Protocol.Response response = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            inside[0] = response.timing();
             if (response.success()) {
                 return response.result();
             }

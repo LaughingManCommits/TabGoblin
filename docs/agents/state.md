@@ -6,17 +6,19 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 - `main` = `origin/main` = `87e5a79`: the merge of `automatic-mode` (WP-7 and WP-8), made by the
   owner on 2026-11-21. Earlier branches are merged.
-- Branch `pairing-race`: local, not pushed, not merged. Two commits on top of `87e5a79`. The
-  first: a message that arrives at the moment of pairing is no longer taken for a failed
-  pairing, the cause of the CI failure described below. The second: the popup says what kind of
-  request was declined.
+- Branch `pairing-race`: local, not pushed, not merged. On top of `87e5a79`, in this order: a
+  message that arrives at the moment of pairing is no longer taken for a failed pairing (the
+  cause of the CI failure described below); the popup says what kind of request was declined;
+  WP-9 filed; WP-9 built, the report of where the time went.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
 | Push and merge `pairing-race`, then look at the CI run of that push | Waiting for the owner, who pushes and merges | git |
-| WP-9: where the time goes (agent, server, extension) | Filed with a proposal; waits for the owner's word on three points | [TODO.md](../../TODO.md) |
+| A pass over the look of the popup: alignment, and whether it looks current | Asked for by the owner on 2026-11-21, to follow WP-9 | this page |
+
+The backlog in [TODO.md](../../TODO.md) is empty.
 
 ## Blockers and unknowns
 

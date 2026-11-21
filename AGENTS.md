@@ -79,7 +79,7 @@ Commands are in the [runbook](docs/agents/runbook.md). Run the focused test firs
 | Change build wiring or CI | `java-server/pom.xml`, `chrome-extension/build.mjs`, `.github/workflows/ci.yml` | Same | Run the job's commands locally (runbook: "Reproduce a CI job") |
 | Edit documentation | `docs/`, root `README.md` | Each fact has one page: tools in `tools.md`, rules in `security.md`, editors in `editors.md`, flows in `architecture.md`, commands in `development.md` | Check links; regenerate images only with `HEADED=1 node screenshots.mjs` |
 | Change the version | Runbook: "Change the version" | Seven files carry it | `grep` shows one version; all suites |
-| Something slow or hanging | `ExtensionConnection.java` (deadlines), `background.ts` (settle, queues) | Same | `SHOW_STDERR=1 npm test` in `e2e` prints the servers' logs |
+| Something slow or hanging | First `browser_status` with `diagnostics: true`: it says whether the time went to the agent, the server, the extension and the page, or the user (`Timings.java`). Then `ExtensionConnection.java` (deadlines), `background.ts` (settle, queues) | Same | `SHOW_STDERR=1 npm test` in `e2e` prints the servers' logs; `SHOW_TIMES=1` prints the timing report of that run |
 
 For a task not listed: search `chrome-extension/src` and `java-server/src/main` for the tool's
 action name (`click`, `fill`, `submit`, ...); it appears in `policy.ts` `ACTIONS`, in

@@ -290,6 +290,23 @@ test('commands for one tab run in order, and a queued command can be cancelled b
   assert.equal(code(await queued), 'CANCELLED');
   assert.equal(pageLog.filter((entry) => entry === '1:snapshot').length, snapshotsBefore, 'a cancelled queued command never reaches the page');
   assert.equal(code(await one.command('snapshot')), 'ok', 'the session works again afterwards');
+
+  // Each answer says how long the command ran, and how long it waited for its turn before that.
+  const held = one.command('wait_for', { id: 'w-timed', params: { text: 'never', timeoutMs: 20000 } });
+  await until(() => waits.has(`${BASE_PORT}:w-timed`), 'the second wait to reach the page');
+  const behind = one.command('snapshot', { id: 'q-timed' });
+  await sleep(60);
+  one.deliver({ type: 'cancel', id: 'w-timed' });
+  const waited = await behind;
+  assert.equal(code(waited), 'ok');
+  assert.ok(waited.timing.queued >= 40, `it waited ${waited.timing.queued} ms for its turn`);
+  assert.ok(waited.timing.ran < waited.timing.queued, 'waiting for its turn is not running');
+  assert.equal(waited.timing.asked, 0);
+  const holding = (await held).timing;
+  assert.ok(holding.ran >= 40 && holding.queued < 40, JSON.stringify(holding));
+  // A refusal and the status are answered at once, and say so.
+  assert.deepEqual(Object.keys((await one.command('status')).timing).sort(), ['asked', 'queued', 'ran']);
+  assert.equal((await one.command('evaluate')).timing.queued, 0);
 });
 
 test('a replayed id, a stale deadline, a malformed message and a flood are refused', async () => {
@@ -551,15 +568,21 @@ test('automatic: the user is asked the first time for each control, and what the
     await until(async () => (await state()).pendingConfirm !== null, `the user to be asked about ${label}`);
     assert.equal((await state()).pendingConfirm.label, label);
     assert.equal((await state()).pendingConfirm.lasts, lasts, `what the prompt says about an Allow for “${label}”`);
+    await sleep(20); // the user takes a moment
     await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
-    assert.equal(code(await request), 'ok');
+    const answer = await request;
+    assert.equal(code(answer), 'ok');
+    // The server is told the user's time apart from the extension's own.
+    assert.ok(answer.timing.asked >= 15 && answer.timing.asked <= answer.timing.ran, JSON.stringify(answer.timing));
   };
   // The activity list keeps its newest entries only, so the newest of its kind is what tells.
   const lastAutomatic = async (): Promise<number> => Math.max(0, ...(await state()).activity
     .filter((entry: any) => entry.label.startsWith('Allowed automatically')).map((entry: any) => entry.id));
   const unasked = async (label: string): Promise<void> => {
     const before = await lastAutomatic();
-    assert.equal(code(await ask(label)), 'ok');
+    const answer = await ask(label);
+    assert.equal(code(answer), 'ok');
+    assert.equal(answer.timing.asked, 0, 'nobody was asked');
     assert.equal((await state()).pendingConfirm, null);
     assert.ok(await lastAutomatic() > before, `${label} is marked in the activity list as allowed automatically`);
   };

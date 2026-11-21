@@ -1377,6 +1377,44 @@ try {
     await popup.waitForFunction((selector) => document.querySelector(selector)?.value === 'never', {}, row(sid, '.ask'));
     lacks((await two.tool('browser_status')).text, 'in this session');
   });
+  await step('the status tool says where the time went, and the wait for the user is counted as the user\'s', async () => {
+    const sid = await sessionOf(two);
+    await setAsking(sid, 'always');
+    const box = ref(ok(await two.tool('browser_snapshot')).text, 'Textbox: New note');
+    const pending = two.tool('browser_press_key', { ref: box, key: 'Enter', intent: 'submit' });
+    // The user takes their time before they answer.
+    await until(async () => (await badge()) === '?', 'the question to be raised');
+    await sleep(1500);
+    await answerPrompt(false);
+    fails(await pending, 'SUBMIT_DENIED');
+    await letAskAgain(sid);
+    await setAsking(sid, 'never');
+
+    const text = (await two.tool('browser_status', { diagnostics: true })).text;
+    const from = text.indexOf('Where the time went');
+    const to = text.indexOf('Recent operations');
+    assert(from >= 0 && to > from, text);
+    const report = text.slice(from, to);
+    // SHOW_TIMES=1 prints the report as an agent gets it.
+    if (process.env.SHOW_TIMES) console.log(report.replace(/^/gm, '        '));
+    for (const part of [
+      'between calls, with the agent and its model', 'in this server', 'between this server and the extension',
+      'waiting for its turn in the tab\'s queue', 'in the extension and the page', 'waiting for the user\'s answer',
+    ]) has(report, part);
+    lacks(report, 'got no times from the extension');
+    // The call that waited: the user's time is told apart from the extension's.
+    const call = report.split('\n').filter((line) => line.startsWith('  browser_press_key ')).pop();
+    assert(call, report);
+    has(call, '[failed]');
+    const user = /user (\d+(?:\.\d+)?) (ms|s)/.exec(call);
+    assert(user && user[2] === 's' && Number(user[1]) >= 1.5, call);
+    const own = /extension and page (\d+(?:\.\d+)?) (ms|s)/.exec(call);
+    assert(!own || own[2] === 'ms' || Number(own[1]) < 1, call);
+    // Tool names and times, and nothing of a page or its address.
+    lacks(report, 'http');
+    lacks(report, 'New note');
+    lacks(report, sid);
+  });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();
     has(ok(await two.tool('browser_snapshot')).text, 'in an inner scrolling area. More below:');

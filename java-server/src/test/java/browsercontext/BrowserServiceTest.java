@@ -341,6 +341,32 @@ class BrowserServiceTest {
     }
 
     @Test
+    void statusWithDiagnosticsSaysWhereTheTimeWent() {
+        ext.responder = cmd -> {
+            if (cmd.path("action").asString("").equals("status")) {
+                ObjectNode s = args().put("confirmSubmissions", true);
+                s.putArray("sessions");
+                return FakeExtension.ok(cmd, s);
+            }
+            // A submission that ran for 2.4 seconds, of which the user took 2 to answer.
+            ObjectNode answer = (ObjectNode) FakeExtension.ok(cmd, args().put("state", "CONFIRMED"));
+            answer.putObject("timing").put("ran", 2400).put("queued", 0).put("asked", 2000);
+            return answer;
+        };
+        assertFalse(service.call("browser_status", args().put("diagnostics", true)).text().contains("Where the time went"),
+                "the call that asks is the first: there is nothing to report yet");
+        assertTrue(service.call("browser_submit", args().put("ref", 12)).text().contains("CONFIRMED"));
+        String text = service.call("browser_status", args().put("diagnostics", true)).text();
+        assertTrue(text.contains("Where the time went, over the last 2 tool calls"), text);
+        assertTrue(text.contains("waiting for the user's answer (median 1.0 s, longest 2.0 s)"), text);
+        assertTrue(text.contains("  browser_submit "), text);
+        assertTrue(text.contains(": user 2.0 s, extension and page 400 ms"), text);
+        assertTrue(text.contains("  browser_status "), text);
+        // Only when asked for.
+        assertFalse(service.call("browser_status", args()).text().contains("Where the time went"));
+    }
+
+    @Test
     void statusWithoutSessionsTellsTheAgentWhatToAskFor() {
         ext.responder = cmd -> {
             ObjectNode s = args().put("confirmSubmissions", false);
