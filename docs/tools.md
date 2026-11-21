@@ -21,7 +21,8 @@ sites. Longer ones are shortened on this page; the complete outputs are in
 
 ## browser_status
 
-`diagnostics` (boolean): also list recent operations with durations and error codes.
+`diagnostics` (boolean): also list this agent's recent operations with durations and error codes.
+Operations of other agents are not shown.
 
 ```text
 Extension: connected (protocol 2)
@@ -46,7 +47,13 @@ A suspended session adds a `State: suspended …` line; a session spanning sever
 | `viewport_only` | Only what is scrolled into view |
 | `ref` | Only this section, list, table, or the section under this heading |
 | `max_lines`, `start_line` | Paging (default 250 lines, from 0) |
-| `diff` | Only lines added or removed since the previous snapshot |
+| `diff` | Only lines added or removed since the previous snapshot, whatever part of the page that one showed |
+
+Code and other preformatted text is listed one line per line with its indentation. A document in an
+editable region is listed under its field. A column of line numbers is given as its range
+(`Text: 1–157 (consecutive numbers, one per line)`). An open tree item is followed by the items
+under it. An open dialog is announced in the header (`Dialog open: …`), because it comes last in
+the page.
 
 ```text
 Page: Demo Tracker: Issues
@@ -92,8 +99,9 @@ How to read it:
 - Field values appear as `= "…"`, except for password and credential-like fields.
 
 Roles: Heading, Link, Button, Textbox, Password, Checkbox, Radio, Switch, Combobox, Slider, File,
-Input, Editable, Toggle, Tab, Menuitem, Option, Treeitem, Clickable (an element that only signals
-clickability through its cursor). Containers: Navigation, Main, Banner, Footer, Complementary,
+Input, Editable (a rich-text region), Editor (a code editor that draws its own text; its content is
+the text shown next to it), Toggle, Tab, Menuitem, Option, Treeitem, Clickable (an element that
+only signals clickability through its cursor). Containers: Navigation, Main, Banner, Footer, Complementary,
 Section, Search, Form, Group, Dialog, Article, List, Table, Quote, Frame, Tabs, Tabpanel, Menu,
 Tree, Listbox, Feed.
 
@@ -161,7 +169,8 @@ headings it starts.
 ## browser_scroll
 
 `direction` (`up`, `down`, `left`, `right`, `top`, `bottom`), `amount` in pixels, `ref` to scroll
-an element, or to bring a non-scrollable one into view.
+an element, or to bring a non-scrollable one into view. The ref of an editor scrolls the box the
+editor scrolls in, which is how the rest of a long file is brought into view for reading.
 
 ```json
 { "x": 0, "y": 644, "maxY": 6901, "atTop": false, "atBottom": false, "moved": true, "target": "page" }
@@ -235,7 +244,8 @@ break*. Enter in a form field is a submission and needs `intent: "submit"`.
 
 | Control | `text` |
 |---|---|
-| Input, textarea, contenteditable | The text. Empty clears. |
+| Input, textarea | The text. Empty clears. |
+| Rich-text or code editor (`Editable`, `Editor`, some `Textbox`) | The text, with line breaks and indentation as given. Empty clears. See [Editors](editors.md). |
 | Select | The option's label or value |
 | Checkbox, radio, switch | `"true"` or `"false"`; nothing is clicked if it already has that state |
 | Date, time, colour, range | A value in the control's own format, e.g. `1990-12-10` |
@@ -247,7 +257,17 @@ Password and credential-like fields are refused (`SENSITIVE_FIELD`).
 { "filled": true, "valueMatches": true }
 ```
 
-`valueMatches: false` means the control did not keep the exact content.
+`valueMatches: false` means the control does not show the exact content, and `note` says why:
+
+| Note says | Meaning | What to do |
+|---|---|---|
+| did not take the text | Nothing changed | The editor is not supported; tell the user |
+| does not show exactly the requested text | The editor changed, differently | Snapshot, then correct it |
+| changed the indentation | The words are in, leading spaces are not as given | Snapshot; matters for code |
+| could not be checked | The tab is in the background and the editor does not redraw there | Do **not** fill again; snapshot once the tab is visible |
+
+Never repeat a fill only because it was not confirmed: an editor may have taken the text without
+showing it yet.
 
 ## browser_submit
 

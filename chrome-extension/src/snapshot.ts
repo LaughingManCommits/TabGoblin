@@ -58,11 +58,75 @@ export function styleOf(el: Element): CSSStyleDeclaration {
 }
 
 export function norm(s: string | null | undefined): string {
-  return (s ?? '').replace(/\s+/g, ' ').trim();
+  // Zero-width spaces mark where a long word may wrap; they are not part of what is read.
+  return (s ?? '').replace(/[​﻿]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 export function clip(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
+}
+
+/** Shortens in the middle: for addresses, whose start and end both say where they lead. */
+export function clipMiddle(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const head = Math.floor((max - 1) * 0.4);
+  return `${s.slice(0, head)}…${s.slice(s.length - (max - 1 - head))}`;
+}
+
+const KEEPS_LINES = /^(pre|pre-wrap|pre-line|break-spaces)$/;
+
+/** Whether text directly inside this element is shown with its line breaks and indentation. */
+export function keepsWhitespace(el: Element, cs: CSSStyleDeclaration, inherited: boolean): boolean {
+  const value = cs.whiteSpace;
+  if (KEEPS_LINES.test(value)) return true;
+  if (el.localName === 'pre') return true;
+  // Engines without full style inheritance (tests) report nothing for descendants of a <pre>.
+  return inherited && !value;
+}
+
+/**
+ * Preformatted text as its lines: indentation kept, trailing space dropped, blank lines at the
+ * edges removed and runs of them reduced to one.
+ */
+export function preLines(text: string): string[] {
+  const out: string[] = [];
+  for (const raw of text.replace(/\r/g, '').replace(/ /g, ' ').replace(/[​﻿]/g, '').split('\n')) {
+    const line = raw.replace(/\t/g, '    ').replace(/\s+$/, '');
+    if (line === '' && (out.length === 0 || out[out.length - 1] === '')) continue;
+    out.push(line);
+  }
+  while (out.length && out[out.length - 1] === '') out.pop();
+  return out;
+}
+
+/**
+ * Replaces runs of lines that hold nothing but consecutive numbers (the line-number column of a
+ * code view, the days of a calendar) by one line naming the range. Nothing is lost: the numbers
+ * are all there, in fewer characters.
+ */
+export function foldNumberRuns(lines: string[], prefix = ''): string[] {
+  const numberOf = (line: string): number | null => {
+    const text = line.trim();
+    if (!text.startsWith(prefix)) return null;
+    const rest = text.slice(prefix.length).trim();
+    return /^\d{1,7}$/.test(rest) ? Number(rest) : null;
+  };
+  const out: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const first = numberOf(lines[i]);
+    let j = i;
+    if (first !== null) {
+      while (j + 1 < lines.length && numberOf(lines[j + 1]) === first + (j + 1 - i)) j++;
+    }
+    if (first !== null && j - i >= 3) {
+      const indent = /^\s*/.exec(lines[i])?.[0] ?? '';
+      out.push(`${indent}${prefix}${first}–${first + (j - i)} (consecutive numbers, one per line)`);
+      i = j;
+    } else {
+      out.push(lines[i]);
+    }
+  }
+  return out;
 }
 
 function inputType(el: Element): string {
@@ -99,6 +163,49 @@ function hiddenSubtree(el: Element, cs: CSSStyleDeclaration): boolean {
     if (r.width === 0 || r.height === 0) return true;
   }
   return false;
+}
+
+/** Whether the element takes text through an EditContext: editors that draw their own text. */
+function hasEditContext(el: Element): boolean {
+  return !!(el as unknown as { editContext?: unknown }).editContext;
+}
+
+const EDITOR_SEARCH_DEPTH = 4;
+
+/**
+ * Code editors often take the keyboard through an element the user never sees: a tiny or
+ * transparent textarea, or an EditContext host without a box of its own. For such an element this
+ * returns the visible box the user thinks of as the editor; for everything else, null.
+ *
+ * A hidden field that a form submits is not one of these: an editor's keyboard input has no name,
+ * stays reachable by keyboard, and sits inside the box it belongs to.
+ */
+export function editorSurface(el: Element): Element | null {
+  const context = hasEditContext(el);
+  if (!context) {
+    if (el.localName !== 'textarea') return null;
+    const area = el as HTMLTextAreaElement;
+    if (area.name || area.disabled || area.readOnly) return null;
+    if (el.getAttribute('aria-hidden') === 'true' || el.getAttribute('tabindex') === '-1') return null;
+  }
+  const cs = styleOf(el);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || cs.visibility === 'collapse') return null;
+  const big = (r: DOMRect): boolean => r.width >= 40 && r.height >= 16;
+  const rect = el.getBoundingClientRect();
+  const parent = el.parentElement;
+  const unseen = cs.opacity === '0' || !big(rect) || (parent !== null && hiddenSubtree(parent, styleOf(parent)));
+  if (!unseen) return context ? el : null;
+  let node = parent;
+  for (let depth = 0; node && depth < EDITOR_SEARCH_DEPTH; depth++, node = node.parentElement) {
+    if (node.localName === 'body' || node.localName === 'form') return null;
+    const style = styleOf(node);
+    if (!boxVisible(node, style) || hiddenSubtree(node, style)) continue;
+    const box = node.getBoundingClientRect();
+    if (big(box) && rect.left >= box.left - 2 && rect.left <= box.right + 2 && rect.top >= box.top - 2 && rect.top <= box.bottom + 2) {
+      return node;
+    }
+  }
+  return null;
 }
 
 /** True when the element itself occupies visible space. */
@@ -158,6 +265,8 @@ function firstSummary(details: Element): Element | null {
 /** Visible right now: rendered, not hidden by any ancestor. Used when resolving refs. */
 export function isVisible(el: Element): boolean {
   if (!el.isConnected) return false;
+  const surface = editorSurface(el);
+  if (surface && surface !== el) return isVisible(surface);
   if (!boxVisible(el, styleOf(el))) return false;
   for (let node: Element | null = el; node; node = parentOf(node)) {
     if (hiddenSubtree(node, styleOf(node))) return false;
@@ -201,7 +310,7 @@ export function roleOf(el: Element): string | null {
     case 'select':
       return 'Combobox';
     case 'textarea':
-      return 'Textbox';
+      return editorSurface(el) ? 'Editor' : 'Textbox';
     case 'input': {
       const type = inputType(el);
       if (type === 'hidden') return null;
@@ -221,10 +330,16 @@ export function roleOf(el: Element): string | null {
     case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
       return 'Heading';
   }
+  if (hasEditContext(el)) return 'Editor';
   if (ARIA_ROLES[aria]) return ARIA_ROLES[aria];
   if (isEditingHost(el)) return 'Editable';
   return null;
 }
+
+const INLINE_TAGS = new Set([
+  'span', 'mark', 'b', 'i', 'em', 'strong', 'u', 's', 'small', 'sub', 'sup', 'code', 'kbd', 'var', 'samp',
+  'abbr', 'cite', 'q', 'bdi', 'bdo', 'font', 'ins', 'del', 'wbr',
+]);
 
 /** Text of an element, leaving out form-control internals and script/style. */
 export function ownText(el: Element): string {
@@ -236,7 +351,8 @@ export function ownText(el: Element): string {
       const child = node as Element;
       const tag = child.localName;
       if (SKIP_TAGS.has(tag) || isFrame(child) || tag === 'select' || tag === 'textarea' || tag === 'input') continue;
-      out += ' ' + ownText(child) + ' ';
+      // Inline pieces of one word (highlighted letters, styled parts) read as that word.
+      out += INLINE_TAGS.has(tag) && styleOf(child).display === 'inline' ? ownText(child) : ' ' + ownText(child) + ' ';
     }
   }
   return out;
@@ -363,6 +479,8 @@ export function containerOf(el: Element): { role: string; name: string } | null 
 /** Identity of an element as the agent saw it: if this changes, its ref is stale. */
 function signatureOf(el: Element): string {
   const role = roleOf(el) ?? containerOf(el)?.role ?? 'Clickable';
+  // An editor relabels its keyboard input as the cursor moves; it is still the same editor.
+  if (role === 'Editor') return 'Editor|';
   const container = roleOf(el) ? null : containerOf(el);
   return `${role}|${container ? container.name : accessibleName(el)}`;
 }
@@ -448,7 +566,8 @@ export interface Visitor {
   element(el: Element, cs: CSSStyleDeclaration): 'descend' | 'skip' | 'no-text';
   /** Called after an element that was not skipped has been walked. */
   leave?(el: Element): void;
-  text(text: string, node: Node): void;
+  /** `pre`: the text is shown with its line breaks and indentation (code, preformatted blocks). */
+  text(text: string, node: Node, pre: boolean): void;
   /** Layout boundary: a block starts/ends, or a table cell starts. */
   boundary(kind: 'block' | 'cell'): void;
   done(): boolean;
@@ -472,24 +591,30 @@ function childNodesOf(el: Element): Node[] {
 }
 
 /** Depth-first walk over what is actually rendered, in document order. */
-export function walkVisible(el: Element, cs: CSSStyleDeclaration, v: Visitor, dropText: boolean): void {
+export function walkVisible(el: Element, cs: CSSStyleDeclaration, v: Visitor, dropText: boolean, inPre = false): void {
   const textOk = !dropText && cs.visibility !== 'hidden' && cs.visibility !== 'collapse';
+  const pre = keepsWhitespace(el, cs, inPre);
   for (const node of childNodesOf(el)) {
     if (v.done()) return;
     if (node.nodeType === 3) {
-      if (textOk && node.nodeValue) v.text(node.nodeValue, node);
+      if (textOk && node.nodeValue) v.text(node.nodeValue, node, pre);
       continue;
     }
     if (node.nodeType !== 1) continue;
     const child = node as Element;
     const tag = child.localName;
     if (tag === 'br') {
-      if (textOk) v.text(' ', child);
+      if (textOk) v.text(pre ? '\n' : ' ', child, pre);
       continue;
     }
     if (SKIP_TAGS.has(tag)) continue;
     const childStyle = styleOf(child);
-    if (hiddenSubtree(child, childStyle)) continue;
+    if (hiddenSubtree(child, childStyle)) {
+      // The one thing that matters in a hidden subtree: the keyboard input of a visible editor.
+      const input = editorSurface(child) ? child : Array.from(child.children).find((c) => editorSurface(c) !== null);
+      if (input) v.element(input, styleOf(input));
+      continue;
+    }
     const display = childStyle.display;
     const cell = display === 'table-cell';
     const block = !cell && display !== '' && display !== 'contents' && !display.startsWith('inline');
@@ -497,11 +622,31 @@ export function walkVisible(el: Element, cs: CSSStyleDeclaration, v: Visitor, dr
     if (block) v.boundary('block');
     const action = v.element(child, childStyle);
     if (action !== 'skip') {
-      walkVisible(child, childStyle, v, dropText || action === 'no-text');
+      walkVisible(child, childStyle, v, dropText || action === 'no-text', pre);
       v.leave?.(child);
     }
     if (block) v.boundary('block');
   }
+}
+
+/** The nearest sectioning ancestor: what a heading inside it is the heading of. */
+export function sectionScope(el: Element): Element | null {
+  for (let node = parentOf(el); node; node = parentOf(node)) {
+    const role = containerOf(node)?.role;
+    if (role === 'Article' || role === 'Section' || role === 'Main' || role === 'Complementary'
+        || role === 'Navigation' || role === 'Dialog' || role === 'Form' || role === 'Banner' || role === 'Footer') {
+      return node;
+    }
+  }
+  return null;
+}
+
+/** Whether `el` lies inside `scope`, across shadow roots and same-origin frames. */
+export function isWithin(scope: Element, el: Element): boolean {
+  for (let node: Element | null = el; node; node = parentOf(node)) {
+    if (node === scope) return true;
+  }
+  return false;
 }
 
 /** Walks one element and everything in it, including the element itself. */
@@ -541,13 +686,22 @@ export function isDisabled(el: Element): boolean {
     || !!el.closest('fieldset[disabled]');
 }
 
+/**
+ * An editable region whose content does not fit in one short value: a document, a code file.
+ * Its content is then listed line by line under it instead of being cut to a few words.
+ */
+export function holdsLongText(el: Element): boolean {
+  if (!isEditingHost(el)) return false;
+  return norm(ownText(el)).length > MAX_VALUE;
+}
+
 /** One snapshot line for a listed element, e.g. `[12] Button: Save (disabled)`. */
 function describe(el: Element, role: string, name: string, ref: number): string {
   let line = `[${ref}] ${role}`;
   const tag = el.localName;
   const type = inputType(el);
   if (role === 'Heading') line += ` (h${headingLevel(el)})`;
-  if (tag === 'textarea') line += ' (multiline)';
+  if (tag === 'textarea' && role !== 'Editor') line += ' (multiline)';
   if (tag === 'input' && (role === 'Input' || (role === 'Textbox' && type && type !== 'text'))) line += ` (${type})`;
   line += `: ${name || '(unnamed)'}`;
 
@@ -556,7 +710,7 @@ function describe(el: Element, role: string, name: string, ref: number): string 
     if ((a.protocol === 'http:' || a.protocol === 'https:') && a.origin !== el.ownerDocument.location.origin) {
       line += ` (external: ${a.host})`;
     } else if (a.protocol === 'http:' || a.protocol === 'https:') {
-      line += ` -> ${clip(a.pathname + a.search + a.hash, 80)}`;
+      line += ` -> ${clipMiddle(a.pathname + a.search + a.hash, 80)}`;
     }
     if (a.target === '_blank') line += ' (opens a new tab)';
   }
@@ -568,12 +722,15 @@ function describe(el: Element, role: string, name: string, ref: number): string 
     line += ` = "${clip(selected, MAX_VALUE)}"`;
     const options = Array.from(select.options).slice(0, 12).map((o) => clip(norm(o.textContent), 40));
     line += ` (options: ${options.join(' | ')}${select.options.length > 12 ? ' | …' : ''})`;
+  } else if (role === 'Editor') {
+    // What the editor holds is the text shown around it, not the value of its keyboard input.
   } else if ((tag === 'input' && !BUTTON_INPUT_TYPES.has(type) && !isCheckable(el) && type !== 'file') || tag === 'textarea') {
     const value = (el as HTMLInputElement).value ?? '';
     if (value) line += ` = "${clip(norm(value), MAX_VALUE)}"`;
   } else if (role === 'Editable' || (role === 'Textbox' && isEditingHost(el))) {
     const value = norm(ownText(el));
-    if (value) line += ` = "${clip(value, MAX_VALUE)}"`;
+    if (holdsLongText(el)) line += ' (its content follows)';
+    else if (value) line += ` = "${value}"`;
   }
 
   const flags: string[] = [];
@@ -705,24 +862,46 @@ interface Level {
   emitted: boolean;
   /** A heading was seen at this level: what follows belongs under it. */
   headingSeen: boolean;
+  /** The container's name, to leave the container out when its first line says the same. */
+  name?: string;
+  /** Set for dialogs: they are announced in the header of the snapshot. */
+  dialog?: boolean;
+  /** Set for an open tree item, which holds the items under it. */
+  treeitem?: boolean;
+  /** The container's own line, once emitted. */
+  text?: string;
 }
 
-/** Builds the snapshot text and (re)registers a ref for every listed element. */
-export function takeSnapshot(doc: Document, state: PageState, options: SnapshotOptions = {}): Snapshot {
+interface Collected {
+  lines: string[];
+  elements: number;
+  overflow: boolean;
+  /** Lines of the dialogs that are open, as listed. */
+  dialogs: string[];
+}
+
+const sameName = (a: string, b: string): boolean => norm(a).toLowerCase() === norm(b).toLowerCase();
+
+/** Walks the page (or one part of it) into snapshot lines and (re)registers a ref for every listed element. */
+function collect(doc: Document, state: PageState, options: SnapshotOptions): Collected {
   const view = doc.defaultView as Window;
   const registry = state.registry;
   const lines: string[] = [];
+  const dialogs: string[] = [];
   const levels: Level[] = [{ header: null, el: null, depth: -1, emitted: true, headingSeen: false }];
   let buffer = '';
   let rowBuffer = false;
+  /** null: nothing buffered; true: only preformatted text so far; false: ordinary text too. */
+  let bufferPre: boolean | null = null;
   let elements = 0;
   let visited = 0;
   let overflow = false;
 
   // A heading ref means "the section under this heading": on from the heading, off at the next
-  // heading of the same or a higher level.
+  // heading of the same or a higher level, or where the part of the page it heads ends.
   const sectionHeading = options.root && roleOf(options.root) === 'Heading' ? options.root : null;
   const sectionLevel = sectionHeading ? headingLevel(sectionHeading) : 0;
+  const scope = sectionHeading ? sectionScope(sectionHeading) : null;
   let inSection = !sectionHeading;
   let sectionOver = false;
 
@@ -731,7 +910,8 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
   const pad = (depth: number): string => '  '.repeat(Math.min(Math.max(depth, 0), MAX_DEPTH));
 
   // `text` may be a thunk so that refs are handed out in reading order: containers first.
-  const push = (text: string | (() => string), heading = false): void => {
+  // `name` is the name of the element the line lists, if it lists one.
+  const push = (text: string | (() => string), heading = false, name = ''): void => {
     if (!inSection) return;
     if (lines.length >= MAX_LINES_COLLECTED) {
       overflow = true;
@@ -743,7 +923,19 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
       if (level.emitted) continue;
       level.depth = childDepth(levels[i - 1]);
       level.emitted = true;
-      lines.push(pad(level.depth) + (level.header as () => string)());
+      // A group named after the one thing in it adds nothing: the thing itself takes its place.
+      // (A section named after its heading stays: it is a level of the page's structure.)
+      if (i === levels.length - 1 && !heading && !level.dialog && level.name && name && sameName(level.name, name)) {
+        level.depth -= 1;
+        continue;
+      }
+      // Likewise the group of items under a tree item that carries the tree item's own name.
+      if (!level.dialog && level.name && levels[i - 1].treeitem && sameName(level.name, levels[i - 1].name ?? '')) {
+        level.depth -= 1;
+        continue;
+      }
+      level.text = (level.header as () => string)();
+      lines.push(pad(level.depth) + level.text);
       elements++;
     }
     const level = top();
@@ -752,11 +944,22 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
   };
 
   const flush = (): void => {
-    const text = norm(buffer.replace(/(\s*\|\s*)+$/, '').replace(/^(\s*\|\s*)+/, ''));
+    const raw = buffer;
     const row = rowBuffer;
+    const pre = bufferPre === true && !row;
     buffer = '';
     rowBuffer = false;
-    if (text && !options.interactiveOnly) push(`${row ? 'Row' : 'Text'}: ${clip(text, MAX_TEXT_LINE)}`);
+    bufferPre = null;
+    if (options.interactiveOnly) return;
+    if (pre) {
+      // Code and other preformatted text: one line per line, indentation kept.
+      for (const line of preLines(raw)) {
+        if (line) push(`Text: ${clip(line, MAX_TEXT_LINE)}`);
+      }
+      return;
+    }
+    const text = norm(raw.replace(/(\s*\|\s*)+$/, '').replace(/^(\s*\|\s*)+/, ''));
+    if (text) push(`${row ? 'Row' : 'Text'}: ${clip(text, MAX_TEXT_LINE)}`);
   };
 
   registry.prune();
@@ -770,14 +973,17 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
         flush();
       }
     },
-    text(text, node) {
+    text(text, node, pre) {
       if (!inSection) return;
       if (options.viewportOnly && norm(text) && !textInViewport(node, view)) return;
+      if (norm(text)) bufferPre = bufferPre === null ? pre : bufferPre && pre;
       buffer += text;
     },
     leave(el) {
-      if (top().el !== el) return;
+      const level = top();
+      if (level.el !== el) return;
       flush();
+      if (level.dialog && level.text) dialogs.push(level.text);
       levels.pop();
     },
     element(el, cs) {
@@ -791,7 +997,7 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
       if (role === 'Heading' && sectionHeading) {
         if (el === sectionHeading) {
           inSection = true;
-        } else if (inSection && headingLevel(el) <= sectionLevel) {
+        } else if (inSection && (headingLevel(el) <= sectionLevel || (scope !== null && !isWithin(scope, el)))) {
           flush();
           sectionOver = true;
           return 'skip';
@@ -808,6 +1014,8 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
             depth: 0,
             emitted: false,
             headingSeen: false,
+            name: container.name,
+            dialog: container.role === 'Dialog',
           });
           return 'descend';
         }
@@ -824,7 +1032,10 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
       if (!role) {
         if (tag === 'img') {
           const alt = norm(el.getAttribute('alt'));
-          if (alt && inSection) buffer += ` [image: ${clip(alt, 80)}] `;
+          if (alt && inSection) {
+            buffer += ` [image: ${clip(alt, 80)}] `;
+            bufferPre = false;
+          }
           return 'skip';
         }
         // A label's text is already the name of its control; do not repeat it.
@@ -833,17 +1044,36 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
         if (tag === 'caption' || tag === 'legend') return 'skip';
         return 'descend';
       }
+      // A field taken out of both keyboard and accessibility reach is the page's own plumbing.
+      if ((tag === 'textarea' || tag === 'input') && el.getAttribute('aria-hidden') === 'true' && el.getAttribute('tabindex') === '-1') {
+        return 'skip';
+      }
       const wrapper = role === 'Heading' || role === 'Clickable';
-      const shown = boxVisible(el, cs) && (!options.viewportOnly || inViewport(el.getBoundingClientRect(), view));
+      const surface = role === 'Editor' ? editorSurface(el) : null;
+      const box = surface ?? el;
+      const shown = (surface ? isVisible(el) : boxVisible(el, cs))
+        && (!options.viewportOnly || inViewport(box.getBoundingClientRect(), view));
       if (!shown) return wrapper ? 'descend' : 'skip';
 
       flush();
       const name = accessibleName(el);
       if (role === 'Clickable' && !name) return 'descend';
+      // The clickable label of an open tree item is the tree item again.
+      if (role === 'Clickable' && top().treeitem && sameName(name, top().name ?? '')) return 'no-text';
       if (inSection) {
         const listed = role;
-        push(() => describe(el, listed, name, registry.assign(el)), role === 'Heading');
+        push(() => describe(el, listed, name, registry.assign(el)), role === 'Heading', name);
         elements++;
+      }
+      // An editor that draws its text inside its own element: that text is still to be read.
+      if (surface === el) return 'descend';
+      // So is a document or code file in an editable region: a few words of it say nothing.
+      // And a tree item that is open holds the items under it.
+      const longText = holdsLongText(el);
+      if (longText || (role === 'Treeitem' && el.querySelector('[role="treeitem"]'))) {
+        const level = top();
+        levels.push({ el, header: null, depth: childDepth(level), emitted: true, headingSeen: false, name, treeitem: !longText });
+        return longText ? 'descend' : 'no-text';
       }
       // Headings and clickable containers may wrap links or buttons: list those, not the text again.
       return wrapper ? 'no-text' : 'skip';
@@ -856,12 +1086,20 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
     walkVisible(doc.body, styleOf(doc.body), visitor, false);
   }
   flush();
+  return { lines: foldNumberRuns(lines, 'Text: '), elements, overflow, dialogs };
+}
+
+/** Builds the snapshot text and (re)registers a ref for every listed element. */
+export function takeSnapshot(doc: Document, state: PageState, options: SnapshotOptions = {}): Snapshot {
+  const { lines, elements, overflow, dialogs } = collect(doc, state, options);
 
   state.generation++;
   const snapshotId = `${state.docId}.${state.generation}`;
   const previous = state.lastLines;
   const scoped = !!options.root || !!options.viewportOnly || !!options.interactiveOnly;
-  if (!scoped) state.lastLines = lines.map((l) => l.trim());
+  // A diff compares with the page as it was at the previous snapshot, whatever part of it that
+  // snapshot showed: the whole page is noted every time.
+  state.lastLines = (scoped ? collect(doc, state, {}).lines : lines).map((l) => l.trim());
 
   const total = lines.length;
   let body: string[];
@@ -902,6 +1140,8 @@ export function takeSnapshot(doc: Document, state: PageState, options: SnapshotO
     `Snapshot: ${snapshotId}${range}`,
     scrollLine(doc, options.viewportOnly === true),
     completeness.line,
+    // A dialog comes last in the page, after everything it covers: say that it is there.
+    ...dialogs.map((d) => `Dialog open: ${clip(d, 120)} (listed last; it may cover the rest of the page)`),
     UNTRUSTED_NOTE,
     '',
   ];

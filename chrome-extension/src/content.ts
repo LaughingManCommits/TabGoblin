@@ -4,8 +4,8 @@
 
 import { extractPage, type LinkStyle } from './extract.ts';
 import {
-  clickElement, describeClickTarget, describeKeyTarget, fillElement, pressKey, scrollPage, viewportCoverage, waitFor,
-  type WaitCondition,
+  clickElement, describeClickTarget, describeKeyTarget, fill, press, scrollPage, unsavedFields, viewportCoverage,
+  waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
 import {
@@ -143,11 +143,11 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
     case 'click':
       return clickElement(registry.resolve(ref));
     case 'fill':
-      return fillElement(registry.resolve(ref), String(msg.text ?? ''), msg.append === true, msg.method === 'type' ? 'type' : 'set');
+      return await fill(registry.resolve(ref), String(msg.text ?? ''), msg.append === true, msg.method === 'type' ? 'type' : 'set');
     case 'key_describe':
       return describeKeyTarget(optionalRef(msg, state) ?? document.activeElement ?? document.body, String(msg.key));
     case 'press_key':
-      return pressKey(document, optionalRef(msg, state) ?? null, String(msg.key));
+      return await press(document, optionalRef(msg, state) ?? null, String(msg.key));
     case 'scroll':
       return scrollPage(
         document,
@@ -157,6 +157,10 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         state);
     case 'coverage':
       return { text: viewportCoverage(document) };
+    case 'quiet':
+      return { ...(await waitForQuiet(document, 300, Math.min(Number(msg.maxMs) || 3000, 5000))), title: document.title };
+    case 'unsaved':
+      return { fields: unsavedFields(document) };
     case 'history_go':
       return historyGo(msg.direction === 'forward' ? 'forward' : 'back');
     case 'wait': {

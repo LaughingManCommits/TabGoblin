@@ -30,6 +30,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 | `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, and the background worker against a fake Chrome |
 | `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
+| `cd e2e/editors && npm test` | Text entry into fourteen real editor libraries, checked against each editor's own model |
 
 How the end-to-end run works:
 
@@ -65,8 +66,38 @@ what is below the fold and what the light theme looks like.
 | Java server | Linux | `mvn package`: compile, test, build the jar |
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
+| Editors | Windows | Builds both parts and runs the editor lab, tab in front |
 
 The end-to-end job runs on Windows because that is where the suite is developed.
+
+## The editor lab
+
+`e2e/editors` holds one page per editor library (Monaco, CodeMirror 5 and 6, Ace, TipTap, Lexical,
+Slate, Quill, Draft.js, TinyMCE, CKEditor 5, Trix, Editor.js, plus a plain textarea and a plain
+editable region as controls). The libraries are ordinary npm dependencies of that folder, bundled
+on the fly, so nothing is downloaded at test time and the versions are pinned.
+
+Each page exposes the editor's own model as `window.__lab.get()`. The run enters text through the
+whole chain and compares the model with what was asked for: fifteen checks per editor.
+
+```sh
+cd e2e && npm install         # the test runner, shared with the end-to-end suite
+cd editors && npm install     # the editors
+npm test                      # tab in front
+BACKGROUND=1 npm test         # tab in the background while the agent works
+ONLY=monaco,quill npm test    # some editors
+CHECKS=lines,indent npm test  # some checks
+node lab.mjs                  # just serve the pages, to look at them
+node live.mjs                 # the same idea on public demo pages of the editors' makers
+```
+
+The run fails when a check ends as `SILENT`: the editor does not hold the text, but the tool
+reported success. An honest `fail` does not fail the run; it is a documented limit. Results and
+their meaning are in [Editors](editors.md).
+
+To add an editor: a fixture in `fixtures/` that creates it in `#host` with the text
+`Initial content` and calls `ready(get)`, and an entry in `FIXTURES` in `lab.mjs`. Nothing in
+the extension may refer to it.
 
 ## The demo sites
 
@@ -85,6 +116,9 @@ Run them by hand with `node demo-site/server.mjs`.
 
 - **No website-specific code.** If a change needs a selector, hostname or product name, it does
   not belong here.
+- **No library-specific code either.** An editor or widget is recognised by what it is in the DOM
+  (an editing host, an EditContext, a role), never by a library's name, class names or attributes.
+  The editor lab names libraries; the product does not, and a test (`agnostic.test.ts`) keeps it so.
 - **Rules are pure.** Anything that decides whether something is allowed goes into `policy.ts` as
   a function without `chrome.*` or DOM access, with a test.
 - **DOM code is pure too.** `snapshot`, `extract`, `interact` and `submit` take a document and run

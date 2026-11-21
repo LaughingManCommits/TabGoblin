@@ -75,6 +75,17 @@ function agentName(client: { name: string | null; id: string | null }): string {
   return client.name || (client.id ? `Agent ${client.id}` : 'Any agent');
 }
 
+/**
+ * The name to show for an agent. Two agents of the same kind (two windows of one IDE) report the
+ * same name, so the id is added whenever another connected agent would read the same; it is the
+ * id browser_status reports to that agent as "This agent".
+ */
+function agentLabel(client: { name: string | null; id: string | null }, connected: readonly ClientView[]): string {
+  const name = agentName(client);
+  const shared = connected.some((other) => other.id !== client.id && agentName(other) === name);
+  return shared && client.id && client.name ? `${name} (${client.id})` : name;
+}
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -133,7 +144,7 @@ function renderAgents(s: State): void {
       li.dataset.client = client.id;
       const button = el('button', 'disconnect', 'Disconnect');
       button.addEventListener('click', () => void request({ type: 'disconnectClient', clientId: client.id }));
-      li.append(el('span', 'name', agentName(client)), el('span', 'muted', `:${client.port}`), button);
+      li.append(el('span', 'name', agentLabel(client, s.clients)), el('span', 'muted', `:${client.port}`), button);
       list.append(li);
     }
     for (const id of s.blockedClients) {
@@ -147,7 +158,7 @@ function renderAgents(s: State): void {
 }
 
 function renderSessions(s: State): void {
-  rebuild('sessions', [s.sessions, currentTab?.id], () => {
+  rebuild('sessions', [s.sessions, currentTab?.id, s.clients], () => {
     const box = $('sessions');
     box.replaceChildren();
     if (!s.sessions.length) box.append(el('div', 'empty', 'No tab is authorized'));
@@ -165,7 +176,7 @@ function renderSessions(s: State): void {
       else if (session.paused) line.append(el('span', 'chip state', 'paused'));
 
       const owner = session.clientId
-        ? `${agentName({ name: session.clientName, id: session.clientId })}${session.ownerConnected ? '' : ' (not connected)'}`
+        ? `${agentLabel({ name: session.clientName, id: session.clientId }, s.clients)}${session.ownerConnected ? '' : ' (not connected)'}`
         : 'Waiting for an agent';
       const parts = [owner];
       if (session.expiresAt) parts.push(`until ${new Date(session.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
@@ -227,7 +238,7 @@ function renderSessions(s: State): void {
     any.value = '';
     agent.append(any);
     for (const client of s.clients) {
-      const option = el('option', '', agentName(client));
+      const option = el('option', '', agentLabel(client, s.clients));
       option.value = client.id;
       agent.append(option);
     }

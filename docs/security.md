@@ -84,6 +84,20 @@ which content scripts cannot read. It is never logged.
 - A submission id is processed once. Identical content within two minutes is refused unless
   explicitly repeated. An unknown outcome is recorded as uncertain and never resent.
 
+## Text entry into editors
+
+Filling a rich-text or code editor ([how](editors.md)) uses events any page script may create:
+`beforeinput`, `paste`, key and focus events, and the browser's editing command. It gives an agent
+nothing it did not have with Write access:
+
+- The paste carries only the text of the command. The clipboard is neither read nor written, and
+  the extension has no clipboard permission.
+- The shortcuts sent are fixed: select all, go to the end, Backspace. An agent cannot choose them.
+- A hidden field is treated as an editor's keyboard input only if it has no name, is reachable by
+  keyboard, is not hidden from assistive technology, and sits inside a visible box. A hidden field
+  that a form submits is never offered, and the value of an editor's input is never returned.
+- Password and credential-like fields are refused here as everywhere.
+
 ## Prompt injection
 
 Web pages can contain text written to steer an agent. TabGoblin's part:
@@ -119,6 +133,8 @@ content, typed text, full URLs, cookies, headers or the token.
 | Another agent's session unreachable, forged session id refused | Rules, worker, end-to-end |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |
+| Hidden form fields not offered as editors; an editor input's value not returned | DOM |
+| Editor text never entered twice; an unseen result not reported as success | DOM, editor lab |
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |

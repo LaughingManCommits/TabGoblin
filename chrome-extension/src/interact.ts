@@ -1,12 +1,15 @@
 // Generic page interactions: click, fill, type, keys, scroll, wait. Pure DOM code (no chrome.*).
 // Nothing here knows about any particular website, and nothing evaluates agent-supplied code.
 
-import { visibleText } from './extract.ts';
+import { editorKind, fillEditor, fireKey, pressEditorKey, type FillResult } from './editor.ts';
+import { scrollerOf, visibleText } from './extract.ts';
 import { looksLikeSubmission, type ClickTarget } from './policy.ts';
 import {
-  DomError, accessibleName, checkedState, isDisabled, isEditingHost, isScrollable, isSensitiveField, isVisible,
+  DomError, accessibleName, checkedState, frameDocument, isDisabled, isScrollable, isSensitiveField, isVisible,
   mainScroller, norm, roleOf, type PageState, type RefRegistry,
 } from './snapshot.ts';
+
+export type { FillResult };
 
 function viewOf(el: Element): Window & typeof globalThis {
   return el.ownerDocument.defaultView as Window & typeof globalThis;
@@ -98,13 +101,6 @@ export function clickElement(el: Element): ClickResult {
   return note ? { dispatched: true, note } : { dispatched: true };
 }
 
-export interface FillResult {
-  filled: true;
-  /** Whether the field now holds exactly the requested content (masks and formatters may alter it). */
-  valueMatches: boolean;
-  note?: string;
-}
-
 const SETTABLE_INPUT_TYPES = new Set([
   '', 'text', 'search', 'email', 'url', 'tel', 'number',
   'date', 'time', 'datetime-local', 'month', 'week', 'color', 'range',
@@ -131,46 +127,6 @@ function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: strin
   else el.value = value;
 }
 
-const KEY_CODES: Record<string, [code: string, keyCode: number]> = {
-  Enter: ['Enter', 13], Escape: ['Escape', 27], Tab: ['Tab', 9], ' ': ['Space', 32],
-  Backspace: ['Backspace', 8], Delete: ['Delete', 46],
-  ArrowUp: ['ArrowUp', 38], ArrowDown: ['ArrowDown', 40], ArrowLeft: ['ArrowLeft', 37], ArrowRight: ['ArrowRight', 39],
-  Home: ['Home', 36], End: ['End', 35], PageUp: ['PageUp', 33], PageDown: ['PageDown', 34],
-};
-
-/** Dispatches one keyboard event; returns false if a handler cancelled it. */
-function fireKey(el: Element, type: 'keydown' | 'keypress' | 'keyup', key: string, shift = false): boolean {
-  const view = viewOf(el);
-  const known = KEY_CODES[key];
-  const code = known ? known[0] : /^[a-z]$/i.test(key) ? `Key${key.toUpperCase()}` : /^\d$/.test(key) ? `Digit${key}` : '';
-  const keyCode = known ? known[1] : key.toUpperCase().charCodeAt(0);
-  // keyCode/which are legacy, but many sites still read them.
-  const init = { key, code, keyCode, which: keyCode, shiftKey: shift, bubbles: true, cancelable: true, composed: true, view };
-  return el.dispatchEvent(new view.KeyboardEvent(type, init as KeyboardEventInit));
-}
-
-function placeCaret(el: Element, selectAll: boolean): boolean {
-  const doc = el.ownerDocument;
-  const selection = doc.getSelection?.();
-  if (!selection) return false;
-  const range = doc.createRange();
-  range.selectNodeContents(el);
-  if (!selectAll) range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
-  return true;
-}
-
-/** Inserts text into an editing host through the browser's editing pipeline, with a plain fallback. */
-function insertIntoEditable(el: Element, text: string): void {
-  const doc = el.ownerDocument;
-  const inserted = typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, text);
-  if (!inserted) {
-    el.textContent = (el.textContent ?? '') + text;
-    fireInput(el, text);
-  }
-}
-
 function assertWritable(el: Element): void {
   if (isSensitiveField(el)) {
     throw new DomError('SENSITIVE_FIELD', 'Password and other credential fields cannot be filled by the agent. The user must type into them.');
@@ -194,8 +150,8 @@ function setChecked(el: Element, wanted: boolean): FillResult {
 }
 
 /**
- * Enters content into a form control: text into inputs, textareas and contenteditable regions, an
- * option into a select, true/false into a checkbox, radio button or switch.
+ * Enters content into a native form control: text into inputs and textareas, an option into a
+ * select, true/false into a checkbox, radio button or switch. Editors go through `fill`.
  */
 export function fillElement(el: Element, text: string, append: boolean, method: 'set' | 'type' = 'set'): FillResult {
   const tag = el.localName;
@@ -259,46 +215,6 @@ export function fillElement(el: Element, text: string, append: boolean, method: 
       : { filled: true, valueMatches: false, note: 'The field did not keep the exact text (it may format, limit or reject input). Take a snapshot to check.' };
   }
 
-  if (isEditingHost(el)) {
-    const before = el.textContent ?? '';
-    html.focus?.({ preventScroll: true });
-    const selected = placeCaret(el, !append);
-    if (!append && !selected) el.textContent = '';
-    if (method === 'type') {
-      if (!append && selected && before) {
-        const doc = el.ownerDocument;
-        if (!(typeof doc.execCommand === 'function' && doc.execCommand('delete'))) el.textContent = '';
-      }
-      for (const char of text) {
-        if (fireKey(el, 'keydown', char)) {
-          fireKey(el, 'keypress', char);
-          insertIntoEditable(el, char);
-        }
-        fireKey(el, 'keyup', char);
-      }
-    } else if (!text) {
-      // Clearing: remove the selected content.
-      const doc = el.ownerDocument;
-      if (!(selected && typeof doc.execCommand === 'function' && doc.execCommand('delete'))) {
-        el.textContent = append ? before : '';
-        fireInput(el, '', 'deleteContentBackward');
-      }
-    } else {
-      // Goes through the browser's editing pipeline, which rich-text editors listen to.
-      const doc = el.ownerDocument;
-      const inserted = selected && typeof doc.execCommand === 'function' && doc.execCommand('insertText', false, text);
-      if (!inserted) {
-        el.textContent = append ? before + text : text;
-        fireInput(el, text);
-      }
-    }
-    const expected = norm(append ? before + text : text);
-    const matches = norm(el.textContent) === expected;
-    return matches
-      ? { filled: true, valueMatches: true }
-      : { filled: true, valueMatches: false, note: 'This editor did not take the text as typed; it may be a custom editor that cannot be controlled generically. Take a snapshot to check.' };
-  }
-
   throw new DomError('UNSUPPORTED_ELEMENT',
     'This element is not a standard text field, select or editable region. Custom editors and widgets cannot be filled generically.');
 }
@@ -340,12 +256,12 @@ export function pressKey(doc: Document, target: Element | null, key: string): Ke
   const textField = (tag === 'input' && TYPEABLE_INPUT_TYPES.has(type)) || tag === 'textarea';
   const printable = [...name].length === 1;
   // Keys that would change a field's content are subject to the same rules as filling it.
-  if ((printable || name === 'Backspace') && (tag === 'input' || tag === 'textarea' || isEditingHost(el))) assertWritable(el);
+  if ((printable || name === 'Backspace') && (tag === 'input' || tag === 'textarea')) assertWritable(el);
 
-  const allowed = fireKey(el, 'keydown', name, shift);
+  const allowed = fireKey(el, 'keydown', name, { shift });
   let effect = allowed ? 'none beyond the page\'s own key handlers' : 'the page handled the key itself';
   if (allowed) {
-    if (printable || name === 'Enter') fireKey(el, 'keypress', name, shift);
+    if (printable || name === 'Enter') fireKey(el, 'keypress', name, { shift });
     const role = roleOf(el);
     const activatable = role === 'Button' || role === 'Link' || role === 'Toggle' || role === 'Tab' || role === 'Menuitem';
     if (name === 'Enter' && tag === 'input' && (el as HTMLInputElement).form && SETTABLE_INPUT_TYPES.has(type)) {
@@ -362,9 +278,6 @@ export function pressKey(doc: Document, target: Element | null, key: string): Ke
       setNativeValue(field, field.value + '\n');
       fireInput(el, '\n', 'insertLineBreak');
       effect = 'inserted a line break';
-    } else if (name === 'Enter' && isEditingHost(el)) {
-      const ok = typeof doc.execCommand === 'function' && doc.execCommand('insertParagraph');
-      effect = ok ? 'inserted a new paragraph' : effect;
     } else if (name === 'Tab') {
       const order = tabbables(el.ownerDocument);
       const index = order.indexOf(html);
@@ -377,10 +290,6 @@ export function pressKey(doc: Document, target: Element | null, key: string): Ke
       const field = el as HTMLInputElement;
       setNativeValue(field, field.value + name);
       fireInput(el, name);
-      effect = 'typed the character';
-    } else if (printable && isEditingHost(el)) {
-      placeCaret(el, false);
-      insertIntoEditable(el, name);
       effect = 'typed the character';
     } else if (name === 'Backspace' && textField) {
       const field = el as HTMLInputElement;
@@ -398,8 +307,86 @@ export function pressKey(doc: Document, target: Element | null, key: string): Ke
       effect = 'moved the selection';
     }
   }
-  fireKey(el, 'keyup', name, shift);
+  fireKey(el, 'keyup', name, { shift });
   return { dispatched: true, effect };
+}
+
+/** Enters content into any fillable element: a native form control or an editor. */
+export async function fill(el: Element, text: string, append: boolean, method: 'set' | 'type' = 'set'): Promise<FillResult> {
+  if (checkedState(el) === null && editorKind(el)) {
+    assertWritable(el);
+    return fillEditor(el, text, append, method);
+  }
+  return fillElement(el, text, append, method);
+}
+
+const EDITING_KEYS = new Set(['Enter', 'Backspace', 'Delete']);
+
+/** The element that has the keyboard, looking into shadow roots and frames of the same origin. */
+function focusedElement(doc: Document): Element {
+  let el: Element = doc.activeElement ?? doc.body;
+  for (;;) {
+    const frame = el.localName === 'iframe' || el.localName === 'frame' ? frameDocument(el) : null;
+    const inner: Element | null | undefined = el.shadowRoot?.activeElement ?? frame?.activeElement;
+    if (!inner || inner === el) return el;
+    el = inner;
+  }
+}
+
+/** Presses one key on an element (or the focused one), in a form control or an editor. */
+export async function press(doc: Document, target: Element | null, key: string): Promise<KeyResult> {
+  const el = target ?? focusedElement(doc);
+  const editing = [...key].length === 1 || EDITING_KEYS.has(key);
+  if (editing && editorKind(el)) {
+    assertWritable(el);
+    return { dispatched: true, effect: await pressEditorKey(el, key, false) };
+  }
+  return pressKey(doc, target, key);
+}
+
+/**
+ * Waits until the page has stopped changing: no element added, removed or rewritten for `quietMs`.
+ * A site that swaps its content without loading a new document changes the address first and the
+ * page a moment later; reading in between returns the old page under the new address.
+ */
+export function waitForQuiet(doc: Document, quietMs: number, maxMs: number): Promise<{ quiet: boolean; waitedMs: number }> {
+  const view = viewOf(doc.documentElement);
+  const started = Date.now();
+  return new Promise((resolve) => {
+    if (typeof view.MutationObserver !== 'function' || !doc.body) {
+      resolve({ quiet: true, waitedMs: 0 });
+      return;
+    }
+    let idle: ReturnType<typeof setTimeout>;
+    const finish = (quiet: boolean): void => {
+      observer.disconnect();
+      clearTimeout(idle);
+      clearTimeout(limit);
+      resolve({ quiet, waitedMs: Date.now() - started });
+    };
+    const observer = new view.MutationObserver(() => {
+      clearTimeout(idle);
+      idle = setTimeout(() => finish(true), quietMs);
+    });
+    observer.observe(doc.body, { childList: true, subtree: true, characterData: true });
+    idle = setTimeout(() => finish(true), quietMs);
+    const limit = setTimeout(() => finish(false), maxMs);
+  });
+}
+
+/**
+ * How many fields hold text the user or the agent entered and the page has not sent: what a
+ * navigation would throw away. Counted, never read.
+ */
+export function unsavedFields(doc: Document): number {
+  let count = 0;
+  for (const el of Array.from(doc.querySelectorAll('input, textarea')).slice(0, 500)) {
+    const field = el as HTMLInputElement | HTMLTextAreaElement;
+    if (el.localName === 'input' && !['', 'text', 'email', 'url', 'tel', 'number'].includes(inputType(el))) continue;
+    if (field.disabled || field.readOnly || !isVisible(el)) continue;
+    if (field.value.trim() !== '' && field.value !== field.defaultValue) count++;
+  }
+  return count;
 }
 
 export interface ScrollResult {
@@ -427,7 +414,12 @@ export async function scrollPage(
   let scroller: Element = root;
   let kind: ScrollResult['target'] = 'page';
 
-  if (target && !isScrollable(target)) {
+  // An editor scrolls in a box around its text: the ref of the editor means that box.
+  const editorBox = target && !isScrollable(target) && editorKind(target) ? scrollerOf(target) : null;
+  if (editorBox) {
+    scroller = editorBox;
+    kind = 'element';
+  } else if (target && !isScrollable(target)) {
     kind = 'element-into-view';
   } else if (target) {
     scroller = target;

@@ -248,6 +248,7 @@ chrome-extension/src/
   snapshot.ts              rendered-DOM walk, roles, names, refs, hierarchy, completeness
   extract.ts               structured text, outline, sections
   interact.ts              click, fill, type, keys, scroll, wait
+  editor.ts                text entry into rich-text and code editors
   submit.ts                baseline and signals around a submission
   popup.html / .ts / .css  the user's controls
 ```

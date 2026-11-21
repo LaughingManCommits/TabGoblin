@@ -41,3 +41,6 @@ build/
 ### Node ###
 node_modules/
 chrome-extension/dist/
+
+### Editor lab ###
+e2e/editors/build/

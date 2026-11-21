@@ -22,6 +22,7 @@ import tools.jackson.databind.JsonNode;
  *   java -jar browser-context-mcp.jar                  run the MCP server (stdio)
  *   java -jar browser-context-mcp.jar --show-token     print the pairing token for the extension popup
  *   java -jar browser-context-mcp.jar --rotate-token   replace the pairing token (pair the extension again)
+ *   java -jar browser-context-mcp.jar --help           the above, and how to stop it
  * </pre>
  */
 public final class McpMain {
@@ -75,6 +76,10 @@ public final class McpMain {
         String extensionOrigin = setting(args, "--extension-origin", "BCMCP_EXTENSION_ORIGIN",
                 DEFAULT_EXTENSION_ORIGIN);
 
+        if (List.of(args).contains("--help") || List.of(args).contains("-h")) {
+            mcpOut.println(USAGE);
+            return;
+        }
         if (List.of(args).contains("--rotate-token")) {
             // Printed only on explicit request, for pasting into the extension popup. Never logged.
             mcpOut.println("New pairing token: " + Pairing.rotateToken(tokenFile));
@@ -108,6 +113,14 @@ public final class McpMain {
         } else {
             Log.info("listening port=" + bridge.getPort() + " client=" + bridge.clientId());
         }
+        if (startedByHand()) {
+            // Someone typed the command: without this the terminal just sits there, looking stuck.
+            System.err.println("""
+                    TabGoblin MCP server, running on 127.0.0.1:%d.
+                    It is normally started by your agent (IDE or CLI), which talks to it through this \
+                    input and output. Started by hand it only waits; anything typed here is taken as protocol.
+                    Press Ctrl+C to stop it. Other uses: --show-token, --rotate-token, --help.""".formatted(bridge.getPort()));
+        }
         BrowserService service = new BrowserService(bridge, startupProblem);
 
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
@@ -123,6 +136,36 @@ public final class McpMain {
                 .build();
 
         Thread.currentThread().join();
+    }
+
+    private static final String USAGE = """
+            TabGoblin MCP server (browser-context-mcp)
+
+              java -jar browser-context-mcp.jar                  run the server; your agent starts it this way
+              java -jar browser-context-mcp.jar --show-token     print the pairing token for the extension popup
+              java -jar browser-context-mcp.jar --rotate-token   replace the pairing token (pair the extension again)
+              java -jar browser-context-mcp.jar --help           this text
+
+            Options for running:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
+
+            Stopping: the server exits when the agent that started it closes or disconnects.
+            Started by hand, Ctrl+C stops it.""";
+
+    /**
+     * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
+     * it through pipes.
+     */
+    private static boolean startedByHand() {
+        java.io.Console console = System.console();
+        if (console == null) {
+            return false;
+        }
+        try {
+            // Java 22 and newer return a console even when input is a pipe; they can say which it is.
+            return (boolean) java.io.Console.class.getMethod("isTerminal").invoke(console);
+        } catch (ReflectiveOperationException e) {
+            return true; // Java 21: a console exists only when a terminal is attached
+        }
     }
 
     private static void exitSoon() {
@@ -199,10 +242,13 @@ public final class McpMain {
                         "ref":{"type":"integer","description":"Element ref from the latest browser_snapshot."}""", """
                         "intent":{"type":"string","enum":["interact","submit"],"description":"\\"interact\\" (default) for ordinary UI; \\"submit\\" to submit or change data on the user's explicit request."}""")));
         specs.add(tool(service, mapper, "browser_fill", false,
-                "Enter text into an input, textarea, select or contenteditable element by ref. Needs Write access. "
-                        + "Replaces the content unless append is true; empty text clears it. For a select use the "
+                "Enter text into an input, textarea, select, or a rich-text or code editor (listed as Textbox, "
+                        + "Editable or Editor) by ref. Needs Write access. Replaces the content unless append is true; "
+                        + "empty text clears it. Several lines and code are entered as given. For a select use the "
                         + "option label or value; for a checkbox, radio button or switch use \"true\" or \"false\". "
-                        + "method=\"type\" sends real key events per character, for fields that react to typing. "
+                        + "method=\"type\" sends key events per character, for fields that react to typing. "
+                        + "The result says whether the element shows the text afterwards (valueMatches). If it does "
+                        + "not, take a snapshot before trying again: never repeat a fill blindly. "
                         + "Password fields are not supported. Does not submit anything.",
                 schema("\"ref\",\"text\"", """
                         "ref":{"type":"integer","description":"Element ref from the latest browser_snapshot."}""", """
