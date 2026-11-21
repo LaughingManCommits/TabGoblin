@@ -3,6 +3,32 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `pairing-race`: the look of the popup
+
+A pass for alignment, asked for by the owner. What changed: a heading and the action beside it
+share a baseline; the settings have a heading, and each setting its name, its control and one
+line of explanation; the "Submissions" choice of a session is one control as wide as the row
+above it; a no that stands is shown under that control, like what passes; the links in those two
+boxes have no button face; a session's chips go under its address where they do not fit beside
+it, instead of cutting the address.
+
+| Command | Result |
+|---|---|
+| `FULL=1 node screenshots.mjs prompts` | each view at its whole length and double size. Looked at before the change: a click prompt (dark), two things that pass (light), a high-impact prompt (light). After it: two things that pass (dark), the declined box (light), the prompt in the automatic mode (dark). |
+| `HEADED=1 node screenshots.mjs` | ten pictures changed; all ten were opened after the last change. The suspended session shows its whole address, with the chips under it. |
+| `cd chrome-extension && npm run check` | type-check clean, 132 tests, build |
+| `cd e2e && npm test` | 92 passed, 0 failed, on the final build |
+| `cd e2e/editors && npm test`, and with `BACKGROUND=1` | 222 and 220 of 225, no `SILENT`. Run before the last change, which moved the chips of a session. |
+| `node screenshots.mjs prompts` | 28 pictures as before; with `FULL=1`, 28 more |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: one run of the picture script, started right after another, timed out waiting
+for the two agents to connect. The next run passed; the cause was not looked for.
+
+Not looked at: an address too long for its line (it is cut with an ellipsis, by the rule; no
+picture has one), and the popup at another zoom level or font size. Not run: the server's
+suites and the Linux container; nothing they cover changed.
+
 ## 2026-11-21, on `pairing-race`: WP-9, where the time went
 
 The status tool says, when asked for diagnostics, where the time of the last tool calls went.
@@ -220,24 +246,10 @@ not been seen, and now runs `mvn verify`.
 Read, not run: the specification of revision 2026-07-28, through a summary of ten of its pages
 and its changelog. Its schema was not read.
 
-## 2026-11-21, on `typed-lines`, WP-3
-
-The prompt cannot be answered by accident; its sentence for a field of a form is corrected.
-
-| What | Result |
-|---|---|
-| `cd chrome-extension && npm run check` | type-check clean, 120 tests, build |
-| `cd e2e && npm test` | 87 passed, 0 failed. The new step answers a prompt the instant it appears, then by Tab and Enter. |
-| The prompt for a field of a form, headless: its first moment, afterwards in both colour schemes, and after Tab | 4 pictures looked at: the buttons are dim at first, Allow is still shown first, Tab reaches Deny |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Before the change, in a visible Chrome: Tab and then Enter typed into a prompt that had just come
-up allowed the request. That script was not kept; the end-to-end step takes its place.
-
-Not run again: the Java build and the editor lab, which this does not touch.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `typed-lines`, WP-3 (a prompt that cannot be answered by accident): extension
+  120 tests, end to end 87 of 87, four pictures of the prompt looked at.
 - 2026-11-21, on `typed-lines`, third commit (the look of the confirmation prompt): 20 pictures of
   the prompt looked at, three defects fixed; extension 120 tests, end to end 86 of 86. The server
   and the editor lab were not run again.

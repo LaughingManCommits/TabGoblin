@@ -264,7 +264,7 @@ starts a new server the next time it needs one.
 | Setting | Where | Default |
 |---|---|---|
 | When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
-| In-page indicator | Toggle in the popup | on |
+| Indicator in the page | Switch under *Settings* in the popup | on |
 | First port | *Connection…* in the popup; `--port` on the server | 47821 |
 | Token file | `--token-file` / `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` |
 | Log level | `BCMCP_LOG` = `debug`, `info`, `warn`, `off` | `info` |

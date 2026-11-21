@@ -204,9 +204,13 @@ function renderSessions(s: State): void {
       const origin = el('span', 'origin', displayOrigin(session.origin) + more);
       origin.title = session.origins.join('\n');
       line.append(el('span', 'sid', session.id), origin);
-      if (session.tabId === currentTab?.id) line.append(el('span', 'chip', 'this tab'));
-      if (session.suspended) line.append(el('span', 'chip state', 'suspended'));
-      else if (session.paused) line.append(el('span', 'chip state', 'paused'));
+      // The chips stay together. Where they do not fit beside the address they go below it: the
+      // address is what tells one session from another.
+      const chips = el('span', 'chips');
+      if (session.tabId === currentTab?.id) chips.append(el('span', 'chip', 'this tab'));
+      if (session.suspended) chips.append(el('span', 'chip state', 'suspended'));
+      else if (session.paused) chips.append(el('span', 'chip state', 'paused'));
+      if (chips.childElementCount) line.append(chips);
 
       const owner = session.clientId
         ? `${agentLabel({ name: session.clientName, id: session.clientId }, s.clients)}${session.ownerConnected ? '' : ' (not connected)'}`
@@ -231,21 +235,7 @@ function renderSessions(s: State): void {
       revoke.addEventListener('click', () => void request({ type: 'revoke', session: session.id }));
       controls.append(mode, pause, revoke);
 
-      row.append(line, el('div', 'meta', parts.join(' · ')));
-      // A no stands for a while. The user sees that it does, and can take it back.
-      if (session.notAsked.all || session.notAsked.requests.length) {
-        // A no is to a kind of request on a control of that name: Enter in it, or a click on it.
-        const names = session.notAsked.requests.map((request) => requestName(request.how, request.label));
-        const held = el('div', 'held');
-        held.append(el('span', '', session.notAsked.all
-          ? 'Its requests were declined or not answered. It will not ask for a few minutes.'
-          : `You declined ${names.join(', ')}. It will not ask again for a few minutes.`));
-        const again = el('button', 'link askagain', 'Let it ask again');
-        again.addEventListener('click', () => void request({ type: 'askAgain', session: session.id }));
-        held.append(again);
-        row.append(held);
-      }
-      row.append(controls);
+      row.append(line, el('div', 'meta', parts.join(' · ')), controls);
       // Asking is a matter of submitting, which only a session with write access can do.
       if (session.mode === 'write') {
         const asking = el('div', 'row asking');
@@ -260,6 +250,20 @@ function renderSessions(s: State): void {
         ask.addEventListener('change', () => void request({ type: 'setAsk', session: session.id, value: ask.value }));
         asking.append(el('span', 'caption', 'Submissions'), ask);
         row.append(asking);
+      }
+      // What follows from asking stands under it, in one place: a no that still stands, and what passes.
+      // A no stands for a while. The user sees that it does, and can take it back.
+      if (session.notAsked.all || session.notAsked.requests.length) {
+        // A no is to a kind of request on a control of that name: Enter in it, or a click on it.
+        const names = session.notAsked.requests.map((request) => requestName(request.how, request.label));
+        const held = el('div', 'held');
+        held.append(el('span', '', session.notAsked.all
+          ? 'Its requests were declined or not answered. It will not ask for a few minutes.'
+          : `You declined ${names.join(', ')}. It will not ask again for a few minutes.`));
+        const again = el('button', 'link askagain', 'Let it ask again');
+        again.addEventListener('click', () => void request({ type: 'askAgain', session: session.id }));
+        held.append(again);
+        row.append(held);
       }
       // What the user allowed and now passes without a question: there to see, and to end.
       if (session.passes.length) {

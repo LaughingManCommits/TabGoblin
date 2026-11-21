@@ -81,7 +81,10 @@ main { padding: 0 12px; display: flex; flex-direction: column; gap: 8px; }
   box-shadow: var(--shadow);
 }
 .card[hidden] { display: none; }
-.heading { display: flex; align-items: center; justify-content: space-between; }
+/* A heading with an action beside it: both on one baseline, the action the quieter of the two. */
+.heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.heading h2 { margin: 0; }
+.heading button.link { font-size: 11.5px; }
 
 h2 {
   margin: 0 0 8px;
@@ -133,9 +136,18 @@ button.link {
 }
 button.link:hover { color: var(--fg); }
 
-/* Switches for the two settings. */
-.settings { display: flex; flex-direction: column; gap: 8px; }
-.check { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--fg); font-size: 12.5px; cursor: pointer; }
+/* Settings: each has its name, its control, and a line that says what it does. */
+.settings .setting { display: block; margin: 0 0 5px; color: var(--fg); font-size: 12.5px; font-weight: 600; }
+.settings .hint { display: block; margin: 5px 0 0; color: var(--muted); font-size: 11.5px; }
+.settings select { width: 100%; }
+/* A switch: the words on the left, the switch on the right, a line between it and the setting above. */
+.check {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--line); cursor: pointer;
+}
+.check .words { min-width: 0; }
+.check .setting { margin-bottom: 1px; }
+.check .hint { margin: 0; }
 .check input {
   appearance: none; flex: none; position: relative;
   width: 32px; height: 18px; margin: 0; border-radius: 999px;
@@ -188,35 +200,42 @@ button.link:hover { color: var(--fg); }
 .list li { display: flex; align-items: center; gap: 8px; }
 .list .name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list .muted { font: 11px ui-monospace, Consolas, monospace; }
-.list button { height: 26px; padding: 0 10px; font-size: 12px; }
+.list button { height: 28px; padding: 0 10px; font-size: 12px; }
 
 /* ---------- sessions ---------- */
 .session { padding: 8px 10px; margin-bottom: 8px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; }
-.session .line { display: flex; align-items: center; gap: 6px; }
+.session .line { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; }
+.session .chips { display: flex; flex: none; gap: 6px; margin-left: auto; }
 .sid {
   flex: none; padding: 0 6px; border-radius: 6px;
   font: 600 11px/18px ui-monospace, "Cascadia Code", Consolas, monospace;
   background: var(--accent-soft); color: var(--accent);
 }
-.session .origin { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* As wide as its text, so that the chips give way before the address is cut; never wider than its line. */
+.session .origin { flex: 0 1 auto; min-width: 0; max-width: calc(100% - 48px); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip { flex: none; padding: 0 7px; border-radius: 999px; font-size: 10.5px; line-height: 17px; background: var(--card); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .chip.state { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn); }
 .session .meta { color: var(--muted); font-size: 11.5px; margin: 3px 0 8px; }
 /* When this session asks, and what it lets pass. */
-.session .asking { margin-top: 6px; }
-.session .asking .caption { flex: none; color: var(--muted); font-size: 11.5px; }
-.session .asking select { flex: 1; min-width: 0; }
+/* One control as wide as the row above it: its name inside on the left, the choice beside it. */
+.session .asking {
+  margin-top: 6px; gap: 0; height: 28px; padding-left: 9px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+}
+.session .asking:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.session .asking .caption { flex: none; color: var(--muted); font-size: 12px; }
+.session .asking select { flex: 1; min-width: 0; height: 26px; padding-left: 6px; border: 0; background-color: transparent; }
+.session .asking select:focus-visible { box-shadow: none; }
 .session .passing {
   margin-top: 8px; padding: 6px 8px; border-radius: 8px; font-size: 11.5px;
   background: var(--accent-soft); border: 1px solid var(--accent); color: var(--fg); overflow-wrap: anywhere;
 }
 .session .passing button.link { display: block; margin-top: 3px; padding: 0; height: auto; font-size: 11.5px; color: var(--accent); }
-.settings .setting { margin-top: 0; }
-.settings select { width: 100%; }
-.settings .hint { margin: 5px 0 10px; color: var(--muted); font-size: 11.5px; }
-/* A no that still stands, and the way to take it back. */
+/* A link in a box stays a link: no button face behind it. */
+.session .passing button.link, .session .held button.link { background: transparent; }
+/* A no that still stands, and the way to take it back. Under the row it follows from, like what passes. */
 .session .held {
-  margin: -2px 0 8px; padding: 6px 8px; border-radius: 8px; font-size: 11.5px;
+  margin-top: 8px; padding: 6px 8px; border-radius: 8px; font-size: 11.5px;
   background: var(--warn-soft); border: 1px solid var(--warn-line); color: var(--fg);
 }
 .session .held button.link { display: block; margin-top: 3px; padding: 0; height: auto; font-size: 11.5px; color: var(--warn); }

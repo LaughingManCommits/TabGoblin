@@ -165,6 +165,8 @@ try {
         await sleep(250);
         await popup.evaluate((down) => scrollTo(0, down ? document.body.scrollHeight : 0), bottom);
         await popup.screenshot({ path: join(PROMPTS, `${name}-${scheme}.png`) });
+        // FULL=1 adds each view at its whole length and double size, to look at spacing and alignment.
+        if (process.env.FULL) await freeze(popup, `${name}-full-${scheme}.png`, scheme);
       }
     };
     let declined = false;
@@ -333,12 +335,13 @@ try {
 
   // Lay the frozen content out at full length, at popup width, in an ordinary tab: what you would
   // see if the popup did not scroll.
-  for (const shot of PROMPTS ? [] : frozen) {
+  // For the documentation: the two full-length pictures. For the prompt's views: only with FULL=1.
+  for (const shot of frozen.filter((entry) => !PROMPTS || !entry.name.startsWith('popup-full'))) {
     const view = await browser.newPage();
     await view.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: shot.scheme }]);
     await view.setViewport({ width: 344, height: 600, deviceScaleFactor: 2 });
     await view.setContent(shot.html.replace(/<script[^>]*><\/script>/, '').replace(/<link[^>]*>/, `<style>${shot.css}</style>`));
-    await view.screenshot({ path: join(IMAGES, shot.name), fullPage: true });
+    await view.screenshot({ path: join(PROMPTS || IMAGES, shot.name), fullPage: true });
     await view.close();
     console.log(shot.name);
   }

@@ -146,7 +146,9 @@ cd e2e && node screenshots.mjs prompts          # into e2e/prompt-pictures/, not
 Success: twenty-eight pictures of fourteen views, and one printed line of text for each view:
 seven cases of the prompt, a session on which a no stands, the prompt in the automatic mode, a
 session in that mode with one thing that passes and with two, and the setting with each of its
-three values. It leaves `docs/` alone and needs no visible window.
+three values. It leaves `docs/` alone and needs no visible window. With `FULL=1` each view is
+also written at its whole length and double size (`<view>-full-<scheme>.png`): that is the
+picture to look at for spacing and alignment, since the popup's window shows only its top.
 
 ## Change the version
 
