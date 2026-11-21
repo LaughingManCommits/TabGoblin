@@ -53,13 +53,27 @@ final class ExtensionConnection {
         return lastCloseCode;
     }
 
-    /** Makes {@code newConn} the active connection and returns the one it replaced, if any. */
-    synchronized WebSocket attach(WebSocket newConn) {
+    /**
+     * Makes {@code newConn} the paired connection and sends it {@code answer}, the message that
+     * completes its pairing. Returns the connection it replaced, if any.
+     *
+     * <p>For a command the two are one step ({@link #paired()}). The connection is taken first, so
+     * that an extension which holds the answer is connected for every tool call. And no command
+     * goes out on it before the answer does: the extension takes whatever reaches it ahead of the
+     * answer for a failed pairing.
+     */
+    synchronized WebSocket attach(WebSocket newConn, String answer) {
         WebSocket old = conn;
         conn = newConn;
         sessions = List.of();
         lastCloseCode = 0;
+        newConn.send(answer);
         return old == newConn ? null : old;
+    }
+
+    /** The paired connection to send a command on: never one whose pairing answer is not out yet. */
+    private synchronized WebSocket paired() {
+        return conn;
     }
 
     synchronized void detach(WebSocket closed, int closeCode) {
@@ -130,7 +144,7 @@ final class ExtensionConnection {
 
     private JsonNode exchange(String id, String action, String session, JsonNode params, Duration timeout,
             Protocol.Timing[] inside) {
-        WebSocket c = conn;
+        WebSocket c = paired();
         if (c == null || !c.isOpen()) {
             throw new BrowserException("NOT_CONNECTED", switch (lastCloseCode) {
                 case Protocol.CLOSE_USER_DISCONNECTED ->

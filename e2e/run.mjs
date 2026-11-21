@@ -1143,8 +1143,15 @@ try {
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '2 agents connected');
     const port = /on port (\d+)/.exec((await two.tool('browser_status')).text)?.[1];
     assert(port && port !== String(wsPort), `each agent has its own port, got ${port}`);
-    twoId = await popup.evaluate(() => [...document.querySelectorAll('#agents li')]
-      .find((li) => li.querySelector('.name').textContent === 'agent-two').dataset.client);
+    // An agent tells its name with its first tool call. The extension may have found its server
+    // before that: the popup then lists it by its id until its next refresh.
+    const listed = await popup.waitForFunction(() => [...document.querySelectorAll('#agents li')]
+      .find((li) => li.querySelector('.name').textContent === 'agent-two')?.dataset.client, { timeout: 10000 })
+      .catch(async () => {
+        const names = await popup.$$eval('#agents .name', (els) => els.map((el) => el.textContent).join(', '));
+        throw new Error(`agent-two should be listed by name; the popup lists: ${names}`);
+      });
+    twoId = await listed.jsonValue();
     assert(twoId && twoId !== '', 'agent-two should be listed by name');
   });
   await step('the second agent cannot see or use the first agent\'s sessions', async () => {

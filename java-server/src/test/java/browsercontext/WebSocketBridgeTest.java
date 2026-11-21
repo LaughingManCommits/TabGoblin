@@ -22,6 +22,8 @@ class WebSocketBridgeTest {
     static final String TOKEN = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     static final String OTHER_EXTENSION = "chrome-extension://pppppppppppppppppppppppppppppppp";
     static final Duration SHORT = Duration.ofMillis(400);
+    /** How often the tests of the moment of pairing pair: that moment is hit by chance only. */
+    static final int PAIRINGS = 200;
 
     WebSocketBridge bridge;
     int port;
@@ -47,6 +49,17 @@ class WebSocketBridgeTest {
             Thread.sleep(20);
         }
         assertTrue(condition.getAsBoolean(), "condition not reached in time");
+    }
+
+    /**
+     * Connects an extension the server is expected to turn away once it has answered the challenge,
+     * and returns the code the server closed the connection with. A code of the pairing says that
+     * the connection was open. {@code connectBlocking} is not asked: it says no for a connection
+     * that was opened and closed again before the test looked.
+     */
+    private static int closedWith(FakeExtension ext) throws Exception {
+        ext.connectBlocking(3, TimeUnit.SECONDS);
+        return ext.closed.get(3, TimeUnit.SECONDS);
     }
 
     @Test
@@ -91,8 +104,7 @@ class WebSocketBridgeTest {
     @Test
     void rejectsWrongPairingToken() throws Exception {
         FakeExtension ext = new FakeExtension(port, FakeExtension.ORIGIN, "f".repeat(64));
-        assertTrue(ext.connectBlocking(3, TimeUnit.SECONDS));
-        assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, ext.closed.get(3, TimeUnit.SECONDS));
+        assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, closedWith(ext));
         assertFalse(bridge.isExtensionConnected());
     }
 
@@ -100,8 +112,7 @@ class WebSocketBridgeTest {
     void repeatedFailedPairingsLockOutNewConnections() throws Exception {
         for (int i = 0; i < WebSocketBridge.MAX_FAILED_PAIRINGS; i++) {
             FakeExtension guess = new FakeExtension(port, FakeExtension.ORIGIN, Pairing.randomHex(32));
-            assertTrue(guess.connectBlocking(3, TimeUnit.SECONDS));
-            assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, guess.closed.get(3, TimeUnit.SECONDS));
+            assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, closedWith(guess));
         }
         FakeExtension genuine = new FakeExtension(port, FakeExtension.ORIGIN, TOKEN);
         assertFalse(genuine.connectBlocking(3, TimeUnit.SECONDS), "even the right token must wait out the lockout");
@@ -160,13 +171,65 @@ class WebSocketBridgeTest {
         ext.closeBlocking();
     }
 
+    /**
+     * The extension calls itself paired the moment the server's answer arrives. From then on the
+     * server must do so too: a command goes to that extension, and is not refused for want of one.
+     * Each pairing replaces the one before, so a command that still went to the old connection
+     * shows as a command the new one never got.
+     */
+    @Test
+    void aCommandRightBehindThePairingReachesTheExtensionThatPaired() throws Exception {
+        for (int i = 0; i < PAIRINGS; i++) {
+            FakeExtension ext = FakeExtension.paired(port, TOKEN);
+            assertTrue(bridge.isExtensionConnected(), "pairing " + i);
+            bridge.send("status", null, null, SHORT);
+            assertEquals(1, ext.commands.size(), "pairing " + i);
+            assertEquals(java.util.List.of(), ext.early, "nothing may arrive ahead of the pairing answer");
+        }
+    }
+
+    /**
+     * The MCP client names itself on another thread, at any moment of a pairing. The name must
+     * reach the extension, in the pairing answer or right behind it, and never ahead of it.
+     */
+    @Test
+    void anAgentNameGivenWhileTheExtensionPairsIsNeitherLostNorAhead() throws Exception {
+        for (int i = 0; i < PAIRINGS; i++) {
+            String name = "agent-" + i;
+            // Spread over the moments of a pairing, from the challenge on.
+            long delay = (i % 50) * 4_000L;
+            FakeExtension ext = new FakeExtension(port, FakeExtension.ORIGIN, TOKEN);
+            Thread naming = new Thread(() -> {
+                long giveUp = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+                while (ext.challenge == null && System.nanoTime() < giveUp) {
+                    // On a single core the pairing needs that core to get this far.
+                    Thread.yield();
+                }
+                long at = System.nanoTime() + delay;
+                while (System.nanoTime() < at) {
+                    Thread.onSpinWait();
+                }
+                bridge.setClientName(name);
+            });
+            naming.start();
+            assertTrue(ext.connectBlocking(3, TimeUnit.SECONDS));
+            assertTrue(ext.paired.get(3, TimeUnit.SECONDS));
+            naming.join(3000);
+            for (long giveUp = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+                    !name.equals(ext.agentName) && System.nanoTime() < giveUp;) {
+                Thread.sleep(1);
+            }
+            assertEquals(name, ext.agentName, "pairing " + i + ": the extension must learn the agent's name");
+            assertEquals(java.util.List.of(), ext.early, "nothing may arrive ahead of the pairing answer");
+        }
+    }
+
     @Test
     void anExtensionSpeakingAnotherProtocolVersionIsRefusedWithAReason() throws Exception {
         for (int version : new int[] {0, 1, 3}) {
             FakeExtension old = new FakeExtension(port, FakeExtension.ORIGIN, TOKEN);
             old.version = version;
-            assertTrue(old.connectBlocking(3, TimeUnit.SECONDS));
-            assertEquals(Protocol.CLOSE_VERSION, old.closed.get(3, TimeUnit.SECONDS), "version " + version);
+            assertEquals(Protocol.CLOSE_VERSION, closedWith(old), "version " + version);
             assertFalse(bridge.isExtensionConnected());
         }
     }
@@ -368,8 +431,7 @@ class WebSocketBridgeTest {
             rotated = again;
 
             FakeExtension stale = new FakeExtension(rotating.getPort(), FakeExtension.ORIGIN, TOKEN);
-            assertTrue(stale.connectBlocking(3, TimeUnit.SECONDS));
-            assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, stale.closed.get(3, TimeUnit.SECONDS));
+            assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, closedWith(stale));
             FakeExtension.paired(rotating.getPort(), rotated);
             assertTrue(rotating.isExtensionConnected());
         } finally {

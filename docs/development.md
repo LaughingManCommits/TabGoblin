@@ -169,10 +169,15 @@ Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 ```
 
 On a connection the server sends `auth_ok` before anything else, and may send a command or
-`client` right behind it. The extension takes the messages of a connection in the order they
-came. One that arrives while it still checks the proof in `auth_ok` waits for that, and is then a
-message like any other. Without a valid `auth_ok` before it, any other message is a failed
-pairing (4401).
+`client` right behind it. Taking the connection for its paired one and sending `auth_ok` are one
+step for the server's other threads (`WebSocketBridge.authenticate`): an extension that holds
+`auth_ok` is connected for every tool call from then on, and none is told `NOT_CONNECTED`. The
+agent's name is in `auth_ok` if the server knows it by then, and follows as `client` if it
+learns it later; an agent names itself with its first tool call.
+
+The extension takes the messages of a connection in the order they came. One that arrives while
+it still checks the proof in `auth_ok` waits for that, and is then a message like any other.
+Without a valid `auth_ok` before it, any other message is a failed pairing (4401).
 
 `timing` comes with every answer, failed ones too, in milliseconds: how long the command ran in
 the extension, how long it waited before that for its turn in the tab's queue, and how much of

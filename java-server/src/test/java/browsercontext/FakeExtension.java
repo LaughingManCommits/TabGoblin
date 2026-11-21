@@ -24,6 +24,10 @@ final class FakeExtension extends WebSocketClient {
     /** Ids of commands the server cancelled. */
     final List<String> cancels = new CopyOnWriteArrayList<>();
     final List<String> clientNames = new CopyOnWriteArrayList<>();
+    /** The agent's name as the extension knows it: from the pairing answer, then from each {@code client} message. */
+    volatile String agentName;
+    /** What arrived ahead of the pairing answer. The real extension takes any such message for a failed pairing. */
+    final List<String> early = new CopyOnWriteArrayList<>();
     final CompletableFuture<Boolean> paired = new CompletableFuture<>();
     final CompletableFuture<Integer> closed = new CompletableFuture<>();
     /** Produces the full response for a command, or null to stay silent. */
@@ -75,6 +79,9 @@ final class FakeExtension extends WebSocketClient {
     public void onMessage(String message) {
         JsonNode msg = JSON.readTree(message);
         String type = msg.path("type").asString("");
+        if (!type.equals("challenge") && !type.equals("auth_ok") && !paired.isDone()) {
+            early.add(type.isEmpty() ? "command" : type);
+        }
         if (type.equals("challenge")) {
             challenge = msg;
             if (token != null) {
@@ -90,12 +97,14 @@ final class FakeExtension extends WebSocketClient {
             }
         } else if (type.equals("auth_ok")) {
             clientId = msg.path("clientId").asString(null);
+            agentName = msg.path("clientName").asString("");
             paired.complete(msg.path("proof").asString("")
                     .equals(Pairing.serverProof(token, serverNonce, clientNonce)));
         } else if (type.equals("cancel")) {
             cancels.add(msg.path("id").asString());
         } else if (type.equals("client")) {
             clientNames.add(msg.path("name").asString());
+            agentName = msg.path("name").asString();
         } else if (msg.has("id") && msg.has("action")) {
             commands.add(msg);
             JsonNode resp = responder.apply(msg);

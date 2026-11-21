@@ -3,6 +3,69 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `ci-failures`: the CI failures of runs #7 and #8
+
+Read on GitHub by a session, through TabGoblin: five runs, of which #1, #3 and #4 passed.
+
+- Run #7 (`5c9f4ab`, the merge of `pairing-race`): the Java server job failed, four tests of
+  `BrowserServiceTest`. The other three jobs passed.
+- Run #8 (`1b28c91`, the merge of `folding-panels`): the Java server job failed, three tests of
+  `BrowserServiceTest`, one of them the same as in #7; and end to end, 91 passed and 2 failed:
+  "a second agent connects on its own port and is listed" (`Cannot read properties of undefined
+  (reading 'dataset')`) and, for want of that agent's id, "the user can disconnect one agent".
+
+Causes.
+
+1. **The server.** Since `34a81a8` it sent `auth_ok` before it took the connection for its
+   paired one. An extension that held `auth_ok` could find a tool call refused with
+   `NOT_CONNECTED`. The tests' setup returns the moment `auth_ok` arrives: that is the failure
+   of the Java server job, in other tests each time.
+2. **The agent's name could be lost, in two ways.** Given between the building of `auth_ok` and
+   the marking of the connection, it was neither in the answer nor sent behind it. And passing
+   it on stopped with an exception at a connection that a newer one had just replaced, before
+   the newer one was told. The popup then lists the agent by its id for good.
+3. **The end-to-end step.** It read the names in the popup right after the count of agents. An
+   agent names itself with its first tool call; when the extension has found its server before
+   that, the popup lists it by its id until its next refresh, 700 ms at most.
+
+Which of 2 and 3 failed the step in run #8 is not known; both give its message.
+
+Shown against the unfixed source:
+
+- Two new tests of `WebSocketBridgeTest` pair 200 times each: a command right behind the
+  pairing must reach the extension that paired, and a name given during a pairing must arrive.
+  Against the server's sources of `main`, seven runs (one free, three held to one core, three
+  to two): at least one of the two failed in every run, the name in six, the command in four.
+- End to end with the second agent's first tool call held back five seconds, the step as it
+  was, and the server already fixed: 91 passed, 2 failed, the two steps and messages of run #8.
+- Not shown: the failures of `BrowserServiceTest` themselves. They passed in every local run.
+
+After the fix. The server takes the connection and sends `auth_ok` as one step for its other
+threads; the name is passed on under the same lock, and a connection that has just closed no
+longer stops it; the step waits for the name. Built and run in a copy of the tree, because the
+session's own server was running from the tree's jar.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 64 tests; `McpConformanceIT` on the built jar: 8 tests |
+| `mvn -B -f java-server/pom.xml test`, held to one core (twice) and to two (three times) | 64 tests each time |
+| `WebSocketBridgeTest` on the final sources, held to two cores (six times) and to one (three times), with the end-to-end suite running beside it | 28 tests in eight runs; in one, `closesConnectionThatFloodsMessages` got close code 1006 instead of 4429 |
+| `cd e2e && npm test`, with the five seconds held back | 93 passed, 0 failed |
+| `cd e2e && npm test`, as it is | 93 passed, 0 failed |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Found on the way, in tests that CI has not failed in: four tests asked `connectBlocking` whether
+a connection had opened that the server closes right after; it says no when the close came
+first, which it did in both runs on two cores. They now ask for the close code only. And the
+flood test in the table above, which was left as it is; the state page has it.
+
+Not run: `npm run check` of the extension (nothing in it changed; it was built for the suite),
+the editor lab, the pictures, and the Linux container (Docker was not running). Not shown: that
+the jobs pass on GitHub.
+
+Also in this session: WP-10 to WP-14 filed in `TODO.md`, none started. For WP-14 the tracked
+files and the history were searched for personal information; what was found is in the package.
+
 ## 2026-11-21, on `folding-panels`: panels that fold
 
 Sessions, Activity, Agents and Settings fold to one line each, which says what is inside. All on
@@ -237,29 +300,12 @@ Not tried: the prompt of a session that spans two websites, with the tab on the 
 shown is taken from the tab's address when the user is asked. CI on GitHub has still not been
 seen.
 
-## 2026-11-21, on `mcp-standard`, WP-1 complete
-
-Gaps 1, 2 and 4: a cancelled call is not answered, progress for a client that asks, structured
-results. All on the final build.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 54 tests; then `McpConformanceIT` on the built jar: 8 tests |
-| `cd e2e && npm test` | 87 passed, 0 failed |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Failed on the way, and why: the end-to-end step for a cancelled call, once, with 86 of 87. It
-still waited for an answer to the call it had cancelled, which the server no longer sends. The
-commit that made that change had been checked with the server's tests only. The step and the
-test client now do what a client does: stop waiting, and note an answer that comes anyway.
-
-Not run: the extension's tests, which this branch does not touch. Ctrl+C on a running server. A
-real client of revision 2026-07-28. The MCP Inspector. CI on GitHub has still not been seen.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `mcp-standard`, WP-1 complete (a cancelled call is not answered, progress,
+  structured results): server 54 tests and 8 conformance tests, end to end 87 of 87, editor lab
+  222 of 225 in front and 220 of 225 in the background, no `SILENT`. The extension's tests were
+  not run; Ctrl+C on a running server, a real client and the MCP Inspector were not tried.
 - 2026-11-21, on `mcp-standard`, WP-1, first part (the conformance check): server 54 tests and 6
   conformance tests, end to end 87 of 87. By hand: `server/discover` answered with `-32601`, a
   mistyped option exits with 2. The extension's tests and the editor lab were not run.

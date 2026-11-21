@@ -18,6 +18,7 @@ import org.java_websocket.WebSocket;
 import org.java_websocket.drafts.Draft;
 import org.java_websocket.drafts.Draft_6455;
 import org.java_websocket.exceptions.InvalidDataException;
+import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import org.java_websocket.framing.CloseFrame;
 import org.java_websocket.handshake.ClientHandshake;
 import org.java_websocket.handshake.ServerHandshakeBuilder;
@@ -60,6 +61,8 @@ public class WebSocketBridge extends WebSocketServer {
     private final ExtensionConnection connection = new ExtensionConnection(json, timings);
     private final CompletableFuture<Void> started = new CompletableFuture<>();
     private final Deque<Long> failedPairings = new ArrayDeque<>();
+    /** Held while a connection becomes the paired one and is answered, and while the agent's name is passed on. */
+    private final Object pairing = new Object();
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "bcmcp-auth-timer");
         t.setDaemon(true);
@@ -136,17 +139,27 @@ public class WebSocketBridge extends WebSocketServer {
         if (clean.length() > 60) {
             clean = clean.substring(0, 60);
         }
-        if (clean.equals(clientName)) {
-            return;
-        }
-        clientName = clean;
-        for (WebSocket conn : getConnections()) {
-            Peer peer = conn.getAttachment();
-            if (peer != null && peer.authenticated && conn.isOpen()) {
-                ObjectNode msg = json.createObjectNode();
-                msg.put("type", "client");
-                msg.put("name", clean);
-                conn.send(json.writeValueAsString(msg));
+        // Not while a connection is being paired: its answer either carries this name already, or is
+        // out before the name is sent behind it.
+        synchronized (pairing) {
+            if (clean.equals(clientName)) {
+                return;
+            }
+            clientName = clean;
+            ObjectNode msg = json.createObjectNode();
+            msg.put("type", "client");
+            msg.put("name", clean);
+            String text = json.writeValueAsString(msg);
+            for (WebSocket conn : getConnections()) {
+                Peer peer = conn.getAttachment();
+                if (peer != null && peer.authenticated && conn.isOpen()) {
+                    try {
+                        conn.send(text);
+                    } catch (WebsocketNotConnectedException e) {
+                        // Closed between the look and the send, as a connection is that a newer one
+                        // has just replaced. The others are still told.
+                    }
+                }
             }
         }
     }
@@ -305,14 +318,19 @@ public class WebSocketBridge extends WebSocketServer {
         ack.put("proof", Pairing.serverProof(current, peer.nonce, clientNonce));
         ack.put("version", Protocol.VERSION);
         ack.put("clientId", clientId);
-        ack.put("clientName", clientName);
-        // The answer goes out first. Once this is the paired connection, other threads send on it: a
-        // waiting tool call its command, the MCP handshake the agent's name. Anything that reached the
-        // extension ahead of `auth_ok` would be taken there for a failed pairing.
-        conn.send(json.writeValueAsString(ack));
-        peer.authenticated = true;
-        peer.tokenAtPairing = current;
-        WebSocket replaced = connection.attach(conn);
+        // Becoming the paired connection and answering are one step for the other threads that send
+        // on it: a tool call its command, the MCP client its name. Before that step neither sends
+        // here, because the extension takes anything that reaches it ahead of `auth_ok` for a failed
+        // pairing. After it both do: an extension that holds `auth_ok` is connected for every tool
+        // call, and a name that was not in the answer follows it.
+        WebSocket replaced;
+        synchronized (pairing) {
+            ack.put("clientName", clientName);
+            // The token before the mark: whoever finds the connection paired reads its token.
+            peer.tokenAtPairing = current;
+            peer.authenticated = true;
+            replaced = connection.attach(conn, json.writeValueAsString(ack));
+        }
         if (replaced != null && replaced.isOpen()) {
             replaced.close(CLOSE_REPLACED, "Replaced by a newer connection");
         }
