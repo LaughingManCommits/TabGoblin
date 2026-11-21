@@ -16,8 +16,7 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 | Item | Status | Authoritative source |
 |---|---|---|
 | Push and merge `pairing-race`, then look at the CI run of that push | Waiting for the owner, who pushes and merges | git |
-
-The backlog in [TODO.md](../../TODO.md) is empty.
+| WP-9: where the time goes (agent, server, extension) | Filed with a proposal; waits for the owner's word on three points | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
