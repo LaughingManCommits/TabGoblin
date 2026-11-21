@@ -46,13 +46,16 @@ class McpConformanceIT {
         /** Every line the server wrote to its standard output, in order. */
         final List<String> written = new CopyOnWriteArrayList<>();
         private final BlockingQueue<String> unread = new LinkedBlockingQueue<>();
+        private final int port = freePort();
+        private final Path tokenFile;
 
         Server(String... arguments) throws IOException {
-            Path dir = Files.createTempDirectory("bcmcp-conformance");
+            tokenFile = Files.createTempDirectory("bcmcp-conformance").resolve("token");
             List<String> command = new ArrayList<>(List.of(
                     Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-jar", JAR.toString()));
             if (arguments.length == 0) {
-                command.addAll(List.of("--port", String.valueOf(freePort()), "--token-file", dir.resolve("token").toString()));
+                command.addAll(List.of("--port", String.valueOf(port), "--token-file", tokenFile.toString(),
+                        "--extension-origin", FakeExtension.ORIGIN));
             } else {
                 command.addAll(List.of(arguments));
             }
@@ -100,6 +103,14 @@ class McpConformanceIT {
                     + "\",\"capabilities\":{},\"clientInfo\":{\"name\":\"conformance\",\"version\":\"1\"}}");
             send("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
             return response;
+        }
+
+        /** Connects the way the extension does, with the token the server made for itself. */
+        FakeExtension browser() throws Exception {
+            for (int i = 0; i < 100 && !Files.exists(tokenFile); i++) {
+                Thread.sleep(100);
+            }
+            return FakeExtension.paired(port, Files.readString(tokenFile).trim());
         }
 
         /** Closes the server's input, as a client does to end it, and returns its exit code. */
@@ -179,6 +190,44 @@ class McpConformanceIT {
             assertEquals(NEWEST_WITH_HANDSHAKE, unknown.handshake("2099-01-01").path("result").path("protocolVersion").asString(),
                     "for one it does not know it answers with the newest it does");
         }
+    }
+
+    /** A call the client gives up on is stopped where it runs: in the browser. */
+    @Test
+    void aCancelledCallIsStoppedInTheBrowser() throws Exception {
+        try (Server server = new Server()) {
+            server.handshake(NEWEST_WITH_HANDSHAKE);
+            FakeExtension browser = server.browser();
+            browser.responder = command -> null; // a page that takes its time
+            server.send("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"browser_snapshot\",\"arguments\":{}}}");
+            await(() -> !browser.commands.isEmpty(), "the call to reach the browser");
+            String running = browser.commands.get(0).path("id").asString();
+
+            server.send("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":7,\"reason\":\"stopped by the user\"}}");
+            await(() -> browser.cancels.contains(running), "the browser to be told to stop");
+            browser.close();
+        }
+    }
+
+    /** The server ends in order: the browser is told, instead of finding the connection gone. */
+    @Test
+    void endOfInputClosesTheConnectionToTheBrowserInOrder() throws Exception {
+        try (Server server = new Server()) {
+            server.handshake(NEWEST_WITH_HANDSHAKE);
+            FakeExtension browser = server.browser();
+            assertEquals(0, server.endOfInput());
+            assertEquals(1001, browser.closed.get(10, TimeUnit.SECONDS), "the close code for \"going away\"");
+        }
+    }
+
+    private static void await(java.util.function.BooleanSupplier condition, String what) throws InterruptedException {
+        for (int i = 0; i < 100; i++) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            Thread.sleep(100);
+        }
+        fail("timed out waiting for " + what);
     }
 
     @Test

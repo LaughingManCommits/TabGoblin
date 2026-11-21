@@ -4,6 +4,7 @@ import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
+import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
@@ -123,7 +124,10 @@ public final class McpMain {
             Log.warn(startupProblem);
         } else {
             Log.info("listening port=" + bridge.getPort() + " client=" + bridge.clientId());
+            LISTENING.set(bridge);
         }
+        // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
+        Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
         if (startedByHand()) {
             // Someone typed the command: without this the terminal just sits there, looking stuck.
             System.err.println("""
@@ -137,14 +141,14 @@ public final class McpMain {
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
         // Exit when the MCP client closes stdin, so no orphan process keeps the WebSocket port,
         // and stop tool calls the client cancels.
-        StdinTap stdin = new StdinTap(System.in, McpMain::exitSoon);
+        StdinTap stdin = new StdinTap(System.in, McpMain::inputEnded);
 
-        McpServer.sync(new StdioServerTransportProvider(mapper, stdin, mcpOut))
+        SERVING.set(McpServer.sync(new StdioServerTransportProvider(mapper, stdin, mcpOut))
                 .serverInfo("browser-context-mcp", "0.2.0")
                 .instructions(INSTRUCTIONS)
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
                 .tools(toolSpecs(service, mapper, stdin))
-                .build();
+                .build());
 
         Thread.currentThread().join();
     }
@@ -179,17 +183,59 @@ public final class McpMain {
         }
     }
 
-    private static void exitSoon() {
-        Thread t = new Thread(() -> {
+    /** What is running and has to be ended in order: the MCP server, and the socket the extension connects to. */
+    private static final java.util.concurrent.atomic.AtomicReference<McpSyncServer> SERVING =
+            new java.util.concurrent.atomic.AtomicReference<>();
+    private static final java.util.concurrent.atomic.AtomicReference<WebSocketBridge> LISTENING =
+            new java.util.concurrent.atomic.AtomicReference<>();
+    private static final java.util.concurrent.atomic.AtomicBoolean STOPPED = new java.util.concurrent.atomic.AtomicBoolean();
+    /** How long ending in order may take before the process ends anyway. */
+    private static final long STOP_WITHIN_MS = 2000;
+
+    /**
+     * Ends what is running, once: the MCP server first, so that nothing new is taken on, then the
+     * socket, which tells the extension that this server is going away instead of leaving it to
+     * find the connection gone.
+     */
+    private static void stop() {
+        if (!STOPPED.compareAndSet(false, true)) {
+            return;
+        }
+        McpSyncServer server = SERVING.get();
+        if (server != null) {
             try {
-                Thread.sleep(200);
+                server.closeGracefully();
+            } catch (RuntimeException e) {
+                // ending anyway
+            }
+        }
+        WebSocketBridge bridge = LISTENING.get();
+        if (bridge != null) {
+            try {
+                bridge.stop(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (RuntimeException e) {
+                // ending anyway
+            }
+        }
+    }
+
+    /** The client closed the input: end in order, then exit, without ever hanging on the way. */
+    private static void inputEnded() {
+        Thread ending = new Thread(() -> {
+            Thread stopping = new Thread(McpMain::stop, "bcmcp-stop");
+            stopping.setDaemon(true);
+            stopping.start();
+            try {
+                stopping.join(STOP_WITHIN_MS);
             } catch (InterruptedException ignored) {
                 // exiting anyway
             }
             System.exit(0);
         }, "bcmcp-exit");
-        t.setDaemon(true);
-        t.start();
+        ending.setDaemon(true);
+        ending.start();
     }
 
     private static String schema(String required, String... properties) {

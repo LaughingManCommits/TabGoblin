@@ -32,7 +32,7 @@ it and the server only has to use it as intended.
 | Take the client's revision if supported, otherwise answer with the newest supported | Met | SDK |
 | Messages are single lines; nothing else is written to standard output | Met | `McpMain` hands the real standard output to the transport and points everything else at standard error |
 | Logging goes to standard error | Met | `Log` |
-| Exit when the client closes the input | Met | `StdinTap` notices the end of input; the SDK does not end the process |
+| Exit when the client closes the input | Met | `StdinTap` notices the end of input; the SDK does not end the process. The MCP server and the socket are closed in order first. |
 | Declare the `tools` capability, and whether the list changes | Met | Declared, with `listChanged` false |
 | A tool has a name, a description and an input schema that is a JSON Schema object | Met | `McpMain.toolSpecs` |
 | A tool says whether it only reads and whether it can destroy (hints) | Met | `McpMain.tool` |
@@ -88,14 +88,16 @@ Which generation to serve is the owner's decision, recorded in WP-1:
 `McpConformanceIT` starts the built jar and talks to it over its standard input and output:
 handshake, negotiation of the revision, `ping`, the list of tools and what each must have, a tool
 that fails, an unknown tool, an unknown method, the probe of a newer client, the exit when the
-input is closed, and that every line on standard output is a protocol message.
+input is closed, and that every line on standard output is a protocol message. With a stand-in
+for the extension it also checks that a cancelled call is stopped where it runs, and that the
+extension is told when the server ends.
 
 ```sh
 mvn -f java-server/pom.xml verify
 ```
 
-No browser is involved. A call that is cancelled while it runs in a browser is covered by the
-end-to-end suite and by `StdinTapTest`.
+No browser is involved. A call that is cancelled while it runs in a real browser is covered by
+the end-to-end suite.
 
 ## Done by hand, and why
 

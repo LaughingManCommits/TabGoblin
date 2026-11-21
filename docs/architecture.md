@@ -216,6 +216,19 @@ recorded as `UNCERTAIN`.
 A safe point is any moment before something is dispatched to the page. For a submission the last
 one is immediately before the click. What was dispatched is never undone.
 
+## How a server ends
+
+A server ends when its MCP client closes the input, on Ctrl+C, or on a signal to stop. Each time
+the same happens, in this order, and within two seconds or the process ends anyway:
+
+1. The MCP server is closed, so that nothing new is taken on.
+2. The socket is stopped. The extension gets the close code for "going away" (1001) and drops
+   that agent at once, instead of finding the connection gone.
+3. The process exits with code 0.
+
+A command line that is not understood starts nothing: the reason and the usage text go to
+standard error, and the exit code is 2.
+
 ## The service worker
 
 Manifest V3 stops an idle background worker. TabGoblin is built for that:
