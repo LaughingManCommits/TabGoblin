@@ -43,6 +43,13 @@
 
     <build>
         <finalName>browser-context-mcp</finalName>
+        <!-- The version is written into browsercontext/build.properties, where the server reads it. -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -70,6 +77,7 @@
                 <configuration>
                     <systemPropertyVariables>
                         <server.jar>${project.build.directory}/${project.build.finalName}.jar</server.jar>
+                        <server.version>${project.version}</server.version>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

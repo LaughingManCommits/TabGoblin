@@ -137,8 +137,10 @@ class McpConformanceIT {
         try (Server server = new Server()) {
             JsonNode hello = server.handshake(NEWEST_WITH_HANDSHAKE).path("result");
             assertEquals(NEWEST_WITH_HANDSHAKE, hello.path("protocolVersion").asString());
-            assertFalse(hello.path("serverInfo").path("name").asString("").isEmpty(), "the server names itself");
-            assertFalse(hello.path("serverInfo").path("version").asString("").isEmpty(), "and its version");
+            assertEquals("browser-context-mcp", hello.path("serverInfo").path("name").asString(), "the name clients have configured");
+            assertEquals("TabGoblin", hello.path("serverInfo").path("title").asString(), "the product's name, for display");
+            assertEquals(System.getProperty("server.version"), hello.path("serverInfo").path("version").asString(),
+                    "the version of the build, not one typed into the code");
             assertTrue(hello.path("capabilities").has("tools"), "it offers tools");
             assertFalse(hello.path("capabilities").path("tools").path("listChanged").asBoolean(true),
                     "and says that the list of tools does not change");

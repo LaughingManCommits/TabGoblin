@@ -144,13 +144,37 @@ public final class McpMain {
         StdinTap stdin = new StdinTap(System.in, McpMain::inputEnded);
 
         SERVING.set(McpServer.sync(new StdioServerTransportProvider(mapper, stdin, mcpOut))
-                .serverInfo("browser-context-mcp", "0.2.0")
+                .serverInfo(identity())
                 .instructions(INSTRUCTIONS)
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
                 .tools(toolSpecs(service, mapper, stdin))
                 .build());
 
         Thread.currentThread().join();
+    }
+
+    /** The name clients have it configured under; kept from before the product had its name. */
+    static final String SERVER_NAME = "browser-context-mcp";
+
+    /** Who this server says it is: the name clients know, the product's name for display, the version of the build. */
+    static McpSchema.Implementation identity() {
+        return new McpSchema.Implementation(SERVER_NAME, "TabGoblin", version(),
+                "Lets AI agents read and operate the browser tabs the user authorizes, and nothing else.", null, null);
+    }
+
+    /** The version the build wrote down, so that it is stated in one place: the build file. */
+    static String version() {
+        try (java.io.InputStream in = McpMain.class.getResourceAsStream("/browsercontext/build.properties")) {
+            java.util.Properties build = new java.util.Properties();
+            if (in != null) {
+                build.load(in);
+            }
+            String version = build.getProperty("version", "").trim();
+            // Unfilled when the classes are run without the build having processed the resources.
+            return version.isEmpty() || version.startsWith("${") ? "0.0.0-unbuilt" : version;
+        } catch (java.io.IOException e) {
+            return "0.0.0-unbuilt";
+        }
     }
 
     private static final String USAGE = """

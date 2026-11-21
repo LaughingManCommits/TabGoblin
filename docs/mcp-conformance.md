@@ -28,7 +28,7 @@ it and the server only has to use it as intended.
 
 | Requirement | Status | How |
 |---|---|---|
-| Answer `initialize` with the revision, the capabilities and the server's name and version | Met | SDK |
+| Answer `initialize` with the revision, the capabilities and the server's name and version | Met | SDK. The name is the one clients have configured, the title is the product's, and the version is read from the build. |
 | Take the client's revision if supported, otherwise answer with the newest supported | Met | SDK |
 | Messages are single lines; nothing else is written to standard output | Met | `McpMain` hands the real standard output to the transport and points everything else at standard error |
 | Logging goes to standard error | Met | `Log` |

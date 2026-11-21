@@ -78,7 +78,7 @@ Commands are in the [runbook](docs/agents/runbook.md). Run the focused test firs
 | Change MCP behaviour of the server (lifecycle, cancellation, tool metadata) | `McpMain.java`, `StdinTap.java` | [docs/mcp-conformance.md](docs/mcp-conformance.md) says which revision it is measured against; work in progress: [TODO.md](TODO.md) WP-1 | `StdinTapTest`, `mvn verify` (runs `McpConformanceIT` on the built jar), end to end |
 | Change build wiring or CI | `java-server/pom.xml`, `chrome-extension/build.mjs`, `.github/workflows/ci.yml` | Same | Run the job's commands locally (runbook: "Reproduce a CI job") |
 | Edit documentation | `docs/`, root `README.md` | Each fact has one page: tools in `tools.md`, rules in `security.md`, editors in `editors.md`, flows in `architecture.md`, commands in `development.md` | Check links; regenerate images only with `HEADED=1 node screenshots.mjs` |
-| Change the version | Runbook: "Change the version" | Eight files carry it | `grep` shows one version; all suites |
+| Change the version | Runbook: "Change the version" | Seven files carry it | `grep` shows one version; all suites |
 | Something slow or hanging | `ExtensionConnection.java` (deadlines), `background.ts` (settle, queues) | Same | `SHOW_STDERR=1 npm test` in `e2e` prints the servers' logs |
 
 For a task not listed: search `chrome-extension/src` and `java-server/src/main` for the tool's
