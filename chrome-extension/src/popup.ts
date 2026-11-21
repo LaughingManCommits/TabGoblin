@@ -43,7 +43,7 @@ interface State {
   blockedClients: string[];
   sessions: SessionView[];
   activity: ActivityEntry[];
-  pendingConfirm: { id: string; session: string; label: string; highImpact: boolean } | null;
+  pendingConfirm: { id: string; session: string; label: string; highImpact: boolean; how: 'click' | 'enter' } | null;
 }
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -278,7 +278,11 @@ function render(): void {
 
   $('confirm').hidden = !s.pendingConfirm;
   if (s.pendingConfirm) {
-    $('confirmTitle').textContent = s.pendingConfirm.highImpact ? 'Allow this high-impact action?' : 'Allow this submission?';
+    const enter = s.pendingConfirm.how === 'enter';
+    $('confirmTitle').textContent = s.pendingConfirm.highImpact ? 'Allow this high-impact action?'
+      : enter ? 'Allow pressing Enter?' : 'Allow this submission?';
+    $('confirmHow').textContent = enter ? 'The agent wants to press Enter in' : 'The agent wants to submit by clicking';
+    $('confirmWhy').textContent = enter ? ' In a message or comment box that sends what is written there.' : '';
     $('confirmLabel').textContent = `“${s.pendingConfirm.label || 'an unnamed control'}”`;
     $('confirmSession').textContent = s.pendingConfirm.session;
   }

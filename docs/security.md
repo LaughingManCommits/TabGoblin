@@ -81,6 +81,13 @@ which content scripts cannot read. It is never logged.
   a line break in a text is entered as content, also when the text is typed key by key.
 - A submission must be declared by the agent, needs Write access, and by default your confirmation.
   Destructive, financial and publishing actions always ask.
+- Enter in a text box is a submission. The page does not say whether it sends what is written or
+  starts a new line, so it is treated as sending: declared by the agent, and allowed by you in
+  the popup, which names the text box. Search boxes are the exception, and a text box on which a
+  list of options is open, where Enter takes an option.
+- Enter or Space on a button or link is a click on it, and no way around the rules for clicks.
+- A key is pressed only on the element it was checked on. If the keyboard has moved by the time
+  you allow it, nothing is pressed.
 - You are asked before anything is typed. Declining leaves the page untouched.
 - A submission id is processed once. Identical content within two minutes is refused unless
   explicitly repeated. An unknown outcome is recorded as uncertain and never resent.
@@ -137,6 +144,9 @@ content, typed text, full URLs, cookies, headers or the token.
 | Hidden form fields not offered as editors; an editor input's value not returned | DOM |
 | Editor text never entered twice; an unseen result not reported as success | DOM, editor lab |
 | A fill never presses Enter, in a text area or an editor | DOM, end-to-end |
+| Enter in a text box needs intent and the user's consent; a declined one is not pressed | Rules, DOM, worker, end-to-end |
+| Enter or Space on a control that submits is refused like a click on it | Rules, DOM, worker, end-to-end |
+| A key allowed for one element is not pressed on another | End-to-end |
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |
@@ -160,10 +170,13 @@ Chrome.
   submission would hurt.
 - **"Confirmed by reaction"** means the page behaved as if it accepted, not that the server stored
   anything.
-- **Enter in a message box.** An agent with Write access can press Enter with
-  `browser_press_key`. In a chat or comment box that sends the message. The tool cannot tell
-  such a box from an editor where Enter starts a new line, so you are not asked first. Only
-  Enter in a field of a form is treated as a submission.
+- **Confirmation switched off.** With "Ask me before the agent submits anything" off, an agent
+  that declares a submission is not held up by you: that goes for Enter in a message box as for a
+  Save button. High-impact actions still ask, but for Enter they are recognised only by the name
+  of the text box, which rarely says so.
+- **Controls without a recognisable role.** Enter or Space on an element that is not a button,
+  link or text box to the browser, and is not in keyboard reach by the page's own marking, is
+  pressed without these checks. What it does is up to the page.
 - **Wording checks are English.** Recognising submit-like and high-impact buttons outside forms
   depends on their label.
 - **Local malware** running as you can read the token file. TabGoblin does not defend against a

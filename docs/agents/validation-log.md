@@ -3,7 +3,28 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
-## 2026-11-21, on `typed-lines`
+## 2026-11-21, on `typed-lines`, second commit
+
+Enter in a text box is a submission; Enter or Space on a control follows the rules of a click.
+
+Passed, all on the final build:
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml package` | 52 tests, jar built |
+| `cd chrome-extension && npm run check` | type-check clean, 119 tests, build |
+| `cd e2e && npm test` | 86 passed, 0 failed. Three new steps drive the real popup prompt. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Not run: the new tests against the source before the change. That Enter and Space on a button
+used to pass without the rules of a click is read from that source, not measured.
+
+Failed: none. Not run: `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`. CI on
+GitHub has still not been seen.
+
+## 2026-11-21, on `typed-lines`, first commit
 
 A fill never presses Enter, on top of `ba977cd`. Same machine and versions as the entries below.
 

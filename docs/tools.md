@@ -236,7 +236,20 @@ Moving around (arrows, Tab, Escape, Home, End, PageUp, PageDown) needs Explore; 
 Backspace, Delete and characters need Write. Because synthetic key events do not trigger the
 browser's built-in behaviour, the usual effect is carried out and reported in `effect`: *activated
 the element*, *submitted the form*, *moved focus to …*, *typed the character*, *inserted a line
-break*. Enter in a form field is a submission and needs `intent: "submit"`.
+break*.
+
+Keys that can submit follow the rules for submissions:
+
+| Key | Where | Rule |
+|---|---|---|
+| Enter | A text box of any kind: a field of a form, a field outside one, a text area, an editor, a message box | A submission, because it may send what is written. Refused with `SUBMIT_INTENT_REQUIRED` unless `intent` is `submit`; then the user is asked to allow it. |
+| Enter | A search box, or a text box on which a list of options is open | Pressed. It searches, or takes the highlighted option. |
+| Enter, Space | A button, link, tab or menu item, or a control of the page's own making that takes the keyboard | The rules of `browser_click` on that element. With `intent: "submit"` it runs as a submission of that control, which needs its `ref`. |
+
+The page does not say whether Enter in a text box sends or only starts a new line, so both are
+treated as sending. A line break does not need Enter: put it into the text of `browser_fill`,
+with `append` to add to what is there. A key that was checked on one element is not pressed on
+another: if the keyboard moves while the user is asked, the result is `STALE_REF`.
 
 In a rich-text or code editor a key goes where the caret is. An editor that does not hold the
 caret gets the key at the end of its text; a code editor that keeps a cursor of its own gets it

@@ -26,7 +26,7 @@ what the page displays. Fifteen checks per editor:
 | clear | Empty text |
 | type | Character by character (`method: "type"`) |
 | keys | Single keys, including Backspace |
-| enter | Enter, then a character where the keyboard now is |
+| enter | Enter, then a character where the keyboard now is. To the tool Enter in an editor is a submission: the lab declares it, with the user's confirmation switched off. |
 | empty | A line into an emptied editor |
 | empty + lines | Two lines into an emptied editor |
 | shrink | A line over content of several paragraphs |

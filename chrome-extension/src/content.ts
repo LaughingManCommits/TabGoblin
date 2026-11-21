@@ -4,7 +4,7 @@
 
 import { extractPage, type LinkStyle } from './extract.ts';
 import {
-  clickElement, describeClickTarget, describeKeyTarget, fill, press, scrollPage, unsavedFields, viewportCoverage,
+  clickElement, describeClickTarget, describeKeyTarget, fill, keyElement, press, scrollPage, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
@@ -110,6 +110,9 @@ function showIndicator(text: string | null): void {
   indicator.label.textContent = text;
 }
 
+/** The element and key that the rules were last applied to, until that key is pressed. */
+let keyChecked: { el: Element; key: string } | null = null;
+
 async function handle(msg: Request, state: PageState): Promise<unknown> {
   if (!Array.isArray(msg.origins) || !msg.origins.includes(location.origin)) {
     throw new DomError('ORIGIN_MISMATCH', 'This document is not on an authorized origin.');
@@ -144,10 +147,24 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
       return clickElement(registry.resolve(ref));
     case 'fill':
       return await fill(registry.resolve(ref), String(msg.text ?? ''), msg.append === true, msg.method === 'type' ? 'type' : 'set');
-    case 'key_describe':
-      return describeKeyTarget(optionalRef(msg, state) ?? document.activeElement ?? document.body, String(msg.key));
-    case 'press_key':
-      return await press(document, optionalRef(msg, state) ?? null, String(msg.key));
+    case 'key_describe': {
+      const el = keyElement(document, optionalRef(msg, state) ?? null);
+      keyChecked = { el, key: String(msg.key) };
+      return describeKeyTarget(el, String(msg.key));
+    }
+    case 'press_key': {
+      const target = optionalRef(msg, state) ?? null;
+      const key = String(msg.key);
+      // The rules were applied to one element, and the user may have been asked about it. If the
+      // keyboard is somewhere else by now, they were not applied to the element the key would reach.
+      const checked = keyChecked;
+      keyChecked = null;
+      if (!checked || checked.key !== key || checked.el !== keyElement(document, target)) {
+        throw new DomError('STALE_REF',
+          'The element that has the keyboard changed while the key press was being checked. Nothing was pressed. Take a new snapshot.');
+      }
+      return await press(document, target, key);
+    }
     case 'scroll':
       return scrollPage(
         document,

@@ -7,9 +7,9 @@
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkClick, checkGate, failureNote, inScope, isHighImpact,
+  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkClick, checkGate, checkKey, failureNote, inScope, isHighImpact,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
-  type ClickTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
+  type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, parseServerMessage,
@@ -98,6 +98,8 @@ interface Client {
 }
 
 type ConfirmAnswer = 'allow' | 'deny' | 'timeout' | 'cancelled';
+/** How a submission that the user is asked about would be made: by a click on a control, or by Enter in a text box. */
+type ConfirmHow = 'click' | 'enter';
 
 /** A command in flight, with what is needed to stop it at a safe point. */
 interface Operation {
@@ -118,7 +120,9 @@ let persisted: Persisted = { sessions: [], sessionSeq: 0, activity: [], activity
 const clients = new Map<number, Client>();
 const operations = new Map<string, Operation>();
 const queues = new Map<string, Promise<void>>();
-const pendingConfirms = new Map<string, { id: string; session: string; label: string; highImpact: boolean; finish: (a: ConfirmAnswer) => void }>();
+const pendingConfirms = new Map<string, {
+  id: string; session: string; label: string; highImpact: boolean; how: ConfirmHow; finish: (a: ConfirmAnswer) => void;
+}>();
 const newTabs = new Map<number, number>();
 const indicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let pairingFailed = false;
@@ -594,7 +598,7 @@ async function runCommand(op: Operation, action: string, params: Record<string, 
 }
 
 /** Asks the user, in the extension popup, to allow one submission. */
-function askUser(op: Operation, label: string, highImpact: boolean): Promise<ConfirmAnswer> {
+function askUser(op: Operation, label: string, highImpact: boolean, how: ConfirmHow): Promise<ConfirmAnswer> {
   return new Promise<ConfirmAnswer>((resolve) => {
     const id = crypto.randomUUID();
     const timer = setTimeout(() => finish('timeout'), CONFIRM_TIMEOUT_MS);
@@ -606,7 +610,7 @@ function askUser(op: Operation, label: string, highImpact: boolean): Promise<Con
       refreshBadge();
       resolve(answer);
     };
-    pendingConfirms.set(id, { id, session: op.sessionId, label, highImpact, finish });
+    pendingConfirms.set(id, { id, session: op.sessionId, label, highImpact, how, finish });
     op.finishConfirm = finish;
     refreshBadge();
     // Best effort: bring the popup up so the request is seen. The "?" badge is the fallback.
@@ -619,21 +623,22 @@ function askUser(op: Operation, label: string, highImpact: boolean): Promise<Con
 }
 
 /** Puts a submission in front of the user when their setting or its impact calls for it. */
-async function confirmWithUser(op: Operation, session: SessionRecord, label: string): Promise<void> {
+async function confirmWithUser(op: Operation, session: SessionRecord, label: string, how: ConfirmHow = 'click'): Promise<void> {
   const highImpact = isHighImpact(label);
   if (!config.confirmSubmissions && !highImpact) return;
-  const answer = await askUser(op, label, highImpact);
+  const nothing = how === 'enter' ? 'Nothing was pressed.' : 'Nothing was clicked.';
+  const answer = await askUser(op, label, highImpact, how);
   if (answer === 'deny') {
-    throw new CommandError('SUBMIT_DENIED', 'The user declined this submission. Nothing was clicked.');
+    throw new CommandError('SUBMIT_DENIED', `The user declined this submission. ${nothing}`);
   }
   // Access may have been paused, revoked or changed while the question was open.
   const now = await gate(op, 'submit');
   if (now.session !== session || now.session.mode !== 'write') {
-    throw new CommandError('WRITE_NOT_AUTHORIZED', 'Authorization changed while waiting for confirmation. Nothing was clicked.');
+    throw new CommandError('WRITE_NOT_AUTHORIZED', `Authorization changed while waiting for confirmation. ${nothing}`);
   }
   if (answer !== 'allow') {
     throw new CommandError('SUBMIT_NOT_CONFIRMED',
-      'The user did not confirm the submission within 60 seconds. Nothing was clicked. Ask them to confirm in the TabGoblin popup before trying again.');
+      `The user did not confirm the submission within 60 seconds. ${nothing} Ask them to confirm in the TabGoblin popup before trying again.`);
   }
 }
 
@@ -700,13 +705,19 @@ async function click(op: Operation, session: SessionRecord, params: Record<strin
 async function pressKey(op: Operation, session: SessionRecord, params: Record<string, unknown>): Promise<object> {
   const { key, mode } = parseKey(String(params.key ?? ''));
   requireMode(session.mode, mode);
-  const target = await page<{ submit: 'form' | null; label: string }>(op, session, 'key_describe', { ref: params.ref, key });
-  if (target.submit) {
-    if (params.intent !== 'submit') {
+  const intent = params.intent === 'submit' ? 'submit' : 'interact';
+  const target = await page<KeyTarget>(op, session, 'key_describe', { ref: params.ref, key });
+  const verdict = checkKey(session.mode, intent, target);
+  if (verdict === 'click') {
+    // The key would do what a click on this control does, and that click is a submission.
+    if (params.ref === undefined || params.ref === null) {
       throw new CommandError('SUBMIT_INTENT_REQUIRED',
-        'Pressing Enter here submits a form. If the user explicitly asked for this submission, repeat with intent="submit" (or use browser_submit on the submit button to have the outcome verified).');
+        'The control that has the keyboard submits or changes data. Use browser_submit with its ref, which also verifies the outcome.');
     }
-    await confirmWithUser(op, session, target.label || 'the form');
+    return submit(op, session, { ref: Number(params.ref), fields: [], expectText: undefined, submissionId: undefined, repeat: false });
+  }
+  if (verdict === 'ask') {
+    await confirmWithUser(op, session, target.label || (target.submit === 'form' ? 'a form field' : 'a text box'), 'enter');
   }
   const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
   const result = await page<object>(op, session, 'press_key', { ref: params.ref, key });
@@ -1255,7 +1266,7 @@ function popupState(): object {
       lastSubmission: s.submissions.length ? s.submissions[s.submissions.length - 1].state : null,
     })),
     activity: persisted.activity,
-    pendingConfirm: [...pendingConfirms.values()].map((c) => ({ id: c.id, session: c.session, label: c.label, highImpact: c.highImpact }))[0] ?? null,
+    pendingConfirm: [...pendingConfirms.values()].map((c) => ({ id: c.id, session: c.session, label: c.label, highImpact: c.highImpact, how: c.how }))[0] ?? null,
   };
 }
 

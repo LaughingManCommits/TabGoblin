@@ -127,6 +127,9 @@ try {
   await popup.select('#newAccess', 'write');
   await popup.click('#authorize');
   await popup.waitForFunction(() => document.getElementById('authorizeBox').hidden);
+  // The user of this lab does not want to be asked before each Enter: the setting for that is off.
+  if (await popup.$eval('#confirmSubmissions', (el) => el.checked)) await popup.click('#confirmSubmissions');
+  await until(async () => (await agent.tool('browser_status')).text.includes('Submissions need user confirmation: no'), 'confirmations to be off');
   await popup.close().catch(() => undefined);
   await page.bringToFront();
   // In background mode each page is loaded in front, like a page the user opened, and then
@@ -172,7 +175,12 @@ try {
         };
         const tools = {
           fill: async (text, opts = {}) => { record(await agent.tool('browser_fill', { ref, text, ...opts })); await sleep(200); },
-          key: async (key, { focused = false } = {}) => { record(await agent.tool('browser_press_key', focused ? { key } : { key, ref })); await sleep(150); },
+          // To the tool, Enter in an editor is a submission: it may send what is written. The lab declares it.
+          key: async (key, { focused = false } = {}) => {
+            const intent = key === 'Enter' ? { intent: 'submit' } : {};
+            record(await agent.tool('browser_press_key', { key, ...(focused ? {} : { ref }), ...intent }));
+            await sleep(150);
+          },
         };
         const expected = norm(await check.run(tools));
         const actual = await model();

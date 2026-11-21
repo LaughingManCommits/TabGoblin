@@ -130,6 +130,9 @@ filling in fields.
 <img src="images/popup-confirm.png" width="354" alt="The popup asking to allow a submission">
 
 - The agent has to declare it. A click that would submit is refused otherwise.
+- Pressing Enter in a text box counts as well: in a chat or comment box it sends what is written.
+  The prompt then reads **Allow pressing Enter?** and names the text box. Search boxes are left
+  alone.
 - With **Ask me before the agent submits anything** on (the default), you get this prompt. Nothing
   is typed or clicked until you press **Allow**; **Deny**, or no answer within a minute, means
   nothing happens.

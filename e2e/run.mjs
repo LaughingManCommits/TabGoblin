@@ -1032,6 +1032,51 @@ try {
     assert(line.valueMatches && !line.note, JSON.stringify(line));
     json(await two.tool('browser_fill', { ref: editor, text: '' }));
   });
+  await step('Enter in a message box is a submission: declared by the agent, then allowed by the user', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const editor = ref(snapshot, 'Textbox: New note');
+    await pageB.evaluate(() => {
+      window.__sent = 0;
+      document.getElementById('editor').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.__sent += 1; });
+    });
+    const sent = () => pageB.evaluate(() => window.__sent);
+    json(await two.tool('browser_fill', { ref: editor, text: 'Remember this' }));
+
+    fails(await two.tool('browser_press_key', { ref: editor, key: 'Enter' }), 'SUBMIT_INTENT_REQUIRED');
+    assert(await sent() === 0, 'Enter must not be pressed without intent');
+
+    await setConfirmation(true, two);
+    const denied = two.tool('browser_press_key', { ref: editor, key: 'Enter', intent: 'submit' });
+    const prompt = await answerPrompt(false);
+    assert(prompt.title === 'Allow pressing Enter?' && prompt.label === '“New note”', JSON.stringify(prompt));
+    fails(await denied, 'SUBMIT_DENIED');
+    assert(await sent() === 0, 'Enter must not be pressed when the user declines');
+
+    const allowed = two.tool('browser_press_key', { ref: editor, key: 'Enter', intent: 'submit' });
+    await answerPrompt(true);
+    assert(json(await allowed).dispatched, 'the key should be pressed once the user allows it');
+    assert(await sent() === 1, `pressed once, counted ${await sent()}`);
+  });
+  await step('a key the user allowed for one element is not pressed on another', async () => {
+    // The editor has the keyboard. While the user is asked, the page moves it to the Save control.
+    const moved = two.tool('browser_press_key', { key: 'Enter', intent: 'submit' });
+    await until(async () => (await badge()) === '?', 'the confirmation to be pending');
+    await pageB.evaluate(() => document.getElementById('save').focus());
+    await answerPrompt(true);
+    fails(await moved, 'STALE_REF');
+    assert(await pageB.evaluate(() => window.__sent) === 1, 'no further key press reached the editor');
+    lacks(ok(await two.tool('browser_snapshot')).text, 'Clickable: Remember this');
+    await setConfirmation(false, two);
+  });
+  await step('Enter or Space on a control that saves is refused like a click on it', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const save = ref(snapshot, 'Button: Save note');
+    for (const key of ['Enter', 'Space']) {
+      fails(await two.tool('browser_press_key', { ref: save, key }), 'SUBMIT_INTENT_REQUIRED');
+    }
+    lacks(ok(await two.tool('browser_snapshot')).text, 'Clickable: Remember this');
+    json(await two.tool('browser_fill', { ref: ref(snapshot, 'Textbox: New note'), text: '' }));
+  });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();
     has(ok(await two.tool('browser_snapshot')).text, 'in an inner scrolling area. More below:');

@@ -26,7 +26,8 @@ IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┼�
   both bounded, and both say how complete they are.
 - **Acting.** Click, fill, type, press keys, scroll, navigate, go back, wait, take screenshots.
 - **Submitting.** Declared by the agent, confirmed by you, sent once, and verified against the
-  page: confirmed, failed or uncertain, with the evidence.
+  page: confirmed, failed or uncertain, with the evidence. Pressing Enter in a message box counts
+  as submitting.
 - **Control.** Pause or revoke a session, disconnect an agent, watch what happens. If a tab leaves
   its website the session is suspended until you resume it.
 - **Website-agnostic.** No site-specific code anywhere; the agent supplies the understanding.
@@ -75,8 +76,8 @@ The [installation guide](docs/installation.md) walks through each step with what
 
 ```sh
 mvn -f java-server/pom.xml test         # 52 tests
-cd chrome-extension && npm run check    # 112 tests, type-check, build
-cd e2e && npm install && npm test       # 83 steps in your Chrome, against three demo sites
+cd chrome-extension && npm run check    # 119 tests, type-check, build
+cd e2e && npm install && npm test       # 86 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries
 ```
 
