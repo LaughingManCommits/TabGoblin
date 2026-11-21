@@ -25,11 +25,20 @@ function isSearchForm(form: HTMLFormElement): boolean {
   return !!form.closest('[role="search"], search') || !!form.querySelector('input[type="search"]');
 }
 
+/** An element's name, short enough for a prompt or a message: cut at a word where it can be, and marked as cut. */
+function shortName(el: Element, max = 60): string {
+  const name = accessibleName(el);
+  if (name.length <= max) return name;
+  const cut = name.slice(0, max - 1);
+  const word = cut.lastIndexOf(' ');
+  return `${(word > max / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
+}
+
 /** Describes what clicking an element would mean, so the policy can decide before anything happens. */
 export function describeClickTarget(el: Element): ClickTarget {
   const tag = el.localName;
   const type = inputType(el);
-  const label = accessibleName(el).slice(0, 60);
+  const label = shortName(el);
   const role = roleOf(el);
   let readSafe = false;
   let externalLink = false;
@@ -259,7 +268,7 @@ function choosesAnOption(el: Element): boolean {
  * what is written there.
  */
 export function describeKeyTarget(el: Element, key: string): KeyTarget {
-  const label = accessibleName(el).slice(0, 60);
+  const label = shortName(el);
   const none: KeyTarget = { submit: null, click: null, label };
   // In the order in which `pressKey` decides what the key does.
   const form = key === 'Enter' ? fieldOfForm(el) : null;

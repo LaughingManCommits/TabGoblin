@@ -46,7 +46,12 @@
 
     <section id="confirm" class="card confirm" hidden>
       <h2 id="confirmTitle">Allow this submission?</h2>
-      <p><span id="confirmHow">The agent wants to submit by clicking</span> <strong id="confirmLabel"></strong> in session <span id="confirmSession" class="sid"></span>.<span id="confirmWhy"></span></p>
+      <p class="ask">
+        <span id="confirmClick">The agent wants to submit by clicking</span><span id="confirmEnter" hidden>The agent wants to press <kbd>Enter</kbd> in</span>
+        <strong id="confirmLabel"></strong>.
+      </p>
+      <p id="confirmWhy" class="why" hidden>In a message or comment box, Enter sends what is written.</p>
+      <div class="where"><span id="confirmSession" class="sid"></span><span id="confirmOrigin" class="origin"></span></div>
       <div class="row">
         <button id="allow" class="primary">Allow</button>
         <button id="deny">Deny</button>

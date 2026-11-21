@@ -295,6 +295,22 @@ test('Enter in any text box may send what is written; search boxes and open opti
   assert.equal(d('text').click, null, 'focusable by script only: not a control');
 });
 
+test('a long name is cut at a word and marked as cut, for the prompt the user reads', () => {
+  const { doc } = page(`
+    <textarea id="long" aria-label="Reply to the whole thread, visible to everyone in the project"></textarea>
+    <textarea id="word" aria-label="${'x'.repeat(80)}"></textarea>
+    <button id="button">Delete the repository and everything in it, including all issues and wikis</button>
+    <textarea id="short" aria-label="Comment"></textarea>
+  `);
+  const key = (id: string): string => describeKeyTarget(doc.getElementById(id)!, 'Enter').label;
+  assert.equal(key('long'), 'Reply to the whole thread, visible to everyone in the…');
+  assert.equal(key('word'), `${'x'.repeat(59)}…`, 'one long word is cut where it has to be');
+  assert.equal(key('short'), 'Comment');
+  const button = describeClickTarget(doc.getElementById('button')!);
+  assert.ok(button.label.length <= 60 && button.label.endsWith('…'), button.label);
+  assert.equal(button.submit, 'likely', 'and what it says is still recognised');
+});
+
 test('Enter or Space on a control is described as the click it is', () => {
   const { doc } = page(`
     <form method="post"><input id="name"><button id="save">Save</button><input id="agree" type="checkbox"></form>

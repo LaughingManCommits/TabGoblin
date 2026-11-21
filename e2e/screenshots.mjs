@@ -157,6 +157,16 @@ try {
   await popup.click('#allow');
   example('submit.txt', (await pending).text.replace(/sub-[0-9a-f-]+/, 'sub-4f2a9c1e7b3d').replace(/"url" : "[^"]+"/, '"url" : "http://127.0.0.1:8931/"'));
 
+  // 4b. Enter in a text box, waiting for the user. Declined: the picture is all that is wanted.
+  const posted = (await one.tool('browser_snapshot')).text;
+  const key = one.tool('browser_press_key', { ref: ref(posted, 'Textbox (multiline): Comment'), key: 'Enter', intent: 'submit' });
+  popup = await open(a);
+  await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
+  await sleep(800);
+  await capture(popup, 'popup-confirm-enter.png');
+  await popup.click('#deny');
+  await key;
+
   // 5. The in-page indicator while an operation runs.
   await a.bringToFront();
   const waiting = one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 3000 });

@@ -151,6 +151,23 @@ button.link:hover { color: var(--fg); }
 /* ---------- confirmation ---------- */
 .confirm { background: var(--warn-soft); border-color: var(--warn-line); }
 .confirm p { margin-bottom: 10px; }
+.confirm .ask { margin-bottom: 6px; }
+.confirm .ask .unnamed { font-weight: inherit; }
+.confirm .why { color: var(--muted); font-size: 12px; margin-bottom: 8px; text-wrap: balance; }
+.confirm .where { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; font-size: 12px; }
+.confirm .where .origin { min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Deleting, paying, publishing: the colour of danger, and an Allow button that does not invite a quick click. */
+.confirm.high { background: var(--bad-soft); border-color: var(--bad); }
+.confirm.high h2 { color: var(--bad); }
+.confirm.high kbd { border-color: var(--bad); }
+.confirm.high button.primary { background: var(--bad); border-color: var(--bad); }
+/* A key, drawn as one. */
+kbd {
+  display: inline-block; padding: 0 6px; border-radius: 5px;
+  font: 600 11px/17px ui-monospace, "Cascadia Code", Consolas, monospace;
+  background: var(--card); color: var(--fg);
+  border: 1px solid var(--warn-line); border-bottom-width: 2px;
+}
 
 /* ---------- agents ---------- */
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

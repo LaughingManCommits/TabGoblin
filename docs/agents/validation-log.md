@@ -3,6 +3,21 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `typed-lines`, third commit
+
+The look of the confirmation prompt, checked by eye. No change to what is asked or when.
+
+| What | Result |
+|---|---|
+| The prompt in the real popup, headless: click, Enter, a long name, a high-impact name, no name; each in the dark and the light theme | 20 pictures looked at; three defects found and fixed (a name cut mid-word, a missing name shown as a quotation, a high-impact prompt that looked routine) |
+| `HEADED=1 node screenshots.mjs` | all ten pictures written; the six that changed were looked at one by one. The example outputs came out identical. |
+| `cd chrome-extension && npm run check` | type-check clean, 120 tests, build |
+| `cd e2e && npm test` | 86 passed, 0 failed |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Not run again: the Java build and the editor lab. Neither is touched by this commit, which changes
+the popup, the wording of what has no name, and how a long name is shortened.
+
 ## 2026-11-21, on `typed-lines`, second commit
 
 Enter in a text box is a submission; Enter or Space on a control follows the rules of a click.

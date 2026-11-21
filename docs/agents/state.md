@@ -6,8 +6,9 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 - `main` = `origin/main` = `ba977cd`: the merge of `editor-keys`, made by the owner on 2026-11-21.
   Earlier that day the owner merged `editor-compatibility`. Both branches are finished.
-- Branch `typed-lines`: local, not pushed, not merged. Two commits on top of `ba977cd`: a fill
+- Branch `typed-lines`: local, not pushed, not merged. Three commits on top of `ba977cd`: a fill
   never presses Enter, and Enter in a text box is a submission that the user allows in the popup.
+  A third commit gives that prompt its final look and regenerates the pictures in `docs/images`.
 
 ## Active work
 
@@ -25,9 +26,6 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
   untested. The CI unit jobs are Linux, unverified for the same reason as above.
 - **No hover.** CSS `:hover` cannot be set without the debugger, so a hover tool was decided
   against on 2026-11-21; the limit is recorded in the root `README.md`.
-- **No picture of the new prompt.** The popup asks "Allow pressing Enter?" for Enter in a text
-  box. `docs/images/popup-confirm.png` shows the prompt for a click, which is unchanged. A picture
-  of the new one needs `HEADED=1 node screenshots.mjs` and a step for it in that script.
 - **Not tried:** real products built on the tested editor libraries, and IntelliJ's own agent.
 
 ## Handoff

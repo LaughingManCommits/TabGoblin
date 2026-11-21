@@ -281,10 +281,19 @@ function render(): void {
     const enter = s.pendingConfirm.how === 'enter';
     $('confirmTitle').textContent = s.pendingConfirm.highImpact ? 'Allow this high-impact action?'
       : enter ? 'Allow pressing Enter?' : 'Allow this submission?';
-    $('confirmHow').textContent = enter ? 'The agent wants to press Enter in' : 'The agent wants to submit by clicking';
-    $('confirmWhy').textContent = enter ? ' In a message or comment box that sends what is written there.' : '';
-    $('confirmLabel').textContent = `“${s.pendingConfirm.label || 'an unnamed control'}”`;
+    // What deletes, pays or publishes does not look like a routine question.
+    $('confirm').classList.toggle('high', s.pendingConfirm.highImpact);
+    $('confirmClick').hidden = enter;
+    $('confirmEnter').hidden = !enter;
+    $('confirmWhy').hidden = !enter;
+    // The name comes from the page: shown as a quotation. What has no name is described in our own words.
+    const label = s.pendingConfirm.label;
+    $('confirmLabel').textContent = label ? `“${label}”` : enter ? 'a text box without a name' : 'a control without a name';
+    $('confirmLabel').classList.toggle('unnamed', !label);
+    // Where: the session, and the website it is on, so that the list below need not be searched.
+    const where = s.sessions.find((x) => x.id === s.pendingConfirm?.session);
     $('confirmSession').textContent = s.pendingConfirm.session;
+    $('confirmOrigin').textContent = where ? displayOrigin(where.origin) : '';
   }
 
   renderAgents(s);

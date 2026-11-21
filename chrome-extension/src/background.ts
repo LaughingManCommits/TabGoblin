@@ -717,7 +717,7 @@ async function pressKey(op: Operation, session: SessionRecord, params: Record<st
     return submit(op, session, { ref: Number(params.ref), fields: [], expectText: undefined, submissionId: undefined, repeat: false });
   }
   if (verdict === 'ask') {
-    await confirmWithUser(op, session, target.label || (target.submit === 'form' ? 'a form field' : 'a text box'), 'enter');
+    await confirmWithUser(op, session, target.label, 'enter');
   }
   const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
   const result = await page<object>(op, session, 'press_key', { ref: params.ref, key });
