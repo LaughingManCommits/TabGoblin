@@ -238,6 +238,25 @@ browser's built-in behaviour, the usual effect is carried out and reported in `e
 the element*, *submitted the form*, *moved focus to …*, *typed the character*, *inserted a line
 break*. Enter in a form field is a submission and needs `intent: "submit"`.
 
+In a rich-text or code editor a key goes where the caret is. An editor that does not hold the
+caret gets the key at the end of its text; a code editor that keeps a cursor of its own gets it
+there. Without `ref` the key goes to whatever has the keyboard. `effect` says what the page shows:
+
+| `effect` | Meaning |
+|---|---|
+| typed the character, inserted a new paragraph, deleted a character | Done, and the page shows it |
+| the page handled the key itself | The editor took the key and did what it does with it; take a snapshot to see |
+| the editor took the key, but nothing on the page changed | For example Backspace in an empty editor, or an editor that is read-only |
+| the editor did not react to the key | Nothing happened |
+| the editor accepted the key, the editor gave no sign of taking the key | Only in a background tab, always with a `note`: it could not be told |
+
+When the tab is in the background and the result could not be confirmed, a `note` says so:
+
+| Note says | Meaning | What to do |
+|---|---|---|
+| could not be checked | The editor took the key, or may have, without redrawing | Do **not** press it again; snapshot once the tab is visible |
+| what is entered next may land in the wrong place | A new paragraph was started where the editor cannot redraw | Put the whole text, line breaks included, into one `browser_fill` |
+
 ## browser_fill
 
 `ref`, `text`, `append`, `method` (`set` or `type`).
@@ -265,6 +284,7 @@ Password and credential-like fields are refused (`SENSITIVE_FIELD`).
 | does not show exactly the requested text | The editor changed, differently | Snapshot, then correct it |
 | changed the indentation | The words are in, leading spaces are not as given | Snapshot; matters for code |
 | could not be checked | The tab is in the background and the editor does not redraw there | Do **not** fill again; snapshot once the tab is visible |
+| typed line by line | `method: "type"` with line breaks, in a background tab: lines may have run together | Fill again without `method: "type"`, which replaces the text |
 
 Never repeat a fill only because it was not confirmed: an editor may have taken the text without
 showing it yet.

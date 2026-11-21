@@ -5,7 +5,7 @@ import { editorKind, fillEditor, fireKey, pressEditorKey, type FillResult } from
 import { scrollerOf, visibleText } from './extract.ts';
 import { looksLikeSubmission, type ClickTarget } from './policy.ts';
 import {
-  DomError, accessibleName, checkedState, frameDocument, isDisabled, isScrollable, isSensitiveField, isVisible,
+  DomError, accessibleName, checkedState, frameDocument, isDisabled, isEditingHost, isScrollable, isSensitiveField, isVisible,
   mainScroller, norm, roleOf, type PageState, type RefRegistry,
 } from './snapshot.ts';
 
@@ -238,6 +238,8 @@ export interface KeyResult {
   dispatched: true;
   /** What the key did beyond the page's own handlers, if anything. */
   effect: string;
+  /** In an editor: why the effect could not be confirmed, or may not hold for what is entered next. */
+  note?: string;
 }
 
 /**
@@ -328,9 +330,22 @@ function focusedElement(doc: Document): Element {
   for (;;) {
     const frame = el.localName === 'iframe' || el.localName === 'frame' ? frameDocument(el) : null;
     const inner: Element | null | undefined = el.shadowRoot?.activeElement ?? frame?.activeElement;
-    if (!inner || inner === el) return el;
+    if (!inner || inner === el) return caretRegion(el) ?? el;
     el = inner;
   }
+}
+
+/**
+ * Typing goes where the caret is. A page moves the caret from one editable region into another by
+ * setting the selection, and the browser moves the keyboard along with it, except in a window
+ * that is not in front. There the region that holds the caret is the one that is meant.
+ */
+function caretRegion(focused: Element): Element | null {
+  if (!isEditingHost(focused)) return null;
+  let node: Node | null = focused.ownerDocument.getSelection?.()?.anchorNode ?? null;
+  while (node && !(node.nodeType === 1 && isEditingHost(node as Element))) node = node.parentNode;
+  const region = node as Element | null;
+  return region && region !== focused && !focused.contains(region) && !region.contains(focused) ? region : null;
 }
 
 /** Presses one key on an element (or the focused one), in a form control or an editor. */
@@ -339,7 +354,7 @@ export async function press(doc: Document, target: Element | null, key: string):
   const editing = [...key].length === 1 || EDITING_KEYS.has(key);
   if (editing && editorKind(el)) {
     assertWritable(el);
-    return { dispatched: true, effect: await pressEditorKey(el, key, false) };
+    return { dispatched: true, ...(await pressEditorKey(el, key, false)) };
   }
   return pressKey(doc, target, key);
 }

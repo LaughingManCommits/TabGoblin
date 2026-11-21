@@ -997,6 +997,21 @@ try {
     assert(after.indexOf('Clickable: Water the plants') > 0 && after.indexOf('Clickable: Water the plants') < after.indexOf('Clickable: Buy milk'),
       `pinned note should be first:\n${after}`);
   });
+  await step('a key pressed in a rich-text editor that has lost the caret goes to the end of its text', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const editor = ref(snapshot, 'Textbox: New note');
+    assert(json(await two.tool('browser_fill', { ref: editor, text: 'Feed the ca' })).valueMatches, 'the editor should take the text');
+    // The keyboard goes elsewhere, as it does when the user clicks on something else.
+    await pageB.evaluate(() => {
+      document.activeElement.blur();
+      getSelection().removeAllRanges();
+    });
+    const typed = json(await two.tool('browser_press_key', { ref: editor, key: 't' }));
+    assert(typed.effect === 'typed the character' && !typed.note, JSON.stringify(typed));
+    const text = await pageB.$eval('#editor', (el) => el.textContent);
+    assert(text === 'Feed the cat', `expected the key at the end, got ${JSON.stringify(text)}`);
+    json(await two.tool('browser_fill', { ref: editor, text: '' }));
+  });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();
     has(ok(await two.tool('browser_snapshot')).text, 'in an inner scrolling area. More below:');

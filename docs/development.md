@@ -87,6 +87,7 @@ npm test                      # tab in front
 BACKGROUND=1 npm test         # tab in the background while the agent works
 ONLY=monaco,quill npm test    # some editors
 CHECKS=lines,indent npm test  # some checks
+VERBOSE=1 npm test            # also print what the tool answered each time
 node lab.mjs                  # just serve the pages, to look at them
 node live.mjs                 # the same idea on public demo pages of the editors' makers
 ```

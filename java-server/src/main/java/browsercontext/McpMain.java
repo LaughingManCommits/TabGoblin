@@ -259,7 +259,9 @@ public final class McpMain {
                 "Press one key on an element (by ref) or on the focused element: Enter, Escape, Tab, Shift+Tab, "
                         + "Space, Backspace, Delete, arrow keys, Home, End, PageUp, PageDown, or one character. "
                         + "Navigation keys need Explore access, others Write. Enter in a form field submits the "
-                        + "form and therefore needs intent=\"submit\".",
+                        + "form and therefore needs intent=\"submit\". The result's effect says what the key did. "
+                        + "In a rich-text or code editor a note is added when that could not be confirmed: "
+                        + "never press the key again because of it.",
                 schema("\"key\"", """
                         "key":{"type":"string","description":"Key name, e.g. Enter, Escape, Tab, ArrowDown, or a single character."}""", """
                         "ref":{"type":"integer","description":"Element to focus first. Default: the currently focused element."}""", """

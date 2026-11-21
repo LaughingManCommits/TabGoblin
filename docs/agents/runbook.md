@@ -69,8 +69,7 @@ ONLY=monaco,quill CHECKS=lines,indent npm test
 
 Success: exit 0 and a table with one row per editor. A cell marked `fail` is an honest, documented
 limit and does not fail the run. `SILENT` fails it: the tool reported success for text the editor
-does not hold. The background run is expected to exit 1 today, for the two Enter checks in footnote ³
-of the results. Expected totals are in [Editors](../editors.md#results); a change to `editor.ts` or
+does not hold. `VERBOSE=1` prints what the tool answered each time. Expected totals are in [Editors](../editors.md#results); a change to `editor.ts` or
 to `editorSurface` in `snapshot.ts` needs both the front and the background run.
 
 `node live.mjs` tries public demo pages. It needs the internet, and those pages change; treat a

@@ -47,6 +47,8 @@ The full list of conventions is in
 Working rules for this repository:
 
 - The owner pushes and merges. Commit when asked; do not push unless asked.
+- The owner also merges and removes branches while a session is running. Look at `git status -sb`
+  right before a commit, and never commit on `main`: make a branch first.
 - Open every generated screenshot and check it shows what you claim before using it.
 - Documentation is plain and factual: what was measured, what was not, where it stops.
 

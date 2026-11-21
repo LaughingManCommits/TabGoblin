@@ -162,7 +162,12 @@ try {
         const record = (result) => {
           const code = /Error \[(\w+)\]/.exec(result.text)?.[1];
           const matched = /"valueMatches"\s*:\s*(true|false)/.exec(result.text)?.[1];
-          outcome.said.push(code ?? (matched === 'true' ? 'ok' : matched === 'false' ? 'mismatch' : 'done'));
+          // A key press says what it did in words. One the editor ignored, or one that could not
+          // be confirmed, is the tool saying so.
+          const effect = /"effect"\s*:\s*"([^"]*)"/.exec(result.text)?.[1] ?? '';
+          const key = /did not react|nothing on the page changed/.test(effect) ? 'no effect' : /"note"\s*:/.test(result.text) ? 'unconfirmed' : 'done';
+          outcome.said.push(code ?? (matched === 'true' ? 'ok' : matched === 'false' ? 'mismatch' : key));
+          if (process.env.VERBOSE) console.log(`  ${fixture.id}/${check.id}: ${result.text.replace(/\s+/g, ' ').slice(0, 300)}`);
           return result;
         };
         const tools = {
@@ -189,8 +194,9 @@ try {
 }
 
 // A wrong answer the tool admits to is a limitation; one it reports as success is a defect.
-const silent = (o) => !o.pass && o.said.length > 0 && o.said.every((s) => s === 'ok' || s === 'done');
-const doubted = (o) => o.pass && o.said.includes('mismatch');
+const sure = (s) => s === 'ok' || s === 'done';
+const silent = (o) => !o.pass && o.said.length > 0 && o.said.every(sure);
+const doubted = (o) => o.pass && !o.said.every(sure);
 const mark = (o) => (o.pass ? (doubted(o) ? 'ok?' : 'ok') : silent(o) ? 'SILENT' : o.said.includes('not listed') ? 'unlisted' : 'fail');
 
 const width = Math.max(...fixtures.map((f) => f.name.length)) + 2;
