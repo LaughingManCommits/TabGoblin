@@ -426,13 +426,16 @@ public final class McpMain {
                     JsonNode arguments = argsOf(service, request);
                     StdinTap tap = TAP.get();
                     String callId = tap == null ? null : tap.begin(name, arguments);
+                    BrowserService.ToolResult result = null;
+                    boolean givenUp = false;
                     try {
-                        return toMcp(service.call(name, arguments));
+                        result = service.call(name, arguments);
                     } finally {
-                        if (tap != null) {
-                            tap.end(callId);
-                        }
+                        givenUp = tap != null && tap.end(callId);
                     }
+                    // A call the client cancelled gets no answer: the specification asks for none, and
+                    // the client has stopped waiting. Returning nothing is how the SDK is told so.
+                    return givenUp ? null : toMcp(result);
                 })
                 .build();
     }

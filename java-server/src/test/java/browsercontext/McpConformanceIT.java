@@ -208,6 +208,13 @@ class McpConformanceIT {
 
             server.send("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":7,\"reason\":\"stopped by the user\"}}");
             await(() -> browser.cancels.contains(running), "the browser to be told to stop");
+
+            // The client gave the call up, so no answer is sent for it; the next request is served as usual.
+            assertTrue(server.request(8, "ping", null).path("result").isObject());
+            Thread.sleep(1500);
+            for (String line : server.written) {
+                assertNotEquals(7, JSON.readTree(line).path("id").asInt(-1), "an answer to the cancelled call: " + line);
+            }
             browser.close();
         }
     }

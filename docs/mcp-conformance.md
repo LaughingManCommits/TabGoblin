@@ -40,7 +40,7 @@ it and the server only has to use it as intended.
 | A tool that fails answers with a result marked `isError`, not with a protocol error | Met | `BrowserService.call` never throws |
 | An unknown tool, and an unknown method, are protocol errors | Met | SDK: `-32602` and `-32601` |
 | `ping` is answered | Met | SDK |
-| A cancelled request stops (`notifications/cancelled`) | Met in part | By hand, in `StdinTap`: this API of the SDK has no handler for it. The call is stopped in the browser. A result that says so is still sent, which the specification advises against and tells the client to ignore. |
+| A cancelled request stops, and is not answered (`notifications/cancelled`) | Met | By hand, in `StdinTap`: this API of the SDK has no handler for it. The call is stopped in the browser, and no answer is sent for it. |
 | Progress for long requests (optional) | Not used | Gap 2 |
 | Structured results with an output schema (optional) | Not used | Gap 4 |
 | Log messages to the client (optional) | Not used | The SDK declares the `logging` capability by itself; the server sends nothing through it. See below. |

@@ -208,7 +208,7 @@ recorded as `UNCERTAIN`.
 | Trigger | Effect |
 |---|---|
 | User pauses, revokes or lowers access | Running and queued operations of that session stop at their next safe point |
-| MCP client sends `notifications/cancelled` | `StdinTap` interrupts the tool call; the server sends `cancel` to the extension |
+| MCP client sends `notifications/cancelled` | `StdinTap` interrupts the tool call; the server sends `cancel` to the extension, and sends no answer for that call |
 | Server times out waiting | The server sends `cancel`, so the command cannot run later |
 | Agent's server disconnects | Its operations are cancelled |
 | Tab closes or leaves its site | The session ends or is suspended; its operations stop |
