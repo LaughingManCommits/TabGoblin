@@ -2,6 +2,8 @@
 // feed and submission confirmations. All decisions are made in the background worker; this page
 // only shows state and sends requests.
 
+import { agentsSummary, sessionsSummary, settingsSummary } from './panels.ts';
+
 type Mode = 'read' | 'explore' | 'write';
 
 interface ActivityEntry {
@@ -58,6 +60,8 @@ interface State {
   /** When the user is asked about a submission: the general setting. */
   ask: AskMode;
   indicator: boolean;
+  /** The panels the user has folded to one line. */
+  folded: string[];
   clients: ClientView[];
   blockedClients: string[];
   sessions: SessionView[];
@@ -343,6 +347,43 @@ function renderActivity(s: State): void {
   });
 }
 
+/** What a folded panel says in its one line. Text and marks only, built from what the panel shows unfolded. */
+function summaryOf(panel: string, s: State): Node[] {
+  const text = (value: string): HTMLElement => el('span', 'text', value);
+  if (panel === 'sessions') {
+    const summary = sessionsSummary(s.sessions, currentTab?.id, !$('authorizeBox').hidden);
+    return summary.state ? [text(summary.text), el('span', 'chip state', summary.state)] : [text(summary.text)];
+  }
+  if (panel === 'activity') {
+    // The entry the list shows first: what runs now, or else what happened last.
+    const [first] = [...s.activity].sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running') || b.id - a.id);
+    if (!first) return [text('No activity yet')];
+    const parts: Node[] = [el('span', `mark ${first.status}`, MARKS[first.status])];
+    if (first.session) parts.push(el('span', 'sid', first.session));
+    parts.push(text(first.note ? `${first.label} (${first.note})` : first.label));
+    return parts;
+  }
+  if (panel === 'agents') return [text(agentsSummary(s.clients.map((client) => agentLabel(client, s.clients)), s.blockedClients.length))];
+  if (panel === 'settings') return [text(settingsSummary(ASKS.find(([mode]) => mode === s.ask)?.[1] ?? '', s.indicator))];
+  return [];
+}
+
+/** Folds the panels the user folded, and gives each of those its one line. */
+function renderPanels(s: State): void {
+  for (const panel of document.querySelectorAll<HTMLElement>('.panel')) {
+    const name = panel.dataset.panel ?? '';
+    const folded = s.folded.includes(name);
+    panel.classList.toggle('folded', folded);
+    panel.querySelector('.fold')?.setAttribute('aria-expanded', String(!folded));
+    const summary = panel.querySelector<HTMLElement>('.summary');
+    if (!summary) continue;
+    summary.hidden = !folded;
+    const parts = folded ? summaryOf(name, s) : [];
+    // Written anew only when it says something else, like the lists.
+    rebuild(`summary:${name}`, parts.map((part) => (part as HTMLElement).outerHTML), () => summary.replaceChildren(...parts));
+  }
+}
+
 /**
  * A prompt that has only just appeared takes no answer. It comes up by itself and takes the
  * keyboard from the page: a key or a click that was on its way elsewhere must not become consent.
@@ -355,11 +396,17 @@ function holdAnswers(id: string): void {
   promptShown = id;
   const answers = [$<HTMLButtonElement>('deny'), $<HTMLButtonElement>('allow')];
   for (const button of answers) button.disabled = true;
+  // For that moment nothing else in the popup takes a key or a click either. With the answers
+  // held, Tab would go on to the next control, and Enter there would fold a panel or press a button.
+  const rest = [...document.querySelectorAll<HTMLElement>('main > :not(#confirm), footer')];
+  for (const part of rest) part.inert = true;
   // The keyboard goes to the prompt as a whole, which announces it. No key does anything there,
   // and the first stop for Tab from it is Deny.
   $('confirm').focus();
   setTimeout(() => {
     if (promptShown === id) for (const button of answers) button.disabled = false;
+    // Unless another prompt has come up meanwhile and is holding the popup for its own moment.
+    if (promptShown === id || promptShown === null) for (const part of rest) part.inert = false;
   }, ANSWER_DELAY_MS);
 }
 
@@ -429,6 +476,14 @@ function render(): void {
   const own = s.sessions.some((x) => x.ask !== s.ask);
   $('askHint').textContent = `${ASK_HINTS[s.ask]}${own ? ' Some sessions are set differently; choosing here sets them all.' : ''}`;
   $<HTMLInputElement>('indicator').checked = s.indicator;
+  renderPanels(s);
+}
+
+// The heading of a panel folds it to one line and unfolds it again. The worker keeps the choice.
+for (const panel of document.querySelectorAll<HTMLElement>('.panel')) {
+  panel.querySelector('.fold')?.addEventListener('click', () => {
+    void request({ type: 'setFolded', panel: panel.dataset.panel, value: !panel.classList.contains('folded') });
+  });
 }
 
 $('pair').addEventListener('click', () => {

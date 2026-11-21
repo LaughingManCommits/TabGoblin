@@ -177,7 +177,21 @@ try {
       await popup.waitForFunction((id) => [...document.getElementById('newAgent').options].some((o) => o.value === id), {}, agent);
       await popup.select('#newAgent', agent);
     }
-    await popup.click('#authorize');
+    await popup.click('#authorize').catch(async (e) => {
+      // Say what the popup looked like, so that a failure here explains itself.
+      const seen = await popup.evaluate(() => {
+        const button = document.getElementById('authorize');
+        const r = button.getBoundingClientRect();
+        const over = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return JSON.stringify({
+          button: [r.x, r.y, r.width, r.height].map(Math.round), window: [innerWidth, innerHeight],
+          scrolled: Math.round(scrollY), height: document.documentElement.scrollHeight,
+          folded: [...document.querySelectorAll('.panel.folded')].map((p) => p.dataset.panel),
+          over: over ? `${over.tagName.toLowerCase()}#${over.id}.${over.className}` : null,
+        });
+      }).catch((failure) => String(failure));
+      throw new Error(`${e.message} ${seen}`);
+    });
     await popup.waitForFunction(() => document.getElementById('authorizeBox').hidden);
     return popup.evaluate(() => [...document.querySelectorAll('.session')]
       .find((row) => [...row.querySelectorAll('.chip')].some((c) => c.textContent === 'this tab')).dataset.session);
@@ -777,6 +791,42 @@ try {
     await popup.click('#clearActivity');
     await popup.waitForFunction(() => document.querySelector('#activity li')?.textContent === 'No activity yet');
   });
+  await step('a panel folds to one line that says what is inside, and stays folded when the popup opens again', async () => {
+    const names = ['sessions', 'activity', 'agents', 'settings'];
+    let popup = await openPopup();
+    const fold = async (name, want) => {
+      await popup.click(`.panel[data-panel="${name}"] .fold`);
+      await popup.waitForFunction((panel, folded) => document.querySelector(`.panel[data-panel="${panel}"]`).classList.contains('folded') === folded, {}, name, want);
+    };
+    const line = (name) => popup.$eval(`.panel[data-panel="${name}"] .fold`, (el) => el.innerText.replace(/\s+/g, ' ').trim());
+    const shown = (selector) => popup.$eval(selector, (el) => el.getClientRects().length > 0);
+    for (const selector of ['#sessions', '#activity', '#agents', '#askMode']) assert(await shown(selector), `${selector} shows while unfolded`);
+
+    try {
+      for (const name of names) await fold(name, true);
+      assert(/^sessions \d+ tabs? · this tab: s\d+$/i.test(await line('sessions')), await line('sessions'));
+      assert(/^activity .*No activity yet$/i.test(await line('activity')), await line('activity'));
+      // The agents by name, as the list below the heading names them.
+      const agents = await popup.$$eval('#agents .name', (els) => els.map((el) => el.textContent).join(', '));
+      assert(agents.length > 0 && (await line('agents')).toLowerCase() === `agents ${agents}`.toLowerCase(), `${await line('agents')} / ${agents}`);
+      assert(/^settings (Ask every time|Ask the first time|Do not ask) · indicator (on|off)$/i.test(await line('settings')), await line('settings'));
+      for (const selector of ['#sessions', '#activity', '#agents', '#askMode', '#clearActivity']) assert(!(await shown(selector)), `${selector} is folded away`);
+      assert(await popup.$eval('.panel[data-panel="sessions"] .fold', (el) => el.getAttribute('aria-expanded')) === 'false');
+      // What needs the user's answer is no panel: neither the prompt nor the pairing form can be folded.
+      assert(await popup.$$eval('#confirm, #pairing', (els) => els.length === 2 && els.every((el) => !el.classList.contains('panel') && !el.querySelector('.fold'))));
+
+      // The choice is kept: the popup opens as it was left.
+      popup = await openPopup(page, { fresh: true });
+      await popup.waitForFunction(() => document.querySelectorAll('.panel.folded').length === 4);
+    } finally {
+      // Whatever happened above, the steps that follow find the popup unfolded.
+      for (const name of names) {
+        if (await popup.$eval(`.panel[data-panel="${name}"]`, (el) => el.classList.contains('folded'))) await fold(name, false);
+      }
+    }
+    for (const selector of ['#sessions', '#activity', '#agents', '#askMode']) assert(await shown(selector), `${selector} shows again`);
+    assert(await popup.$eval('.panel[data-panel="sessions"] .fold', (el) => el.getAttribute('aria-expanded')) === 'true');
+  });
   await step('the page shows an indicator while the agent works; it is not page content and can be switched off', async () => {
     await page.bringToFront();
     const pending = one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 1500 });
@@ -1266,6 +1316,10 @@ try {
     }
     fails(await pending, 'SUBMIT_DENIED');
     assert(await pageB.evaluate(() => window.__sent) === 1, 'no key may have reached the editor');
+    // Nor did those keys do anything else in the popup: with the answers held, Tab would have gone
+    // on to a panel's heading, and Enter would have folded it.
+    assert(!(await popup.$('.panel.folded')), 'a key that was on its way to the page must not fold a panel');
+    assert(await popup.$$eval('main > section, footer', (els) => els.every((el) => !el.inert)), 'and the popup takes keys again afterwards');
   });
   await step('a key the user allowed for one element is not pressed on another', async () => {
     // The request of the step before was declined; the user lets the session ask again.

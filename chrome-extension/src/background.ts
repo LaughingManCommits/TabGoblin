@@ -6,6 +6,7 @@
 // and it has no way to run agent-supplied code: commands map to a fixed set of operations.
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
+import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
   ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, failureNote, highImpactWord, inScope,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
@@ -39,6 +40,8 @@ interface Config {
   /** When the user is asked about a submission, unless a session has its own setting. */
   ask: AskMode;
   indicator: boolean;
+  /** The panels of the popup the user has folded to one line. */
+  folded: Panel[];
 }
 
 type SubmissionState = 'PREPARED' | 'FILLED' | 'SUBMITTING' | 'VERIFYING' | 'CONFIRMED' | 'FAILED' | 'UNCERTAIN';
@@ -128,7 +131,7 @@ interface Operation {
   waitingInPage?: boolean;
 }
 
-let config: Config = { token: '', port: DEFAULT_PORT, ask: 'always', indicator: true };
+let config: Config = { token: '', port: DEFAULT_PORT, ask: 'always', indicator: true, folded: [] };
 
 /**
  * What the user allowed lately, by session, for the automatic mode. Kept here and nowhere else:
@@ -175,13 +178,14 @@ const ready: Promise<void> = (async () => {
   } catch {
     // Older Chrome: content scripts here never read storage anyway.
   }
-  const stored = await chrome.storage.local.get(['token', 'port', 'ask', 'confirmSubmissions', 'indicator']);
+  const stored = await chrome.storage.local.get(['token', 'port', 'ask', 'confirmSubmissions', 'indicator', 'folded']);
   config = {
     token: typeof stored.token === 'string' ? stored.token : '',
     port: typeof stored.port === 'number' ? stored.port : DEFAULT_PORT,
     // Before there were three settings there were two: asking, or not.
     ask: stored.ask !== undefined ? askModeOf(stored.ask) : stored.confirmSubmissions === false ? 'never' : 'always',
     indicator: stored.indicator !== false,
+    folded: foldedOf(stored.folded),
   };
   const saved = (await chrome.storage.session.get('state')).state as Persisted | undefined;
   if (saved) {
@@ -1376,6 +1380,7 @@ interface PopupMessage {
   token?: string;
   port?: number;
   value?: boolean | string;
+  panel?: string;
   id?: string;
   allow?: boolean;
 }
@@ -1388,6 +1393,7 @@ function popupState(): object {
     hasToken: !!config.token,
     ask: config.ask,
     indicator: config.indicator,
+    folded: config.folded,
     clients: [...clients.values()].filter((c) => c.authenticated).map((c) => ({ id: c.clientId, name: c.name, port: c.port })),
     blockedClients: persisted.blockedClients,
     sessions: persisted.sessions.map((s) => ({
@@ -1544,6 +1550,11 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       config.indicator = msg.value !== false;
       await chrome.storage.local.set({ indicator: config.indicator });
       if (!config.indicator) persisted.sessions.forEach((s) => void setIndicator(s, null));
+      return;
+    case 'setFolded':
+      // How the popup looks, kept across its openings. Only the four panels fold; never the prompt.
+      config.folded = withFolded(config.folded, msg.panel, msg.value === true);
+      await chrome.storage.local.set({ folded: config.folded });
       return;
     case 'clearActivity':
       persisted.activity = persisted.activity.filter((a) => a.status === 'running');

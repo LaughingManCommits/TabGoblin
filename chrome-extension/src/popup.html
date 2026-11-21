@@ -65,8 +65,15 @@
     </section>
 
     <!-- Ordered by how often it is needed: the popup window is short, the rest scrolls. -->
-    <section class="card">
-      <h2>Sessions</h2>
+    <!-- Each of these four folds to one line: its heading is the switch, and says what is inside. -->
+    <section class="card panel" data-panel="sessions">
+      <div class="heading">
+        <h2><button class="fold" aria-expanded="true" aria-controls="sessionsBody">
+          <span class="title">Sessions</span><span class="summary" hidden></span>
+          <svg class="chevron" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
+        </button></h2>
+      </div>
+      <div class="body" id="sessionsBody">
       <div id="sessions"></div>
       <div id="resumeBox" class="callout" hidden>
         <p id="resumeHint"></p>
@@ -92,23 +99,42 @@
         <select id="newAgent" aria-label="Agent" hidden></select>
         <button id="authorize" class="primary">Authorize</button>
       </div>
+      </div>
     </section>
 
-    <section class="card">
+    <section class="card panel" data-panel="activity">
       <div class="heading">
-        <h2>Activity</h2>
+        <h2><button class="fold" aria-expanded="true" aria-controls="activityBody">
+          <span class="title">Activity</span><span class="summary" hidden></span>
+          <svg class="chevron" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
+        </button></h2>
         <button id="clearActivity" class="link">Clear</button>
       </div>
-      <ul id="activity" class="activity"></ul>
+      <div class="body" id="activityBody">
+        <ul id="activity" class="activity"></ul>
+      </div>
     </section>
 
-    <section id="agentsSection" class="card" hidden>
-      <h2>Agents</h2>
-      <ul id="agents" class="list"></ul>
+    <section id="agentsSection" class="card panel" data-panel="agents" hidden>
+      <div class="heading">
+        <h2><button class="fold" aria-expanded="true" aria-controls="agentsBody">
+          <span class="title">Agents</span><span class="summary" hidden></span>
+          <svg class="chevron" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
+        </button></h2>
+      </div>
+      <div class="body" id="agentsBody">
+        <ul id="agents" class="list"></ul>
+      </div>
     </section>
 
-    <section class="card settings">
-      <h2>Settings</h2>
+    <section class="card settings panel" data-panel="settings">
+      <div class="heading">
+        <h2><button class="fold" aria-expanded="true" aria-controls="settingsBody">
+          <span class="title">Settings</span><span class="summary" hidden></span>
+          <svg class="chevron" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>
+        </button></h2>
+      </div>
+      <div class="body" id="settingsBody">
       <label for="askMode" class="setting">Before an agent submits anything</label>
       <select id="askMode" aria-describedby="askHint">
         <option value="always">Ask me every time</option>
@@ -124,6 +150,7 @@
         </span>
         <input id="indicator" type="checkbox">
       </label>
+      </div>
     </section>
 
     <p id="error" class="error" hidden></p>

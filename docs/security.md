@@ -99,7 +99,8 @@ which content scripts cannot read. It is never logged.
   kept, because a request nobody sees runs out after a minute. So that it cannot turn into
   consent, the prompt takes no answer for the first 0.7 seconds, nothing in it is focused but
   the prompt as a whole, and the first stop for Tab is Deny: a key or a click that was on its
-  way to the page declines at worst.
+  way to the page declines at worst. For those 0.7 seconds the rest of the popup takes no key
+  or click either, so that such a key does not press something else there.
 - You are asked before anything is typed. Declining leaves the page untouched.
 - The prompt shows the beginning of what would be sent: the texts the submission fills in, or
   what the text box holds. It is shown to you in the popup and goes nowhere else. Passwords and
@@ -179,7 +180,7 @@ tool says about where the time went: tool names and durations.
 | A text box is not excused from the question by `aria-expanded`, a missing option, or search wording on a text area | DOM |
 | Enter or Space on a control that submits is refused like a click on it | Rules, DOM, worker, end-to-end |
 | A key allowed for one element is not pressed on another | End-to-end |
-| A prompt that has only just appeared takes no answer; from the keyboard Deny comes first | End-to-end |
+| A prompt that has only just appeared takes no answer, and nothing else in the popup takes a key meanwhile; from the keyboard Deny comes first; the prompt cannot be folded away | Rules, worker, end-to-end |
 | What the user declined is not asked again until they take it back; a run of refusals silences a session; one request waits at a time | Rules, worker, end-to-end |
 | The prompt names the agent, the control, the site and what would be sent, for every kind of request; a password is never shown in it | DOM, worker, end-to-end |
 | Automatic: asked the first time for each control, and the prompt says that an Allow will stand; an Allow does not reach another control, another site, a high-impact action or a control without a name, does not cover a burst, and is gone after a pause, after the tab left the site and after a restart | Rules, worker, end-to-end |

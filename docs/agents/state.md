@@ -9,7 +9,8 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 - Branch `pairing-race`: local, not pushed, not merged. On top of `87e5a79`, in this order: a
   message that arrives at the moment of pairing is no longer taken for a failed pairing (the
   cause of the CI failure described below); the popup says what kind of request was declined;
-  WP-9 filed; WP-9 built, the report of where the time went; a pass over the look of the popup.
+  WP-9 filed; WP-9 built, the report of where the time went; a pass over the look of the popup;
+  the popup's panels fold to one line.
 
 ## Active work
 
@@ -37,10 +38,11 @@ The backlog in [TODO.md](../../TODO.md) is empty.
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, on `pairing-race`. The server and the extension's rules
-  were last verified with WP-9, on Windows and on Linux in a container. The last commit changes
-  only how the popup looks; for it the extension's check and the end-to-end suite were run and
-  every changed picture was looked at. Details in the [validation log](validation-log.md).
+- **Last verification:** 2026-11-21, on `pairing-race`, on its final build: the extension's
+  check, the end-to-end suite, the editor lab in front and in the background, and every picture
+  of the documentation looked at. The server was last verified with WP-9 and has not changed
+  since. Linux, in a container, was last run with WP-9 too. Details in the
+  [validation log](validation-log.md).
 - **Next action:** after the owner's push, the result of its CI run. Should the extension job
   fail again, its log now names the test and prints the failure: a test that hangs is ended
   after 60 seconds instead of running into the job's limit.

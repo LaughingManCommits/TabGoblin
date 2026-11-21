@@ -81,10 +81,46 @@ main { padding: 0 12px; display: flex; flex-direction: column; gap: 8px; }
   box-shadow: var(--shadow);
 }
 .card[hidden] { display: none; }
-/* A heading with an action beside it: both on one baseline, the action the quieter of the two. */
-.heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
-.heading h2 { margin: 0; }
-.heading button.link { font-size: 11.5px; }
+/*
+ * The heading of a panel that folds. The heading is the switch and takes the whole row; an action
+ * beside it, such as Clear, lies over that row to the left of the arrow, on the same baseline and
+ * the quieter of the two.
+ */
+.heading { display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: baseline; margin-bottom: 8px; }
+.heading h2 { grid-column: 1 / -1; grid-row: 1; min-width: 0; margin: 0; }
+.heading > button.link { grid-column: 2; grid-row: 1; z-index: 1; font-size: 11.5px; }
+.fold {
+  display: flex; align-items: baseline; gap: 8px; width: 100%; height: auto; min-height: 18px; padding: 0;
+  border: 0; border-radius: 6px; background: transparent; color: inherit;
+  font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left;
+}
+.fold:hover:not(:disabled) { filter: none; }
+.fold:hover .title { color: var(--fg); }
+.fold .title { flex: none; }
+/* Folded, the panel says in one line what is inside: in ordinary writing, not as a heading. */
+.fold .summary {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted);
+  white-space: nowrap; overflow: hidden;
+}
+.fold .summary[hidden] { display: none; }
+.fold .summary .text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fold .summary .mark {
+  flex: none; width: 16px; height: 16px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 10px; font-weight: 700; line-height: 1;
+  background: var(--raised); color: var(--muted);
+}
+.fold .summary .ok .mark, .fold .summary .mark.ok { background: var(--accent-soft); color: var(--ok); }
+.fold .summary .mark.error { background: var(--bad-soft); color: var(--bad); }
+.fold .summary .mark.running { background: var(--accent); color: var(--accent-ink); }
+.fold .chevron {
+  flex: none; align-self: center; width: 10px; height: 6px; margin-left: auto;
+  fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+  transition: transform 0.15s;
+}
+.panel.folded .chevron { transform: rotate(-90deg); }
+.panel.folded .heading { margin-bottom: 0; }
+.panel.folded .body, .panel.folded .heading > button.link { display: none; }
 
 h2 {
   margin: 0 0 8px;
