@@ -25,7 +25,8 @@ IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┼�
 - **Reading.** A structured snapshot with numbered elements, and structured text with an outline;
   both bounded, and both say how complete they are.
 - **Acting.** Click, fill, type, press keys, scroll, navigate, go back, wait, take screenshots.
-- **Submitting.** Declared by the agent, confirmed by you, sent once, and verified against the
+- **Submitting.** Declared by the agent, confirmed by you (every time, or the first time for each
+  control, as you choose), sent once, and verified against the
   page: confirmed, failed or uncertain, with the evidence. Pressing Enter in a message box counts
   as submitting.
 - **Control.** Pause or revoke a session, disconnect an agent, watch what happens. If a tab leaves
@@ -76,8 +77,8 @@ The [installation guide](docs/installation.md) walks through each step with what
 
 ```sh
 mvn -f java-server/pom.xml verify       # 54 tests, then the built jar checked against the protocol
-cd chrome-extension && npm run check    # 127 tests, type-check, build
-cd e2e && npm install && npm test       # 90 steps in your Chrome, against three demo sites
+cd chrome-extension && npm run check    # 129 tests, type-check, build
+cd e2e && npm install && npm test       # 91 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries
 ```
 

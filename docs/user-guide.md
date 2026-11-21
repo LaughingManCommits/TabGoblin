@@ -146,10 +146,28 @@ filling in fields.
 - The prompt comes up by itself, and takes the keyboard from the page while it is there. It
   cannot be answered by accident: for its first moment the buttons are dim and take no answer,
   and from the keyboard Deny comes before Allow.
-- With **Ask me before the agent submits anything** on (the default), you get this prompt. Nothing
-  is typed or clicked until you press **Allow**; **Deny**, or no answer within a minute, means
-  nothing happens.
-- Deleting, paying, publishing and similar actions always ask, even with the toggle off.
+- Nothing is typed or clicked until you press **Allow**; **Deny**, or no answer within a minute,
+  means nothing happens.
+- How often you are asked is yours to set, under **Before an agent submits anything** at the foot
+  of the popup:
+
+  | Setting | You are asked |
+  |---|---|
+  | Ask me every time (the default) | About every submission |
+  | Ask me the first time (automatic) | The first time for each button or text box. What you allow then passes for 15 minutes. |
+  | Do not ask me | Never, except as below |
+
+- Deleting, paying, publishing and similar actions always ask, whatever the setting.
+- A session with Read / Write access has the same choice of its own, next to **Submissions** in
+  its row: a chat can be on automatic while everything else asks every time. Choosing at the foot
+  of the popup sets all sessions.
+- In the automatic mode a session shows what currently passes without a question, and for how
+  long, with **Ask about it again** to end it. It also ends when you pause the session, change
+  its access, when the tab leaves its website, and when Chrome restarts the extension. No more
+  than five submissions pass unasked in a minute; the next one asks.
+
+  <img src="images/popup-automatic.png" width="354" alt="A session set to ask the first time, with a text box that now passes without asking">
+
 - Afterwards TabGoblin watches the page and tells the agent what it saw: confirmed (the text
   appeared, or the page reacted as if it accepted), failed (an error appeared), or uncertain.
 - Nothing is ever sent twice automatically, and the same content is refused within two minutes
@@ -237,7 +255,7 @@ starts a new server the next time it needs one.
 
 | Setting | Where | Default |
 |---|---|---|
-| Ask before submissions | Toggle in the popup | on |
+| When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
 | In-page indicator | Toggle in the popup | on |
 | First port | *Connection…* in the popup; `--port` on the server | 47821 |
 | Token file | `--token-file` / `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` |

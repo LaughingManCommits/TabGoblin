@@ -159,11 +159,11 @@ try {
 
   /** Every case of the prompt, in both colour schemes, and a session on which a no stands. */
   async function promptCases() {
-    const shoot = async (name) => {
+    const shoot = async (name, bottom = false) => {
       for (const scheme of ['dark', 'light']) {
         await popup.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
         await sleep(250);
-        await popup.evaluate(() => scrollTo(0, 0));
+        await popup.evaluate((down) => scrollTo(0, down ? document.body.scrollHeight : 0), bottom);
         await popup.screenshot({ path: join(PROMPTS, `${name}-${scheme}.png`) });
       }
     };
@@ -216,6 +216,27 @@ try {
     await one.tool('browser_navigate', { url: '/form.html' });
     await one.tool('browser_fill', { ref: await field('Textbox: Note'), text: 'Call the bank' });
     await picture('enter-form-field', async () => enter(await field('Textbox: Note')));
+
+    // The automatic mode: a session set to it, with something the user allowed that now passes.
+    await popup.select('.session[data-session="s1"] .ask', 'auto');
+    await sleep(900);
+    const allowed = enter(await field('Textbox: Note'));
+    popup = await open(a);
+    await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
+    await popup.waitForFunction(() => !document.getElementById('allow').disabled);
+    await popup.click('#allow');
+    await allowed;
+    popup = await open(a);
+    await popup.waitForSelector('.passing');
+    await shoot('automatic');
+    console.log(`automatic: ${await popup.$eval('.passing', (el) => el.innerText.replace(/\s+/g, ' ').trim())}`);
+    // The general setting and what each of its values says, at the foot of the popup.
+    for (const mode of ['always', 'auto', 'never']) {
+      await popup.select('#askMode', mode);
+      await sleep(900);
+      await shoot(`setting-${mode}`, true);
+      console.log(`setting-${mode}: ${await popup.$eval('#askHint', (el) => el.textContent)}`);
+    }
   }
 
   async function documentation() {
@@ -252,6 +273,21 @@ try {
   await capture(popup, 'popup-declined.png');
   await popup.$eval('.askagain', (el) => el.click());
   await popup.waitForFunction(() => !document.querySelector('.askagain'));
+
+  // 4d. The automatic mode: the session is set to it, the user allows the text box once, and it passes from then on.
+  await popup.select('.session[data-session="s1"] .ask', 'auto');
+  await sleep(900);
+  const once = one.tool('browser_press_key', { ref: ref(posted, 'Textbox (multiline): Comment'), key: 'Enter', intent: 'submit' });
+  popup = await open(a);
+  await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
+  await popup.waitForFunction(() => !document.getElementById('allow').disabled);
+  await popup.click('#allow');
+  await once;
+  popup = await open(a);
+  await popup.waitForSelector('.passing');
+  await capture(popup, 'popup-automatic.png');
+  await popup.select('.session[data-session="s1"] .ask', 'always');
+  await sleep(900);
 
   // 5. The in-page indicator while an operation runs.
   await a.bringToFront();

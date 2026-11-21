@@ -169,8 +169,13 @@ public final class BrowserService {
         JsonNode s = bridge.send("status", null, p, defaultTimeout);
         sb.append("Extension: connected (protocol ").append(Protocol.VERSION).append(")\n");
         sb.append("This agent: ").append(bridge.clientId()).append(" on port ").append(bridge.getPort()).append('\n');
-        sb.append("Submissions need user confirmation: ")
-                .append(s.path("confirmSubmissions").asBoolean(true) ? "yes" : "no").append('\n');
+        // The general setting. Older extensions say only yes or no.
+        String asking = s.path("confirmation").asString(s.path("confirmSubmissions").asBoolean(true) ? "always" : "never");
+        sb.append("Submissions need user confirmation: ").append(switch (asking) {
+            case "never" -> "no (only high-impact ones are put to the user)";
+            case "auto" -> "yes, the first time for each control; what the user allowed passes for a while";
+            default -> "yes";
+        }).append('\n');
         JsonNode sessions = s.path("sessions");
         if (sessions.isEmpty()) {
             sb.append("Authorized origin: none\n");

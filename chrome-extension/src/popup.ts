@@ -12,6 +12,19 @@ interface ActivityEntry {
   note?: string;
 }
 
+type AskMode = 'always' | 'auto' | 'never';
+
+/** The settings for asking, as a session's own control names them. */
+const ASKS: [AskMode, string][] = [['always', 'Ask every time'], ['auto', 'Ask the first time'], ['never', 'Do not ask']];
+
+/** What each setting means, under the general control. */
+const ASK_HINTS: Record<AskMode, string> = {
+  always: 'You are asked about every submission.',
+  auto: 'You are asked the first time for each button or text box. What you allow then passes for 15 minutes. '
+    + 'Deleting, paying and publishing always ask.',
+  never: 'You are asked only about deleting, paying, publishing and the like.',
+};
+
 interface SessionView {
   id: string;
   tabId: number;
@@ -27,6 +40,9 @@ interface SessionView {
   lastSubmission: string | null;
   /** Requests of this session that are not put to the user for now: those they declined, or all. */
   notAsked: { labels: string[]; all: boolean };
+  /** When the user is asked in this session, and what passes without a question right now. */
+  ask: AskMode;
+  passes: { label: string; minutes: number }[];
 }
 
 interface ClientView {
@@ -39,7 +55,8 @@ interface State {
   connection: 'unpaired' | 'connected' | 'disconnected' | 'pairing_failed' | 'version_mismatch';
   port: number;
   hasToken: boolean;
-  confirmSubmissions: boolean;
+  /** When the user is asked about a submission: the general setting. */
+  ask: AskMode;
   indicator: boolean;
   clients: ClientView[];
   blockedClients: string[];
@@ -217,6 +234,31 @@ function renderSessions(s: State): void {
         row.append(held);
       }
       row.append(controls);
+      // Asking is a matter of submitting, which only a session with write access can do.
+      if (session.mode === 'write') {
+        const asking = el('div', 'row asking');
+        const ask = el('select', 'ask');
+        ask.setAttribute('aria-label', `When to ask before ${session.id} submits`);
+        for (const [value, label] of ASKS) {
+          const option = el('option', '', label);
+          option.value = value;
+          ask.append(option);
+        }
+        ask.value = session.ask;
+        ask.addEventListener('change', () => void request({ type: 'setAsk', session: session.id, value: ask.value }));
+        asking.append(el('span', 'caption', 'Submissions'), ask);
+        row.append(asking);
+      }
+      // What the user allowed and now passes without a question: there to see, and to end.
+      if (session.passes.length) {
+        const passing = el('div', 'passing');
+        const names = session.passes.map((pass) => `${pass.label ? `“${pass.label}”` : 'a control without a name'} (${pass.minutes} min)`);
+        passing.append(el('span', '', `Passes without asking: ${names.join(', ')}.`));
+        const forget = el('button', 'link forget', 'Ask about it again');
+        forget.addEventListener('click', () => void request({ type: 'forgetAllowed', session: session.id }));
+        passing.append(forget);
+        row.append(passing);
+      }
       box.append(row);
     }
   });
@@ -360,7 +402,9 @@ function render(): void {
   renderAgents(s);
   renderSessions(s);
   renderActivity(s);
-  $<HTMLInputElement>('confirmSubmissions').checked = s.confirmSubmissions;
+  $<HTMLSelectElement>('askMode').value = s.ask;
+  const own = s.sessions.some((x) => x.ask !== s.ask);
+  $('askHint').textContent = `${ASK_HINTS[s.ask]}${own ? ' Some sessions are set differently; choosing here sets them all.' : ''}`;
   $<HTMLInputElement>('indicator').checked = s.indicator;
 }
 
@@ -386,7 +430,7 @@ $('authorize').addEventListener('click', () => {
 const sessionOfThisTab = (): string | undefined => state?.sessions.find((x) => x.tabId === currentTab?.id)?.id;
 $('resume').addEventListener('click', () => void request({ type: 'resumeSession', session: sessionOfThisTab(), tabId: currentTab?.id }));
 $('addOrigin').addEventListener('click', () => void request({ type: 'addOrigin', session: sessionOfThisTab(), tabId: currentTab?.id }));
-$('confirmSubmissions').addEventListener('change', () => void request({ type: 'setConfirm', value: $<HTMLInputElement>('confirmSubmissions').checked }));
+$('askMode').addEventListener('change', () => void request({ type: 'setAsk', value: $<HTMLSelectElement>('askMode').value }));
 $('indicator').addEventListener('change', () => void request({ type: 'setIndicator', value: $<HTMLInputElement>('indicator').checked }));
 $('clearActivity').addEventListener('click', () => void request({ type: 'clearActivity' }));
 $('allow').addEventListener('click', () => void request({ type: 'confirm', id: state?.pendingConfirm?.id, allow: true }));

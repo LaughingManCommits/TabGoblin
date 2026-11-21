@@ -288,6 +288,67 @@ export function checkKey(mode: Mode, intent: Intent, target: KeyTarget): 'press'
     + 'For a line break, put it into the text of browser_fill. If the user explicitly asked you to send or submit, repeat with intent="submit".');
 }
 
+/**
+ * When the user is asked about a submission.
+ * - `always`: about every one.
+ * - `auto`: the first time for each control; what they allowed passes for a while.
+ * - `never`: only about high-impact ones.
+ */
+export type AskMode = 'always' | 'auto' | 'never';
+
+export function askModeOf(value: unknown): AskMode {
+  return value === 'auto' || value === 'never' ? value : 'always';
+}
+
+/** In the automatic mode: how long an Allow lets the same control pass. */
+export const ALLOW_LASTS_MS = 15 * 60_000;
+/** In the automatic mode: how many submissions may pass unasked within a minute. One more is asked about. */
+export const UNASKED_PER_MINUTE = 5;
+
+/** What the user allowed in a session lately, and what passed without a question since. Never stored. */
+export interface AllowMemory {
+  /** The key is how the submission is made and what the control is called; the origin is the website it is on. */
+  allowed: { key: string; label: string; origin: string; at: number }[];
+  /** When submissions passed unasked. */
+  passed: number[];
+}
+
+/**
+ * Decides whether a submission is put to the user. `word` is what makes it high-impact, if
+ * anything: such a submission is asked about whatever the mode and whatever was allowed before.
+ *
+ * In the automatic mode an Allow stands for the same control: the same kind of request, the same
+ * name, on the same website. It ends after a while, and it does not cover a burst: beyond a few
+ * a minute the user is asked again.
+ */
+export function needsAsking(
+  mode: AskMode, word: string | null, memory: AllowMemory | undefined, key: string, origin: string | null, now: number,
+): boolean {
+  if (word !== null || mode === 'always') return true;
+  if (mode === 'never') return false;
+  if (!memory || origin === null) return true;
+  const allowed = memory.allowed.some((a) => a.key === key && a.origin === origin && now - a.at < ALLOW_LASTS_MS);
+  const lately = memory.passed.filter((at) => now - at < 60_000).length;
+  return !allowed || lately >= UNASKED_PER_MINUTE;
+}
+
+/** The user allowed a control: in the automatic mode it passes from now on, for a while. */
+export function rememberAllow(memory: AllowMemory | undefined, key: string, label: string, origin: string, now: number): AllowMemory {
+  const allowed = (memory?.allowed ?? []).filter((a) => now - a.at < ALLOW_LASTS_MS && !(a.key === key && a.origin === origin));
+  return { allowed: [...allowed, { key, label, origin, at: now }], passed: memory?.passed ?? [] };
+}
+
+/** A submission passed without a question. */
+export function notePassed(memory: AllowMemory, now: number): AllowMemory {
+  return { allowed: memory.allowed, passed: [...memory.passed.filter((at) => now - at < 60_000), now] };
+}
+
+/** What passes unasked in a session right now, with the minutes each has left, for the user to see. */
+export function standingAllows(memory: AllowMemory | undefined, now: number): { label: string; minutes: number }[] {
+  return (memory?.allowed ?? []).filter((a) => now - a.at < ALLOW_LASTS_MS)
+    .map((a) => ({ label: a.label, minutes: Math.max(1, Math.ceil((ALLOW_LASTS_MS - (now - a.at)) / 60_000)) }));
+}
+
 /** How long a no stands: the same request is not put to the user again, and a session that was refused three times running is not heard. */
 export const NO_STANDS_MS = 5 * 60_000;
 /** After this many requests in a row that were declined or left unanswered, a session may not ask for a while. */

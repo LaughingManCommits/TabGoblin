@@ -7,10 +7,10 @@
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, checkKey, failureNote, highImpactWord, inScope,
-  noteAnswer, standingRefusals,
+  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, failureNote, highImpactWord, inScope,
+  needsAsking, noteAnswer, notePassed, rememberAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
-  type AskMemory, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
+  type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, parseServerMessage,
@@ -36,7 +36,8 @@ const REF_RANGE_SIZE = 100_000;
 interface Config {
   token: string;
   port: number;
-  confirmSubmissions: boolean;
+  /** When the user is asked about a submission, unless a session has its own setting. */
+  ask: AskMode;
   indicator: boolean;
 }
 
@@ -64,6 +65,8 @@ interface SessionRecord extends SessionAuth {
   submissions: SubmissionRecord[];
   /** What the user answered to this session's requests lately, so that a no stands for a while. */
   asks?: AskMemory;
+  /** When the user is asked, for this session only. Unset: as the general setting says. */
+  ask?: AskMode;
 }
 
 interface ActivityEntry {
@@ -122,11 +125,25 @@ interface Operation {
   waitingInPage?: boolean;
 }
 
-let config: Config = { token: '', port: DEFAULT_PORT, confirmSubmissions: true, indicator: true };
+let config: Config = { token: '', port: DEFAULT_PORT, ask: 'always', indicator: true };
+
+/**
+ * What the user allowed lately, by session, for the automatic mode. Kept here and nowhere else:
+ * it does not outlast the worker, and is not written to storage.
+ */
+const allows = new Map<string, AllowMemory>();
+
+/** Forgets what was allowed in a session: nothing passes unasked there until the user allows it anew. */
+function forgetAllows(sessionId: string): void {
+  allows.delete(sessionId);
+}
 let persisted: Persisted = { sessions: [], sessionSeq: 0, activity: [], activitySeq: 0, blockedClients: [], refRanges: [], diagnostics: [] };
 const clients = new Map<number, Client>();
 const operations = new Map<string, Operation>();
 const queues = new Map<string, Promise<void>>();
+/** The settings for asking, in the words the activity list uses. */
+const ASK_LABELS: Record<AskMode, string> = { always: 'every time', auto: 'automatic', never: 'never' };
+
 /** What the user is told about a request: what it is, why it counts as high-impact, where, and what it would send. */
 interface ConfirmFacts {
   label: string;
@@ -153,11 +170,12 @@ const ready: Promise<void> = (async () => {
   } catch {
     // Older Chrome: content scripts here never read storage anyway.
   }
-  const stored = await chrome.storage.local.get(['token', 'port', 'confirmSubmissions', 'indicator']);
+  const stored = await chrome.storage.local.get(['token', 'port', 'ask', 'confirmSubmissions', 'indicator']);
   config = {
     token: typeof stored.token === 'string' ? stored.token : '',
     port: typeof stored.port === 'number' ? stored.port : DEFAULT_PORT,
-    confirmSubmissions: stored.confirmSubmissions !== false,
+    // Before there were three settings there were two: asking, or not.
+    ask: stored.ask !== undefined ? askModeOf(stored.ask) : stored.confirmSubmissions === false ? 'never' : 'always',
     indicator: stored.indicator !== false,
   };
   const saved = (await chrome.storage.session.get('state')).state as Persisted | undefined;
@@ -337,6 +355,7 @@ function endSession(session: SessionRecord, reason: string): void {
   cancelOperations((op) => op.sessionId === session.id, 'The session ended.');
   void setIndicator(session, null);
   persisted.sessions = persisted.sessions.filter((s) => s !== session);
+  forgetAllows(session.id);
   noteActivity(session.id, reason);
   pushState();
 }
@@ -352,6 +371,7 @@ function suspendSession(session: SessionRecord): void {
   void setIndicator(session, null);
   session.suspended = true;
   session.documentId = null;
+  forgetAllows(session.id);
   noteActivity(session.id, 'Left authorized site: session suspended');
   pushState();
 }
@@ -528,7 +548,9 @@ async function sessionsFor(client: Client): Promise<object[]> {
 async function statusResult(client: Client, diagnostics: boolean): Promise<object> {
   return {
     client: { id: client.clientId, name: client.name, port: client.port },
-    confirmSubmissions: config.confirmSubmissions,
+    // For agents: whether a submission is put to the user. The general setting; a session may differ.
+    confirmSubmissions: config.ask !== 'never',
+    confirmation: config.ask,
     sessions: await sessionsFor(client),
     // Only this agent's own operations: what another agent did in its tabs is not this one's to see.
     ...(diagnostics
@@ -644,12 +666,20 @@ async function confirmWithUser(
   op: Operation, session: SessionRecord, label: string, how: ConfirmHow = 'click', preview: ConfirmFacts['preview'] = [],
 ): Promise<void> {
   const word = highImpactWord(label);
-  if (!config.confirmSubmissions && word === null) return;
+  const mode = session.ask ?? config.ask;
+  const key = `${how}:${label}`;
+  const origin = originOf((await getTab(session.tabId))?.url);
+  if (!needsAsking(mode, word, allows.get(session.id), key, origin, Date.now())) {
+    if (mode === 'auto') {
+      // The user allowed this control a short while ago. It is said in the activity list, in fixed words.
+      allows.set(session.id, notePassed(allows.get(session.id) as AllowMemory, Date.now()));
+      noteActivity(session.id, 'Allowed automatically: you allowed it before');
+    }
+    return;
+  }
   const nothing = how === 'click' ? 'Nothing was clicked.' : 'Nothing was pressed.';
   // Not while another request waits, not about what was just declined, not after a run of refusals.
-  const key = `${how}:${label}`;
   checkAsk(session.asks, key, pendingConfirms.size > 0, Date.now());
-  const origin = originOf((await getTab(session.tabId))?.url);
   const answer = await askUser(op, { label, how, word, origin, preview });
   if (answer !== 'cancelled') {
     session.asks = noteAnswer(session.asks, key, label, answer, Date.now());
@@ -666,6 +696,12 @@ async function confirmWithUser(
   if (answer !== 'allow') {
     throw new CommandError('SUBMIT_NOT_CONFIRMED',
       `The user did not confirm the submission within 60 seconds. ${nothing} Ask them to confirm in the TabGoblin popup before trying again.`);
+  }
+  // In the automatic mode what was allowed passes for a while. Never a high-impact action, and
+  // only under the setting the session has now.
+  if ((session.ask ?? config.ask) === 'auto' && word === null && origin !== null) {
+    allows.set(session.id, rememberAllow(allows.get(session.id), key, label, origin, Date.now()));
+    pushState();
   }
 }
 
@@ -1307,7 +1343,7 @@ interface PopupMessage {
   minutes?: number | null;
   token?: string;
   port?: number;
-  value?: boolean;
+  value?: boolean | string;
   id?: string;
   allow?: boolean;
 }
@@ -1318,7 +1354,7 @@ function popupState(): object {
     connection: connectionStatus(),
     port: config.port,
     hasToken: !!config.token,
-    confirmSubmissions: config.confirmSubmissions,
+    ask: config.ask,
     indicator: config.indicator,
     clients: [...clients.values()].filter((c) => c.authenticated).map((c) => ({ id: c.clientId, name: c.name, port: c.port })),
     blockedClients: persisted.blockedClients,
@@ -1329,6 +1365,9 @@ function popupState(): object {
       lastSubmission: s.submissions.length ? s.submissions[s.submissions.length - 1].state : null,
       // What would not be put to the user right now, so that the popup can say so and offer to lift it.
       notAsked: standingRefusals(s.asks, Date.now()),
+      // When the user is asked in this session, and what passes without a question right now.
+      ask: s.ask ?? config.ask,
+      passes: standingAllows(allows.get(s.id), Date.now()),
     })),
     activity: persisted.activity,
     pendingConfirm: [...pendingConfirms.values()].map((c) => ({
@@ -1375,6 +1414,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
     case 'setMode':
       if (session) {
         session.mode = modeOf(msg.mode);
+        forgetAllows(session.id);
         // Narrowing access stops anything that needed the wider one.
         if (session.mode !== 'write') cancelOperations((op) => op.sessionId === session.id, 'The user reduced the session\'s access.');
         noteActivity(session.id, `Access changed to ${modeLabel(session.mode)}`);
@@ -1392,6 +1432,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
     case 'pause':
       if (session && !session.paused) {
         session.paused = true;
+        forgetAllows(session.id);
         cancelOperations((op) => op.sessionId === session.id, 'The user paused the session.');
         noteActivity(session.id, 'Paused by you');
         pushState();
@@ -1440,10 +1481,31 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       save();
       scan(true);
       return;
-    case 'setConfirm':
-      config.confirmSubmissions = msg.value !== false;
-      await chrome.storage.local.set({ confirmSubmissions: config.confirmSubmissions });
+    case 'setAsk':
+      // For one session, or for all: the general setting then replaces what sessions had of their own.
+      if (msg.session) {
+        if (session) {
+          session.ask = askModeOf(msg.value);
+          forgetAllows(session.id);
+          noteActivity(session.id, `Asking changed to ${ASK_LABELS[session.ask]}`);
+          pushState();
+        }
+        return;
+      }
+      config.ask = askModeOf(msg.value);
+      await chrome.storage.local.set({ ask: config.ask });
+      for (const each of persisted.sessions) {
+        each.ask = undefined;
+        forgetAllows(each.id);
+      }
       pushState();
+      return;
+    case 'forgetAllowed':
+      if (session) {
+        forgetAllows(session.id);
+        noteActivity(session.id, 'Will ask again about everything');
+        pushState();
+      }
       return;
     case 'setIndicator':
       config.indicator = msg.value !== false;

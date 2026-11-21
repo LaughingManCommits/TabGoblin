@@ -3,6 +3,28 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `automatic-mode`, WP-7
+
+The automatic mode for confirmations. All on the final build of the branch.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 54 tests; `McpConformanceIT` on the built jar: 8 tests |
+| `cd chrome-extension && npm run check` | type-check clean, 129 tests, build |
+| `cd e2e && npm test` | 91 passed, 0 failed. In a real Chrome: asked the first time, not the second; another control asked about; ended by the popup, by a pause, and by a restart of the worker. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node screenshots.mjs prompts` | 24 pictures of 12 views. Looked at: the session in the automatic mode (dark), the setting on every time (dark) and on automatic (light). The other new ones were not opened. |
+| `HEADED=1 node screenshots.mjs` | the pictures that changed were looked at one by one, except `popup-full-light.png`, the twin of `popup-full.png` |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: one new worker test, for a reason of its own. It counted entries in the
+activity list, which keeps only its newest; it now looks at the newest of the kind.
+
+Not tried: that an Allow ends when the tab leaves the site (the code path is the one that ends
+it on a pause, which was tried), and the limit of five a minute in a real browser (rule and
+worker tests only). CI on GitHub has still not been seen.
+
 ## 2026-11-21, on `confirmations`, WP-4, WP-5 and WP-6
 
 All on the final build of the branch.

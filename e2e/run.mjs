@@ -214,7 +214,7 @@ try {
   }
   async function setConfirmation(on, agent = one) {
     const popup = await openPopup();
-    if ((await popup.$eval('#confirmSubmissions', (el) => el.checked)) !== on) await popup.click('#confirmSubmissions');
+    await popup.select('#askMode', on ? 'always' : 'never');
     await until(async () => (await agent.tool('browser_status')).text.includes(`Submissions need user confirmation: ${on ? 'yes' : 'no'}`), 'the setting');
   }
   /** Answers the confirmation prompt that a pending submission raised. */
@@ -238,6 +238,27 @@ try {
     await popup.waitForFunction((selector) => !document.querySelector(selector), {}, row(id, '.askagain'));
   }
   const sessionOf = async (agent) => /Session (s\d+)/.exec((await agent.tool('browser_status')).text)[1];
+  /** Sets when one session asks, with its own control in the popup. */
+  async function setAsking(id, mode) {
+    const popup = await openPopup();
+    await popup.waitForSelector(row(id, '.ask'));
+    await popup.select(row(id, '.ask'), mode);
+    await sleep(900); // one refresh of the popup, which rebuilds the list
+    await popup.waitForFunction((selector, wanted) => document.querySelector(selector)?.value === wanted, {}, row(id, '.ask'), mode);
+    return popup;
+  }
+  /** Sends one message in the demo chat. `asked` says whether the user is expected to be asked; if so they allow. */
+  async function sendMessage(text, asked) {
+    const box = ref(ok(await two.tool('browser_snapshot')).text, 'Textbox: Message to the team');
+    const pending = two.tool('browser_submit', { ref: box, fields: [{ ref: box, text }], expect_text: text });
+    if (asked) {
+      const prompt = await answerPrompt(true);
+      has(prompt.label, 'Message to the team');
+    }
+    const result = json(await pending);
+    assert(result.state === 'CONFIRMED', JSON.stringify(result));
+    assert(asked || (await badge()) !== '?', 'no question should have been raised');
+  }
   async function worker() {
     return until(async () => (await extension.workers())[0], 'the extension service worker');
   }
@@ -1249,6 +1270,45 @@ try {
     assert(again.submitted === false, 'a key that sent nothing does not block the next one: ' + JSON.stringify(again));
     json(await two.tool('browser_fill', { ref: note, text: '' }));
   });
+  await step('automatic: asked the first time for a control, then it passes; the popup shows that and ends it', async () => {
+    const sid = await sessionOf(two);
+    const said = () => pageB.$$eval('#said .said', (els) => els.length);
+    const before = await said();
+    // This one session is set to automatic. The general setting stays as it is.
+    await setAsking(sid, 'auto');
+    has((await two.tool('browser_status')).text, 'Submissions need user confirmation: no');
+
+    await sendMessage('Lunch at one', true);
+    await sendMessage('Bring cake', false);
+    await sendMessage('And coffee', false);
+    assert(await said() === before + 3, `messages: ${await said()}`);
+
+    // Another control is asked about, although the message box passes.
+    const pending = two.tool('browser_press_key', {
+      ref: ref(ok(await two.tool('browser_snapshot')).text, 'Textbox: New note'), key: 'Enter', intent: 'submit',
+    });
+    has((await answerPrompt(false)).label, 'New note');
+    fails(await pending, 'SUBMIT_DENIED');
+    await letAskAgain(sid);
+
+    // What passes is there to see, with the time it has left, and the user can end it.
+    let popup = await openPopup();
+    const passing = await popup.$eval(row(sid, '.passing'), (el) => el.textContent);
+    assert(/Passes without asking: “Message to the team” \(1[45] min\)\./.test(passing), passing);
+    has(await popup.$eval('#activity', (el) => el.textContent), 'Allowed automatically');
+    await popup.$eval(row(sid, '.forget'), (el) => el.click());
+    await popup.waitForFunction((selector) => !document.querySelector(selector), {}, row(sid, '.passing'));
+    await sendMessage('Back at two', true);
+
+    // Pausing the session ends it as well.
+    await togglePause(sid, 'Resume');
+    await togglePause(sid, 'Pause');
+    popup = await openPopup();
+    assert(!(await popup.$(row(sid, '.passing'))), 'a pause forgets what was allowed');
+    // Back to the general setting, which replaces what a session had of its own.
+    await setConfirmation(false, two);
+    await popup.waitForFunction((selector) => document.querySelector(selector)?.value === 'never', {}, row(sid, '.ask'));
+  });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();
     has(ok(await two.tool('browser_snapshot')).text, 'in an inner scrolling area. More below:');
@@ -1360,6 +1420,11 @@ try {
       || document.querySelector(sel)?.textContent === 'agent-one', {}, row(sA, '.meta'));
   });
   await step('the extension\'s service worker can be stopped and restarted without losing sessions', async () => {
+    // Something the user allowed in the automatic mode, to see below that it is not kept.
+    const auto = await sessionOf(two);
+    await setAsking(auto, 'auto');
+    await sendMessage('Before the restart', true);
+    assert(await (await openPopup()).$(row(auto, '.passing')), 'the message box should pass now');
     const before = (await one.tool('browser_status')).text;
     await (await worker()).evaluate(() => { globalThis.__beforeRestart = true; });
     await (await worker()).close();
@@ -1377,6 +1442,11 @@ try {
     has(ok(await two.tool('browser_snapshot')).text, 'Page: Notes App');
     fails(await two.tool('browser_snapshot', { session: sA }), 'SESSION_NOT_OWNED');
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '2 agents connected');
+    // The session's own setting is kept. What was allowed is not: after a restart the user is asked again.
+    await popup.waitForFunction((selector) => document.querySelector(selector)?.value === 'auto', {}, row(auto, '.ask'));
+    assert(!(await popup.$(row(auto, '.passing'))), 'nothing may pass unasked after a restart');
+    await sendMessage('After the restart', true);
+    await setConfirmation(false, two);
   });
   await step('revoking one session leaves the others; closing a tab ends its session', async () => {
     const popup = await openPopup();
