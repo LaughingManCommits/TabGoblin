@@ -3,7 +3,7 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
-## 2026-11-21, on `pairing-race`: panels that fold
+## 2026-11-21, on `folding-panels`: panels that fold
 
 Sessions, Activity, Agents and Settings fold to one line each, which says what is inside. All on
 the final build of the branch.
@@ -28,6 +28,11 @@ Failed on the way, besides that: the new step assumed two agents where one is co
 left the panels folded when it failed; it now unfolds them whatever happens. A worker test asked
 for a wait of exactly 0 ms where 1 ms is in order. The first picture of the folded popup caught
 the arrows turning and the pointer on a heading; the script now waits and moves the pointer.
+
+And the commit was first made on `main`. The owner had merged `pairing-race` meanwhile; the
+command that committed printed the branch first, and nobody read it. The commit was moved to
+`folding-panels` and local `main` set back to the remote's. The working rule in `AGENTS.md` now
+says how to make the commit refuse.
 
 Not run: the server's suites (nothing in the server changed) and the Linux container (Docker
 was not running after a restart of the machine). Not tried: folding with the keyboard by hand,
