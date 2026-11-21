@@ -10,6 +10,8 @@ export class McpClient {
     this.stderr = '';
     this.stdoutNoise = [];
     this.pending = new Map();
+    /** Ids of answers that arrived for requests this client was no longer waiting for. */
+    this.strays = [];
     this.nextId = 1;
     this.exited = new Promise((resolve) => this.proc.once('exit', (code) => resolve(code)));
     this.proc.stderr.on('data', (chunk) => { this.stderr += chunk; });
@@ -33,6 +35,8 @@ export class McpClient {
           this.pending.delete(msg.id);
           if (msg.error) waiter.reject(new Error(`${msg.error.code}: ${msg.error.message}`));
           else waiter.resolve(msg.result);
+        } else if (msg.id !== undefined && (msg.result !== undefined || msg.error !== undefined)) {
+          this.strays.push(msg.id); // an answer nobody is waiting for, such as one to a cancelled request
         }
       }
     });
@@ -55,6 +59,17 @@ export class McpClient {
 
   notify(method, params = {}) {
     this.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n');
+  }
+
+  /**
+   * Gives a request up, as a client does: it tells the server and stops waiting. The protocol
+   * asks the server to send no answer, so the request's promise is settled here.
+   */
+  cancel(id, reason) {
+    this.notify('notifications/cancelled', { requestId: id, reason });
+    const waiter = this.pending.get(id);
+    this.pending.delete(id);
+    waiter?.resolve({ cancelled: true });
   }
 
   async initialize() {

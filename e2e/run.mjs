@@ -727,18 +727,19 @@ try {
     await setConfirmation(false);
   });
 
-  await step('a tool call the MCP client cancels is stopped in the browser', async () => {
+  await step('a tool call the MCP client cancels is stopped in the browser, and not answered', async () => {
     const started = Date.now();
     const id = one.nextId;
     const pending = one.request('tools/call', { name: 'browser_wait_for', arguments: { text: 'never-there', timeout_ms: 25000 } });
     await sleep(800);
-    one.notify('notifications/cancelled', { requestId: id, reason: 'the user pressed stop' });
-    const result = await pending;
-    assert(Date.now() - started < 8000, `the cancelled call kept running for ${Date.now() - started}ms`);
-    has(result.content[0].text, 'Error [INTERRUPTED]');
+    one.cancel(id, 'the user pressed stop');
+    assert((await pending).cancelled, 'a client that cancels stops waiting');
     // The page stopped waiting as well, and the session is immediately usable again.
     await until(async () => /wait_for \d+ms CANCELLED/.test((await one.tool('browser_status', { diagnostics: true })).text), 'the wait to be cancelled in the page');
+    assert(Date.now() - started < 8000, `the cancelled call kept running for ${Date.now() - started}ms`);
     ok(await one.tool('browser_snapshot'));
+    // The protocol asks for no answer to a request that was given up.
+    assert(!one.strays.includes(id), 'the server answered a call the client had cancelled');
   });
 
   console.log('\nLeaving the site: suspended, not lost');
