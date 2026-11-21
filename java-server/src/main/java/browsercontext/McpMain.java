@@ -372,10 +372,25 @@ public final class McpMain {
         return specs;
     }
 
+    /** What each tool is called where a person reads it: in a client's list of tools, or when it asks for approval. */
+    static final java.util.Map<String, String> TITLES = java.util.Map.ofEntries(
+            java.util.Map.entry("browser_status", "Browser sessions"),
+            java.util.Map.entry("browser_snapshot", "Page snapshot"),
+            java.util.Map.entry("browser_extract", "Read page text"),
+            java.util.Map.entry("browser_click", "Click"),
+            java.util.Map.entry("browser_fill", "Fill in a field"),
+            java.util.Map.entry("browser_press_key", "Press a key"),
+            java.util.Map.entry("browser_scroll", "Scroll"),
+            java.util.Map.entry("browser_navigate", "Navigate"),
+            java.util.Map.entry("browser_screenshot", "Screenshot"),
+            java.util.Map.entry("browser_wait_for", "Wait for the page"),
+            java.util.Map.entry("browser_submit", "Submit"));
+
     private static SyncToolSpecification tool(BrowserService service, McpJsonMapper mapper, String name,
             boolean readOnly, String description, String inputSchema) {
         McpSchema.Tool tool = McpSchema.Tool.builder()
                 .name(name)
+                .title(TITLES.get(name))
                 .description(description)
                 .inputSchema(mapper, inputSchema)
                 .annotations(new McpSchema.ToolAnnotations(null, readOnly, !readOnly, false, true, null))

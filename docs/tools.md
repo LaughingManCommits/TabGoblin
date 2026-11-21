@@ -3,7 +3,8 @@
 Eleven generic tools. Every tool except `browser_status` takes an optional `session`; it is
 required as soon as the agent has more than one. The outputs shown here are real, from the demo
 sites. Longer ones are shortened on this page; the complete outputs are in
-[`examples/`](examples/).
+[`examples/`](examples/). Each tool also has a title for display, such as *Page snapshot* or
+*Fill in a field*, which a client may show in its list of tools.
 
 | Tool | Needs | Purpose |
 |---|---|---|

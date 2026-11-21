@@ -290,7 +290,6 @@ specification, because some of these were written from memory of the protocol an
 | 1 | A cancelled call still answers | `StdinTap` stops the call, by hand, because this API of the SDK has no handler for `notifications/cancelled`. A result that says "cancelled" is then sent. | The specification advises sending nothing for a cancelled request. See whether the handler can end without a result; otherwise leave it, as the client is told to ignore it. |
 | 2 | No progress for long calls | `browser_submit` can wait 95 seconds for the user's confirmation in silence | Send `notifications/progress` when the client gave a progress token |
 | 4 | Results are JSON printed as text | `browser_click`, `browser_scroll`, `browser_navigate`, `browser_fill`, `browser_wait_for`, `browser_submit` return a JSON string in a text block | Declare an output schema and return structured content, with the text kept for older clients |
-| 5 | Tools have no title | Annotations are built with a null title | Give each tool a human-readable title |
 | 6 | Server identity is hard-coded and off-brand | `serverInfo("browser-context-mcp", "0.2.0")` in code, the version repeated from `pom.xml` | Name and title that match the product; the version read from the build |
 | 9 | Java naming is not conventional | Package `browsercontext`, Maven groupId `browsercontext` | A reverse-domain package and groupId |
 
@@ -302,8 +301,8 @@ specification, because some of these were written from memory of the protocol an
    tried.
 3. **Close the gaps**, one commit each, each with a test. Done: 8 (a mistyped option is refused)
    and 7 (the server ends in order; the path for Ctrl+C is the same code but was not tried,
-   because a test cannot send that signal on Windows). Order for the rest: 5 and 6 (metadata),
-   1 (cancellation), 2 (progress), 4 (structured results).
+   because a test cannot send that signal on Windows), and 5 (each tool has a title). Order for the
+   rest: 6 (identity), 1 (cancellation), 2 (progress), 4 (structured results).
 4. **Gap 4 needs care.** Agents read today's text results. Keep the text identical, add the
    structured form next to it, and run the end-to-end suite before and after.
 5. **Decide gap 9 separately.** Renaming the package touches every file and the jar's entry point.

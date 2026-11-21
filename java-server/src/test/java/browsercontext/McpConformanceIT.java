@@ -151,6 +151,7 @@ class McpConformanceIT {
             for (JsonNode tool : tools) {
                 String name = tool.path("name").asString();
                 assertTrue(name.matches("browser_[a-z_]+"), name);
+                assertFalse(tool.path("title").asString("").isEmpty(), name + " has a title for display");
                 assertFalse(tool.path("description").asString("").isEmpty(), name + " is described");
                 assertEquals("object", tool.path("inputSchema").path("type").asString(), name + " has an input schema");
                 assertTrue(tool.path("annotations").has("readOnlyHint"), name + " says whether it only reads");
