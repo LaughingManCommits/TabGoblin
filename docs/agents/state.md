@@ -4,24 +4,27 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `7090b45`: the merge of `editor-compatibility`, made by the owner on
-  2026-11-21. That branch is gone, locally and on the remote.
-- Branch `editor-keys`: local, not pushed, not merged. It starts at `29fea3e` (key presses in
-  editors) on top of `7090b45`.
-
+- `main` = `origin/main` = `ba977cd`: the merge of `editor-keys`, made by the owner on 2026-11-21.
+- Branch `typed-lines`: local, not pushed, not merged. On top of `ba977cd`: a fill never presses
+  Enter; Enter in a text box is a submission that the user allows in the popup; the prompt's look;
+  the prompt cannot be answered by accident (WP-3).
+- Branch `mcp-standard`: local, not pushed, on top of `typed-lines`. WP-1, complete. Merge
+  `typed-lines` first, then this.
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| Push and merge `editor-keys` | Waiting for the owner, who pushes and merges | git |
-| WP-1: follow the MCP standard with the official SDK | Open, not started, no owner | [TODO.md](../../TODO.md) |
-| WP-2: text with line breaks, typed key by key | Open, found 2026-11-21, no owner | [TODO.md](../../TODO.md) |
+| Push and merge `typed-lines`, then `mcp-standard` | Waiting for the owner, who pushes and merges | git |
+| WP-4: a prompt that says what is asked | Open; its first task is done | [TODO.md](../../TODO.md) |
+| WP-5: requests one at a time, and not again after a no | Open, not started | [TODO.md](../../TODO.md) |
+| WP-6: Enter as a full submission, with tighter exceptions | Open, not started | [TODO.md](../../TODO.md) |
+| WP-7: an automatic mode for confirmations | Proposed by the owner; four decisions open | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
-- **No CI result has been read.** The push of `7090b45` to `main` on 2026-11-21 should have
-  started all four jobs, the "Editors" job for the first time. The repository is private and
-  `gh` is not logged in on this machine, so no session has seen how they ended.
+- **No CI result has been read.** The two pushes to `main` on 2026-11-21 should each have started
+  all four jobs, the "Editors" job for the first time. The repository is private and `gh` is not
+  logged in on this machine, so no session has seen how they ended.
 - **Only Chrome on Windows has run the browser suites.** The Mac shortcut path in `editor.ts` is
   untested. The CI unit jobs are Linux, unverified for the same reason as above.
 - **No hover.** CSS `:hover` cannot be set without the debugger, so a hover tool was decided
@@ -30,9 +33,9 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, all four suites passed locally on the code of the last commit,
-  the editor lab in front and in the background. Details in the
-  [validation log](validation-log.md).
-- **Next action, if the owner asks for it:** start WP-1 at task 1 ("Pin the reference") in
-  `TODO.md`. It begins with reading the specification revision that SDK 2.2.0 implements, before
-  any code changes.
+- **Last verification:** 2026-11-21, on `mcp-standard`, all on its final build: the server's
+  tests, the conformance check on the built jar, the end-to-end suite, and the editor lab in front
+  and in the background. The extension's tests were last run on `typed-lines`, which
+  `mcp-standard` does not change. Details in the [validation log](validation-log.md).
+- **Next action:** WP-4, WP-5 and WP-6 in `TODO.md` are open and need no decision. WP-7 waits for
+  the owner's decisions, which are listed in it.

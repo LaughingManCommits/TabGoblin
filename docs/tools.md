@@ -3,7 +3,14 @@
 Eleven generic tools. Every tool except `browser_status` takes an optional `session`; it is
 required as soon as the agent has more than one. The outputs shown here are real, from the demo
 sites. Longer ones are shortened on this page; the complete outputs are in
-[`examples/`](examples/).
+[`examples/`](examples/). Each tool also has a title for display, such as *Page snapshot* or
+*Fill in a field*, which a client may show in its list of tools.
+
+The tools whose result is an object (`browser_click`, `browser_fill`, `browser_press_key`,
+`browser_scroll`, `browser_navigate`, `browser_wait_for`, `browser_submit`) give it twice: as the
+JSON text shown on this page, and as structured content for clients that take that. Both say the
+same. A client that sends a progress token with a call is told every three seconds that the call
+is still running; a call it cancels is stopped and not answered.
 
 | Tool | Needs | Purpose |
 |---|---|---|
@@ -236,7 +243,20 @@ Moving around (arrows, Tab, Escape, Home, End, PageUp, PageDown) needs Explore; 
 Backspace, Delete and characters need Write. Because synthetic key events do not trigger the
 browser's built-in behaviour, the usual effect is carried out and reported in `effect`: *activated
 the element*, *submitted the form*, *moved focus to …*, *typed the character*, *inserted a line
-break*. Enter in a form field is a submission and needs `intent: "submit"`.
+break*.
+
+Keys that can submit follow the rules for submissions:
+
+| Key | Where | Rule |
+|---|---|---|
+| Enter | A text box of any kind: a field of a form, a field outside one, a text area, an editor, a message box | A submission, because it may send what is written. Refused with `SUBMIT_INTENT_REQUIRED` unless `intent` is `submit`; then the user is asked to allow it. |
+| Enter | A search box, or a text box on which a list of options is open | Pressed. It searches, or takes the highlighted option. |
+| Enter, Space | A button, link, tab or menu item, or a control of the page's own making that takes the keyboard | The rules of `browser_click` on that element. With `intent: "submit"` it runs as a submission of that control, which needs its `ref`. |
+
+The page does not say whether Enter in a text box sends or only starts a new line, so both are
+treated as sending. A line break does not need Enter: put it into the text of `browser_fill`,
+with `append` to add to what is there. A key that was checked on one element is not pressed on
+another: if the keyboard moves while the user is asked, the result is `STALE_REF`.
 
 In a rich-text or code editor a key goes where the caret is. An editor that does not hold the
 caret gets the key at the end of its text; a code editor that keeps a cursor of its own gets it
@@ -270,6 +290,10 @@ When the tab is in the background and the result could not be confirmed, a `note
 | Date, time, colour, range | A value in the control's own format, e.g. `1990-12-10` |
 
 `method: "type"` sends key events per character (up to 2,000), for fields that react to typing.
+It types what is on one line. A line break is content and never a press of Enter, which in a
+message box sends the message: in a text area the line break is added without a key event, and in
+an editor a text with line breaks is entered in one piece, with a `note` saying so. To press Enter,
+use `browser_press_key`.
 Password and credential-like fields are refused (`SENSITIVE_FIELD`).
 
 ```json
@@ -284,7 +308,6 @@ Password and credential-like fields are refused (`SENSITIVE_FIELD`).
 | does not show exactly the requested text | The editor changed, differently | Snapshot, then correct it |
 | changed the indentation | The words are in, leading spaces are not as given | Snapshot; matters for code |
 | could not be checked | The tab is in the background and the editor does not redraw there | Do **not** fill again; snapshot once the tab is visible |
-| typed line by line | `method: "type"` with line breaks, in a background tab: lines may have run together | Fill again without `method: "type"`, which replaces the text |
 
 Never repeat a fill only because it was not confirmed: an editor may have taken the text without
 showing it yet.
@@ -347,7 +370,7 @@ Every failure is `Error [CODE]: message`.
 | `ELEMENT_DISABLED`, `UNSUPPORTED_ELEMENT`, `OPTION_NOT_FOUND` | The control cannot take that |
 | `WAIT_TIMEOUT` | The condition did not occur in time |
 | `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried |
-| `CANCELLED`, `INTERRUPTED` | Stopped by the user or the client |
+| `CANCELLED`, `INTERRUPTED` | Stopped by the user (pause, revoke, a lower access level). A call the client itself cancels gets no answer at all. |
 | `TAB_NOT_VISIBLE`, `SCREENSHOT_FAILED` | The tab could not be captured |
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |
 | `RATE_LIMITED`, `DUPLICATE_COMMAND`, `STALE_COMMAND` | Protocol protections |

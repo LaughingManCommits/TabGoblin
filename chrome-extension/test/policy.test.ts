@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, checkClick, checkGate, failureNote, inScope, isHighImpact,
-  judgeSubmission, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
-  type ClickTarget, type Mode, type SessionAuth, type SubmitSignals,
+  CommandError, RateLimiter, RecentIds, activityLabel, checkClick, checkGate, checkKey, failureNote, inScope, isHighImpact,
+  judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
+  type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
 
 const ORIGIN = 'https://app.example';
@@ -235,6 +235,42 @@ test('keys are normalised; moving around needs Explore, typing and Enter need Wr
   for (const bad of ['Control+A', 'F5', 'ab', 'Meta', '']) {
     assert.equal(code(() => parseKey(bad)), 'INVALID_ARGUMENT', bad);
   }
+});
+
+const key = (over: Partial<KeyTarget> = {}): KeyTarget => ({ submit: null, click: null, label: 'Message', ...over });
+
+test('Enter in a text box is a submission: it needs intent, and is then put to the user', () => {
+  // A key that submits nothing and activates nothing is simply pressed.
+  assert.equal(checkKey('write', 'interact', key()), 'press');
+  assert.equal(checkKey('explore', 'interact', key()), 'press');
+
+  for (const submit of ['form', 'text'] as const) {
+    assert.equal(code(() => checkKey('write', 'interact', key({ submit }))), 'SUBMIT_INTENT_REQUIRED', submit);
+    assert.equal(checkKey('write', 'submit', key({ submit })), 'ask', submit);
+    assert.equal(code(() => checkKey('explore', 'submit', key({ submit }))), 'WRITE_NOT_AUTHORIZED', submit);
+  }
+  // The refusal says how a line break is entered instead, so that an agent does not reach for intent.
+  try {
+    checkKey('write', 'interact', key({ submit: 'text' }));
+    assert.fail('expected a refusal');
+  } catch (e) {
+    assert.match((e as Error).message, /line break.*browser_fill/);
+  }
+});
+
+test('a key that activates a control is a click on it, with the rules of a click', () => {
+  const click = (over: Partial<ClickTarget> = {}): KeyTarget => key({ click: target(over) });
+  assert.equal(checkKey('write', 'interact', click()), 'press');
+  assert.equal(code(() => checkKey('write', 'interact', click({ submit: 'form' }))), 'SUBMIT_INTENT_REQUIRED');
+  assert.equal(code(() => checkKey('write', 'interact', click({ submit: 'likely' }))), 'SUBMIT_INTENT_REQUIRED');
+  assert.equal(checkKey('write', 'submit', click({ submit: 'form' })), 'click', 'declared: run as a submission of that control');
+  assert.equal(code(() => checkKey('write', 'interact', click({ externalLink: true }))), 'NAVIGATION_BLOCKED');
+  assert.equal(code(() => checkKey('write', 'submit', click({ externalLink: true }))), 'NAVIGATION_BLOCKED');
+});
+
+test('search wording is recognised, so that Enter in a search box is not held up', () => {
+  for (const label of ['Search', 'Search issues…', 'Filter by name', 'Find in page', 'Go to file']) assert.ok(looksLikeSearch(label), label);
+  for (const label of ['Message', 'Write a comment', 'New note', 'Reply', 'Research notes', '']) assert.ok(!looksLikeSearch(label), label);
 });
 
 const signals = (over: Partial<SubmitSignals> = {}): SubmitSignals => ({

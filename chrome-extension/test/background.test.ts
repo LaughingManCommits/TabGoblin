@@ -26,6 +26,8 @@ const tabs = new Map<number, FakeTab>();
 const pageLog: string[] = [];
 /** Waits in progress inside fake pages, by operation id, so tests can hold and release them. */
 const waits = new Map<string, (reply: object) => void>();
+/** What a fake page answers to an operation, where a test needs more than an echo. */
+const pageResults = new Map<string, object>();
 
 function pageAnswer(tabId: number, msg: any): Promise<object> | object {
   const tab = tabs.get(tabId);
@@ -48,7 +50,8 @@ function pageAnswer(tabId: number, msg: any): Promise<object> | object {
     waits.delete(msg.opId);
     return { ok: true, result: {}, ...meta };
   }
-  return { ok: true, result: msg.op === 'snapshot' ? { text: `snapshot of tab ${tabId}` } : { op: msg.op }, ...meta };
+  const told = pageResults.get(msg.op);
+  return { ok: true, result: told ?? (msg.op === 'snapshot' ? { text: `snapshot of tab ${tabId}` } : { op: msg.op }), ...meta };
 }
 
 const storageLocal: Record<string, any> = { token: TOKEN, port: BASE_PORT };
@@ -337,6 +340,84 @@ test('an authorization with an expiry ends on its own', async () => {
   assert.equal(code(await two.command('snapshot')), 'AUTHORIZATION_EXPIRED');
   assert.deepEqual((await state()).sessions.map((x: any) => x.id), ['s1']);
   assert.equal(code(await two.command('snapshot')), 'NOT_AUTHORIZED');
+});
+
+test('Enter in a text box is refused without intent, and with it the user is asked first', async () => {
+  await popup({ type: 'setMode', session: 's1', mode: 'write' });
+  const presses = (): number => pageLog.filter((entry) => entry === '1:press_key').length;
+  const before = presses();
+  const enter = (params: object = {}): Promise<any> => one.command('press_key', { params: { key: 'Enter', ...params } });
+
+  // A message box: the page does not say whether Enter sends or starts a line.
+  pageResults.set('key_describe', { submit: 'text', click: null, label: 'Message' });
+  assert.equal(code(await enter()), 'SUBMIT_INTENT_REQUIRED');
+  assert.equal(presses(), before, 'the key is not pressed');
+
+  // Declared: the user is asked, and told that it is a key press.
+  const denied = enter({ intent: 'submit' });
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
+  const asked = (await state()).pendingConfirm;
+  assert.deepEqual([asked.label, asked.how, asked.session], ['Message', 'enter', 's1']);
+  await popup({ type: 'confirm', id: asked.id, allow: false });
+  const refusal = await denied;
+  assert.equal(code(refusal), 'SUBMIT_DENIED');
+  assert.match(refusal.error.message, /Nothing was pressed/);
+  assert.equal(presses(), before);
+
+  const allowed = enter({ intent: 'submit' });
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked again');
+  await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
+  assert.equal(code(await allowed), 'ok');
+  assert.equal(presses(), before + 1, 'pressed once, after the user allowed it');
+
+  // With confirmations switched off by the user, the declared intent is enough.
+  await popup({ type: 'setConfirm', value: false });
+  assert.equal(code(await enter({ intent: 'submit' })), 'ok');
+  assert.equal(code(await enter()), 'SUBMIT_INTENT_REQUIRED', 'but it still has to be declared');
+  await popup({ type: 'setConfirm', value: true });
+
+  // A field of a form: Enter submits the form for certain, and the user is told that.
+  pageResults.set('key_describe', { submit: 'form', click: null, label: 'Email' });
+  const form = enter({ intent: 'submit' });
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked about the form');
+  assert.equal((await state()).pendingConfirm.how, 'form');
+  await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: false });
+  assert.equal(code(await form), 'SUBMIT_DENIED');
+
+  // Other keys, and Enter where it submits nothing, go through.
+  pageResults.set('key_describe', { submit: null, click: null, label: 'Search' });
+  assert.equal(code(await enter()), 'ok');
+  assert.equal(code(await one.command('press_key', { params: { key: 'a' } })), 'ok');
+  pageResults.delete('key_describe');
+});
+
+test('Enter or Space on a control follows the rules of a click on it', async () => {
+  const presses = (): number => pageLog.filter((entry) => entry === '1:press_key').length;
+  const before = presses();
+  const control = (submit: 'form' | 'likely' | null, externalLink = false): object =>
+    ({ submit: null, label: 'Save', click: { readSafe: false, disclosure: false, externalLink, submit, label: 'Save' } });
+
+  for (const key of ['Enter', 'Space']) {
+    pageResults.set('key_describe', control('form'));
+    assert.equal(code(await one.command('press_key', { params: { key, ref: 3 } })), 'SUBMIT_INTENT_REQUIRED', key);
+    pageResults.set('key_describe', control('likely'));
+    assert.equal(code(await one.command('press_key', { params: { key, ref: 3 } })), 'SUBMIT_INTENT_REQUIRED', key);
+    pageResults.set('key_describe', control(null, true));
+    assert.equal(code(await one.command('press_key', { params: { key, ref: 3 } })), 'NAVIGATION_BLOCKED', key);
+  }
+  assert.equal(presses(), before, 'none of these reached the page as a key press');
+
+  // A control that submits nothing is activated as before.
+  pageResults.set('key_describe', control(null));
+  assert.equal(code(await one.command('press_key', { params: { key: 'Enter', ref: 3 } })), 'ok');
+  assert.equal(presses(), before + 1);
+
+  // Declared as a submission, the control is needed by ref: a submission is run on a named control.
+  pageResults.set('key_describe', control('form'));
+  assert.equal(code(await one.command('press_key', { params: { key: 'Enter', intent: 'submit' } })), 'SUBMIT_INTENT_REQUIRED');
+  assert.equal(presses(), before + 1);
+  pageResults.delete('key_describe');
+  await popup({ type: 'setMode', session: 's1', mode: 'read' });
 });
 
 test('pause cancels what is running and blocks what follows; revoke ends the session', async () => {

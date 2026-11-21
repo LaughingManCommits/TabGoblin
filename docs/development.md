@@ -28,6 +28,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 | Command | What it covers |
 |---|---|
 | `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel |
+| `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, and the background worker against a fake Chrome |
 | `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
 | `cd e2e/editors && npm test` | Text entry into fourteen real editor libraries, checked against each editor's own model |
@@ -63,7 +64,7 @@ what is below the fold and what the light theme looks like.
 
 | Job | Runs on | Does |
 |---|---|---|
-| Java server | Linux | `mvn package`: compile, test, build the jar |
+| Java server | Linux | `mvn verify`: compile, test, build the jar, check the jar against the protocol |
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
@@ -175,3 +176,13 @@ Proofs are `HMAC-SHA256(token, "client:" + serverNonce + ":" + clientNonce)` and
 The product is TabGoblin. Some technical names predate it and are kept so existing setups keep
 working: the jar and MCP server name (`browser-context-mcp`), the Java package (`browsercontext`),
 the token directory (`~/.browser-context-mcp`) and the `BCMCP_*` environment variables.
+
+The Java package and the Maven group, both `browsercontext`, do not follow the convention of a
+reversed domain name. That is left as it is, decided on 2026-11-21:
+
+- Nothing outside this repository sees either name. The jar is not published; it is run by its
+  path.
+- A conventional name needs a domain or an account name, which is the owner's to choose.
+- The change touches every Java file and the jar's entry point, for no change in behaviour.
+
+If the jar is ever published, rename then, in one commit that does nothing else.

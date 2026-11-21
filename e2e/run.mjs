@@ -224,7 +224,10 @@ try {
       return (await p.$eval('#confirm', (el) => !el.hidden)) ? p : null;
     }, 'the confirmation prompt');
     const shownPrompt = { title: await popup.$eval('#confirmTitle', (el) => el.textContent), label: await popup.$eval('#confirmLabel', (el) => el.textContent) };
-    await popup.click(allow ? '#allow' : '#deny');
+    const answer = allow ? '#allow' : '#deny';
+    // A prompt takes no answer in its first moment.
+    await popup.waitForFunction((selector) => !document.querySelector(selector).disabled, {}, answer);
+    await popup.click(answer);
     return shownPrompt;
   }
   async function worker() {
@@ -724,18 +727,19 @@ try {
     await setConfirmation(false);
   });
 
-  await step('a tool call the MCP client cancels is stopped in the browser', async () => {
+  await step('a tool call the MCP client cancels is stopped in the browser, and not answered', async () => {
     const started = Date.now();
     const id = one.nextId;
     const pending = one.request('tools/call', { name: 'browser_wait_for', arguments: { text: 'never-there', timeout_ms: 25000 } });
     await sleep(800);
-    one.notify('notifications/cancelled', { requestId: id, reason: 'the user pressed stop' });
-    const result = await pending;
-    assert(Date.now() - started < 8000, `the cancelled call kept running for ${Date.now() - started}ms`);
-    has(result.content[0].text, 'Error [INTERRUPTED]');
+    one.cancel(id, 'the user pressed stop');
+    assert((await pending).cancelled, 'a client that cancels stops waiting');
     // The page stopped waiting as well, and the session is immediately usable again.
     await until(async () => /wait_for \d+ms CANCELLED/.test((await one.tool('browser_status', { diagnostics: true })).text), 'the wait to be cancelled in the page');
+    assert(Date.now() - started < 8000, `the cancelled call kept running for ${Date.now() - started}ms`);
     ok(await one.tool('browser_snapshot'));
+    // The protocol asks for no answer to a request that was given up.
+    assert(!one.strays.includes(id), 'the server answered a call the client had cancelled');
   });
 
   console.log('\nLeaving the site: suspended, not lost');
@@ -1011,6 +1015,110 @@ try {
     const text = await pageB.$eval('#editor', (el) => el.textContent);
     assert(text === 'Feed the cat', `expected the key at the end, got ${JSON.stringify(text)}`);
     json(await two.tool('browser_fill', { ref: editor, text: '' }));
+  });
+  await step('a typed text with line breaks is entered in one piece: a fill never presses Enter', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const editor = ref(snapshot, 'Textbox: New note');
+    // Count what a message box that sends on Enter would act on, however it recognises the key.
+    await pageB.evaluate(() => {
+      window.__enters = 0;
+      document.getElementById('editor').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 10) window.__enters += 1;
+      }, true);
+    });
+    const typed = json(await two.tool('browser_fill', { ref: editor, text: 'Feed the cat\nWater the plants', method: 'type' }));
+    assert(typed.valueMatches && /in one piece/.test(typed.note ?? ''), JSON.stringify(typed));
+    const lines = await pageB.$eval('#editor', (el) => el.innerText.split('\n').filter(Boolean));
+    assert(lines.join('|') === 'Feed the cat|Water the plants', JSON.stringify(lines));
+    assert((await pageB.evaluate(() => window.__enters)) === 0, 'a fill must not press Enter');
+    // One line is still typed key by key.
+    const line = json(await two.tool('browser_fill', { ref: editor, text: 'Buy stamps', method: 'type' }));
+    assert(line.valueMatches && !line.note, JSON.stringify(line));
+    json(await two.tool('browser_fill', { ref: editor, text: '' }));
+  });
+  await step('Enter in a message box is a submission: declared by the agent, then allowed by the user', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const editor = ref(snapshot, 'Textbox: New note');
+    await pageB.evaluate(() => {
+      window.__sent = 0;
+      document.getElementById('editor').addEventListener('keydown', (e) => { if (e.key === 'Enter') window.__sent += 1; });
+    });
+    const sent = () => pageB.evaluate(() => window.__sent);
+    json(await two.tool('browser_fill', { ref: editor, text: 'Remember this' }));
+
+    fails(await two.tool('browser_press_key', { ref: editor, key: 'Enter' }), 'SUBMIT_INTENT_REQUIRED');
+    assert(await sent() === 0, 'Enter must not be pressed without intent');
+
+    await setConfirmation(true, two);
+    const denied = two.tool('browser_press_key', { ref: editor, key: 'Enter', intent: 'submit' });
+    const prompt = await answerPrompt(false);
+    assert(prompt.title === 'Allow pressing Enter?' && prompt.label === '“New note”', JSON.stringify(prompt));
+    fails(await denied, 'SUBMIT_DENIED');
+    assert(await sent() === 0, 'Enter must not be pressed when the user declines');
+
+    const allowed = two.tool('browser_press_key', { ref: editor, key: 'Enter', intent: 'submit' });
+    await answerPrompt(true);
+    assert(json(await allowed).dispatched, 'the key should be pressed once the user allows it');
+    assert(await sent() === 1, `pressed once, counted ${await sent()}`);
+  });
+  await step('a prompt that has only just appeared takes no answer, and the keyboard reaches Deny first', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const editor = ref(snapshot, 'Textbox: New note');
+    // The popup is open, as when the user was looking at it: the prompt appears under their hands.
+    const popup = await openPopup();
+    await popup.waitForFunction(() => document.getElementById('confirm').hidden);
+    const pending = two.tool('browser_press_key', { ref: editor, key: 'Enter', intent: 'submit' });
+    // The instant it is there: a click that was on its way to something else lands on Allow.
+    const atOnce = await popup.evaluate(() => new Promise((done) => {
+      const look = setInterval(() => {
+        if (document.getElementById('confirm').hidden) return;
+        clearInterval(look);
+        const allow = document.getElementById('allow');
+        const held = allow.disabled && document.getElementById('deny').disabled;
+        allow.click();
+        done({ held, keyboard: document.activeElement?.id });
+      }, 5);
+    }));
+    assert(atOnce.held, 'the prompt must not take an answer in its first moment');
+    assert(atOnce.keyboard === 'confirm', `the keyboard should be on the prompt as a whole, it is on "${atOnce.keyboard}"`);
+    // What assistive technology is told: a dialog that needs an answer, named by its question.
+    const told = await popup.accessibility.snapshot({ root: await popup.$('#confirm'), interestingOnly: false });
+    // (The title is set in capitals by the style sheet, and that is how its name is passed on.)
+    assert(told?.role === 'alertdialog' && /^allow pressing enter\?$/i.test(told?.name ?? ''), `announced as ${JSON.stringify({ role: told?.role, name: told?.name })}`);
+    // Keys that were on their way to the page. Whether they come within the pause or after it,
+    // they must not allow: within it nothing answers, after it the first stop for Tab is Deny.
+    await popup.keyboard.press('Tab');
+    await popup.keyboard.press('Enter');
+    await popup.waitForFunction(() => !document.getElementById('allow').disabled || document.getElementById('confirm').hidden);
+    if (await popup.$eval('#confirm', (el) => !el.hidden)) {
+      await popup.$eval('#confirm', (el) => el.focus());
+      await popup.keyboard.press('Tab');
+      const stop = await popup.evaluate(() => document.activeElement?.id);
+      assert(stop === 'deny', `the first stop for Tab should be Deny, it is "${stop}"`);
+      await popup.keyboard.press('Enter');
+    }
+    fails(await pending, 'SUBMIT_DENIED');
+    assert(await pageB.evaluate(() => window.__sent) === 1, 'no key may have reached the editor');
+  });
+  await step('a key the user allowed for one element is not pressed on another', async () => {
+    // The editor has the keyboard. While the user is asked, the page moves it to the Save control.
+    const moved = two.tool('browser_press_key', { key: 'Enter', intent: 'submit' });
+    await until(async () => (await badge()) === '?', 'the confirmation to be pending');
+    await pageB.evaluate(() => document.getElementById('save').focus());
+    await answerPrompt(true);
+    fails(await moved, 'STALE_REF');
+    assert(await pageB.evaluate(() => window.__sent) === 1, 'no further key press reached the editor');
+    lacks(ok(await two.tool('browser_snapshot')).text, 'Clickable: Remember this');
+    await setConfirmation(false, two);
+  });
+  await step('Enter or Space on a control that saves is refused like a click on it', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const save = ref(snapshot, 'Button: Save note');
+    for (const key of ['Enter', 'Space']) {
+      fails(await two.tool('browser_press_key', { ref: save, key }), 'SUBMIT_INTENT_REQUIRED');
+    }
+    lacks(ok(await two.tool('browser_snapshot')).text, 'Clickable: Remember this');
+    json(await two.tool('browser_fill', { ref: ref(snapshot, 'Textbox: New note'), text: '' }));
   });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();

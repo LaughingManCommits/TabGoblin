@@ -39,6 +39,8 @@ final class StdinTap extends FilterInputStream {
     private final Deque<Call> arrived = new ArrayDeque<>();
     private final Map<String, Thread> running = new HashMap<>();
     private final Set<String> cancelledEarly = new HashSet<>();
+    /** Calls the client gave up on while they ran, until their handler has been told. */
+    private final Set<String> givenUp = new HashSet<>();
 
     StdinTap(InputStream in, Runnable onEnd) {
         super(in);
@@ -102,6 +104,7 @@ final class StdinTap extends FilterInputStream {
             Thread thread = running.get(id);
             if (thread != null) {
                 Log.info("tool call cancelled by the MCP client id=" + id);
+                givenUp.add(id);
                 thread.interrupt();
             } else {
                 cancelledEarly.add(id);
@@ -125,6 +128,7 @@ final class StdinTap extends FilterInputStream {
             it.remove();
             running.put(call.id(), Thread.currentThread());
             if (cancelledEarly.remove(call.id())) {
+                givenUp.add(call.id());
                 Thread.currentThread().interrupt();
             }
             return call.id();
@@ -132,11 +136,16 @@ final class StdinTap extends FilterInputStream {
         return null;
     }
 
-    /** Called by the tool handler when it is done; also clears a late interrupt. */
-    synchronized void end(String id) {
-        if (id != null) {
-            running.remove(id);
-        }
+    /**
+     * Called by the tool handler when it is done; also clears a late interrupt. Returns whether
+     * the client gave this call up: it then expects no answer.
+     */
+    synchronized boolean end(String id) {
         Thread.interrupted();
+        if (id == null) {
+            return false;
+        }
+        running.remove(id);
+        return givenUp.remove(id);
     }
 }

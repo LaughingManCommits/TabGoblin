@@ -38,6 +38,9 @@ mvn -B -f java-server/pom.xml test -Dtest=PairingTest         # one Java test cl
 
 Success: `ℹ fail 0`, or `BUILD SUCCESS`.
 
+The built jar is checked against the protocol by `mvn -B -f java-server/pom.xml verify`, which runs
+`McpConformanceIT` after the jar is made. `package` builds without that check.
+
 The extension's type-check is separate: `cd chrome-extension && npm run typecheck`. A test can
 pass with a type error in it, because Node strips types without checking them.
 
@@ -81,7 +84,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 
 | Job | Commands |
 |---|---|
-| Java server | `mvn -B -f java-server/pom.xml package` |
+| Java server | `mvn -B -f java-server/pom.xml verify` |
 | Chrome extension | `cd chrome-extension && npm ci && npm run check` |
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
@@ -118,12 +121,11 @@ it shows.
 
 ## Change the version
 
-The version is written in eight places. Change all of them in one commit:
+The version is written in seven places. Change all of them in one commit:
 
 ```text
 pom.xml
 java-server/pom.xml
-java-server/src/main/java/browsercontext/McpMain.java     serverInfo(...)
 chrome-extension/manifest.json
 chrome-extension/package.json                              then npm install, for the lock file
 e2e/package.json
@@ -132,7 +134,8 @@ e2e/mcp-client.mjs                                         clientInfo
 ```
 
 Check: `git grep -n "0\.2\.0" -- ":!*package-lock.json"` (with the old version) prints nothing, and
-all four suites pass. There is no release procedure, no published artifact and no changelog; a
+all four suites pass. The server reads its version from the build (`java-server/pom.xml`), and the
+conformance check compares the two. There is no release procedure, no published artifact and no changelog; a
 version is a number in the tree and a merge to `main` by the owner.
 
 ## Check the documentation links

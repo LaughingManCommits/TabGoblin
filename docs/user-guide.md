@@ -127,9 +127,17 @@ with the second toggle.
 Anything that sends or changes data is a submission, and is treated differently from reading and
 filling in fields.
 
-<img src="images/popup-confirm.png" width="354" alt="The popup asking to allow a submission">
+<img src="images/popup-confirm.png" width="354" alt="The popup asking to allow a submission by a click"> <img src="images/popup-confirm-enter.png" width="354" alt="The popup asking to allow pressing Enter in a text box">
 
 - The agent has to declare it. A click that would submit is refused otherwise.
+- Pressing Enter in a text box counts as well: in a chat or comment box it sends what is written.
+  The prompt then reads **Allow pressing Enter?** (the picture on the right). Search boxes are
+  left alone.
+- The prompt names the control or text box as the page names it, and below that the session and
+  its website. For deleting, paying, publishing and the like it is red instead of amber.
+- The prompt comes up by itself, and takes the keyboard from the page while it is there. It
+  cannot be answered by accident: for its first moment the buttons are dim and take no answer,
+  and from the keyboard Deny comes before Allow.
 - With **Ask me before the agent submits anything** on (the default), you get this prompt. Nothing
   is typed or clicked until you press **Allow**; **Deny**, or no answer within a minute, means
   nothing happens.

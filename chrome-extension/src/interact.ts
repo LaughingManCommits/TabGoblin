@@ -3,7 +3,7 @@
 
 import { editorKind, fillEditor, fireKey, pressEditorKey, type FillResult } from './editor.ts';
 import { scrollerOf, visibleText } from './extract.ts';
-import { looksLikeSubmission, type ClickTarget } from './policy.ts';
+import { looksLikeSearch, looksLikeSubmission, type ClickTarget, type KeyTarget } from './policy.ts';
 import {
   DomError, accessibleName, checkedState, frameDocument, isDisabled, isEditingHost, isScrollable, isSensitiveField, isVisible,
   mainScroller, norm, roleOf, type PageState, type RefRegistry,
@@ -25,11 +25,20 @@ function isSearchForm(form: HTMLFormElement): boolean {
   return !!form.closest('[role="search"], search') || !!form.querySelector('input[type="search"]');
 }
 
+/** An element's name, short enough for a prompt or a message: cut at a word where it can be, and marked as cut. */
+function shortName(el: Element, max = 60): string {
+  const name = accessibleName(el);
+  if (name.length <= max) return name;
+  const cut = name.slice(0, max - 1);
+  const word = cut.lastIndexOf(' ');
+  return `${(word > max / 2 ? cut.slice(0, word) : cut).trimEnd()}…`;
+}
+
 /** Describes what clicking an element would mean, so the policy can decide before anything happens. */
 export function describeClickTarget(el: Element): ClickTarget {
   const tag = el.localName;
   const type = inputType(el);
-  const label = accessibleName(el).slice(0, 60);
+  const label = shortName(el);
   const role = roleOf(el);
   let readSafe = false;
   let externalLink = false;
@@ -197,6 +206,13 @@ export function fillElement(el: Element, text: string, append: boolean, method: 
         fireInput(el, '', 'deleteContentBackward');
       }
       for (const char of text) {
+        // A line break is content. No key goes with it: a fill never presses Enter, which a page
+        // may take as "send".
+        if (char === '\n' || char === '\r') {
+          setNativeValue(field, field.value + char);
+          fireInput(el, char, 'insertLineBreak');
+          continue;
+        }
         if (fireKey(el, 'keydown', char)) {
           fireKey(el, 'keypress', char);
           setNativeValue(field, field.value + char);
@@ -219,13 +235,53 @@ export function fillElement(el: Element, text: string, append: boolean, method: 
     'This element is not a standard text field, select or editable region. Custom editors and widgets cannot be filled generically.');
 }
 
-/** What pressing Enter here would mean, so the policy can treat a form submission as one. */
-export function describeKeyTarget(el: Element, key: string): { submit: 'form' | null; label: string } {
-  const label = accessibleName(el).slice(0, 60);
-  if (key !== 'Enter' || el.localName !== 'input') return { submit: null, label };
-  const form = (el as HTMLInputElement).form;
-  if (!form || !SETTABLE_INPUT_TYPES.has(inputType(el)) || isSearchForm(form)) return { submit: null, label };
-  return { submit: 'form', label };
+const ACTIVATED_BY_KEY = new Set(['Button', 'Link', 'Toggle', 'Tab', 'Menuitem']);
+
+/** Whether this key does to the element what a click does: Enter or Space on a button, Space on a checkbox. */
+function activates(el: Element, key: string): boolean {
+  const role = roleOf(el);
+  const activatable = role !== null && ACTIVATED_BY_KEY.has(role);
+  return (key === 'Enter' && activatable) || (key === ' ' && (activatable || checkedState(el) !== null));
+}
+
+/** A field of a form that Enter submits. */
+function fieldOfForm(el: Element): HTMLFormElement | null {
+  if (el.localName !== 'input' || !SETTABLE_INPUT_TYPES.has(inputType(el))) return null;
+  return (el as HTMLInputElement).form;
+}
+
+/** A text box that searches or filters: Enter there changes nothing. */
+function isSearchBox(el: Element, label: string): boolean {
+  if (inputType(el) === 'search' || el.getAttribute('role') === 'searchbox') return true;
+  if (el.closest('[role="search"], search')) return true;
+  return looksLikeSearch(`${label} ${el.getAttribute('placeholder') ?? ''}`);
+}
+
+/** The element says a list of options is open on it: Enter takes the highlighted one. */
+function choosesAnOption(el: Element): boolean {
+  return el.getAttribute('aria-expanded') === 'true' || !!el.getAttribute('aria-activedescendant');
+}
+
+/**
+ * What pressing a key on an element would mean, so that the rules are applied before it is
+ * pressed: a click by keyboard, the submission of a form, or Enter in a text box, which may send
+ * what is written there.
+ */
+export function describeKeyTarget(el: Element, key: string): KeyTarget {
+  const label = shortName(el);
+  const none: KeyTarget = { submit: null, click: null, label };
+  // In the order in which `pressKey` decides what the key does.
+  const form = key === 'Enter' ? fieldOfForm(el) : null;
+  if (form) return isSearchForm(form) ? none : { ...none, submit: 'form' };
+  if (activates(el, key)) return { ...none, click: describeClickTarget(el) };
+  const takesText = (el.localName === 'input' && SETTABLE_INPUT_TYPES.has(inputType(el))) || el.localName === 'textarea'
+    || (checkedState(el) === null && editorKind(el) !== null);
+  // A control of the page's own making, put in keyboard reach: its key handler decides what Enter
+  // and Space do, and to the rules that is a click on it.
+  const reachable = el.hasAttribute('tabindex') && (el as HTMLElement).tabIndex >= 0;
+  if ((key === 'Enter' || key === ' ') && !takesText && reachable) return { ...none, click: describeClickTarget(el) };
+  if (key !== 'Enter' || !takesText || choosesAnOption(el) || isSearchBox(el, label)) return none;
+  return { ...none, submit: 'text' };
 }
 
 function tabbables(doc: Document): HTMLElement[] {
@@ -250,7 +306,7 @@ export interface KeyResult {
 export function pressKey(doc: Document, target: Element | null, key: string): KeyResult {
   const shift = key === 'Shift+Tab';
   const name = shift ? 'Tab' : key;
-  const el = target ?? doc.activeElement ?? doc.body;
+  const el = keyElement(doc, target);
   const html = el as HTMLElement;
   if (target && typeof html.focus === 'function') html.focus({ preventScroll: true });
   const tag = el.localName;
@@ -264,14 +320,12 @@ export function pressKey(doc: Document, target: Element | null, key: string): Ke
   let effect = allowed ? 'none beyond the page\'s own key handlers' : 'the page handled the key itself';
   if (allowed) {
     if (printable || name === 'Enter') fireKey(el, 'keypress', name, { shift });
-    const role = roleOf(el);
-    const activatable = role === 'Button' || role === 'Link' || role === 'Toggle' || role === 'Tab' || role === 'Menuitem';
-    if (name === 'Enter' && tag === 'input' && (el as HTMLInputElement).form && SETTABLE_INPUT_TYPES.has(type)) {
-      const form = (el as HTMLInputElement).form as HTMLFormElement;
+    const form = name === 'Enter' ? fieldOfForm(el) : null;
+    if (form) {
       if (typeof form.requestSubmit === 'function') form.requestSubmit();
       else form.dispatchEvent(new (viewOf(el).Event)('submit', { bubbles: true, cancelable: true }));
       effect = 'submitted the form';
-    } else if ((name === 'Enter' && activatable) || (name === ' ' && (activatable || checkedState(el) !== null))) {
+    } else if (activates(el, name)) {
       if (isDisabled(el)) throw new DomError('ELEMENT_DISABLED', 'The element is disabled.');
       html.click?.();
       effect = 'activated the element';
@@ -348,9 +402,14 @@ function caretRegion(focused: Element): Element | null {
   return region && region !== focused && !focused.contains(region) && !region.contains(focused) ? region : null;
 }
 
+/** The element a key press goes to: the one that was named, or whatever has the keyboard. */
+export function keyElement(doc: Document, target: Element | null): Element {
+  return target ?? focusedElement(doc);
+}
+
 /** Presses one key on an element (or the focused one), in a form control or an editor. */
 export async function press(doc: Document, target: Element | null, key: string): Promise<KeyResult> {
-  const el = target ?? focusedElement(doc);
+  const el = keyElement(doc, target);
   const editing = [...key].length === 1 || EDITING_KEYS.has(key);
   if (editing && editorKind(el)) {
     assertWritable(el);

@@ -20,13 +20,17 @@ import tools.jackson.databind.node.ObjectNode;
 public final class BrowserService {
 
     /** Tool outcome: text, an image, or an image with a note. */
-    public record ToolResult(String text, String imageBase64, String imageMimeType, boolean isError) {
+    /**
+     * @param structured the result as an object, when it is one: the text is then that object
+     *     written out, and a client may take either
+     */
+    public record ToolResult(String text, String imageBase64, String imageMimeType, boolean isError, JsonNode structured) {
         static ToolResult ok(String text) {
-            return new ToolResult(text, null, null, false);
+            return new ToolResult(text, null, null, false, null);
         }
 
         static ToolResult error(String text) {
-            return new ToolResult(text, null, null, true);
+            return new ToolResult(text, null, null, true, null);
         }
     }
 
@@ -349,7 +353,7 @@ public final class BrowserService {
         }
         // The note says how much of the page the image covers, so the agent knows to scroll for more.
         String note = r.path("note").asString("");
-        return new ToolResult(note.isEmpty() ? null : note, data, r.path("mimeType").asString("image/jpeg"), false);
+        return new ToolResult(note.isEmpty() ? null : note, data, r.path("mimeType").asString("image/jpeg"), false, null);
     }
 
     private ToolResult waitFor(JsonNode a) {
@@ -453,7 +457,9 @@ public final class BrowserService {
         if (result.path("text").isString()) {
             return ToolResult.ok(result.path("text").asString());
         }
-        return ToolResult.ok(json.writerWithDefaultPrettyPrinter().writeValueAsString(result));
+        // The text is what agents have always read, and stays as it is. The object goes along with it.
+        return new ToolResult(json.writerWithDefaultPrettyPrinter().writeValueAsString(result), null, null, false,
+                result.isObject() ? result : null);
     }
 
     /** Sessions this agent currently has, as reported by the extension. */

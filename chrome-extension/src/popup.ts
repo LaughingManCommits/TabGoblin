@@ -43,7 +43,7 @@ interface State {
   blockedClients: string[];
   sessions: SessionView[];
   activity: ActivityEntry[];
-  pendingConfirm: { id: string; session: string; label: string; highImpact: boolean } | null;
+  pendingConfirm: { id: string; session: string; label: string; highImpact: boolean; how: 'click' | 'form' | 'enter' } | null;
 }
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -264,6 +264,26 @@ function renderActivity(s: State): void {
   });
 }
 
+/**
+ * A prompt that has only just appeared takes no answer. It comes up by itself and takes the
+ * keyboard from the page: a key or a click that was on its way elsewhere must not become consent.
+ */
+const ANSWER_DELAY_MS = 700;
+/** The request the prompt is showing, so that the pause is taken once for each. */
+let promptShown: string | null = null;
+
+function holdAnswers(id: string): void {
+  promptShown = id;
+  const answers = [$<HTMLButtonElement>('deny'), $<HTMLButtonElement>('allow')];
+  for (const button of answers) button.disabled = true;
+  // The keyboard goes to the prompt as a whole, which announces it. No key does anything there,
+  // and the first stop for Tab from it is Deny.
+  $('confirm').focus();
+  setTimeout(() => {
+    if (promptShown === id) for (const button of answers) button.disabled = false;
+  }, ANSWER_DELAY_MS);
+}
+
 function render(): void {
   if (!state) return;
   const s = state;
@@ -278,9 +298,28 @@ function render(): void {
 
   $('confirm').hidden = !s.pendingConfirm;
   if (s.pendingConfirm) {
-    $('confirmTitle').textContent = s.pendingConfirm.highImpact ? 'Allow this high-impact action?' : 'Allow this submission?';
-    $('confirmLabel').textContent = `“${s.pendingConfirm.label || 'an unnamed control'}”`;
+    const how = s.pendingConfirm.how;
+    const enter = how !== 'click';
+    $('confirmTitle').textContent = s.pendingConfirm.highImpact ? 'Allow this high-impact action?'
+      : enter ? 'Allow pressing Enter?' : 'Allow this submission?';
+    // What deletes, pays or publishes does not look like a routine question.
+    $('confirm').classList.toggle('high', s.pendingConfirm.highImpact);
+    $('confirmClick').hidden = enter;
+    $('confirmEnter').hidden = !enter;
+    $('confirmWhy').hidden = !enter;
+    $('confirmWhy').textContent = how === 'form' ? 'This submits the form the field belongs to.'
+      : how === 'enter' ? 'In a message or comment box, Enter sends what is written.' : '';
+    // The name comes from the page: shown as a quotation. What has no name is described in our own words.
+    const label = s.pendingConfirm.label;
+    $('confirmLabel').textContent = label ? `“${label}”` : enter ? 'a text box without a name' : 'a control without a name';
+    $('confirmLabel').classList.toggle('unnamed', !label);
+    // Where: the session, and the website it is on, so that the list below need not be searched.
+    const where = s.sessions.find((x) => x.id === s.pendingConfirm?.session);
     $('confirmSession').textContent = s.pendingConfirm.session;
+    $('confirmOrigin').textContent = where ? displayOrigin(where.origin) : '';
+    if (promptShown !== s.pendingConfirm.id) holdAnswers(s.pendingConfirm.id);
+  } else {
+    promptShown = null;
   }
 
   renderAgents(s);

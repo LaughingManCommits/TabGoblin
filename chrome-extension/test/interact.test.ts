@@ -84,6 +84,29 @@ test('typing sends key events per character, and a handler can refuse a key', ()
   assert.equal(result.valueMatches, false, 'the field dropped a character and that is reported');
 });
 
+test('a typed line break is content: no key is pressed for it, so nothing is sent', () => {
+  const { doc } = page('<textarea id="message"></textarea>');
+  const area = doc.getElementById('message') as HTMLTextAreaElement;
+  // A message box that sends on Enter, however the page recognises that key.
+  const sent: string[] = [];
+  const keys: string[] = [];
+  for (const type of ['keydown', 'keypress', 'keyup']) {
+    area.addEventListener(type, (e) => {
+      const event = e as KeyboardEvent;
+      keys.push(event.key);
+      if (event.key === 'Enter' || event.key === '\n' || event.keyCode === 13 || event.keyCode === 10) sent.push(area.value);
+    });
+  }
+  const inputs: string[] = [];
+  area.addEventListener('input', (e) => inputs.push((e as InputEvent).inputType));
+
+  assert.equal(fillElement(area, 'a\nb', false, 'type').valueMatches, true);
+  assert.equal(area.value, 'a\nb');
+  assert.deepEqual(sent, []);
+  assert.deepEqual([...new Set(keys)], ['a', 'b'], 'keys for the characters only');
+  assert.deepEqual(inputs, ['insertText', 'insertLineBreak', 'insertText']);
+});
+
 test('fill selects options and sets checkboxes, radios and switches', () => {
   const { doc } = page(`
     <select id="s"><option value="lo">Low</option><option value="hi">High</option></select>
@@ -238,9 +261,79 @@ test('Enter in a form field is recognised as a submission before it is pressed',
   const d = (id: string, key = 'Enter') => describeKeyTarget(doc.getElementById(id)!, key).submit;
   assert.equal(d('title'), 'form');
   assert.equal(d('title', 'Tab'), null);
-  assert.equal(d('body'), null, 'Enter in a textarea is a line break');
   assert.equal(d('q'), null, 'an explicit GET search form only reads');
-  assert.equal(d('loose'), null);
+  // Outside a form, and in a text area, the page does not say what Enter does: it may send.
+  assert.equal(d('body'), 'text');
+  assert.equal(d('loose'), 'text');
+  assert.equal(d('loose', 'a'), null, 'only Enter');
+});
+
+test('Enter in any text box may send what is written; search boxes and open option lists are told apart', () => {
+  const { doc } = page(`
+    <textarea id="message" aria-label="Message"></textarea>
+    <div id="chat" contenteditable="true" role="textbox" aria-label="Write a reply"></div>
+    <input id="todo" aria-label="New item">
+    <input id="find" type="search" aria-label="Anything">
+    <input id="named" aria-label="Search issues">
+    <input id="hinted" placeholder="Filter by name">
+    <div role="search"><input id="inside" aria-label="Words"></div>
+    <div id="palette" contenteditable="true" role="searchbox" aria-label="Commands"></div>
+    <input id="combo" role="combobox" aria-expanded="true" aria-label="Assignee">
+    <div id="mention" contenteditable="true" aria-activedescendant="opt-2" aria-label="Message"></div>
+    <input id="closed" role="combobox" aria-expanded="false" aria-label="Assignee">
+    <input id="check" type="checkbox" aria-label="Done">
+    <p id="text" tabindex="-1">Just text</p>
+  `);
+  const d = (id: string, key = 'Enter') => describeKeyTarget(doc.getElementById(id)!, key);
+  for (const id of ['message', 'chat', 'todo', 'closed']) assert.equal(d(id).submit, 'text', id);
+  assert.equal(d('chat').label, 'Write a reply', 'the label the user is shown');
+  for (const id of ['find', 'named', 'hinted', 'inside', 'palette']) assert.equal(d(id).submit, null, `${id} searches`);
+  for (const id of ['combo', 'mention']) assert.equal(d(id).submit, null, `${id} has a list of options open`);
+  assert.equal(d('check').submit, null);
+  assert.equal(d('message', ' ').submit, null, 'a space is a character');
+  assert.equal(d('text').submit, null);
+  assert.equal(d('text').click, null, 'focusable by script only: not a control');
+});
+
+test('a long name is cut at a word and marked as cut, for the prompt the user reads', () => {
+  const { doc } = page(`
+    <textarea id="long" aria-label="Reply to the whole thread, visible to everyone in the project"></textarea>
+    <textarea id="word" aria-label="${'x'.repeat(80)}"></textarea>
+    <button id="button">Delete the repository and everything in it, including all issues and wikis</button>
+    <textarea id="short" aria-label="Comment"></textarea>
+  `);
+  const key = (id: string): string => describeKeyTarget(doc.getElementById(id)!, 'Enter').label;
+  assert.equal(key('long'), 'Reply to the whole thread, visible to everyone in the…');
+  assert.equal(key('word'), `${'x'.repeat(59)}…`, 'one long word is cut where it has to be');
+  assert.equal(key('short'), 'Comment');
+  const button = describeClickTarget(doc.getElementById('button')!);
+  assert.ok(button.label.length <= 60 && button.label.endsWith('…'), button.label);
+  assert.equal(button.submit, 'likely', 'and what it says is still recognised');
+});
+
+test('Enter or Space on a control is described as the click it is', () => {
+  const { doc } = page(`
+    <form method="post"><input id="name"><button id="save">Save</button><input id="agree" type="checkbox"></form>
+    <button id="plain">Show details</button>
+    <button id="delete">Delete account</button>
+    <a id="out" href="https://elsewhere.example/">Elsewhere</a>
+    <div id="custom" tabindex="0">Remove member</div>
+    <div id="quiet" tabindex="0">Next slide</div>
+  `);
+  const d = (id: string, key = 'Enter') => describeKeyTarget(doc.getElementById(id)!, key);
+  for (const key of ['Enter', ' ']) {
+    assert.equal(d('save', key).click?.submit, 'form', `save, ${JSON.stringify(key)}`);
+    assert.equal(d('delete', key).click?.submit, 'likely');
+    assert.equal(d('plain', key).click?.submit, null);
+    assert.equal(d('out', key).click?.externalLink, true);
+    // A control of the page's own making: its key handler decides, so the label is all there is.
+    assert.equal(d('custom', key).click?.submit, 'likely');
+    assert.equal(d('quiet', key).click?.submit, null);
+  }
+  assert.equal(d('agree', ' ').click?.submit, null, 'Space on a checkbox toggles it');
+  assert.equal(d('agree', 'Enter').click, null);
+  assert.equal(d('save', 'Tab').click, null);
+  assert.equal(d('save', 'a').click, null);
 });
 
 test('wait_for resolves on text, visibility and enabled state, is bounded, and can be cancelled', async () => {

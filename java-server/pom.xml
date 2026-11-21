@@ -43,6 +43,13 @@
 
     <build>
         <finalName>browser-context-mcp</finalName>
+        <!-- The version is written into browsercontext/build.properties, where the server reads it. -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -53,6 +60,26 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.3</version>
+            </plugin>
+            <!-- After the jar is built: tests that drive it as an MCP client does (*IT.java). Run by "mvn verify". -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.5.3</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <systemPropertyVariables>
+                        <server.jar>${project.build.directory}/${project.build.finalName}.jar</server.jar>
+                        <server.version>${project.version}</server.version>
+                    </systemPropertyVariables>
+                </configuration>
             </plugin>
             <!-- Single runnable jar: java -jar target/browser-context-mcp.jar -->
             <plugin>

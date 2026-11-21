@@ -242,7 +242,50 @@ export function looksLikeSubmission(label: string): boolean {
   return SUBMIT_WORDS.test(label);
 }
 
-const HIGH_IMPACT_WORDS = /\b(delete|remove|destroy|erase|wipe|pay|purchase|buy|order|checkout|transfer|donate|withdraw|refund|cancel subscription|close account|deactivate|terminate|revoke|merge|publish|deploy|release|send money)\b/i;
+const SEARCH_WORDS = /\b(search|find|filter|look ?up|go to|jump to)\b/i;
+
+/** Heuristic for a text box whose Enter runs a search or a filter, which changes nothing. */
+export function looksLikeSearch(label: string): boolean {
+  return SEARCH_WORDS.test(label);
+}
+
+/** What the content script reports about the element a key is about to be pressed on. */
+export interface KeyTarget {
+  /**
+   * Set when the key is Enter and the element takes text.
+   * 'form': the field belongs to a form, which Enter submits.
+   * 'text': a text area, an editor, or a field outside a form. Enter may send what is written
+   *         there (a message, a comment) or only start a new line; the page does not say which.
+   */
+  submit: 'form' | 'text' | null;
+  /** Set when the key does what a click on the element does: Enter or Space on a button, a link, a tab. */
+  click: ClickTarget | null;
+  /** Short label of the element, for the user's confirmation prompt. */
+  label: string;
+}
+
+/**
+ * Decides whether a key may be pressed.
+ * - 'press': go ahead.
+ * - 'ask': it is a submission the agent declared; the caller puts it in front of the user first.
+ * - 'click': the key activates a control, and that is a submission; the caller runs it as one.
+ */
+export function checkKey(mode: Mode, intent: Intent, target: KeyTarget): 'press' | 'ask' | 'click' {
+  // A key that activates a control is a click on it, and no way around the rules for clicks.
+  if (target.click) return checkClick(mode, intent, target.click) === 'submit' ? 'click' : 'press';
+  if (!target.submit) return 'press';
+  if (mode !== 'write') throw needs('write');
+  if (intent === 'submit') return 'ask';
+  if (target.submit === 'form') {
+    throw new CommandError('SUBMIT_INTENT_REQUIRED',
+      'Pressing Enter here submits a form. If the user explicitly asked for this submission, repeat with intent="submit" (or use browser_submit on the submit button to have the outcome verified).');
+  }
+  throw new CommandError('SUBMIT_INTENT_REQUIRED',
+    'Pressing Enter in a text box can send what is written there (a message, a comment), so it counts as a submission. '
+    + 'For a line break, put it into the text of browser_fill. If the user explicitly asked you to send or submit, repeat with intent="submit".');
+}
+
+const HIGH_IMPACT_WORDS =/\b(delete|remove|destroy|erase|wipe|pay|purchase|buy|order|checkout|transfer|donate|withdraw|refund|cancel subscription|close account|deactivate|terminate|revoke|merge|publish|deploy|release|send money)\b/i;
 
 /** Destructive, financial or publishing actions: the user is always asked, whatever their setting. */
 export function isHighImpact(label: string): boolean {
