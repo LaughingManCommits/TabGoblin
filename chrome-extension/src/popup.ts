@@ -39,7 +39,7 @@ interface SessionView {
   ownerConnected: boolean;
   lastSubmission: string | null;
   /** Requests of this session that are not put to the user for now: those they declined, or all. */
-  notAsked: { labels: string[]; all: boolean };
+  notAsked: { requests: { how: 'click' | 'form' | 'enter' | null; label: string }[]; all: boolean };
   /** When the user is asked in this session, and what passes without a question right now. */
   ask: AskMode;
   passes: { how: 'click' | 'form' | 'enter'; label: string; minutes: number }[];
@@ -106,6 +106,17 @@ function agentLabel(client: { name: string | null; id: string | null }, connecte
   const name = agentName(client);
   const shared = connected.some((other) => other.id !== client.id && agentName(other) === name);
   return shared && client.id && client.name ? `${name} (${client.id})` : name;
+}
+
+/**
+ * A request as the user was asked about it: the kind, Enter in a text box or a click, and the name
+ * of the control. The name comes from the page and is shown as a quotation; what has none is
+ * described in our own words. Without a kind, only the control is named.
+ */
+function requestName(how: 'click' | 'form' | 'enter' | null, label: string): string {
+  const enter = how === 'form' || how === 'enter';
+  const name = label ? `“${label}”` : enter ? 'a text box without a name' : 'a control without a name';
+  return how === null ? name : `${enter ? 'Enter in' : 'clicking'} ${name}`;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] {
@@ -222,8 +233,9 @@ function renderSessions(s: State): void {
 
       row.append(line, el('div', 'meta', parts.join(' · ')));
       // A no stands for a while. The user sees that it does, and can take it back.
-      if (session.notAsked.all || session.notAsked.labels.length) {
-        const names = session.notAsked.labels.map((label) => (label ? `“${label}”` : 'a control without a name'));
+      if (session.notAsked.all || session.notAsked.requests.length) {
+        // A no is to a kind of request on a control of that name: Enter in it, or a click on it.
+        const names = session.notAsked.requests.map((request) => requestName(request.how, request.label));
         const held = el('div', 'held');
         held.append(el('span', '', session.notAsked.all
           ? 'Its requests were declined or not answered. It will not ask for a few minutes.'
@@ -254,7 +266,7 @@ function renderSessions(s: State): void {
         const passing = el('div', 'passing');
         // An Allow is for a kind of request on a control of that name: Enter in it, or a click on it.
         // The time it has left stays in one piece when the line breaks.
-        const names = session.passes.map((pass) => `${pass.how === 'click' ? 'clicking' : 'Enter in'} “${pass.label}” (${pass.minutes}\u00a0min)`);
+        const names = session.passes.map((pass) => `${requestName(pass.how, pass.label)} (${pass.minutes}\u00a0min)`);
         passing.append(el('span', '', `Passes without asking: ${names.join(', ')}.`));
         // One button ends all of them, and says so.
         const forget = el('button', 'link forget', session.passes.length > 1 ? 'Ask about them again' : 'Ask about it again');

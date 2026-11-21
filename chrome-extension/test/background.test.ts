@@ -491,7 +491,7 @@ test('a no stands: what the user declined is not asked again until they take it 
   assert.equal(code(second), 'SUBMIT_DENIED');
   assert.match(second.error.message, /not asked again so soon/);
   assert.equal((await state()).pendingConfirm, null, 'no prompt was raised');
-  assert.deepEqual(await notAsked(), { labels: ['Reply'], all: false });
+  assert.deepEqual(await notAsked(), { requests: [{ how: 'enter', label: 'Reply' }], all: false });
 
   // Another request is asked about. While it waits, a request of another session is refused at once.
   await popup({ type: 'authorize', tabId: 2, mode: 'write', clientId: 'c-two' });
@@ -507,7 +507,7 @@ test('a no stands: what the user declined is not asked again until they take it 
 
   // The user takes the no back: asked again, and it can be allowed.
   await popup({ type: 'askAgain', session: 's1' });
-  assert.deepEqual(await notAsked(), { labels: [], all: false });
+  assert.deepEqual(await notAsked(), { requests: [], all: false });
   const third = ask(one, 'Reply');
   await answer(true);
   assert.equal(code(await third), 'ok');

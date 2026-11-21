@@ -688,7 +688,7 @@ async function confirmWithUser(
   const lasting = remembersAllow(mode, word, label, origin);
   const answer = await askUser(op, { label, how, word, origin, preview, lasts: lasting ? ALLOW_LASTS_MS / 60_000 : null });
   if (answer !== 'cancelled') {
-    session.asks = noteAnswer(session.asks, key, label, answer, Date.now());
+    session.asks = noteAnswer(session.asks, key, how, label, answer, Date.now());
     save();
   }
   if (answer === 'deny') {

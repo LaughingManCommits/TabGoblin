@@ -6,9 +6,10 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 - `main` = `origin/main` = `87e5a79`: the merge of `automatic-mode` (WP-7 and WP-8), made by the
   owner on 2026-11-21. Earlier branches are merged.
-- Branch `pairing-race`: local, not pushed, not merged. One commit on top of `87e5a79`: a message
-  that arrives at the moment of pairing is no longer taken for a failed pairing. It is the cause
-  of the CI failure described below.
+- Branch `pairing-race`: local, not pushed, not merged. Two commits on top of `87e5a79`. The
+  first: a message that arrives at the moment of pairing is no longer taken for a failed
+  pairing, the cause of the CI failure described below. The second: the popup says what kind of
+  request was declined.
 
 ## Active work
 

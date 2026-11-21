@@ -577,7 +577,7 @@ try {
     assert(await badge() !== '?', 'no question may be raised');
     assert(await posts() === 0, 'nothing should be posted');
     const popup = await openPopup();
-    has(await popup.$eval(row(await sessionOf(one), '.held'), (el) => el.textContent), 'You declined “Post comment”');
+    has(await popup.$eval(row(await sessionOf(one), '.held'), (el) => el.textContent), 'You declined clicking “Post comment”. It will not ask again for a few minutes.');
     await letAskAgain(await sessionOf(one));
   });
   await step('a confirmed submission is filled, sent once and verified against the page', async () => {
@@ -1343,6 +1343,10 @@ try {
     });
     has((await answerPrompt(false)).label, 'New note');
     fails(await pending, 'SUBMIT_DENIED');
+    // The no is listed with its kind, as what passes is.
+    const refused = await openPopup();
+    await refused.waitForSelector(row(sid, '.held'));
+    has(await refused.$eval(row(sid, '.held'), (el) => el.textContent), 'You declined Enter in “New note”.');
     await letAskAgain(sid);
 
     // What passes is there to see, with the time it has left, and the user can end it.
