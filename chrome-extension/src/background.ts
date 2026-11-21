@@ -7,9 +7,10 @@
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkClick, checkGate, checkKey, failureNote, inScope, isHighImpact,
+  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, checkKey, failureNote, highImpactWord, inScope,
+  noteAnswer, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
-  type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
+  type AskMemory, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, parseServerMessage,
@@ -61,6 +62,8 @@ interface SessionRecord extends SessionAuth {
   documentId: string | null;
   generation: number;
   submissions: SubmissionRecord[];
+  /** What the user answered to this session's requests lately, so that a no stands for a while. */
+  asks?: AskMemory;
 }
 
 interface ActivityEntry {
@@ -124,9 +127,19 @@ let persisted: Persisted = { sessions: [], sessionSeq: 0, activity: [], activity
 const clients = new Map<number, Client>();
 const operations = new Map<string, Operation>();
 const queues = new Map<string, Promise<void>>();
-const pendingConfirms = new Map<string, {
-  id: string; session: string; label: string; highImpact: boolean; how: ConfirmHow; finish: (a: ConfirmAnswer) => void;
-}>();
+/** What the user is told about a request: what it is, why it counts as high-impact, where, and what it would send. */
+interface ConfirmFacts {
+  label: string;
+  how: ConfirmHow;
+  /** The word in the name that makes it high-impact, or null. */
+  word: string | null;
+  /** The website the tab is on. */
+  origin: string | null;
+  /** The beginning of what would be sent, by field. */
+  preview: { field: string; text: string }[];
+}
+
+const pendingConfirms = new Map<string, ConfirmFacts & { id: string; session: string; finish: (a: ConfirmAnswer) => void }>();
 const newTabs = new Map<number, number>();
 const indicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let pairingFailed = false;
@@ -602,7 +615,7 @@ async function runCommand(op: Operation, action: string, params: Record<string, 
 }
 
 /** Asks the user, in the extension popup, to allow one submission. */
-function askUser(op: Operation, label: string, highImpact: boolean, how: ConfirmHow): Promise<ConfirmAnswer> {
+function askUser(op: Operation, facts: ConfirmFacts): Promise<ConfirmAnswer> {
   return new Promise<ConfirmAnswer>((resolve) => {
     const id = crypto.randomUUID();
     const timer = setTimeout(() => finish('timeout'), CONFIRM_TIMEOUT_MS);
@@ -614,7 +627,7 @@ function askUser(op: Operation, label: string, highImpact: boolean, how: Confirm
       refreshBadge();
       resolve(answer);
     };
-    pendingConfirms.set(id, { id, session: op.sessionId, label, highImpact, how, finish });
+    pendingConfirms.set(id, { ...facts, id, session: op.sessionId, finish });
     op.finishConfirm = finish;
     refreshBadge();
     // Best effort: bring the popup up so the request is seen. The "?" badge is the fallback.
@@ -627,11 +640,21 @@ function askUser(op: Operation, label: string, highImpact: boolean, how: Confirm
 }
 
 /** Puts a submission in front of the user when their setting or its impact calls for it. */
-async function confirmWithUser(op: Operation, session: SessionRecord, label: string, how: ConfirmHow = 'click'): Promise<void> {
-  const highImpact = isHighImpact(label);
-  if (!config.confirmSubmissions && !highImpact) return;
+async function confirmWithUser(
+  op: Operation, session: SessionRecord, label: string, how: ConfirmHow = 'click', preview: ConfirmFacts['preview'] = [],
+): Promise<void> {
+  const word = highImpactWord(label);
+  if (!config.confirmSubmissions && word === null) return;
   const nothing = how === 'click' ? 'Nothing was clicked.' : 'Nothing was pressed.';
-  const answer = await askUser(op, label, highImpact, how);
+  // Not while another request waits, not about what was just declined, not after a run of refusals.
+  const key = `${how}:${label}`;
+  checkAsk(session.asks, key, pendingConfirms.size > 0, Date.now());
+  const origin = originOf((await getTab(session.tabId))?.url);
+  const answer = await askUser(op, { label, how, word, origin, preview });
+  if (answer !== 'cancelled') {
+    session.asks = noteAnswer(session.asks, key, label, answer, Date.now());
+    save();
+  }
   if (answer === 'deny') {
     throw new CommandError('SUBMIT_DENIED', `The user declined this submission. ${nothing}`);
   }
@@ -721,7 +744,12 @@ async function pressKey(op: Operation, session: SessionRecord, params: Record<st
     return submit(op, session, { ref: Number(params.ref), fields: [], expectText: undefined, submissionId: undefined, repeat: false });
   }
   if (verdict === 'ask') {
-    await confirmWithUser(op, session, target.label, target.submit === 'form' ? 'form' : 'enter');
+    // Enter in a text box, declared: a submission like any other. Fingerprinted, refused as a
+    // repeat, put to the user, sent once, and judged by what the page does.
+    return submit(op, session, {
+      ref: params.ref === undefined || params.ref === null ? null : Number(params.ref),
+      fields: [], expectText: undefined, submissionId: undefined, repeat: params.repeat === true, by: 'enter',
+    });
   }
   const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
   const result = await page<object>(op, session, 'press_key', { ref: params.ref, key });
@@ -847,8 +875,14 @@ async function screenshot(op: Operation, session: SessionRecord): Promise<object
   return { data: dataUrl.slice(comma + 1), mimeType: 'image/jpeg', url: after.url, ...(note ? { note } : {}) };
 }
 
+/** What a key press reports when the page itself took Enter, or submitted a form on it: it may have sent something. */
+const SENT_BY_ENTER = new Set(['the page handled the key itself', 'submitted the form']);
+
 interface SubmitRequest {
-  ref: number;
+  /** The control to submit with. Null: the text box that has the keyboard, by Enter. */
+  ref: number | null;
+  /** Set when the agent asked for Enter. Otherwise the page says how the control submits. */
+  by?: 'enter';
   fields: { ref: number; text: string }[];
   expectText: string | undefined;
   submissionId: string | undefined;
@@ -863,6 +897,8 @@ function rememberSubmission(session: SessionRecord, record: SubmissionRecord): v
 function forgetSubmission(session: SessionRecord, id: string): void {
   session.submissions = session.submissions.filter((s) => s.id !== id);
   save();
+  // The popup shows the last submission of a session: it should not show one that never was.
+  pushState();
 }
 
 /**
@@ -899,10 +935,15 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
 
   try {
     // PREPARED: every ref resolves and the policy allows it, before anything is touched.
-    const prepared = await page<{ target: ClickTarget; digest: string | null }>(op, session, 'submit_prepare',
-      { ref: request.ref, fields: request.fields, submissionId: id });
+    const prepared = await page<{
+      target: ClickTarget; digest: string | null; by: 'click' | 'enter'; how: ConfirmHow; label: string; preview?: ConfirmFacts['preview'];
+    }>(
+      op, session, 'submit_prepare', { ref: request.ref, fields: request.fields, submissionId: id, by: request.by });
     const target = prepared.target;
-    checkClick(session.mode, 'submit', target);
+    // A text box is submitted by Enter in it, anything else by a click on it.
+    const byEnter = prepared.by === 'enter';
+    if (byEnter) requireMode(session.mode, 'write');
+    else checkClick(session.mode, 'submit', target);
     const repeatOf = prepared.digest === null ? undefined : session.submissions.find((s) =>
       s.id !== id && s.digest === prepared.digest && Date.now() - s.time < DUPLICATE_WINDOW_MS
       && (s.state === 'CONFIRMED' || s.state === 'UNCERTAIN' || s.state === 'SUBMITTING' || s.state === 'VERIFYING'));
@@ -913,7 +954,7 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
     record.digest = prepared.digest;
     advance('PREPARED');
     // The user decides before a single character is entered: declining leaves the page untouched.
-    await confirmWithUser(op, session, target.label);
+    await confirmWithUser(op, session, byEnter ? prepared.label : target.label, byEnter ? prepared.how : 'click', prepared.preview ?? []);
 
     for (const field of request.fields) {
       const filled = await page<{ valueMatches: boolean }>(op, session, 'fill',
@@ -938,17 +979,28 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
     advance('SUBMITTING');
 
     const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
-    let fired: { dispatched?: boolean; note?: string } = {};
+    let fired: { dispatched?: boolean; note?: string; effect?: string } = {};
     try {
-      fired = await page<{ dispatched: true; note?: string }>(op, session, 'submit_fire', { ref: request.ref, submissionId: id }, 15000, true);
+      fired = await page<{ dispatched: true; note?: string; effect?: string }>(
+        op, session, 'submit_fire', { ref: request.ref, submissionId: id }, 15000, true);
     } catch (e) {
       const code = e instanceof CommandError ? e.code : '';
       if (code === 'STALE_REF' || code === 'ELEMENT_DISABLED') {
         forgetSubmission(session, id);
         throw e; // refused inside the page before the click: nothing was dispatched
       }
-      return finish({ state: 'UNCERTAIN', verified: null, evidence: ['the page stopped answering while the click was being dispatched'] },
-        { dispatched: true });
+      return finish({ state: 'UNCERTAIN', verified: null,
+        evidence: [`the page stopped answering while the ${byEnter ? 'key was being pressed' : 'click was being dispatched'}`] },
+      { dispatched: true });
+    }
+    if (byEnter && !SENT_BY_ENTER.has(fired.effect ?? '')) {
+      // The page left the key to the browser: it started a new line, or did nothing. That is not a
+      // submission, so it is not recorded as one and does not stand in the way of a later one.
+      forgetSubmission(session, id);
+      void page(op, session, 'submit_done', { submissionId: id }, 3000, true).catch(() => undefined);
+      const settled = sessionById(session.id) ? await settle(session, before) : {};
+      const notes = [fired.note, (settled as { note?: string }).note, 'Enter sent nothing here: it started a new line, or did nothing.'];
+      return { dispatched: true, key: 'Enter', effect: fired.effect, submitted: false, ...settled, note: notes.filter(Boolean).join(' ') };
     }
     advance('VERIFYING');
     // The agent's own texts, to recognise them on the page afterwards even across a navigation.
@@ -956,6 +1008,13 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
       .filter((t) => t.length >= 4 && !/^(true|false|on|off|yes|no|checked|unchecked)$/i.test(t));
     const verdict = await verify(op, session, id, baseline, request.expectText, submitted);
     const where = sessionById(session.id) ? await settle(session, before) : { leftAuthorizedOrigin: true };
+    if (byEnter) {
+      // What Enter does is the page's own business: when nothing shows, it may only have started a new line.
+      const evidence = verdict.state === 'UNCERTAIN'
+        ? [...verdict.evidence, 'Enter may only have started a new line here: look at the text box before pressing it again']
+        : verdict.evidence;
+      return finish({ ...verdict, evidence }, { dispatched: true, key: 'Enter', effect: fired.effect, ...where });
+    }
     return finish(verdict, { dispatched: true, ...(fired.note ? { clickNote: fired.note } : {}), ...where });
   } catch (e) {
     if (record.state === 'PREPARED' || record.state === 'FILLED') forgetSubmission(session, id);
@@ -1268,9 +1327,13 @@ function popupState(): object {
       origins: s.origins, suspended: s.suspended,
       clientId: s.clientId, clientName: s.clientName, ownerConnected: !!s.clientId && connected.has(s.clientId),
       lastSubmission: s.submissions.length ? s.submissions[s.submissions.length - 1].state : null,
+      // What would not be put to the user right now, so that the popup can say so and offer to lift it.
+      notAsked: standingRefusals(s.asks, Date.now()),
     })),
     activity: persisted.activity,
-    pendingConfirm: [...pendingConfirms.values()].map((c) => ({ id: c.id, session: c.session, label: c.label, highImpact: c.highImpact, how: c.how }))[0] ?? null,
+    pendingConfirm: [...pendingConfirms.values()].map((c) => ({
+      id: c.id, session: c.session, label: c.label, highImpact: c.word !== null, word: c.word, how: c.how, origin: c.origin, preview: c.preview,
+    }))[0] ?? null,
   };
 }
 
@@ -1315,6 +1378,14 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
         // Narrowing access stops anything that needed the wider one.
         if (session.mode !== 'write') cancelOperations((op) => op.sessionId === session.id, 'The user reduced the session\'s access.');
         noteActivity(session.id, `Access changed to ${modeLabel(session.mode)}`);
+        pushState();
+      }
+      return;
+    case 'askAgain':
+      // The user takes a no back: this session may put its requests to them again.
+      if (session) {
+        session.asks = undefined;
+        noteActivity(session.id, 'May ask you again');
         pushState();
       }
       return;

@@ -344,12 +344,27 @@ test('an authorization with an expiry ends on its own', async () => {
 
 test('Enter in a text box is refused without intent, and with it the user is asked first', async () => {
   await popup({ type: 'setMode', session: 's1', mode: 'write' });
-  const presses = (): number => pageLog.filter((entry) => entry === '1:press_key').length;
+  // A declared Enter runs as a submission: the key is pressed by the step that fires it.
+  const presses = (): number => pageLog.filter((entry) => entry === '1:submit_fire').length;
   const before = presses();
   const enter = (params: object = {}): Promise<any> => one.command('press_key', { params: { key: 'Enter', ...params } });
+  const box = (how: 'enter' | 'form', label: string): void => {
+    pageResults.set('key_describe', { submit: how === 'form' ? 'form' : 'text', click: null, label });
+    pageResults.set('submit_prepare', {
+      target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label }, by: 'enter', how, label, digest: null,
+      preview: [{ field: label, text: 'Hello team' }],
+    });
+  };
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  pageResults.set('submit_fire', { dispatched: true, effect: 'the page handled the key itself' });
+  // What was written shows up on the page afterwards: sent.
+  pageResults.set('submit_observe', {
+    expectSeen: false, submittedSeen: true, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: true,
+    urlChanged: false, documentChanged: false,
+  });
 
   // A message box: the page does not say whether Enter sends or starts a line.
-  pageResults.set('key_describe', { submit: 'text', click: null, label: 'Message' });
+  box('enter', 'Message');
   assert.equal(code(await enter()), 'SUBMIT_INTENT_REQUIRED');
   assert.equal(presses(), before, 'the key is not pressed');
 
@@ -358,17 +373,26 @@ test('Enter in a text box is refused without intent, and with it the user is ask
   await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
   const asked = (await state()).pendingConfirm;
   assert.deepEqual([asked.label, asked.how, asked.session], ['Message', 'enter', 's1']);
+  // And where it is, what would be sent, and that nothing in its name makes it high-impact.
+  assert.deepEqual([asked.origin, asked.word, asked.highImpact], ['https://app.example', null, false]);
+  assert.deepEqual(asked.preview, [{ field: 'Message', text: 'Hello team' }]);
   await popup({ type: 'confirm', id: asked.id, allow: false });
   const refusal = await denied;
   assert.equal(code(refusal), 'SUBMIT_DENIED');
   assert.match(refusal.error.message, /Nothing was pressed/);
   assert.equal(presses(), before);
+  await popup({ type: 'askAgain', session: 's1' });
 
   const allowed = enter({ intent: 'submit' });
   await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked again');
   await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
-  assert.equal(code(await allowed), 'ok');
+  const sent = await allowed;
+  assert.equal(code(sent), 'ok');
   assert.equal(presses(), before + 1, 'pressed once, after the user allowed it');
+  // Like every submission it gets an id and a verdict.
+  assert.equal(sent.result.state, 'CONFIRMED');
+  assert.match(sent.result.submissionId, /^sub-/);
+  assert.equal(sent.result.key, 'Enter');
 
   // With confirmations switched off by the user, the declared intent is enough.
   await popup({ type: 'setConfirm', value: false });
@@ -377,7 +401,7 @@ test('Enter in a text box is refused without intent, and with it the user is ask
   await popup({ type: 'setConfirm', value: true });
 
   // A field of a form: Enter submits the form for certain, and the user is told that.
-  pageResults.set('key_describe', { submit: 'form', click: null, label: 'Email' });
+  box('form', 'Email');
   const form = enter({ intent: 'submit' });
   await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked about the form');
   assert.equal((await state()).pendingConfirm.how, 'form');
@@ -388,7 +412,115 @@ test('Enter in a text box is refused without intent, and with it the user is ask
   pageResults.set('key_describe', { submit: null, click: null, label: 'Search' });
   assert.equal(code(await enter()), 'ok');
   assert.equal(code(await one.command('press_key', { params: { key: 'a' } })), 'ok');
-  pageResults.delete('key_describe');
+
+  // Enter that the page left to the browser sent nothing: no submission is recorded for it.
+  box('enter', 'Notes');
+  pageResults.set('submit_fire', { dispatched: true, effect: 'inserted a new paragraph' });
+  await popup({ type: 'setConfirm', value: false });
+  const line = await enter({ intent: 'submit' });
+  await popup({ type: 'setConfirm', value: true });
+  assert.equal(code(line), 'ok');
+  assert.deepEqual([line.result.submitted, line.result.effect, line.result.state], [false, 'inserted a new paragraph', undefined]);
+  assert.match(line.result.note, /sent nothing/);
+  for (const op of ['key_describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
+});
+
+test('the same text is not sent twice by Enter', async () => {
+  await popup({ type: 'setConfirm', value: false });
+  const enter = (params: object = {}): Promise<any> => one.command('press_key', { params: { key: 'Enter', intent: 'submit', ...params } });
+  const fires = (): number => pageLog.filter((entry) => entry === '1:submit_fire').length;
+  pageResults.set('key_describe', { submit: 'text', click: null, label: 'Message' });
+  pageResults.set('submit_prepare', {
+    target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Message' },
+    by: 'enter', how: 'enter', label: 'Message', digest: 'abc-12',
+  });
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  pageResults.set('submit_fire', { dispatched: true, effect: 'the page handled the key itself' });
+  pageResults.set('submit_observe', {
+    expectSeen: false, submittedSeen: true, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: true,
+    urlChanged: false, documentChanged: false,
+  });
+
+  assert.equal((await enter()).result.state, 'CONFIRMED');
+  const before = fires();
+  const again = await enter();
+  assert.equal(code(again), 'DUPLICATE_SUBMISSION');
+  assert.equal(fires(), before, 'the key is not pressed a second time');
+  // On the user's word it is.
+  assert.equal((await enter({ repeat: true })).result.state, 'CONFIRMED');
+  assert.equal(fires(), before + 1);
+
+  for (const op of ['key_describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
+  await popup({ type: 'setConfirm', value: true });
+});
+
+test('a no stands: what the user declined is not asked again until they take it back', async () => {
+  const ask = (agent: FakeServer, label: string): Promise<any> => {
+    pageResults.set('key_describe', { submit: 'text', click: null, label });
+    pageResults.set('submit_prepare', {
+      target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label }, by: 'enter', how: 'enter', label, digest: null,
+    });
+    return agent.command('press_key', { params: { key: 'Enter', intent: 'submit' } });
+  };
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  pageResults.set('submit_fire', { dispatched: true, effect: 'the page handled the key itself' });
+  pageResults.set('submit_observe', {
+    expectSeen: false, submittedSeen: true, newAlerts: [], invalidFields: [], newStatuses: [], formGone: false, fieldsCleared: true,
+    urlChanged: false, documentChanged: false,
+  });
+  const answer = async (allow: boolean): Promise<void> => {
+    await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
+    await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow });
+  };
+  const notAsked = async (): Promise<any> => (await state()).sessions.find((x: any) => x.id === 's1').notAsked;
+  await popup({ type: 'askAgain', session: 's1' });
+
+  // Declined once: the same request is refused without a question.
+  const first = ask(one, 'Reply');
+  await answer(false);
+  assert.equal(code(await first), 'SUBMIT_DENIED');
+  const second = await ask(one, 'Reply');
+  assert.equal(code(second), 'SUBMIT_DENIED');
+  assert.match(second.error.message, /not asked again so soon/);
+  assert.equal((await state()).pendingConfirm, null, 'no prompt was raised');
+  assert.deepEqual(await notAsked(), { labels: ['Reply'], all: false });
+
+  // Another request is asked about. While it waits, a request of another session is refused at once.
+  await popup({ type: 'authorize', tabId: 2, mode: 'write', clientId: 'c-two' });
+  const other = (await state()).sessions.find((x: any) => x.tabId === 2).id;
+  const waiting = ask(one, 'Note');
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
+  const crowded = await ask(two, 'Elsewhere');
+  assert.equal(code(crowded), 'CONFIRMATION_PENDING');
+  assert.equal((await state()).pendingConfirm.label, 'Note', 'the question on screen is still the first');
+  await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
+  assert.equal(code(await waiting), 'ok');
+  await popup({ type: 'revoke', session: other });
+
+  // The user takes the no back: asked again, and it can be allowed.
+  await popup({ type: 'askAgain', session: 's1' });
+  assert.deepEqual(await notAsked(), { labels: [], all: false });
+  const third = ask(one, 'Reply');
+  await answer(true);
+  assert.equal(code(await third), 'ok');
+
+  // Three requests in a row declined: the session is not heard, whatever it asks.
+  for (const label of ['One', 'Two', 'Three']) {
+    const refused = ask(one, label);
+    await answer(false);
+    assert.equal(code(await refused), 'SUBMIT_DENIED', label);
+  }
+  const fourth = await ask(one, 'Four');
+  assert.equal(code(fourth), 'SUBMIT_DENIED');
+  assert.match(fourth.error.message, /no further one is put to them/);
+  assert.equal((await state()).pendingConfirm, null);
+  assert.equal((await notAsked()).all, true);
+  await popup({ type: 'askAgain', session: 's1' });
+  const fifth = ask(one, 'Four');
+  await answer(true);
+  assert.equal(code(await fifth), 'ok');
+
+  for (const op of ['key_describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
 });
 
 test('Enter or Space on a control follows the rules of a click on it', async () => {

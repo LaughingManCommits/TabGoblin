@@ -3,6 +3,30 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `confirmations`, WP-4, WP-5 and WP-6
+
+All on the final build of the branch.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 54 tests; `McpConformanceIT` on the built jar: 8 tests |
+| `cd chrome-extension && npm run check` | type-check clean, 127 tests, build |
+| `cd e2e && npm test` | 90 passed, 0 failed |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node screenshots.mjs prompts` | 16 pictures of 8 cases; all looked at, twice, with two details changed in between |
+| `HEADED=1 node screenshots.mjs` | run twice; of the pictures that changed, all were looked at except `popup-full.png`, the dark twin of `popup-full-light.png` |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Found by the editor lab on the way: with Enter running as a submission, one code editor's Enter
+was judged a confirmed submission. Its keyboard input, emptied after every key, had been read as
+the field that was cleared. Fixed, with a test. No editor is excused from the question by
+accident: all fifteen are asked about.
+
+Not tried: the prompt of a session that spans two websites, with the tab on the second. The site
+shown is taken from the tab's address when the user is asked. CI on GitHub has still not been
+seen.
+
 ## 2026-11-21, on `mcp-standard`, WP-1 complete
 
 Gaps 1, 2 and 4: a cancelled call is not answered, progress for a client that asks, structured

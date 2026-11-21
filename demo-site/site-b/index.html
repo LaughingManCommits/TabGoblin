@@ -27,7 +27,7 @@
   <div class="main" id="main"></div>
 
   <script>
-    const state = { view: 'notes', notes: ['Buy milk', 'Call the plumber'], archived: ['Old idea'], pinned: false };
+    const state = { view: 'notes', notes: ['Buy milk', 'Call the plumber'], archived: ['Old idea'], pinned: false, messages: [] };
     const main = document.getElementById('main');
 
     class NoteCount extends HTMLElement {
@@ -82,6 +82,26 @@
           }, 250);
         });
         main.append(el('div', { role: 'heading', ariaLevel: '2', textContent: 'New note' }), editor, pin, save);
+
+        // A message box, as in a chat: Enter sends what is written, and there is no button for it.
+        const said = el('div', { id: 'said' }, ...state.messages.map((text) => el('div', { className: 'said', textContent: text })));
+        const message = el('div', { className: 'editor', id: 'message', contentEditable: 'true' });
+        message.setAttribute('role', 'textbox');
+        message.setAttribute('aria-label', 'Message to the team');
+        message.dataset.placeholder = 'Write a message. Enter sends it.';
+        message.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' || e.shiftKey) return;
+          e.preventDefault();
+          const text = message.textContent.trim();
+          if (!text) return;
+          message.textContent = '';
+          // The message shows up a moment later, as it does when a server has to answer first.
+          setTimeout(() => {
+            state.messages.push(text);
+            said.append(el('div', { className: 'said', textContent: text }));
+          }, 150);
+        });
+        main.append(el('div', { role: 'heading', ariaLevel: '2', textContent: 'Team chat' }), said, message);
       }
       main.append(el('div', { className: 'filler' }), el('div', { id: 'bottom', textContent: 'Notes are sorted by date.' }));
     }

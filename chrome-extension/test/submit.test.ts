@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { judgeSubmission } from '../src/policy.ts';
-import { captureBaseline, contentDigest, observeSubmission, submittedTexts, validationProblems } from '../src/submit.ts';
+import { captureBaseline, contentDigest, observeSubmission, submissionPreview, submittedTexts, validationProblems } from '../src/submit.ts';
 import { page } from './helpers.ts';
 
 const FORM = `
@@ -125,6 +125,52 @@ test('submitted text is recognised on the page without the agent naming it', () 
   // After a navigation the agent's own texts are still recognised.
   const after = page('<p>Saved: Ship it on Friday</p>', 'https://app.example/done');
   assert.equal(observeSubmission(after.doc, 'd2', baseline, undefined, null, [], ['Ship it on Friday']).submittedSeen, true);
+});
+
+test('an editor behind a keyboard input is judged by the text it shows, not by that input', () => {
+  const { doc } = page(`
+    <div id="editor"><div id="lines">let total = 1;</div><textarea id="in" data-zero></textarea></div>`);
+  const input = doc.getElementById('in') as HTMLTextAreaElement;
+  const lines = doc.getElementById('lines')!;
+  // Such an input holds a character or two while a key is handled, and is emptied afterwards.
+  input.value = 'x';
+  const baseline = captureBaseline(doc, 'd1', [input], undefined, submittedTexts(input, [input]));
+  assert.deepEqual(baseline.fieldValues, ['let total = 1;']);
+  // Enter started a new line: the input is empty again, the editor holds more than before.
+  input.value = '';
+  lines.textContent = 'let total = 1;\n';
+  const signals = observeSubmission(doc, 'd1', baseline, undefined, input, [input], submittedTexts(input, [input]));
+  assert.equal(signals.fieldsCleared, false, 'nothing was cleared, so nothing counts as sent');
+  assert.equal(judgeSubmission(signals, false).state, 'UNCERTAIN');
+  // The same content has the same fingerprint, whatever the input happens to hold.
+  lines.textContent = 'let total = 1;';
+  input.value = 'q';
+  const one = contentDigest(input, [input]);
+  input.value = '';
+  assert.equal(contentDigest(input, [input]), one);
+});
+
+test('the user is shown the beginning of what would be sent, and never a password', () => {
+  const { doc } = page(`
+    <label for="n">Display name</label><input id="n" value="old name">
+    <label for="p">Password</label><input id="p" type="password" value="hunter2">
+    <label for="t">Token</label><input id="t" autocomplete="one-time-code" value="123456">
+    <label for="c">Comment</label><textarea id="c"></textarea>
+    <label for="e">Email</label><input id="e" type="email">
+    <label for="x">Extra</label><input id="x">`);
+  const field = (id: string): Element => doc.getElementById(id)!;
+  // What a field is about to be filled with counts, not what it holds now.
+  assert.deepEqual(submissionPreview([field('n')], ['Ada Lovelace']), [{ field: 'Display name', text: 'Ada Lovelace' }]);
+  // Without that, what it holds: what Enter would send.
+  assert.deepEqual(submissionPreview([field('n')]), [{ field: 'Display name', text: 'old name' }]);
+  // Credentials are left out, also when the agent supplied them.
+  assert.deepEqual(submissionPreview([field('p'), field('t')], ['hunter2', '123456']), []);
+  // Long text is cut, line breaks are folded, empty fields are left out, and there are at most three.
+  const long = submissionPreview([field('c')], [`first line\n${'word '.repeat(60)}`])[0].text;
+  assert.ok(long.startsWith('first line word') && long.length === 120 && long.endsWith('…'), long);
+  const many = submissionPreview([field('n'), field('c'), field('e'), field('x')], ['a', '', 'b', 'c']);
+  assert.deepEqual(many.map((part) => part.field), ['Display name', 'Email', 'Extra']);
+  assert.equal(submissionPreview([field('n'), field('c'), field('e'), field('x')], ['a', 'b', 'c', 'd']).length, 3);
 });
 
 test('short values, passwords and non-text fields are not used as evidence', () => {

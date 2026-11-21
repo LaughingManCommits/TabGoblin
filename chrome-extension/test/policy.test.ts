@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, checkClick, checkGate, checkKey, failureNote, inScope, isHighImpact,
+  CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNWELCOME_AFTER, activityLabel, checkAsk, checkClick, checkGate, checkKey,
+  failureNote, highImpactWord, inScope, isHighImpact, noteAnswer, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
@@ -222,6 +223,10 @@ test('submission and high-impact wording is recognised, ordinary UI wording is n
   for (const label of ['Save draft', 'Post comment', 'Search', 'Update profile', 'Payment history']) {
     assert.ok(!isHighImpact(label), label);
   }
+  // The user is told which word it was.
+  assert.equal(highImpactWord('Delete account'), 'delete');
+  assert.equal(highImpactWord('Proceed to Checkout'), 'checkout');
+  assert.equal(highImpactWord('Save draft'), null);
 });
 
 test('keys are normalised; moving around needs Explore, typing and Enter need Write', () => {
@@ -269,8 +274,48 @@ test('a key that activates a control is a click on it, with the rules of a click
 });
 
 test('search wording is recognised, so that Enter in a search box is not held up', () => {
-  for (const label of ['Search', 'Search issues…', 'Filter by name', 'Find in page', 'Go to file']) assert.ok(looksLikeSearch(label), label);
-  for (const label of ['Message', 'Write a comment', 'New note', 'Reply', 'Research notes', '']) assert.ok(!looksLikeSearch(label), label);
+  for (const label of ['Search', 'Search issues…', 'Filter by name', 'Find in page']) assert.ok(looksLikeSearch(label), label);
+  for (const label of ['Message', 'Write a comment', 'New note', 'Reply', 'Research notes', 'Go to file', 'Jump to…', '']) assert.ok(!looksLikeSearch(label), label);
+});
+
+test('a no stands for a while: the same request is not put to the user again', () => {
+  const t0 = 1_000_000;
+  assert.equal(code(() => checkAsk(undefined, 'click:Post', false, t0)), 'ok', 'nothing is remembered yet');
+  const declined = noteAnswer(undefined, 'click:Post', 'Post', 'deny', t0);
+  assert.equal(code(() => checkAsk(declined, 'click:Post', false, t0 + 1000)), 'SUBMIT_DENIED');
+  // Another control, or the same name used another way, is another request.
+  assert.equal(code(() => checkAsk(declined, 'click:Save', false, t0 + 1000)), 'ok');
+  assert.equal(code(() => checkAsk(declined, 'enter:Post', false, t0 + 1000)), 'ok');
+  // It ends by itself.
+  assert.equal(code(() => checkAsk(declined, 'click:Post', false, t0 + NO_STANDS_MS)), 'ok');
+  assert.deepEqual(standingRefusals(declined, t0 + 1000), { labels: ['Post'], all: false });
+  assert.deepEqual(standingRefusals(declined, t0 + NO_STANDS_MS), { labels: [], all: false });
+  // An allow of the same request lifts it. That happens after the user took the no back.
+  const allowed = noteAnswer(declined, 'click:Post', 'Post', 'allow', t0 + 2000);
+  assert.equal(code(() => checkAsk(allowed, 'click:Post', false, t0 + 3000)), 'ok');
+});
+
+test('a session whose requests are refused again and again is not heard for a while', () => {
+  const t0 = 1_000_000;
+  let memory = noteAnswer(undefined, 'click:A', 'A', 'deny', t0);
+  memory = noteAnswer(memory, 'click:B', 'B', 'timeout', t0 + 1000);
+  assert.equal(code(() => checkAsk(memory, 'click:C', false, t0 + 2000)), 'ok', `not yet after ${UNWELCOME_AFTER - 1}`);
+  memory = noteAnswer(memory, 'click:C', 'C', 'deny', t0 + 2000);
+  assert.equal(code(() => checkAsk(memory, 'click:D', false, t0 + 3000)), 'SUBMIT_DENIED', 'a request it never made before');
+  assert.equal(standingRefusals(memory, t0 + 3000).all, true);
+  assert.deepEqual(standingRefusals(memory, t0 + 3000).labels, ['A', 'C'], 'what was left unanswered was not declined');
+  assert.equal(code(() => checkAsk(memory, 'click:D', false, t0 + 2000 + NO_STANDS_MS)), 'ok', 'it ends by itself');
+  // An allow in between ends the run.
+  let mixed = noteAnswer(undefined, 'click:A', 'A', 'deny', t0);
+  mixed = noteAnswer(mixed, 'click:B', 'B', 'deny', t0);
+  mixed = noteAnswer(mixed, 'click:C', 'C', 'allow', t0);
+  mixed = noteAnswer(mixed, 'click:D', 'D', 'deny', t0);
+  assert.equal(code(() => checkAsk(mixed, 'click:E', false, t0 + 1000)), 'ok');
+});
+
+test('only one request waits for the user at a time', () => {
+  assert.equal(code(() => checkAsk(undefined, 'click:Post', true, 0)), 'CONFIRMATION_PENDING');
+  assert.equal(failureNote('CONFIRMATION_PENDING'), 'another request was waiting for you');
 });
 
 const signals = (over: Partial<SubmitSignals> = {}): SubmitSignals => ({

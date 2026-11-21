@@ -249,9 +249,22 @@ Keys that can submit follow the rules for submissions:
 
 | Key | Where | Rule |
 |---|---|---|
-| Enter | A text box of any kind: a field of a form, a field outside one, a text area, an editor, a message box | A submission, because it may send what is written. Refused with `SUBMIT_INTENT_REQUIRED` unless `intent` is `submit`; then the user is asked to allow it. |
-| Enter | A search box, or a text box on which a list of options is open | Pressed. It searches, or takes the highlighted option. |
+| Enter | A text box of any kind: a field of a form, a field outside one, a text area, an editor, a message box | A submission, because it may send what is written. Refused with `SUBMIT_INTENT_REQUIRED` unless `intent` is `submit`. Then it runs like `browser_submit`: the user is asked, it is sent once, the same content is refused within two minutes unless `repeat` is true, and the result carries a verdict. |
+| Enter | A search box, or a text box that points to a list of options which is open | Pressed. It searches, or takes the highlighted option. |
 | Enter, Space | A button, link, tab or menu item, or a control of the page's own making that takes the keyboard | The rules of `browser_click` on that element. With `intent: "submit"` it runs as a submission of that control, which needs its `ref`. |
+
+A search box is one the page marks as such: by its type, its role, or a search region around it.
+For a one-line field its name counts as well (search, find, filter); for a text area or an editor
+it does not, because that is where messages are written. `aria-expanded` alone is not an open list
+of options: the text box has to point to a list that is there to see.
+
+When the page leaves Enter to the browser, it only started a new line, or did nothing. The result
+then says so and is not a submission:
+
+```json
+{ "dispatched": true, "key": "Enter", "effect": "inserted a new paragraph", "submitted": false,
+  "note": "Enter sent nothing here: it started a new line, or did nothing." }
+```
 
 The page does not say whether Enter in a text box sends or only starts a new line, so both are
 treated as sending. A line break does not need Enter: put it into the text of `browser_fill`,
@@ -316,7 +329,7 @@ showing it yet.
 
 | Argument | |
 |---|---|
-| `ref` | The control that submits |
+| `ref` | The control that submits: a button or link, which is clicked, or a text box, in which Enter is pressed |
 | `fields` | `[{ ref, text }]` to fill first |
 | `expect_text` | Text that should be visible afterwards if it worked |
 | `submission_id` | Your own id; reusing it never submits again |
@@ -344,6 +357,13 @@ showing it yet.
 | `FAILED` | The form's validation rejected it (`dispatched: false`, nothing sent), or an error appeared after sending |
 | `UNCERTAIN` | Sent, but nothing conclusive showed. Inspect the page; do not repeat blindly. |
 
+A message box has no button: give the box itself as `ref`, and its text in `fields`. The result
+then also has `key` and `effect`, as a key press does.
+
+```json
+{ "ref": 14, "fields": [{ "ref": 14, "text": "Standup moved to ten" }], "expect_text": "Standup moved to ten" }
+```
+
 ## Errors
 
 Every failure is `Error [CODE]: message`.
@@ -362,7 +382,8 @@ Every failure is `Error [CODE]: message`.
 | `NAVIGATION_BLOCKED` | The destination is outside the session's sites |
 | `ORIGIN_MISMATCH` | The tab ended up outside them |
 | `SUBMIT_INTENT_REQUIRED` | The action submits; state it as a submission |
-| `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer |
+| `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer. `SUBMIT_DENIED` also comes without a question: for a request the user declined in the last five minutes, and for a session whose last three requests were declined or not answered. Do not retry; tell the user, who can let the session ask again in the popup. |
+| `CONFIRMATION_PENDING` | The user is being asked about another submission. Try again when that is answered. |
 | `DUPLICATE_SUBMISSION` | Same content as a recent submission |
 | `FILL_REJECTED` | A field did not keep its text, so nothing was submitted |
 | `STALE_REF` | The element changed or is gone; take a new snapshot |

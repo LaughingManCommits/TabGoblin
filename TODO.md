@@ -4,142 +4,21 @@
 
 | Package | About | Depends on | Suggested order |
 |---|---|---|---|
-| [WP-4](#wp-4-a-prompt-that-says-what-is-asked) | What the prompt tells the user, and how it looks | | 2 |
-| [WP-5](#wp-5-requests-one-at-a-time-and-not-again-after-a-no) | Asking in order, and not again after a no | | 3 |
-| [WP-6](#wp-6-enter-as-a-full-submission-with-tighter-exceptions) | Enter gets what other submissions get | | 4 |
-| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | WP-5, WP-6, and the owner's decisions | 5 |
+| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | The owner's decisions | next |
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
-key) and WP-3 (consent that cannot be given by accident: issues A1, A2 and B6). Numbers are not
-reused.
+key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6), WP-4 (a prompt that says
+what is asked: issues B1 to B5 and D1 to D3), WP-5 (a no stands, and
+one request waits at a time: issues A3 and A4) and WP-6 (Enter as a full submission, with tighter
+exceptions: issues C1, C2 and C3). Numbers are not reused.
 
-WP-4 to WP-6 come from a critical look at the work on Enter as a submission, on 2026-11-21. Their
-issues keep the letters they were noted under (A1 ... D3). In the tables, "checked" means it was
-run or looked at; "read" means it follows from the source and was not run.
+WP-5 was built differently from its proposal in one point. A limit on how often a session may ask
+would have stopped an agent the user is working with: in a chat every message is a request. What
+is limited instead is asking after refusals: three in a row, declined or left unanswered.
 
-## WP-4: A prompt that says what is asked
-
-**Status:** open, not started. **Owner:** unassigned.
-
-### Goal
-
-From the prompt alone the user knows who asks, what would be done, where, and with what. Every
-sentence in it is true for the case at hand.
-
-### Issues
-
-| # | Issue | How it is known |
-|---|---|---|
-| B2 | The prompt names the text box, not its content: it does not show what would be sent. For a click it does not show the fields either. | Looked at |
-| B3 | It says "The agent", not which one. With two agents the user has to look the session's owner up in the list below. | Looked at |
-| B4 | The website shown is the session's first site. A session can span several, so it may not be the one the tab is on. | Read; not tried with a session over two sites |
-| B5 | A high-impact prompt does not say why. For Enter the only evidence is the name of the text box, which rarely contains such a word. | Looked at |
-| D1 | The style for a key (`kbd`) applies to the whole popup and carries the prompt's amber border. | Read |
-| D2 | In the line with the session and its website, the website is as heavy as the name in the question above. Two bold things compete. | Looked at |
-| D3 | The check of twenty pictures was made with a script that was not kept. It cannot be repeated from the repository, and nothing tests what the popup writes for each case. | Checked: the script is gone |
-
-### Tasks
-
-1. Done: the prompt for a field of a form says that Enter submits the form (B1).
-2. Name the agent (B3), with the id added when two agents have the same name, as in the lists.
-3. Show the website the tab is on (B4). Try it with a session over two sites.
-4. Show what would be sent (B2): the beginning of the text in the box for Enter; for a click, the
-   fields the submission fills. As a quotation, as plain text, with a limit (proposal: 120
-   characters). Never a password field. This is shown to the user only; nothing new reaches the
-   agent.
-5. Say which word made a prompt high-impact (B5).
-6. Limit the key style to the prompt (D1); set the website in normal weight (D2).
-7. Make the check repeatable (D3):
-   - a mode of `e2e/screenshots.mjs` that pictures the prompt's cases in both colour schemes,
-     into a folder outside `docs/`;
-   - an end-to-end step that reads the prompt's text for each case: a click, Enter in a text box,
-     Enter in a field of a form, no name, a long name, a high-impact name.
-
-### Acceptance
-
-- Each case's text is asserted end to end.
-- The pictures of all cases were looked at in both colour schemes after the last change.
-- `docs/images/popup-confirm*.png` are regenerated, and `docs/user-guide.md` describes the parts
-  of the prompt.
-
-## WP-5: Requests one at a time, and not again after a no
-
-**Status:** open, not started. **Owner:** unassigned.
-
-### Goal
-
-A no is final for a while, and the user is never asked about something they cannot see.
-
-### Issues
-
-| # | Issue | How it is known |
-|---|---|---|
-| A3 | After Deny the same request can be made at once, and again, without limit. Repeated prompts wear consent down. | Read: a denial is not remembered |
-| A4 | If two requests are pending, only the first is shown. The second waits unseen and runs out after 60 seconds. | Read: the popup is given the first pending request only |
-
-### Tasks
-
-1. Remember a denial: for the same control in the same session (kind of request and name), refuse
-   with `SUBMIT_DENIED` without asking again, for a time (proposal: 5 minutes). The message tells
-   the agent that the user declined and that asking again will not help.
-2. Limit how often a session may raise a prompt (proposal: 3 a minute). Beyond that, refuse.
-3. One request at a time. Proposal: while one is pending, another is refused at once with an error
-   that says so, rather than queued. A queue would have to fit inside the server's 95 seconds for
-   a submission, and a request that waits unseen is what A4 is about.
-4. Tell the user in the popup when requests were refused for these reasons, in the activity list.
-
-### Acceptance
-
-- A request that was just declined does not raise a second prompt (worker test, end-to-end).
-- A burst of requests raises at most the allowed number of prompts (worker test).
-- A second request while one is pending is refused with its own error code, documented in
-  `docs/tools.md`.
-
-## WP-6: Enter as a full submission, with tighter exceptions
-
-**Status:** open, not started. **Owner:** unassigned.
-
-### Goal
-
-A declared Enter gets what every other submission gets: sent once, and a verdict. The exceptions
-that let Enter through unasked cannot be met by accident.
-
-### Issues
-
-| # | Issue | How it is known |
-|---|---|---|
-| C1 | The exception for an open list of options is easy to meet: `aria-expanded="true"` or any `aria-activedescendant` on the text box is enough. A message box that carries `aria-expanded` for another reason needs neither intent nor consent. | Read; not tried on real products |
-| C2 | The exception for search goes by English words in the name or the placeholder: search, find, filter, look up, go to, jump to. A message box with such a word is not asked about; a search box named otherwise is. | Checked, by a test of the wording |
-| C3 | Enter is a submission without the rest: no submission id, no refusal of a repeat, no verdict of confirmed, failed or uncertain. Pressed twice, it sends twice. | Read |
-| C4 | That Enter and Space on a button used to pass without the rules of a click is read from the source before the change. It was not measured. | Read |
-
-### Tasks
-
-1. **C3.** Run a declared Enter through the submission flow: a submission id, a fingerprint of the
-   text in the box, refusal of the same content within two minutes unless repeated on purpose, and
-   a verdict from what the page does afterwards (the box emptied, the text appearing elsewhere).
-   Decide the tool surface first: `browser_press_key` returning the verdict when `intent` is
-   `submit`, or `browser_submit` taking a text box and "by Enter". The second keeps one tool for
-   submissions. Either changes a tool's result: `docs/tools.md` and the end-to-end suite.
-2. **C1.** Require a list that the text box points to (`aria-controls`, `aria-owns` or
-   `aria-activedescendant`), that exists, is visible, and is a list of options by its role.
-   `aria-expanded` alone is not enough.
-3. **C2.** Go by the type and role of the box first (`type="search"`, `role="searchbox"`, inside
-   `role="search"`). Decide which words remain, if any, and whether they apply to text areas and
-   editors at all. List the cases the decision rests on.
-4. See which boxes are exempt today: run the editor lab with `VERBOSE=1` and note for each editor
-   whether its Enter was asked about. None of them is a search box.
-5. C4 needs nothing, unless the claim is to be relied on. Then run the new tests against the
-   source before commit `1f41d8c`.
-
-### Acceptance
-
-- The same text sent twice by Enter is refused the second time (end-to-end).
-- The result of a declared Enter carries a verdict (end-to-end), and `docs/tools.md` describes it.
-- A message box with `aria-expanded="true"` and no list is asked about (unit test); a text box with
-  an open list of options is not.
-- The exceptions are listed in `docs/security.md` as they then are.
+C4 stays as it was noted: that Enter and Space on a button used to pass without the rules of a
+click is read from the source before commit `1f41d8c`, and was never measured.
 
 ## WP-7: An automatic mode for confirmations
 
@@ -198,8 +77,9 @@ they do not remove it. `docs/security.md` has to say so under what remains the u
 ### Depends on
 
 - WP-3, which is done: an Allow that can be given by accident must not be remembered.
-- WP-5: the limits on asking, and the memory of a no.
-- WP-6: repeats are refused, so that an Allow is not a licence to send the same thing again.
+- WP-5, which is done: the memory of a no, and the limit on asking after refusals.
+- WP-6, which is done: repeats are refused, so that an Allow is not a licence to send the same
+  thing again.
 
 ### Decisions for the owner
 

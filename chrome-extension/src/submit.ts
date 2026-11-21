@@ -4,7 +4,7 @@
 
 import { visibleText } from './extract.ts';
 import type { SubmitSignals } from './policy.ts';
-import { accessibleName, clip, isSensitiveField, isVisible, norm, ownText } from './snapshot.ts';
+import { accessibleName, clip, editorSurface, isSensitiveField, isVisible, norm, ownText } from './snapshot.ts';
 
 /** State captured just before the submit control is clicked. Small and serialisable: it has to
  *  survive a navigation, when the document that took it no longer exists. */
@@ -53,6 +53,10 @@ function expectCount(doc: Document, fields: Element[], expectText: string | unde
 }
 
 function valueOf(el: Element): string | null {
+  // An editor that takes the keyboard through an element of its own shows its text elsewhere.
+  // That text is what it holds; the element itself is emptied after every key.
+  const surface = editorSurface(el);
+  if (surface) return norm((surface as HTMLElement).innerText ?? surface.textContent);
   const tag = el.localName;
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return (el as HTMLInputElement).value ?? '';
   if (el.getAttribute('contenteditable') !== null) return norm(el.textContent);
@@ -99,6 +103,30 @@ export function contentDigest(control: Element, fields: Element[], intended: (st
   let hash = 5381;
   for (let i = 0; i < text.length; i++) hash = ((hash * 33) ^ text.charCodeAt(i)) >>> 0;
   return `${hash.toString(16)}-${text.length}`;
+}
+
+/** What one field of a submission would send, cut short. */
+export interface SentPreview {
+  /** The field, as the page names it. */
+  field: string;
+  /** The beginning of its text. */
+  text: string;
+}
+
+/**
+ * The beginning of what a submission would send, field by field, for the user to read before
+ * they allow it. Never a password or another credential, and never more than a few lines: this
+ * goes to the extension's own prompt and nowhere else.
+ */
+export function submissionPreview(fields: Element[], intended: (string | undefined)[] = []): SentPreview[] {
+  const preview: SentPreview[] = [];
+  fields.forEach((field, i) => {
+    const type = (field.getAttribute('type') || '').toLowerCase();
+    if (isSensitiveField(field) || type === 'password' || type === 'hidden') return;
+    const text = norm(intended[i] !== undefined ? intended[i] : valueOf(field));
+    if (text) preview.push({ field: clip(accessibleName(field), 40), text: clip(text, 120) });
+  });
+  return preview.slice(0, 3);
 }
 
 /** Text values about to be submitted that are long enough to be recognised on the page afterwards. */

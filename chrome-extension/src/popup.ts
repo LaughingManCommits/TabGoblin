@@ -25,6 +25,8 @@ interface SessionView {
   clientName: string | null;
   ownerConnected: boolean;
   lastSubmission: string | null;
+  /** Requests of this session that are not put to the user for now: those they declined, or all. */
+  notAsked: { labels: string[]; all: boolean };
 }
 
 interface ClientView {
@@ -43,7 +45,10 @@ interface State {
   blockedClients: string[];
   sessions: SessionView[];
   activity: ActivityEntry[];
-  pendingConfirm: { id: string; session: string; label: string; highImpact: boolean; how: 'click' | 'form' | 'enter' } | null;
+  pendingConfirm: {
+    id: string; session: string; label: string; highImpact: boolean; word: string | null; how: 'click' | 'form' | 'enter';
+    origin: string | null; preview: { field: string; text: string }[];
+  } | null;
 }
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -198,7 +203,20 @@ function renderSessions(s: State): void {
       revoke.addEventListener('click', () => void request({ type: 'revoke', session: session.id }));
       controls.append(mode, pause, revoke);
 
-      row.append(line, el('div', 'meta', parts.join(' · ')), controls);
+      row.append(line, el('div', 'meta', parts.join(' · ')));
+      // A no stands for a while. The user sees that it does, and can take it back.
+      if (session.notAsked.all || session.notAsked.labels.length) {
+        const names = session.notAsked.labels.map((label) => (label ? `“${label}”` : 'a control without a name'));
+        const held = el('div', 'held');
+        held.append(el('span', '', session.notAsked.all
+          ? 'Its requests were declined or not answered. It will not ask for a few minutes.'
+          : `You declined ${names.join(', ')}. It will not ask again for a few minutes.`));
+        const again = el('button', 'link askagain', 'Let it ask again');
+        again.addEventListener('click', () => void request({ type: 'askAgain', session: session.id }));
+        held.append(again);
+        row.append(held);
+      }
+      row.append(controls);
       box.append(row);
     }
   });
@@ -316,7 +334,24 @@ function render(): void {
     // Where: the session, and the website it is on, so that the list below need not be searched.
     const where = s.sessions.find((x) => x.id === s.pendingConfirm?.session);
     $('confirmSession').textContent = s.pendingConfirm.session;
-    $('confirmOrigin').textContent = where ? displayOrigin(where.origin) : '';
+    // The site the tab is on now. A session can span several.
+    const origin = s.pendingConfirm.origin ?? where?.origin ?? '';
+    $('confirmOrigin').textContent = origin ? displayOrigin(origin) : '';
+    // Who asks: the agent the session belongs to, told apart from another of the same name.
+    $('confirmWho').textContent = where?.clientId ? agentLabel({ name: where.clientName, id: where.clientId }, s.clients) : 'The agent';
+    // What it would send, as far as it is known: the beginning of each text. Page text, shown as a quotation.
+    const sent = $('confirmSent');
+    sent.hidden = s.pendingConfirm.preview.length === 0;
+    sent.replaceChildren(...s.pendingConfirm.preview.map((part) => {
+      const line = el('div', 'part');
+      // For Enter the one field is the text box the question names already.
+      if (part.field && !(enter && s.pendingConfirm?.preview.length === 1)) line.append(el('span', 'field', part.field));
+      line.append(el('span', 'text', `“${part.text}”`));
+      return line;
+    }));
+    // Why this one always asks.
+    $('confirmImpact').hidden = !s.pendingConfirm.word;
+    $('confirmImpact').textContent = s.pendingConfirm.word ? `Always asked about: its name says “${s.pendingConfirm.word}”.` : '';
     if (promptShown !== s.pendingConfirm.id) holdAnswers(s.pendingConfirm.id);
   } else {
     promptShown = null;

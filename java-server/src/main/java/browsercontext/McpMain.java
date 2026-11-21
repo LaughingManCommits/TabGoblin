@@ -343,7 +343,9 @@ public final class McpMain {
                         + "Space, Backspace, Delete, arrow keys, Home, End, PageUp, PageDown, or one character. "
                         + "Navigation keys need Explore access, others Write. Enter in a text box of any kind (a form "
                         + "field, a text area, an editor, a message box) can send or submit what is written there: it "
-                        + "needs intent=\"submit\", and the user is asked to confirm. For a line break use browser_fill. "
+                        + "needs intent=\"submit\", the user is asked to confirm, and it runs as a submission: sent "
+                        + "once, the same content refused within two minutes unless repeat is true, and reported as "
+                        + "CONFIRMED, FAILED or UNCERTAIN. For a line break use browser_fill. "
                         + "Enter or Space on a button or link follows the rules of browser_click. "
                         + "The result's effect says what the key did. "
                         + "In a rich-text or code editor a note is added when that could not be confirmed: "
@@ -351,7 +353,8 @@ public final class McpMain {
                 schema("\"key\"", """
                         "key":{"type":"string","description":"Key name, e.g. Enter, Escape, Tab, ArrowDown, or a single character."}""", """
                         "ref":{"type":"integer","description":"Element to focus first. Default: the currently focused element."}""", """
-                        "intent":{"type":"string","enum":["interact","submit"],"description":"\\"submit\\" when the key press sends or submits something on the user's explicit request."}""")));
+                        "intent":{"type":"string","enum":["interact","submit"],"description":"\\"submit\\" when the key press sends or submits something on the user's explicit request."}""", """
+                        "repeat":{"type":"boolean","description":"With intent=submit: send again although the same content was just sent here. Only on the user's explicit request."}""")));
         specs.add(tool(service, mapper, "browser_scroll", true,
                 "Scroll the page, or a scrollable element given by ref. With a ref that is not scrollable, the "
                         + "element is scrolled into view. Reports the position and whether the page loaded more content.",
@@ -383,12 +386,13 @@ public final class McpMain {
                         "timeout_ms":{"type":"integer","description":"Maximum wait in milliseconds (default 5000, max 30000)."}""")));
         specs.add(tool(service, mapper, "browser_submit", false,
                 "Submit something the user explicitly asked for, exactly once, and verify it. Optionally fills "
-                        + "fields first, clicks the submit control, then watches the page and returns CONFIRMED, "
+                        + "fields first, clicks the submit control (or presses Enter in it when ref is a text box, such as "
+                        + "a message box), then watches the page and returns CONFIRMED, "
                         + "FAILED (for example validation errors) or UNCERTAIN, with the evidence seen. Needs Write "
                         + "access; the user may be asked to confirm. A submission_id is never processed twice, and "
                         + "an identical submission is refused unless repeat is true. Cannot be undone.",
                 schema("\"ref\"", """
-                        "ref":{"type":"integer","description":"Ref of the control that submits (button or link)."}""", """
+                        "ref":{"type":"integer","description":"Ref of the control that submits: a button or link, or a text box that is sent with Enter."}""", """
                         "fields":{"type":"array","description":"Fields to fill before submitting.","items":{"type":"object","required":["ref","text"],"properties":{"ref":{"type":"integer"},"text":{"type":"string"}}}}""", """
                         "expect_text":{"type":"string","description":"Text that should be visible afterwards if it worked, e.g. the comment just written. Makes verification much stronger."}""", """
                         "submission_id":{"type":"string","description":"Your own id for this submission; reusing it never submits again."}""", """
