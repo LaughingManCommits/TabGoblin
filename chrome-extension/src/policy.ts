@@ -288,7 +288,65 @@ export function checkKey(mode: Mode, intent: Intent, target: KeyTarget): 'press'
     + 'For a line break, put it into the text of browser_fill. If the user explicitly asked you to send or submit, repeat with intent="submit".');
 }
 
-const HIGH_IMPACT_WORDS =/\b(delete|remove|destroy|erase|wipe|pay|purchase|buy|order|checkout|transfer|donate|withdraw|refund|cancel subscription|close account|deactivate|terminate|revoke|merge|publish|deploy|release|send money)\b/i;
+/** How long a no stands: the same request is not put to the user again, and a session that was refused three times running is not heard. */
+export const NO_STANDS_MS = 5 * 60_000;
+/** After this many requests in a row that were declined or left unanswered, a session may not ask for a while. */
+export const UNWELCOME_AFTER = 3;
+
+/** What is remembered of the user's answers in one session, to decide whether they are asked again. */
+export interface AskMemory {
+  /** What the user declined, and when. The key is how the submission would be made and what the control is called. */
+  declined: { key: string; label: string; at: number }[];
+  /** Requests in a row that were declined or left unanswered, and when the last of them was. */
+  refusedInARow: number;
+  refusedAt: number;
+}
+
+/** The requests of a session that would not be put to the user right now. */
+export function standingRefusals(memory: AskMemory | undefined, now: number): { labels: string[]; all: boolean } {
+  if (!memory) return { labels: [], all: false };
+  return {
+    labels: memory.declined.filter((d) => now - d.at < NO_STANDS_MS).map((d) => d.label),
+    all: memory.refusedInARow >= UNWELCOME_AFTER && now - memory.refusedAt < NO_STANDS_MS,
+  };
+}
+
+/**
+ * Decides whether the user may be asked about a submission. Asking has a cost of its own: a
+ * prompt that keeps coming back wears consent down, and one the user cannot see is no question.
+ * So a no stands for a while, a session whose requests are refused again and again is not heard
+ * for a while, and only one request waits at a time.
+ */
+export function checkAsk(memory: AskMemory | undefined, key: string, anotherWaits: boolean, now: number): void {
+  if (anotherWaits) {
+    throw new CommandError('CONFIRMATION_PENDING',
+      'The user is being asked about another submission. Nothing was done. Try again once that one is answered.');
+  }
+  if (!memory) return;
+  if (memory.declined.some((d) => d.key === key && now - d.at < NO_STANDS_MS)) {
+    throw new CommandError('SUBMIT_DENIED',
+      'The user declined this a few minutes ago and is not asked again so soon. Nothing was done. Do not retry: tell the user, '
+      + 'who can allow being asked again in the TabGoblin popup.');
+  }
+  if (memory.refusedInARow >= UNWELCOME_AFTER && now - memory.refusedAt < NO_STANDS_MS) {
+    throw new CommandError('SUBMIT_DENIED',
+      'The user declined or did not answer the last requests of this session, so no further one is put to them for a few minutes. '
+      + 'Nothing was done. Do not retry: tell the user, who can allow being asked again in the TabGoblin popup.');
+  }
+}
+
+/** Takes note of how a request ended. An allow ends a run of refusals, and lifts an earlier no to the same request. */
+export function noteAnswer(
+  memory: AskMemory | undefined, key: string, label: string, answer: 'allow' | 'deny' | 'timeout', now: number,
+): AskMemory {
+  const declined = (memory?.declined ?? []).filter((d) => now - d.at < NO_STANDS_MS && d.key !== key);
+  if (answer === 'allow') return { declined, refusedInARow: 0, refusedAt: 0 };
+  if (answer === 'deny') declined.push({ key, label, at: now });
+  const running = memory && now - memory.refusedAt < NO_STANDS_MS ? memory.refusedInARow : 0;
+  return { declined, refusedInARow: running + 1, refusedAt: now };
+}
+
+const HIGH_IMPACT_WORDS = /\b(delete|remove|destroy|erase|wipe|pay|purchase|buy|order|checkout|transfer|donate|withdraw|refund|cancel subscription|close account|deactivate|terminate|revoke|merge|publish|deploy|release|send money)\b/i;
 
 /** Destructive, financial or publishing actions: the user is always asked, whatever their setting. */
 export function isHighImpact(label: string): boolean {
@@ -460,6 +518,7 @@ export function failureNote(code: string): string {
     case 'SUBMIT_INTENT_REQUIRED': return 'submission not requested';
     case 'SUBMIT_DENIED': return 'you declined';
     case 'SUBMIT_NOT_CONFIRMED': return 'not confirmed';
+    case 'CONFIRMATION_PENDING': return 'another request was waiting for you';
     case 'DUPLICATE_SUBMISSION': return 'duplicate submission blocked';
     case 'NAVIGATION_BLOCKED': return 'outside authorized site';
     case 'STALE_REF': return 'page changed';

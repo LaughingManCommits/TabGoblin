@@ -7,9 +7,10 @@
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import {
-  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkClick, checkGate, checkKey, failureNote, inScope, isHighImpact,
+  CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, checkKey, failureNote, inScope, isHighImpact,
+  noteAnswer, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
-  type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
+  type AskMemory, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, parseServerMessage,
@@ -61,6 +62,8 @@ interface SessionRecord extends SessionAuth {
   documentId: string | null;
   generation: number;
   submissions: SubmissionRecord[];
+  /** What the user answered to this session's requests lately, so that a no stands for a while. */
+  asks?: AskMemory;
 }
 
 interface ActivityEntry {
@@ -631,7 +634,14 @@ async function confirmWithUser(op: Operation, session: SessionRecord, label: str
   const highImpact = isHighImpact(label);
   if (!config.confirmSubmissions && !highImpact) return;
   const nothing = how === 'click' ? 'Nothing was clicked.' : 'Nothing was pressed.';
+  // Not while another request waits, not about what was just declined, not after a run of refusals.
+  const key = `${how}:${label}`;
+  checkAsk(session.asks, key, pendingConfirms.size > 0, Date.now());
   const answer = await askUser(op, label, highImpact, how);
+  if (answer !== 'cancelled') {
+    session.asks = noteAnswer(session.asks, key, label, answer, Date.now());
+    save();
+  }
   if (answer === 'deny') {
     throw new CommandError('SUBMIT_DENIED', `The user declined this submission. ${nothing}`);
   }
@@ -1300,6 +1310,8 @@ function popupState(): object {
       origins: s.origins, suspended: s.suspended,
       clientId: s.clientId, clientName: s.clientName, ownerConnected: !!s.clientId && connected.has(s.clientId),
       lastSubmission: s.submissions.length ? s.submissions[s.submissions.length - 1].state : null,
+      // What would not be put to the user right now, so that the popup can say so and offer to lift it.
+      notAsked: standingRefusals(s.asks, Date.now()),
     })),
     activity: persisted.activity,
     pendingConfirm: [...pendingConfirms.values()].map((c) => ({ id: c.id, session: c.session, label: c.label, highImpact: c.highImpact, how: c.how }))[0] ?? null,
@@ -1347,6 +1359,14 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
         // Narrowing access stops anything that needed the wider one.
         if (session.mode !== 'write') cancelOperations((op) => op.sessionId === session.id, 'The user reduced the session\'s access.');
         noteActivity(session.id, `Access changed to ${modeLabel(session.mode)}`);
+        pushState();
+      }
+      return;
+    case 'askAgain':
+      // The user takes a no back: this session may put its requests to them again.
+      if (session) {
+        session.asks = undefined;
+        noteActivity(session.id, 'May ask you again');
         pushState();
       }
       return;

@@ -101,6 +101,11 @@ which content scripts cannot read. It is never logged.
   the prompt as a whole, and the first stop for Tab is Deny: a key or a click that was on its
   way to the page declines at worst.
 - You are asked before anything is typed. Declining leaves the page untouched.
+- A no stands. What you declined is not put to you again for five minutes, and a session whose
+  last three requests you declined or did not answer may not ask at all for that long. The popup
+  says so on the session, with a way to let it ask again.
+- One request waits at a time. A second is refused at once, instead of waiting where you cannot
+  see it.
 - A submission id is processed once. Identical content within two minutes is refused unless
   explicitly repeated. An unknown outcome is recorded as uncertain and never resent.
 
@@ -162,6 +167,7 @@ content, typed text, full URLs, cookies, headers or the token.
 | Enter or Space on a control that submits is refused like a click on it | Rules, DOM, worker, end-to-end |
 | A key allowed for one element is not pressed on another | End-to-end |
 | A prompt that has only just appeared takes no answer; from the keyboard Deny comes first | End-to-end |
+| What the user declined is not asked again until they take it back; a run of refusals silences a session; one request waits at a time | Rules, worker, end-to-end |
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |

@@ -382,7 +382,8 @@ Every failure is `Error [CODE]: message`.
 | `NAVIGATION_BLOCKED` | The destination is outside the session's sites |
 | `ORIGIN_MISMATCH` | The tab ended up outside them |
 | `SUBMIT_INTENT_REQUIRED` | The action submits; state it as a submission |
-| `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer |
+| `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer. `SUBMIT_DENIED` also comes without a question: for a request the user declined in the last five minutes, and for a session whose last three requests were declined or not answered. Do not retry; tell the user, who can let the session ask again in the popup. |
+| `CONFIRMATION_PENDING` | The user is being asked about another submission. Try again when that is answered. |
 | `DUPLICATE_SUBMISSION` | Same content as a recent submission |
 | `FILL_REJECTED` | A field did not keep its text, so nothing was submitted |
 | `STALE_REF` | The element changed or is gone; take a new snapshot |

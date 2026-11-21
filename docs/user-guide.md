@@ -135,6 +135,9 @@ filling in fields.
   left alone.
 - The prompt names the control or text box as the page names it, and below that the session and
   its website. For deleting, paying, publishing and the like it is red instead of amber.
+- A no stands for five minutes: the agent cannot put the same request to you again in that
+  time, and after three requests in a row that you declined or left unanswered, none at all. The
+  session then says so in the list, with **Let it ask again** if you change your mind.
 - The prompt comes up by itself, and takes the keyboard from the page while it is there. It
   cannot be answered by accident: for its first moment the buttons are dim and take no answer,
   and from the keyboard Deny comes before Allow.

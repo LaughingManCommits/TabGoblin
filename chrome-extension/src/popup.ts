@@ -25,6 +25,8 @@ interface SessionView {
   clientName: string | null;
   ownerConnected: boolean;
   lastSubmission: string | null;
+  /** Requests of this session that are not put to the user for now: those they declined, or all. */
+  notAsked: { labels: string[]; all: boolean };
 }
 
 interface ClientView {
@@ -198,7 +200,20 @@ function renderSessions(s: State): void {
       revoke.addEventListener('click', () => void request({ type: 'revoke', session: session.id }));
       controls.append(mode, pause, revoke);
 
-      row.append(line, el('div', 'meta', parts.join(' · ')), controls);
+      row.append(line, el('div', 'meta', parts.join(' · ')));
+      // A no stands for a while. The user sees that it does, and can take it back.
+      if (session.notAsked.all || session.notAsked.labels.length) {
+        const names = session.notAsked.labels.map((label) => (label ? `“${label}”` : 'a control without a name'));
+        const held = el('div', 'held');
+        held.append(el('span', '', session.notAsked.all
+          ? 'Its requests were declined or not answered. It will not ask for a few minutes.'
+          : `You declined ${names.join(', ')}. It will not ask again for a few minutes.`));
+        const again = el('button', 'link askagain', 'Let it ask again');
+        again.addEventListener('click', () => void request({ type: 'askAgain', session: session.id }));
+        held.append(again);
+        row.append(held);
+      }
+      row.append(controls);
       box.append(row);
     }
   });

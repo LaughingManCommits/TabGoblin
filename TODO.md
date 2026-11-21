@@ -5,18 +5,22 @@
 | Package | About | Depends on | Suggested order |
 |---|---|---|---|
 | [WP-4](#wp-4-a-prompt-that-says-what-is-asked) | What the prompt tells the user, and how it looks | | 2 |
-| [WP-5](#wp-5-requests-one-at-a-time-and-not-again-after-a-no) | Asking in order, and not again after a no | | 3 |
-| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | WP-5, and the owner's decisions | 5 |
+| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | The owner's decisions | 3 |
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
-key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6) and WP-6 (Enter as a
-full submission, with tighter exceptions: issues C1, C2 and C3). Numbers are not reused.
+key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6), WP-5 (a no stands, and
+one request waits at a time: issues A3 and A4) and WP-6 (Enter as a full submission, with tighter
+exceptions: issues C1, C2 and C3). Numbers are not reused.
+
+WP-5 was built differently from its proposal in one point. A limit on how often a session may ask
+would have stopped an agent the user is working with: in a chat every message is a request. What
+is limited instead is asking after refusals: three in a row, declined or left unanswered.
 
 C4 stays as it was noted: that Enter and Space on a button used to pass without the rules of a
 click is read from the source before commit `1f41d8c`, and was never measured.
 
-WP-4 and WP-5 come from a critical look at the work on Enter as a submission, on 2026-11-21. Their
+WP-4 comes from a critical look at the work on Enter as a submission, on 2026-11-21. Their
 issues keep the letters they were noted under (A1 ... D3). In the tables, "checked" means it was
 run or looked at; "read" means it follows from the source and was not run.
 
@@ -64,39 +68,6 @@ sentence in it is true for the case at hand.
 - The pictures of all cases were looked at in both colour schemes after the last change.
 - `docs/images/popup-confirm*.png` are regenerated, and `docs/user-guide.md` describes the parts
   of the prompt.
-
-## WP-5: Requests one at a time, and not again after a no
-
-**Status:** open, not started. **Owner:** unassigned.
-
-### Goal
-
-A no is final for a while, and the user is never asked about something they cannot see.
-
-### Issues
-
-| # | Issue | How it is known |
-|---|---|---|
-| A3 | After Deny the same request can be made at once, and again, without limit. Repeated prompts wear consent down. | Read: a denial is not remembered |
-| A4 | If two requests are pending, only the first is shown. The second waits unseen and runs out after 60 seconds. | Read: the popup is given the first pending request only |
-
-### Tasks
-
-1. Remember a denial: for the same control in the same session (kind of request and name), refuse
-   with `SUBMIT_DENIED` without asking again, for a time (proposal: 5 minutes). The message tells
-   the agent that the user declined and that asking again will not help.
-2. Limit how often a session may raise a prompt (proposal: 3 a minute). Beyond that, refuse.
-3. One request at a time. Proposal: while one is pending, another is refused at once with an error
-   that says so, rather than queued. A queue would have to fit inside the server's 95 seconds for
-   a submission, and a request that waits unseen is what A4 is about.
-4. Tell the user in the popup when requests were refused for these reasons, in the activity list.
-
-### Acceptance
-
-- A request that was just declined does not raise a second prompt (worker test, end-to-end).
-- A burst of requests raises at most the allowed number of prompts (worker test).
-- A second request while one is pending is refused with its own error code, documented in
-  `docs/tools.md`.
 
 ## WP-7: An automatic mode for confirmations
 
@@ -155,7 +126,7 @@ they do not remove it. `docs/security.md` has to say so under what remains the u
 ### Depends on
 
 - WP-3, which is done: an Allow that can be given by accident must not be remembered.
-- WP-5: the limits on asking, and the memory of a no.
+- WP-5, which is done: the memory of a no, and the limit on asking after refusals.
 - WP-6, which is done: repeats are refused, so that an Allow is not a licence to send the same
   thing again.
 

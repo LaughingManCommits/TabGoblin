@@ -190,6 +190,12 @@ kbd {
 .chip { flex: none; padding: 0 7px; border-radius: 999px; font-size: 10.5px; line-height: 17px; background: var(--card); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .chip.state { background: var(--warn-soft); border-color: var(--warn-line); color: var(--warn); }
 .session .meta { color: var(--muted); font-size: 11.5px; margin: 3px 0 8px; }
+/* A no that still stands, and the way to take it back. */
+.session .held {
+  margin: -2px 0 8px; padding: 6px 8px; border-radius: 8px; font-size: 11.5px;
+  background: var(--warn-soft); border: 1px solid var(--warn-line); color: var(--fg);
+}
+.session .held button.link { display: block; margin-top: 3px; padding: 0; height: auto; font-size: 11.5px; color: var(--warn); }
 .session .row { margin-bottom: 0; }
 .session select, .session button { height: 28px; font-size: 12px; }
 .session select { background-color: var(--card); }

@@ -230,6 +230,14 @@ try {
     await popup.click(answer);
     return shownPrompt;
   }
+  /** The user takes a no back: the session may ask again. */
+  async function letAskAgain(id) {
+    const popup = await openPopup();
+    await popup.waitForSelector(row(id, '.askagain'));
+    await popup.$eval(row(id, '.askagain'), (el) => el.click());
+    await popup.waitForFunction((selector) => !document.querySelector(selector), {}, row(id, '.askagain'));
+  }
+  const sessionOf = async (agent) => /Session (s\d+)/.exec((await agent.tool('browser_status')).text)[1];
   async function worker() {
     return until(async () => (await extension.workers())[0], 'the extension service worker');
   }
@@ -533,6 +541,16 @@ try {
     await sleep(500);
     assert(await posts() === 0, 'nothing should be posted');
     assert(await page.$eval('#comment', (el) => el.value) === 'draft only', 'a declined submission must not type anything');
+  });
+  await step('a no stands: the same submission is not put to the user again until they take it back', async () => {
+    const again = await one.tool('browser_submit', { ref: postRef(), fields: [{ ref: commentRef(), text: 'never typed' }] });
+    fails(again, 'SUBMIT_DENIED');
+    has(again.text, 'not asked again so soon');
+    assert(await badge() !== '?', 'no question may be raised');
+    assert(await posts() === 0, 'nothing should be posted');
+    const popup = await openPopup();
+    has(await popup.$eval(row(await sessionOf(one), '.held'), (el) => el.textContent), 'You declined “Post comment”');
+    await letAskAgain(await sessionOf(one));
   });
   await step('a confirmed submission is filled, sent once and verified against the page', async () => {
     const pending = one.tool('browser_submit', {
@@ -1055,6 +1073,7 @@ try {
     assert(prompt.title === 'Allow pressing Enter?' && prompt.label === '“New note”', JSON.stringify(prompt));
     fails(await denied, 'SUBMIT_DENIED');
     assert(await sent() === 0, 'Enter must not be pressed when the user declines');
+    await letAskAgain(await sessionOf(two));
 
     const allowed = two.tool('browser_press_key', { ref: editor, key: 'Enter', intent: 'submit' });
     await answerPrompt(true);
@@ -1101,6 +1120,8 @@ try {
     assert(await pageB.evaluate(() => window.__sent) === 1, 'no key may have reached the editor');
   });
   await step('a key the user allowed for one element is not pressed on another', async () => {
+    // The request of the step before was declined; the user lets the session ask again.
+    await letAskAgain(await sessionOf(two));
     // The editor has the keyboard. While the user is asked, the page moves it to the Save control.
     const moved = two.tool('browser_press_key', { key: 'Enter', intent: 'submit' });
     await until(async () => (await badge()) === '?', 'the confirmation to be pending');
