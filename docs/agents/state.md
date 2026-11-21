@@ -4,25 +4,24 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `a0af46a` (version 0.2.0, licence, CI workflow).
-- Branch `editor-compatibility` is not merged into `main`. It holds the editor work, the agnostic
-  guard, the reading improvements, the "stopping" guidance and the agent files.
-  `origin/editor-compatibility` was at `0591970` on 2026-11-21; later commits are local until the
-  owner pushes.
+- `main` = `origin/main` = `7090b45`: the merge of `editor-compatibility`, made by the owner on
+  2026-11-21. That branch is gone, locally and on the remote.
+- Branch `editor-keys`: local, not pushed, not merged. It starts at `29fea3e` (key presses in
+  editors) on top of `7090b45`.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| Merge `editor-compatibility` into `main` | Waiting for the owner, who merges | git |
+| Push and merge `editor-keys` | Waiting for the owner, who pushes and merges | git |
 | WP-1: follow the MCP standard with the official SDK | Open, not started, no owner | [TODO.md](../../TODO.md) |
 | WP-2: text with line breaks, typed key by key | Open, found 2026-11-21, no owner | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
-- **CI has not been seen to run.** The repository is private and `gh` is not logged in on this
-  machine, so no session has read a workflow result. The "Editors" job runs for the first time
-  when a pull request is opened or the branch is merged.
+- **No CI result has been read.** The push of `7090b45` to `main` on 2026-11-21 should have
+  started all four jobs, the "Editors" job for the first time. The repository is private and
+  `gh` is not logged in on this machine, so no session has seen how they ended.
 - **Only Chrome on Windows has run the browser suites.** The Mac shortcut path in `editor.ts` is
   untested. The CI unit jobs are Linux, unverified for the same reason as above.
 - **No hover.** CSS `:hover` cannot be set without the debugger, so a hover tool was decided

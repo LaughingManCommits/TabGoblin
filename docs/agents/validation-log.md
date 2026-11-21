@@ -3,9 +3,9 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
-## 2026-11-21, key presses in editors, on `editor-compatibility`
+## 2026-11-21, `29fea3e` on `editor-keys`
 
-The commit after `0a22b67`. Same machine and versions as the entry below.
+Key presses in editors, on top of `7090b45`. Same machine and versions as the entry below.
 
 Passed, all on the final build:
 
