@@ -352,6 +352,7 @@ test('Enter in a text box is refused without intent, and with it the user is ask
     pageResults.set('key_describe', { submit: how === 'form' ? 'form' : 'text', click: null, label });
     pageResults.set('submit_prepare', {
       target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label }, by: 'enter', how, label, digest: null,
+      preview: [{ field: label, text: 'Hello team' }],
     });
   };
   pageResults.set('submit_baseline', { problems: [], baseline: {} });
@@ -372,6 +373,9 @@ test('Enter in a text box is refused without intent, and with it the user is ask
   await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
   const asked = (await state()).pendingConfirm;
   assert.deepEqual([asked.label, asked.how, asked.session], ['Message', 'enter', 's1']);
+  // And where it is, what would be sent, and that nothing in its name makes it high-impact.
+  assert.deepEqual([asked.origin, asked.word, asked.highImpact], ['https://app.example', null, false]);
+  assert.deepEqual(asked.preview, [{ field: 'Message', text: 'Hello team' }]);
   await popup({ type: 'confirm', id: asked.id, allow: false });
   const refusal = await denied;
   assert.equal(code(refusal), 'SUBMIT_DENIED');

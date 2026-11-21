@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { judgeSubmission } from '../src/policy.ts';
-import { captureBaseline, contentDigest, observeSubmission, submittedTexts, validationProblems } from '../src/submit.ts';
+import { captureBaseline, contentDigest, observeSubmission, submissionPreview, submittedTexts, validationProblems } from '../src/submit.ts';
 import { page } from './helpers.ts';
 
 const FORM = `
@@ -148,6 +148,29 @@ test('an editor behind a keyboard input is judged by the text it shows, not by t
   const one = contentDigest(input, [input]);
   input.value = '';
   assert.equal(contentDigest(input, [input]), one);
+});
+
+test('the user is shown the beginning of what would be sent, and never a password', () => {
+  const { doc } = page(`
+    <label for="n">Display name</label><input id="n" value="old name">
+    <label for="p">Password</label><input id="p" type="password" value="hunter2">
+    <label for="t">Token</label><input id="t" autocomplete="one-time-code" value="123456">
+    <label for="c">Comment</label><textarea id="c"></textarea>
+    <label for="e">Email</label><input id="e" type="email">
+    <label for="x">Extra</label><input id="x">`);
+  const field = (id: string): Element => doc.getElementById(id)!;
+  // What a field is about to be filled with counts, not what it holds now.
+  assert.deepEqual(submissionPreview([field('n')], ['Ada Lovelace']), [{ field: 'Display name', text: 'Ada Lovelace' }]);
+  // Without that, what it holds: what Enter would send.
+  assert.deepEqual(submissionPreview([field('n')]), [{ field: 'Display name', text: 'old name' }]);
+  // Credentials are left out, also when the agent supplied them.
+  assert.deepEqual(submissionPreview([field('p'), field('t')], ['hunter2', '123456']), []);
+  // Long text is cut, line breaks are folded, empty fields are left out, and there are at most three.
+  const long = submissionPreview([field('c')], [`first line\n${'word '.repeat(60)}`])[0].text;
+  assert.ok(long.startsWith('first line word') && long.length === 120 && long.endsWith('…'), long);
+  const many = submissionPreview([field('n'), field('c'), field('e'), field('x')], ['a', '', 'b', 'c']);
+  assert.deepEqual(many.map((part) => part.field), ['Display name', 'Email', 'Extra']);
+  assert.equal(submissionPreview([field('n'), field('c'), field('e'), field('x')], ['a', 'b', 'c', 'd']).length, 3);
 });
 
 test('short values, passwords and non-text fields are not used as evidence', () => {

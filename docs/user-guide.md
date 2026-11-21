@@ -133,11 +133,16 @@ filling in fields.
 - Pressing Enter in a text box counts as well: in a chat or comment box it sends what is written.
   The prompt then reads **Allow pressing Enter?** (the picture on the right). Search boxes are
   left alone.
-- The prompt names the control or text box as the page names it, and below that the session and
-  its website. For deleting, paying, publishing and the like it is red instead of amber.
+- The prompt says who asks (the agent, by name), what for (the control or text box, as the page
+  names it), what would be sent (the beginning of each text, never a password), and where (the
+  session and the website the tab is on). For deleting, paying, publishing and the like it is red
+  instead of amber, and says which word in the name made it so.
 - A no stands for five minutes: the agent cannot put the same request to you again in that
   time, and after three requests in a row that you declined or left unanswered, none at all. The
   session then says so in the list, with **Let it ask again** if you change your mind.
+
+  <img src="images/popup-declined.png" width="354" alt="A session that says a request was declined, with a link to let it ask again">
+
 - The prompt comes up by itself, and takes the keyboard from the page while it is there. It
   cannot be answered by accident: for its first moment the buttons are dim and take no answer,
   and from the keyboard Deny comes before Allow.

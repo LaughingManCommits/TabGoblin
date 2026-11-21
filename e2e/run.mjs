@@ -636,6 +636,82 @@ try {
     assert(enter.effect === 'submitted the form', JSON.stringify(enter));
     assert(await page.$eval('#notes', (el) => el.textContent) === 'hello', 'the note should be listed');
   });
+  await step('the prompt says who asks, what for, where, and what would be sent', async () => {
+    await setConfirmation(true);
+    const sid = await sessionOf(one);
+    /** Raises a prompt, reads it, declines it, and lets the session ask again. */
+    const read = async (start) => {
+      const pending = start();
+      const popup = await until(async () => {
+        const p = await openPopup();
+        return (await p.$eval('#confirm', (el) => !el.hidden)) ? p : null;
+      }, 'the prompt');
+      const shown = await popup.$eval('#confirm', (el) => ({
+        title: document.getElementById('confirmTitle').textContent,
+        text: el.innerText.replace(/\s+/g, ' ').trim(),
+        high: el.classList.contains('high'),
+      }));
+      await popup.waitForFunction(() => !document.getElementById('deny').disabled);
+      await popup.click('#deny');
+      fails(await pending, 'SUBMIT_DENIED');
+      await letAskAgain(sid);
+      return shown;
+    };
+    const enterInBio = async (label) => {
+      await page.evaluate((name) => {
+        const bio = document.getElementById('bio');
+        bio.removeAttribute('aria-labelledby');
+        if (name === null) bio.removeAttribute('aria-label');
+        else bio.setAttribute('aria-label', name);
+        bio.focus();
+      }, label);
+      return read(() => one.tool('browser_press_key', { key: 'Enter', intent: 'submit' }));
+    };
+    const where = new RegExp(`${sid} http://127\\.0\\.0\\.1:\\d+`);
+
+    // A click: who, which control, what it would fill in, where.
+    let prompt = await read(() => one.tool('browser_submit', {
+      ref: ref(form, 'Button: Save profile'), fields: [{ ref: ref(form, 'Textbox: Display name'), text: 'Ada Lovelace' }],
+    }));
+    assert(prompt.title === 'Allow this submission?' && !prompt.high, JSON.stringify(prompt));
+    has(prompt.text, 'agent-one wants to submit by clicking “Save profile”.');
+    has(prompt.text, 'Display name “Ada Lovelace”');
+    assert(where.test(prompt.text), prompt.text);
+
+    // Enter in a field of a form: it says that the form is submitted.
+    json(await one.tool('browser_fill', { ref: ref(form, 'Textbox: Note'), text: 'Call the bank' }));
+    prompt = await read(() => one.tool('browser_press_key', { ref: ref(form, 'Textbox: Note'), key: 'Enter', intent: 'submit' }));
+    assert(prompt.title === 'Allow pressing Enter?', JSON.stringify(prompt));
+    has(prompt.text, 'agent-one wants to press Enter in “Note”.');
+    has(prompt.text, 'This submits the form the field belongs to.');
+    has(prompt.text, '“Call the bank”');
+
+    // Enter in another text box: it may send what is written, and that is shown.
+    json(await one.tool('browser_fill', { ref: ref(form, 'Textbox: Bio'), text: 'Mathematician' }));
+    prompt = await enterInBio('Bio');
+    has(prompt.text, 'wants to press Enter in “Bio”.');
+    has(prompt.text, 'In a message or comment box, Enter sends what is written.');
+    has(prompt.text, '“Mathematician”');
+
+    // A long name is cut at a word; a missing one is described; a high-impact one says why.
+    prompt = await enterInBio('Reply to the whole thread, visible to everyone in the project');
+    has(prompt.text, 'in “Reply to the whole thread, visible to everyone in the…”.');
+    prompt = await enterInBio(null);
+    has(prompt.text, 'wants to press Enter in a text box without a name.');
+    prompt = await enterInBio('Delete account: type the reason');
+    assert(prompt.title === 'Allow this high-impact action?' && prompt.high, JSON.stringify(prompt));
+    has(prompt.text, 'Always asked about: its name says “delete”.');
+
+    // Declining left the page as it was; put the form back for what follows.
+    assert(await page.$eval('#notes', (el) => el.textContent) === 'hello', 'nothing may have been added');
+    await page.evaluate(() => {
+      const bio = document.getElementById('bio');
+      bio.removeAttribute('aria-label');
+      bio.setAttribute('aria-labelledby', 'bio-label');
+    });
+    json(await one.tool('browser_fill', { ref: ref(form, 'Textbox: Note'), text: '' }));
+    await setConfirmation(false);
+  });
   await step('fills text, date, radio, checkbox and rich text, then verifies a classic form post', async () => {
     const result = json(await one.tool('browser_submit', {
       ref: ref(form, 'Button: Save profile'),

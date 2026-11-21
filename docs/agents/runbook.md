@@ -119,6 +119,15 @@ It rewrites `docs/images` and `docs/examples`. Run it headed: a headless Chrome 
 different size. Afterwards open every changed image and check it shows what the documentation says
 it shows.
 
+After a change to the confirmation prompt, picture all its cases and look at them:
+
+```sh
+cd e2e && node screenshots.mjs prompts          # into e2e/prompt-pictures/, not in git
+```
+
+Success: sixteen pictures, and one printed line of text for each of the eight cases. It leaves
+`docs/` alone and needs no visible window.
+
 ## Change the version
 
 The version is written in seven places. Change all of them in one commit:

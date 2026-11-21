@@ -2,6 +2,11 @@
 // Drives the real extension in your installed Chrome against the demo sites, with two agents.
 //
 //   HEADED=1 node screenshots.mjs    writes docs/images/*.png and docs/examples/*.txt
+//   node screenshots.mjs prompts [folder]
+//                                    pictures every case of the confirmation prompt, in the dark and the
+//                                    light colour scheme, into a folder to look at (default: prompt-pictures
+//                                    next to this script). Nothing in docs/ is touched. Look at them after
+//                                    any change to the prompt.
 //
 // The popup pictures are captures of the real popup window. Run it with HEADED=1: a visible Chrome
 // gives the popup its real size (354 x 600), a headless one a different window (374 x 510).
@@ -18,13 +23,15 @@ import { startDemo } from '../demo-site/server.mjs';
 import { McpClient } from './mcp-client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const IMAGES = resolve(HERE, '../docs/images');
-const EXAMPLES = resolve(HERE, '../docs/examples');
-mkdirSync(IMAGES, { recursive: true });
-mkdirSync(EXAMPLES, { recursive: true });
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const work = mkdtempSync(join(tmpdir(), 'tabgoblin-shots-'));
+// In the mode for the prompt's cases the documentation's pictures and examples are left alone.
+const PROMPTS = process.argv[2] === 'prompts' ? resolve(process.argv[3] ?? join(HERE, 'prompt-pictures')) : null;
+const IMAGES = PROMPTS ? join(work, 'unused-images') : resolve(HERE, '../docs/images');
+const EXAMPLES = PROMPTS ? join(work, 'unused-examples') : resolve(HERE, '../docs/examples');
+mkdirSync(IMAGES, { recursive: true });
+mkdirSync(EXAMPLES, { recursive: true });
+if (PROMPTS) mkdirSync(PROMPTS, { recursive: true });
 // Fixed ports so the addresses in the pictures are stable between runs.
 const demo = await startDemo(8931, 8932, 8933);
 const port = await new Promise((done) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => done(p)); }); });
@@ -143,6 +150,75 @@ try {
   await freeze(popup, 'popup-full.png', 'dark');
   await freeze(popup, 'popup-full-light.png', 'light');
 
+  if (PROMPTS) {
+    await promptCases();
+    console.log(`\nLook at the pictures in ${PROMPTS}`);
+  } else {
+    await documentation();
+  }
+
+  /** Every case of the prompt, in both colour schemes, and a session on which a no stands. */
+  async function promptCases() {
+    const shoot = async (name) => {
+      for (const scheme of ['dark', 'light']) {
+        await popup.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: scheme }]);
+        await sleep(250);
+        await popup.evaluate(() => scrollTo(0, 0));
+        await popup.screenshot({ path: join(PROMPTS, `${name}-${scheme}.png`) });
+      }
+    };
+    let declined = false;
+    /** Raises a prompt, pictures it, declines it, and lets the session ask again. */
+    const picture = async (name, start) => {
+      const pending = start();
+      popup = await open(a);
+      await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
+      await popup.waitForFunction(() => !document.getElementById('deny').disabled);
+      await shoot(name);
+      console.log(`${name}: ${await popup.$eval('#confirm', (el) => el.innerText.replace(/\s+/g, ' ').trim())}`);
+      await popup.click('#deny');
+      await pending;
+      await popup.waitForSelector('.askagain');
+      if (!declined) {
+        declined = true;
+        await sleep(900); // one refresh of the popup's state
+        await shoot('declined');
+        console.log(`declined: ${await popup.$eval('.held', (el) => el.innerText.replace(/\s+/g, ' ').trim())}`);
+      }
+      await popup.$eval('.askagain', (el) => el.click());
+      await popup.waitForFunction(() => !document.querySelector('.askagain'));
+    };
+    const field = async (fragment) => ref((await one.tool('browser_snapshot')).text, fragment);
+    const enter = (target) => one.tool('browser_press_key', { ...(target === undefined ? {} : { ref: target }), key: 'Enter', intent: 'submit' });
+    /** Gives the comment box another name, or none, and the keyboard. */
+    const rename = (name) => a.evaluate((text) => {
+      const area = document.querySelector('textarea');
+      for (const label of [...(area.labels ?? [])]) label.remove();
+      for (const attribute of ['aria-labelledby', 'placeholder', 'title', 'name', 'id']) area.removeAttribute(attribute);
+      if (text === null) area.removeAttribute('aria-label');
+      else area.setAttribute('aria-label', text);
+      area.focus();
+    }, name);
+
+    const comment = 'Reproduced on build 512. The export also fails for files that were renamed while the upload was still running.';
+    await picture('click', async () => one.tool('browser_submit', {
+      ref: await field('Button: Post comment'), fields: [{ ref: await field('Textbox (multiline): Comment'), text: 'Reproduced on build 512' }],
+    }));
+    await picture('click-high-impact', async () => one.tool('browser_click', { ref: await field('Button: Delete draft'), intent: 'submit' }));
+    await one.tool('browser_fill', { ref: await field('Textbox (multiline): Comment'), text: comment });
+    await picture('enter', async () => enter(await field('Textbox (multiline): Comment')));
+    await rename('Reply to the whole thread, visible to everyone in the project');
+    await picture('enter-long-name', () => enter());
+    await rename(null);
+    await picture('enter-no-name', () => enter());
+    await rename('Delete account: type the reason');
+    await picture('enter-high-impact', () => enter());
+    await one.tool('browser_navigate', { url: '/form.html' });
+    await one.tool('browser_fill', { ref: await field('Textbox: Note'), text: 'Call the bank' });
+    await picture('enter-form-field', async () => enter(await field('Textbox: Note')));
+  }
+
+  async function documentation() {
   // 4. A submission waiting for the user, then verified.
   const comment = 'Reproduced on build 512';
   const pending = one.tool('browser_submit', {
@@ -160,6 +236,7 @@ try {
 
   // 4b. Enter in a text box, waiting for the user. Declined: the picture is all that is wanted.
   const posted = (await one.tool('browser_snapshot')).text;
+  await one.tool('browser_fill', { ref: ref(posted, 'Textbox (multiline): Comment'), text: 'Thanks, that fixed it for me too.' });
   const key = one.tool('browser_press_key', { ref: ref(posted, 'Textbox (multiline): Comment'), key: 'Enter', intent: 'submit' });
   popup = await open(a);
   await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
@@ -168,6 +245,13 @@ try {
   await popup.waitForFunction(() => !document.getElementById('deny').disabled);
   await popup.click('#deny');
   await key;
+
+  // 4c. The no stands for a while, and the session says so. Then the user lets it ask again.
+  await popup.waitForSelector('.askagain');
+  await sleep(900);
+  await capture(popup, 'popup-declined.png');
+  await popup.$eval('.askagain', (el) => el.click());
+  await popup.waitForFunction(() => !document.querySelector('.askagain'));
 
   // 5. The in-page indicator while an operation runs.
   await a.bringToFront();
@@ -195,9 +279,11 @@ try {
   await popup.waitForFunction(() => !document.getElementById('resumeBox').hidden);
   await capture(popup, 'popup-suspended.png');
 
+  }
+
   // Lay the frozen content out at full length, at popup width, in an ordinary tab: what you would
   // see if the popup did not scroll.
-  for (const shot of frozen) {
+  for (const shot of PROMPTS ? [] : frozen) {
     const view = await browser.newPage();
     await view.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: shot.scheme }]);
     await view.setViewport({ width: 344, height: 600, deviceScaleFactor: 2 });
@@ -206,7 +292,7 @@ try {
     await view.close();
     console.log(shot.name);
   }
-  console.log('indicator.png');
+  if (!PROMPTS) console.log('indicator.png');
 } finally {
   await browser.close().catch(() => undefined);
   await one.close();

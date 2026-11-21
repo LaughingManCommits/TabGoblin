@@ -348,9 +348,14 @@ export function noteAnswer(
 
 const HIGH_IMPACT_WORDS = /\b(delete|remove|destroy|erase|wipe|pay|purchase|buy|order|checkout|transfer|donate|withdraw|refund|cancel subscription|close account|deactivate|terminate|revoke|merge|publish|deploy|release|send money)\b/i;
 
+/** The word in a control's name that makes it a destructive, financial or publishing action, if there is one. */
+export function highImpactWord(label: string): string | null {
+  return HIGH_IMPACT_WORDS.exec(label)?.[1].toLowerCase() ?? null;
+}
+
 /** Destructive, financial or publishing actions: the user is always asked, whatever their setting. */
 export function isHighImpact(label: string): boolean {
-  return HIGH_IMPACT_WORDS.test(label);
+  return highImpactWord(label) !== null;
 }
 
 const KEYS: Record<string, Mode> = {

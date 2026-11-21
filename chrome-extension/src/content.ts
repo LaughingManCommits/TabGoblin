@@ -9,7 +9,7 @@ import {
 } from './interact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
 import {
-  captureBaseline, contentDigest, observeSubmission, submittedTexts, validationProblems, type SubmitBaseline,
+  captureBaseline, contentDigest, observeSubmission, submissionPreview, submittedTexts, validationProblems, type SubmitBaseline,
 } from './submit.ts';
 
 interface Request {
@@ -231,6 +231,8 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         label: key.label,
         // Fingerprint of what would be submitted, taken before any field is touched.
         digest: contentDigest(control, fields, intended),
+        // The beginning of it, for the question to the user.
+        preview: submissionPreview(fields, intended),
       };
     }
     case 'submit_baseline': {

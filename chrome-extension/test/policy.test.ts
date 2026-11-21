@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNWELCOME_AFTER, activityLabel, checkAsk, checkClick, checkGate, checkKey,
-  failureNote, inScope, isHighImpact, noteAnswer, standingRefusals,
+  failureNote, highImpactWord, inScope, isHighImpact, noteAnswer, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
@@ -223,6 +223,10 @@ test('submission and high-impact wording is recognised, ordinary UI wording is n
   for (const label of ['Save draft', 'Post comment', 'Search', 'Update profile', 'Payment history']) {
     assert.ok(!isHighImpact(label), label);
   }
+  // The user is told which word it was.
+  assert.equal(highImpactWord('Delete account'), 'delete');
+  assert.equal(highImpactWord('Proceed to Checkout'), 'checkout');
+  assert.equal(highImpactWord('Save draft'), null);
 });
 
 test('keys are normalised; moving around needs Explore, typing and Enter need Write', () => {

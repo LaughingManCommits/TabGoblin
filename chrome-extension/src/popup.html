@@ -47,10 +47,13 @@
     <section id="confirm" class="card confirm" role="alertdialog" aria-labelledby="confirmTitle" aria-describedby="confirmAsk" tabindex="-1" hidden>
       <h2 id="confirmTitle">Allow this submission?</h2>
       <p class="ask" id="confirmAsk">
-        <span id="confirmClick">The agent wants to submit by clicking</span><span id="confirmEnter" hidden>The agent wants to press <kbd>Enter</kbd> in</span>
+        <span id="confirmWho">The agent</span>
+        <span id="confirmClick">wants to submit by clicking</span><span id="confirmEnter" hidden>wants to press <kbd>Enter</kbd> in</span>
         <strong id="confirmLabel"></strong>.
       </p>
+      <p id="confirmImpact" class="why" hidden></p>
       <p id="confirmWhy" class="why" hidden></p>
+      <div id="confirmSent" class="sent" hidden></div>
       <div class="where"><span id="confirmSession" class="sid"></span><span id="confirmOrigin" class="origin"></span></div>
       <!-- Deny comes first for the keyboard: a key that was on its way elsewhere declines. Allow is shown first. -->
       <div class="row answers">

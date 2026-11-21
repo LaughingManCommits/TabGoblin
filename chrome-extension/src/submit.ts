@@ -105,6 +105,30 @@ export function contentDigest(control: Element, fields: Element[], intended: (st
   return `${hash.toString(16)}-${text.length}`;
 }
 
+/** What one field of a submission would send, cut short. */
+export interface SentPreview {
+  /** The field, as the page names it. */
+  field: string;
+  /** The beginning of its text. */
+  text: string;
+}
+
+/**
+ * The beginning of what a submission would send, field by field, for the user to read before
+ * they allow it. Never a password or another credential, and never more than a few lines: this
+ * goes to the extension's own prompt and nowhere else.
+ */
+export function submissionPreview(fields: Element[], intended: (string | undefined)[] = []): SentPreview[] {
+  const preview: SentPreview[] = [];
+  fields.forEach((field, i) => {
+    const type = (field.getAttribute('type') || '').toLowerCase();
+    if (isSensitiveField(field) || type === 'password' || type === 'hidden') return;
+    const text = norm(intended[i] !== undefined ? intended[i] : valueOf(field));
+    if (text) preview.push({ field: clip(accessibleName(field), 40), text: clip(text, 120) });
+  });
+  return preview.slice(0, 3);
+}
+
 /** Text values about to be submitted that are long enough to be recognised on the page afterwards. */
 export function submittedTexts(control: Element, fields: Element[]): string[] {
   const texts = new Set<string>();

@@ -4,12 +4,12 @@
 
 | Package | About | Depends on | Suggested order |
 |---|---|---|---|
-| [WP-4](#wp-4-a-prompt-that-says-what-is-asked) | What the prompt tells the user, and how it looks | | 2 |
-| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | The owner's decisions | 3 |
+| [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | The owner's decisions | next |
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
-key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6), WP-5 (a no stands, and
+key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6), WP-4 (a prompt that says
+what is asked: issues B1 to B5 and D1 to D3), WP-5 (a no stands, and
 one request waits at a time: issues A3 and A4) and WP-6 (Enter as a full submission, with tighter
 exceptions: issues C1, C2 and C3). Numbers are not reused.
 
@@ -19,55 +19,6 @@ is limited instead is asking after refusals: three in a row, declined or left un
 
 C4 stays as it was noted: that Enter and Space on a button used to pass without the rules of a
 click is read from the source before commit `1f41d8c`, and was never measured.
-
-WP-4 comes from a critical look at the work on Enter as a submission, on 2026-11-21. Their
-issues keep the letters they were noted under (A1 ... D3). In the tables, "checked" means it was
-run or looked at; "read" means it follows from the source and was not run.
-
-## WP-4: A prompt that says what is asked
-
-**Status:** open, not started. **Owner:** unassigned.
-
-### Goal
-
-From the prompt alone the user knows who asks, what would be done, where, and with what. Every
-sentence in it is true for the case at hand.
-
-### Issues
-
-| # | Issue | How it is known |
-|---|---|---|
-| B2 | The prompt names the text box, not its content: it does not show what would be sent. For a click it does not show the fields either. | Looked at |
-| B3 | It says "The agent", not which one. With two agents the user has to look the session's owner up in the list below. | Looked at |
-| B4 | The website shown is the session's first site. A session can span several, so it may not be the one the tab is on. | Read; not tried with a session over two sites |
-| B5 | A high-impact prompt does not say why. For Enter the only evidence is the name of the text box, which rarely contains such a word. | Looked at |
-| D1 | The style for a key (`kbd`) applies to the whole popup and carries the prompt's amber border. | Read |
-| D2 | In the line with the session and its website, the website is as heavy as the name in the question above. Two bold things compete. | Looked at |
-| D3 | The check of twenty pictures was made with a script that was not kept. It cannot be repeated from the repository, and nothing tests what the popup writes for each case. | Checked: the script is gone |
-
-### Tasks
-
-1. Done: the prompt for a field of a form says that Enter submits the form (B1).
-2. Name the agent (B3), with the id added when two agents have the same name, as in the lists.
-3. Show the website the tab is on (B4). Try it with a session over two sites.
-4. Show what would be sent (B2): the beginning of the text in the box for Enter; for a click, the
-   fields the submission fills. As a quotation, as plain text, with a limit (proposal: 120
-   characters). Never a password field. This is shown to the user only; nothing new reaches the
-   agent.
-5. Say which word made a prompt high-impact (B5).
-6. Limit the key style to the prompt (D1); set the website in normal weight (D2).
-7. Make the check repeatable (D3):
-   - a mode of `e2e/screenshots.mjs` that pictures the prompt's cases in both colour schemes,
-     into a folder outside `docs/`;
-   - an end-to-end step that reads the prompt's text for each case: a click, Enter in a text box,
-     Enter in a field of a form, no name, a long name, a high-impact name.
-
-### Acceptance
-
-- Each case's text is asserted end to end.
-- The pictures of all cases were looked at in both colour schemes after the last change.
-- `docs/images/popup-confirm*.png` are regenerated, and `docs/user-guide.md` describes the parts
-  of the prompt.
 
 ## WP-7: An automatic mode for confirmations
 
