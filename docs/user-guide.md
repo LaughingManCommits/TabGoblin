@@ -212,6 +212,7 @@ can reach.
 | "This tab cannot be authorized" | Browser pages and the Web Store are off limits | Use a normal `http(s)` page |
 | Screenshot refused | The tab is not the visible one in its window | Bring the tab to the front |
 | The page stopped responding | A native `alert` or `confirm` dialog is open | Dismiss the dialog |
+| Working through TabGoblin is slow | The time goes to the agent and its model, to the browser, or to waiting for you | Ask the agent to call `browser_status` with `diagnostics`: it says [where the time went](tools.md#where-the-time-went) |
 | The jar "hangs" in a terminal | Run without `--show-token` it starts a server and waits | Press Ctrl+C; see [Stopping](#8-stopping) |
 
 ## 8. Stopping
@@ -263,7 +264,7 @@ starts a new server the next time it needs one.
 | Setting | Where | Default |
 |---|---|---|
 | When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
-| In-page indicator | Toggle in the popup | on |
+| Indicator in the page | Switch under *Settings* in the popup | on |
 | First port | *Connection…* in the popup; `--port` on the server | 47821 |
 | Token file | `--token-file` / `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` |
 | Log level | `BCMCP_LOG` = `debug`, `info`, `warn`, `off` | `info` |

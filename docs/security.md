@@ -154,7 +154,8 @@ levels and the submission confirmation are for.
 
 Server logs (stderr) and the extension's activity feed contain command ids, session ids, operation
 types, durations, outcomes, error categories and scope violations. They never contain page
-content, typed text, full URLs, cookies, headers or the token.
+content, typed text, full URLs, cookies, headers or the token. The same holds for what the status
+tool says about where the time went: tool names and durations.
 
 ## What is verified by tests
 

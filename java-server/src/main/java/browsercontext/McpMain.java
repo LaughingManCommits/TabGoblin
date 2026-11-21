@@ -289,7 +289,7 @@ public final class McpMain {
                         + "Chrome extension is connected.",
                 """
                 {"type":"object","properties":{
-                  "diagnostics":{"type":"boolean","description":"Also list recent operations with durations and error codes (no page content)."}}}"""));
+                  "diagnostics":{"type":"boolean","description":"Also say where the time of the last tool calls went (the agent between calls, this server, the extension and the page, the user) and list recent operations with durations and error codes (no page content)."}}}"""));
         specs.add(tool(service, mapper, "browser_snapshot", true,
                 "Structured view of the visible page: sections, lists, tables, headings, text, links, buttons and "
                         + "form fields, nested by indentation, each listed element with a numbered ref like [12] for "

@@ -2,15 +2,15 @@
 
 ## Overview
 
-Nothing is open. New work gets the next number, WP-9.
+Nothing is open. New work gets the next number, WP-10.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
 key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6), WP-4 (a prompt that says
 what is asked: issues B1 to B5 and D1 to D3), WP-5 (a no stands, and
-one request waits at a time: issues A3 and A4) WP-6 (Enter as a full submission, with tighter
-exceptions: issues C1, C2 and C3), WP-7 (an automatic mode for confirmations)
-and WP-8 (small things left from that mode). Numbers are not reused.
+one request waits at a time: issues A3 and A4), WP-6 (Enter as a full submission, with tighter
+exceptions: issues C1, C2 and C3), WP-7 (an automatic mode for confirmations),
+WP-8 (small things left from that mode) and WP-9 (where the time goes). Numbers are not reused.
 
 WP-5 was built differently from its proposal in one point. A limit on how often a session may ask
 would have stopped an agent the user is working with: in a chat every message is a request. What
@@ -39,3 +39,11 @@ word of 2026-11-21 ("leave 3"): a control stays known by its name on its site, s
 on another page of the site passes too. Narrowing it to the address of the page would make a
 chat ask again in every conversation. The limit is stated in
 [docs/security.md](docs/security.md) and in the user guide.
+
+WP-9 was built as proposed, with the proposals taken for its three points after the owner's
+"after that" of 2026-11-21: the extension gives three numbers with each answer (how long the
+command ran, waited for its turn, and waited for the user); the report is in `browser_status`
+with `diagnostics: true` and in the server's log at `debug`, with no file and no new tool; and
+the extension's part is not split into worker and page. What the report cannot tell is in
+[docs/tools.md](docs/tools.md#where-the-time-went): the model from the agent's program, and the
+extension from the page.

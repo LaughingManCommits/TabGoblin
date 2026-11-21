@@ -56,7 +56,8 @@ public class WebSocketBridge extends WebSocketServer {
     private final String clientId = "c-" + Pairing.randomHex(4);
     private volatile String clientName = "";
     private final ObjectMapper json = new ObjectMapper();
-    private final ExtensionConnection connection = new ExtensionConnection(json);
+    private final Timings timings = new Timings();
+    private final ExtensionConnection connection = new ExtensionConnection(json, timings);
     private final CompletableFuture<Void> started = new CompletableFuture<>();
     private final Deque<Long> failedPairings = new ArrayDeque<>();
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -151,6 +152,11 @@ public class WebSocketBridge extends WebSocketServer {
     }
 
     /** Sends one command to the extension. Never retries. */
+    /** Where the time of the last tool calls went. */
+    Timings timings() {
+        return timings;
+    }
+
     public JsonNode send(String action, String session, JsonNode params, Duration timeout) {
         dropStalePairings();
         return connection.request(action, session, params, timeout);
@@ -294,19 +300,22 @@ public class WebSocketBridge extends WebSocketServer {
                     + " required: update the extension and the server to the same release");
             return;
         }
-        peer.authenticated = true;
-        peer.tokenAtPairing = current;
-        WebSocket replaced = connection.attach(conn);
-        if (replaced != null && replaced.isOpen()) {
-            replaced.close(CLOSE_REPLACED, "Replaced by a newer connection");
-        }
         ObjectNode ack = json.createObjectNode();
         ack.put("type", "auth_ok");
         ack.put("proof", Pairing.serverProof(current, peer.nonce, clientNonce));
         ack.put("version", Protocol.VERSION);
         ack.put("clientId", clientId);
         ack.put("clientName", clientName);
+        // The answer goes out first. Once this is the paired connection, other threads send on it: a
+        // waiting tool call its command, the MCP handshake the agent's name. Anything that reached the
+        // extension ahead of `auth_ok` would be taken there for a failed pairing.
         conn.send(json.writeValueAsString(ack));
+        peer.authenticated = true;
+        peer.tokenAtPairing = current;
+        WebSocket replaced = connection.attach(conn);
+        if (replaced != null && replaced.isOpen()) {
+            replaced.close(CLOSE_REPLACED, "Replaced by a newer connection");
+        }
         Log.info("extension connected client=" + clientId + " protocol=" + Protocol.VERSION);
     }
 

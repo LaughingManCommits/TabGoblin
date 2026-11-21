@@ -28,8 +28,8 @@ is still running; a call it cancels is stopped and not answered.
 
 ## browser_status
 
-`diagnostics` (boolean): also list this agent's recent operations with durations and error codes.
-Operations of other agents are not shown.
+`diagnostics` (boolean): also say where the time of this agent's last tool calls went, and list its
+recent operations with durations and error codes. Operations of other agents are not shown.
 
 The line about confirmation gives the user's general setting: *yes*; *yes, the first time for each
 control; what the user allowed passes for a while*; or *no (only high-impact ones are put to the
@@ -51,6 +51,47 @@ Session s1
 ```
 
 A suspended session adds a `State: suspended …` line; a session spanning several sites lists them.
+
+### Where the time went
+
+With `diagnostics: true` the result also answers what is slow: the agent, the server, the
+extension and the page, or the user. The server measures it, because only the server sees all of
+them: the time between its answer and the next call, the whole of a call, and the round trip to
+the extension. What happened inside the round trip the extension says with each answer. Up to
+the last 200 tool calls of this server are counted, the last ten are listed, and the call that
+asks is not among them. This is from a run of the end-to-end suite, where the agent is a script
+and takes no time to think:
+
+```text
+Where the time went, over the last 92 tool calls (share of all the time; median and longest per call):
+    7%  between calls, with the agent and its model (median 1 ms, longest 918 ms)
+    0%  in this server (median 0 ms, longest 1 ms)
+   15%  waiting to send: for the extension to connect, or for another call on the same session (median 0 ms, longest 5.3 s)
+    0%  between this server and the extension (median 1 ms, longest 2 ms)
+    0%  waiting for its turn in the tab's queue (median 0 ms, longest 1 ms)
+   40%  in the extension and the page (median 3 ms, longest 801 ms)
+   37%  waiting for the user's answer (median 0 ms, longest 1.6 s)
+Last calls, newest last (the whole call; what the agent took before it; the call's parts, largest first):
+  browser_submit 2.0 s (agent before it: 1 ms): user 1.3 s, extension and page 714 ms, on the way 1 ms
+  browser_snapshot 4 ms (agent before it: 918 ms): extension and page 3 ms, on the way 1 ms
+  browser_press_key 1.6 s (agent before it: 1 ms): user 1.6 s, extension and page 5 ms, on the way 1 ms [failed]
+Note: the time between calls is the agent's program as well as its model, and any approval the user gives there.
+```
+
+| Part | What it is |
+|---|---|
+| Between calls | From the server's answer to the next call: the model, the agent's program, and any approval the user gives there. A call that begins while another runs counts as none. |
+| In this server | The call less everything below |
+| Waiting to send | Up to 10 seconds for the extension to find a server that just started, and the wait behind another call on the same session |
+| Between this server and the extension | The round trip less what the extension accounts for |
+| Waiting for its turn | Behind another command for the same tab, in the extension |
+| In the extension and the page | The command at work, the page's own slowness included: the two are not told apart |
+| Waiting for the user's answer | A confirmation prompt, from its appearance to the answer |
+
+An extension older than this report gives no times; the round trip is then counted whole under
+the extension and the page, and a note says for how many calls. Nothing but tool names and
+durations is kept. With `BCMCP_LOG=debug` the server also writes one line for each tool call:
+`call tool=browser_click ms=412 gap=2140 waited=0 trip=380 ran=352 queued=3 asked=0 outcome=ok`.
 
 ## browser_snapshot
 

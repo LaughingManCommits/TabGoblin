@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PROTOCOL_VERSION, parseServerMessage } from '../src/protocol.ts';
+import { PROTOCOL_VERSION, commandTiming, parseServerMessage } from '../src/protocol.ts';
 
 test('well-formed protocol messages are typed', () => {
   assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [1, 2] }),
@@ -46,4 +46,14 @@ test('malformed or forged messages are rejected', () => {
   for (const message of bad) {
     assert.equal(parseServerMessage(message), null, JSON.stringify(message));
   }
+});
+
+test('an answer says how long the command ran, waited for its turn, and waited for the user', () => {
+  // Arrived at 1000, had its turn at 1040, ended at 3040; the user took 1500 of that to answer.
+  assert.deepEqual(commandTiming(1000, 1040, 3040, 1500), { ran: 2000, queued: 40, asked: 1500 });
+  // Numbers only, whole and never negative; the user cannot have taken longer than the command ran.
+  assert.deepEqual(commandTiming(1000, 1000, 1010.6, 0), { ran: 11, queued: 0, asked: 0 });
+  assert.deepEqual(commandTiming(1000, 990, 995, 50), { ran: 5, queued: 0, asked: 5 });
+  assert.deepEqual(commandTiming(1000, 1000, Number.NaN, Number.NaN), { ran: 0, queued: 0, asked: 0 });
+  assert.deepEqual(Object.keys(commandTiming(1, 2, 3, 0)).sort(), ['asked', 'queued', 'ran']);
 });

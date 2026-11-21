@@ -157,7 +157,7 @@ Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 { "type": "auth_ok", "proof": "…", "version": 2, "clientId": "c-1a2b3c4d", "clientName": "…" }
 
 { "id": "17", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
-{ "id": "17", "success": true, "result": {} }
+{ "id": "17", "success": true, "result": {}, "timing": { "ran": 132, "queued": 0, "asked": 0 } }
 { "id": "17", "success": false, "error": { "code": "NOT_AUTHORIZED", "message": "…" } }
 
 { "type": "cancel", "id": "17" }
@@ -166,6 +166,19 @@ Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 { "type": "event", "event": "activity", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
 { "type": "ping" }   { "type": "pong" }
 ```
+
+On a connection the server sends `auth_ok` before anything else, and may send a command or
+`client` right behind it. The extension takes the messages of a connection in the order they
+came. One that arrives while it still checks the proof in `auth_ok` waits for that, and is then a
+message like any other. Without a valid `auth_ok` before it, any other message is a failed
+pairing (4401).
+
+`timing` comes with every answer, failed ones too, in milliseconds: how long the command ran in
+the extension, how long it waited before that for its turn in the tab's queue, and how much of
+the running was waiting for the user's answer. The server cannot see inside the round trip; with
+these it says where the time of a tool call went (`Timings.java`,
+[tools.md](tools.md#where-the-time-went)). The field is optional: an older server ignores it, and
+without it the server counts the round trip whole.
 
 | Close code | Meaning |
 |---|---|

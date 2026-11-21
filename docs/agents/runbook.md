@@ -38,6 +38,10 @@ mvn -B -f java-server/pom.xml test -Dtest=PairingTest         # one Java test cl
 
 Success: `ℹ fail 0`, or `BUILD SUCCESS`.
 
+An extension test that waits for something that never comes is ended after 60 seconds and
+reported as failed, with its name (`--test-timeout` in `chrome-extension/package.json`). Give the
+option yourself when you run one file as above.
+
 The built jar is checked against the protocol by `mvn -B -f java-server/pom.xml verify`, which runs
 `McpConformanceIT` after the jar is made. `package` builds without that check.
 
@@ -55,7 +59,8 @@ cd e2e && npm install && npm test
 
 Success: each step prints `ok`, the last line is `N passed, 0 failed`, and the process exits 0. It
 takes a few minutes and opens no window. Options: `HEADED=1` shows the browser, `BCMCP_CHROME=<path>` picks another Chrome,
-`SHOW_STDERR=1` prints the servers' logs at the end.
+`SHOW_STDERR=1` prints the servers' logs at the end, `SHOW_TIMES=1` the report of where the time
+of one agent's tool calls went.
 
 ## Run the editor lab
 
@@ -93,6 +98,19 @@ CI runs on pushes to `main`, on pull requests, and by hand. A push to another br
 pull request runs nothing. `npm ci` deletes `node_modules` first; use `npm install` when you only
 want to work.
 
+The two Linux jobs can be run on Windows in a container, if Docker is installed. From the
+repository's root, in PowerShell, the Chrome extension job:
+
+```powershell
+docker run --rm --cpuset-cpus=0,1 -v "${PWD}/chrome-extension:/src:ro" node:24 bash -c "mkdir /work && cd /src && tar cf - --exclude=node_modules --exclude=dist . | (cd /work && tar xf -) && cd /work && npm ci && npm run check"
+```
+
+Success: `ℹ fail 0` and exit code 0. The sources are copied inside the container, so that its
+`node_modules` are Linux's own and the working tree is left alone. `--cpuset-cpus=0,1` gives it
+two cores, as a small runner has; timing faults show sooner there. The Java server job is the
+same with the image `maven:3.9-eclipse-temurin-21`, the whole repository as `/src`, `target` and
+`.git` excluded as well, and `mvn -B -f java-server/pom.xml verify` as the command.
+
 ## Try a change in a real browser
 
 1. Build the part you changed.
@@ -128,7 +146,9 @@ cd e2e && node screenshots.mjs prompts          # into e2e/prompt-pictures/, not
 Success: twenty-eight pictures of fourteen views, and one printed line of text for each view:
 seven cases of the prompt, a session on which a no stands, the prompt in the automatic mode, a
 session in that mode with one thing that passes and with two, and the setting with each of its
-three values. It leaves `docs/` alone and needs no visible window.
+three values. It leaves `docs/` alone and needs no visible window. With `FULL=1` each view is
+also written at its whole length and double size (`<view>-full-<scheme>.png`): that is the
+picture to look at for spacing and alignment, since the popup's window shows only its top.
 
 ## Change the version
 

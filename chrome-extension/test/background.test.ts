@@ -93,7 +93,12 @@ const fakeChrome = {
 /** A fake agent server on one port: speaks the real handshake, then sends commands. */
 class FakeServer {
   socket: FakeSocket | null = null;
+  /** The server has sent `auth_ok`. The extension checks its proof a moment later: ask the worker whether it is paired. */
   paired = false;
+  /** Sends a command right behind every `auth_ok`, as a server does whose agent was waiting for the extension. */
+  eager = false;
+  /** The answers to those commands, in order. One that is never answered stays pending. */
+  eagerAnswers: Promise<any>[] = [];
   closeCodes: number[] = [];
   events: any[] = [];
   private nonce = 'a'.repeat(32);
@@ -120,6 +125,7 @@ class FakeServer {
       assert.equal(msg.proof, await clientProof(TOKEN, this.nonce, msg.nonce), 'the extension must prove it knows the token');
       this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: 2, clientId: this.clientId, clientName: this.name });
       this.paired = true;
+      if (this.eager) this.eagerAnswers.push(this.command('status'));
     } else if (msg.type === 'event') {
       this.events.push(msg);
     } else if (typeof msg.id === 'string') {
@@ -219,7 +225,9 @@ before(async () => {
   const realSetInterval = globalThis.setInterval;
   (globalThis as any).setInterval = (fn: () => void, ms: number) => realSetInterval(fn, ms).unref();
   await import('../src/background.ts');
-  await until(() => one.paired && two.paired, 'the agents to pair');
+  // Paired as the worker sees it. A fake server calls itself paired when it has sent `auth_ok`;
+  // the worker checks that proof a moment later, and a test that starts in between finds no agent.
+  await until(async () => (await state()).clients.length === 2, 'the agents to pair');
 });
 
 test('finds servers across the port range and refuses one that speaks another protocol version', async () => {
@@ -282,6 +290,23 @@ test('commands for one tab run in order, and a queued command can be cancelled b
   assert.equal(code(await queued), 'CANCELLED');
   assert.equal(pageLog.filter((entry) => entry === '1:snapshot').length, snapshotsBefore, 'a cancelled queued command never reaches the page');
   assert.equal(code(await one.command('snapshot')), 'ok', 'the session works again afterwards');
+
+  // Each answer says how long the command ran, and how long it waited for its turn before that.
+  const held = one.command('wait_for', { id: 'w-timed', params: { text: 'never', timeoutMs: 20000 } });
+  await until(() => waits.has(`${BASE_PORT}:w-timed`), 'the second wait to reach the page');
+  const behind = one.command('snapshot', { id: 'q-timed' });
+  await sleep(60);
+  one.deliver({ type: 'cancel', id: 'w-timed' });
+  const waited = await behind;
+  assert.equal(code(waited), 'ok');
+  assert.ok(waited.timing.queued >= 40, `it waited ${waited.timing.queued} ms for its turn`);
+  assert.ok(waited.timing.ran < waited.timing.queued, 'waiting for its turn is not running');
+  assert.equal(waited.timing.asked, 0);
+  const holding = (await held).timing;
+  assert.ok(holding.ran >= 40 && holding.queued < 40, JSON.stringify(holding));
+  // A refusal and the status are answered at once, and say so.
+  assert.deepEqual(Object.keys((await one.command('status')).timing).sort(), ['asked', 'queued', 'ran']);
+  assert.equal((await one.command('evaluate')).timing.queued, 0);
 });
 
 test('a replayed id, a stale deadline, a malformed message and a flood are refused', async () => {
@@ -483,7 +508,7 @@ test('a no stands: what the user declined is not asked again until they take it 
   assert.equal(code(second), 'SUBMIT_DENIED');
   assert.match(second.error.message, /not asked again so soon/);
   assert.equal((await state()).pendingConfirm, null, 'no prompt was raised');
-  assert.deepEqual(await notAsked(), { labels: ['Reply'], all: false });
+  assert.deepEqual(await notAsked(), { requests: [{ how: 'enter', label: 'Reply' }], all: false });
 
   // Another request is asked about. While it waits, a request of another session is refused at once.
   await popup({ type: 'authorize', tabId: 2, mode: 'write', clientId: 'c-two' });
@@ -499,7 +524,7 @@ test('a no stands: what the user declined is not asked again until they take it 
 
   // The user takes the no back: asked again, and it can be allowed.
   await popup({ type: 'askAgain', session: 's1' });
-  assert.deepEqual(await notAsked(), { labels: [], all: false });
+  assert.deepEqual(await notAsked(), { requests: [], all: false });
   const third = ask(one, 'Reply');
   await answer(true);
   assert.equal(code(await third), 'ok');
@@ -543,15 +568,21 @@ test('automatic: the user is asked the first time for each control, and what the
     await until(async () => (await state()).pendingConfirm !== null, `the user to be asked about ${label}`);
     assert.equal((await state()).pendingConfirm.label, label);
     assert.equal((await state()).pendingConfirm.lasts, lasts, `what the prompt says about an Allow for “${label}”`);
+    await sleep(20); // the user takes a moment
     await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
-    assert.equal(code(await request), 'ok');
+    const answer = await request;
+    assert.equal(code(answer), 'ok');
+    // The server is told the user's time apart from the extension's own.
+    assert.ok(answer.timing.asked >= 15 && answer.timing.asked <= answer.timing.ran, JSON.stringify(answer.timing));
   };
   // The activity list keeps its newest entries only, so the newest of its kind is what tells.
   const lastAutomatic = async (): Promise<number> => Math.max(0, ...(await state()).activity
     .filter((entry: any) => entry.label.startsWith('Allowed automatically')).map((entry: any) => entry.id));
   const unasked = async (label: string): Promise<void> => {
     const before = await lastAutomatic();
-    assert.equal(code(await ask(label)), 'ok');
+    const answer = await ask(label);
+    assert.equal(code(answer), 'ok');
+    assert.equal(answer.timing.asked, 0, 'nobody was asked');
     assert.equal((await state()).pendingConfirm, null);
     assert.ok(await lastAutomatic() > before, `${label} is marked in the activity list as allowed automatically`);
   };
@@ -660,4 +691,40 @@ test('closing a tab ends its session, and a disconnected agent stays out until a
 
   await popup({ type: 'allowClient', clientId: 'c-two' });
   await until(async () => (await state()).clients.some((c: any) => c.id === 'c-two'), 'the agent to be allowed back');
+});
+
+test('what a server sends right behind the pairing is a message like any other, not a failed pairing', async () => {
+  const within = <T>(promise: Promise<T>, ms: number, what: string): Promise<T> => Promise.race([
+    promise, sleep(ms).then(() => { throw new Error(`timed out waiting for ${what}`); }),
+  ]);
+  /** Waits across scans: the popup asks for one whenever it is open, at most every 2.5 seconds. */
+  const eventually = async (condition: () => boolean, what: string): Promise<void> => {
+    for (let i = 0; i < 120 && !condition(); i++) {
+      await state();
+      await sleep(50);
+    }
+    assert.ok(condition(), `timed out waiting for ${what}`);
+  };
+  // A server whose agent was waiting for the extension: its command leaves in the same turn as
+  // `auth_ok`, and reaches the worker while it is still checking the server's proof.
+  const eager = new FakeServer('c-eager', 'eager-agent');
+  eager.eager = true;
+  servers.set(BASE_PORT + 4, eager);
+  await eventually(() => eager.eagerAnswers.length === 1, 'the new server to be found');
+  assert.equal(code(await within(eager.eagerAnswers[0], 3000, 'an answer to the command sent with the pairing')), 'ok');
+  let s = await state();
+  assert.equal(s.connection, 'connected');
+  assert.ok(s.clients.some((c: any) => c.id === 'c-eager'), 'the server is paired');
+  assert.deepEqual(eager.closeCodes, [], 'and its connection was not closed');
+
+  // An agent the user disconnected is turned away as that. Its command behind `auth_ok` does not
+  // make it a failed pairing, which would stop the search for every other server.
+  await popup({ type: 'disconnectClient', clientId: 'c-eager' });
+  await until(() => eager.closeCodes.includes(4403), 'the agent to be disconnected');
+  await eventually(() => eager.closeCodes.filter((c) => c === 4403).length >= 2, 'the agent to come back and be turned away again');
+  await sleep(50);
+  s = await state();
+  assert.equal(s.connection, 'connected', 'no pairing has failed');
+  assert.ok(!s.clients.some((c: any) => c.id === 'c-eager'));
+  servers.delete(BASE_PORT + 4);
 });

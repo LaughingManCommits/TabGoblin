@@ -282,35 +282,41 @@ test('search wording is recognised, so that Enter in a search box is not held up
 test('a no stands for a while: the same request is not put to the user again', () => {
   const t0 = 1_000_000;
   assert.equal(code(() => checkAsk(undefined, 'click:Post', false, t0)), 'ok', 'nothing is remembered yet');
-  const declined = noteAnswer(undefined, 'click:Post', 'Post', 'deny', t0);
+  const declined = noteAnswer(undefined, 'click:Post', 'click', 'Post', 'deny', t0);
   assert.equal(code(() => checkAsk(declined, 'click:Post', false, t0 + 1000)), 'SUBMIT_DENIED');
   // Another control, or the same name used another way, is another request.
   assert.equal(code(() => checkAsk(declined, 'click:Save', false, t0 + 1000)), 'ok');
   assert.equal(code(() => checkAsk(declined, 'enter:Post', false, t0 + 1000)), 'ok');
   // It ends by itself.
   assert.equal(code(() => checkAsk(declined, 'click:Post', false, t0 + NO_STANDS_MS)), 'ok');
-  assert.deepEqual(standingRefusals(declined, t0 + 1000), { labels: ['Post'], all: false });
-  assert.deepEqual(standingRefusals(declined, t0 + NO_STANDS_MS), { labels: [], all: false });
+  assert.deepEqual(standingRefusals(declined, t0 + 1000), { requests: [{ how: 'click', label: 'Post' }], all: false });
+  assert.deepEqual(standingRefusals(declined, t0 + NO_STANDS_MS), { requests: [], all: false });
+  // The user is told what kind of request they declined: Enter in a box of that name is another one.
+  const both = noteAnswer(declined, 'enter:Post', 'enter', 'Post', 'deny', t0 + 500);
+  assert.deepEqual(standingRefusals(both, t0 + 1000).requests, [{ how: 'click', label: 'Post' }, { how: 'enter', label: 'Post' }]);
+  // A no that was kept from before the kind was noted is listed by its name alone.
+  const kept = { declined: [{ key: 'click:Old', label: 'Old', at: t0 }], refusedInARow: 1, refusedAt: t0 };
+  assert.deepEqual(standingRefusals(kept, t0 + 1000).requests, [{ how: null, label: 'Old' }]);
   // An allow of the same request lifts it. That happens after the user took the no back.
-  const allowed = noteAnswer(declined, 'click:Post', 'Post', 'allow', t0 + 2000);
+  const allowed = noteAnswer(declined, 'click:Post', 'click', 'Post', 'allow', t0 + 2000);
   assert.equal(code(() => checkAsk(allowed, 'click:Post', false, t0 + 3000)), 'ok');
 });
 
 test('a session whose requests are refused again and again is not heard for a while', () => {
   const t0 = 1_000_000;
-  let memory = noteAnswer(undefined, 'click:A', 'A', 'deny', t0);
-  memory = noteAnswer(memory, 'click:B', 'B', 'timeout', t0 + 1000);
+  let memory = noteAnswer(undefined, 'click:A', 'click', 'A', 'deny', t0);
+  memory = noteAnswer(memory, 'click:B', 'click', 'B', 'timeout', t0 + 1000);
   assert.equal(code(() => checkAsk(memory, 'click:C', false, t0 + 2000)), 'ok', `not yet after ${UNWELCOME_AFTER - 1}`);
-  memory = noteAnswer(memory, 'click:C', 'C', 'deny', t0 + 2000);
+  memory = noteAnswer(memory, 'click:C', 'click', 'C', 'deny', t0 + 2000);
   assert.equal(code(() => checkAsk(memory, 'click:D', false, t0 + 3000)), 'SUBMIT_DENIED', 'a request it never made before');
   assert.equal(standingRefusals(memory, t0 + 3000).all, true);
-  assert.deepEqual(standingRefusals(memory, t0 + 3000).labels, ['A', 'C'], 'what was left unanswered was not declined');
+  assert.deepEqual(standingRefusals(memory, t0 + 3000).requests.map((r) => r.label), ['A', 'C'], 'what was left unanswered was not declined');
   assert.equal(code(() => checkAsk(memory, 'click:D', false, t0 + 2000 + NO_STANDS_MS)), 'ok', 'it ends by itself');
   // An allow in between ends the run.
-  let mixed = noteAnswer(undefined, 'click:A', 'A', 'deny', t0);
-  mixed = noteAnswer(mixed, 'click:B', 'B', 'deny', t0);
-  mixed = noteAnswer(mixed, 'click:C', 'C', 'allow', t0);
-  mixed = noteAnswer(mixed, 'click:D', 'D', 'deny', t0);
+  let mixed = noteAnswer(undefined, 'click:A', 'click', 'A', 'deny', t0);
+  mixed = noteAnswer(mixed, 'click:B', 'click', 'B', 'deny', t0);
+  mixed = noteAnswer(mixed, 'click:C', 'click', 'C', 'allow', t0);
+  mixed = noteAnswer(mixed, 'click:D', 'click', 'D', 'deny', t0);
   assert.equal(code(() => checkAsk(mixed, 'click:E', false, t0 + 1000)), 'ok');
 });
 

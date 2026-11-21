@@ -108,6 +108,7 @@
     </section>
 
     <section class="card settings">
+      <h2>Settings</h2>
       <label for="askMode" class="setting">Before an agent submits anything</label>
       <select id="askMode" aria-describedby="askHint">
         <option value="always">Ask me every time</option>
@@ -115,9 +116,13 @@
         <option value="never">Do not ask me</option>
       </select>
       <p id="askHint" class="hint"></p>
+      <!-- Each setting: its name, its control, and a line that says what it does. -->
       <label class="check">
+        <span class="words">
+          <span class="setting">Indicator in the page</span>
+          <span class="hint">Shows the agent at work. Has a pause button.</span>
+        </span>
         <input id="indicator" type="checkbox">
-        <span>Show an indicator in the page while the agent works</span>
       </label>
     </section>
 

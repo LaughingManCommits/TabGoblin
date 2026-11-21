@@ -254,6 +254,7 @@ Manifest V3 stops an idle background worker. TabGoblin is built for that:
 java-server/src/main/java/browsercontext/
   McpMain.java             entry point, tool definitions, port selection
   StdinTap.java            end of input, client-side cancellation
+  Timings.java             where the time of the last tool calls went
   BrowserService.java      tool arguments → commands → results, submission ids
   WebSocketBridge.java     localhost endpoint, origin check, pairing, lockout, limits
   ExtensionConnection.java correlation, deadlines, cancellation, per-session ordering

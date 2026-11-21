@@ -47,7 +47,8 @@ final class Protocol {
     }
 
     /** The extension's answer to a command. */
-    record Response(String id, boolean success, JsonNode result, String errorCode, String errorMessage) {
+    record Response(String id, boolean success, JsonNode result, String errorCode, String errorMessage,
+            Timing timing) {
         /** Parses and validates a response; returns null when the message is not a well-formed response. */
         static Response parse(JsonNode msg) {
             if (!msg.path("id").isString() || !msg.path("success").isBoolean()) {
@@ -60,7 +61,27 @@ final class Protocol {
             }
             return new Response(msg.path("id").asString(), ok, msg.path("result"),
                     error.path("code").asString("ERROR"),
-                    error.path("message").asString("The extension reported an error."));
+                    error.path("message").asString("The extension reported an error."),
+                    Timing.parse(msg.path("timing")));
+        }
+    }
+
+    /**
+     * What the extension says about its part of a round trip, in milliseconds: how long the command
+     * ran, how long it waited before that for its turn in the tab's queue, and how much of the
+     * running was waiting for the user's answer. An older extension says nothing.
+     */
+    record Timing(long ran, long queued, long asked) {
+        /** Returns null unless all three are whole numbers of a plausible size. */
+        static Timing parse(JsonNode n) {
+            if (!n.isObject() || !plausible(n.path("ran")) || !plausible(n.path("queued")) || !plausible(n.path("asked"))) {
+                return null;
+            }
+            return new Timing(n.path("ran").asLong(), n.path("queued").asLong(), n.path("asked").asLong());
+        }
+
+        private static boolean plausible(JsonNode v) {
+            return v.isIntegralNumber() && v.asLong() >= 0 && v.asLong() <= 86_400_000L;
         }
     }
 

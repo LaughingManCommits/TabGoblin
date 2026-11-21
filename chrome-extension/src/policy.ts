@@ -374,18 +374,26 @@ export const UNWELCOME_AFTER = 3;
 
 /** What is remembered of the user's answers in one session, to decide whether they are asked again. */
 export interface AskMemory {
-  /** What the user declined, and when. The key is how the submission would be made and what the control is called. */
-  declined: { key: string; label: string; at: number }[];
+  /**
+   * What the user declined, and when. The key is how the submission would be made and what the
+   * control is called. An entry kept from before the kind was noted has none.
+   */
+  declined: { key: string; how?: SubmitHow; label: string; at: number }[];
   /** Requests in a row that were declined or left unanswered, and when the last of them was. */
   refusedInARow: number;
   refusedAt: number;
 }
 
-/** The requests of a session that would not be put to the user right now. */
-export function standingRefusals(memory: AskMemory | undefined, now: number): { labels: string[]; all: boolean } {
-  if (!memory) return { labels: [], all: false };
+/**
+ * The requests of a session that would not be put to the user right now: those they declined, by
+ * kind and by the name of the control, or all of them.
+ */
+export function standingRefusals(
+  memory: AskMemory | undefined, now: number,
+): { requests: { how: SubmitHow | null; label: string }[]; all: boolean } {
+  if (!memory) return { requests: [], all: false };
   return {
-    labels: memory.declined.filter((d) => now - d.at < NO_STANDS_MS).map((d) => d.label),
+    requests: memory.declined.filter((d) => now - d.at < NO_STANDS_MS).map((d) => ({ how: d.how ?? null, label: d.label })),
     all: memory.refusedInARow >= UNWELCOME_AFTER && now - memory.refusedAt < NO_STANDS_MS,
   };
 }
@@ -416,11 +424,11 @@ export function checkAsk(memory: AskMemory | undefined, key: string, anotherWait
 
 /** Takes note of how a request ended. An allow ends a run of refusals, and lifts an earlier no to the same request. */
 export function noteAnswer(
-  memory: AskMemory | undefined, key: string, label: string, answer: 'allow' | 'deny' | 'timeout', now: number,
+  memory: AskMemory | undefined, key: string, how: SubmitHow, label: string, answer: 'allow' | 'deny' | 'timeout', now: number,
 ): AskMemory {
   const declined = (memory?.declined ?? []).filter((d) => now - d.at < NO_STANDS_MS && d.key !== key);
   if (answer === 'allow') return { declined, refusedInARow: 0, refusedAt: 0 };
-  if (answer === 'deny') declined.push({ key, label, at: now });
+  if (answer === 'deny') declined.push({ key, how, label, at: now });
   const running = memory && now - memory.refusedAt < NO_STANDS_MS ? memory.refusedInARow : 0;
   return { declined, refusedInARow: running + 1, refusedAt: now };
 }
