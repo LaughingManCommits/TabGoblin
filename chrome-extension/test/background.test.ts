@@ -93,7 +93,12 @@ const fakeChrome = {
 /** A fake agent server on one port: speaks the real handshake, then sends commands. */
 class FakeServer {
   socket: FakeSocket | null = null;
+  /** The server has sent `auth_ok`. The extension checks its proof a moment later: ask the worker whether it is paired. */
   paired = false;
+  /** Sends a command right behind every `auth_ok`, as a server does whose agent was waiting for the extension. */
+  eager = false;
+  /** The answers to those commands, in order. One that is never answered stays pending. */
+  eagerAnswers: Promise<any>[] = [];
   closeCodes: number[] = [];
   events: any[] = [];
   private nonce = 'a'.repeat(32);
@@ -120,6 +125,7 @@ class FakeServer {
       assert.equal(msg.proof, await clientProof(TOKEN, this.nonce, msg.nonce), 'the extension must prove it knows the token');
       this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: 2, clientId: this.clientId, clientName: this.name });
       this.paired = true;
+      if (this.eager) this.eagerAnswers.push(this.command('status'));
     } else if (msg.type === 'event') {
       this.events.push(msg);
     } else if (typeof msg.id === 'string') {
@@ -219,7 +225,9 @@ before(async () => {
   const realSetInterval = globalThis.setInterval;
   (globalThis as any).setInterval = (fn: () => void, ms: number) => realSetInterval(fn, ms).unref();
   await import('../src/background.ts');
-  await until(() => one.paired && two.paired, 'the agents to pair');
+  // Paired as the worker sees it. A fake server calls itself paired when it has sent `auth_ok`;
+  // the worker checks that proof a moment later, and a test that starts in between finds no agent.
+  await until(async () => (await state()).clients.length === 2, 'the agents to pair');
 });
 
 test('finds servers across the port range and refuses one that speaks another protocol version', async () => {
@@ -660,4 +668,40 @@ test('closing a tab ends its session, and a disconnected agent stays out until a
 
   await popup({ type: 'allowClient', clientId: 'c-two' });
   await until(async () => (await state()).clients.some((c: any) => c.id === 'c-two'), 'the agent to be allowed back');
+});
+
+test('what a server sends right behind the pairing is a message like any other, not a failed pairing', async () => {
+  const within = <T>(promise: Promise<T>, ms: number, what: string): Promise<T> => Promise.race([
+    promise, sleep(ms).then(() => { throw new Error(`timed out waiting for ${what}`); }),
+  ]);
+  /** Waits across scans: the popup asks for one whenever it is open, at most every 2.5 seconds. */
+  const eventually = async (condition: () => boolean, what: string): Promise<void> => {
+    for (let i = 0; i < 120 && !condition(); i++) {
+      await state();
+      await sleep(50);
+    }
+    assert.ok(condition(), `timed out waiting for ${what}`);
+  };
+  // A server whose agent was waiting for the extension: its command leaves in the same turn as
+  // `auth_ok`, and reaches the worker while it is still checking the server's proof.
+  const eager = new FakeServer('c-eager', 'eager-agent');
+  eager.eager = true;
+  servers.set(BASE_PORT + 4, eager);
+  await eventually(() => eager.eagerAnswers.length === 1, 'the new server to be found');
+  assert.equal(code(await within(eager.eagerAnswers[0], 3000, 'an answer to the command sent with the pairing')), 'ok');
+  let s = await state();
+  assert.equal(s.connection, 'connected');
+  assert.ok(s.clients.some((c: any) => c.id === 'c-eager'), 'the server is paired');
+  assert.deepEqual(eager.closeCodes, [], 'and its connection was not closed');
+
+  // An agent the user disconnected is turned away as that. Its command behind `auth_ok` does not
+  // make it a failed pairing, which would stop the search for every other server.
+  await popup({ type: 'disconnectClient', clientId: 'c-eager' });
+  await until(() => eager.closeCodes.includes(4403), 'the agent to be disconnected');
+  await eventually(() => eager.closeCodes.filter((c) => c === 4403).length >= 2, 'the agent to come back and be turned away again');
+  await sleep(50);
+  s = await state();
+  assert.equal(s.connection, 'connected', 'no pairing has failed');
+  assert.ok(!s.clients.some((c: any) => c.id === 'c-eager'));
+  servers.delete(BASE_PORT + 4);
 });

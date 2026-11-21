@@ -167,6 +167,12 @@ Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 { "type": "ping" }   { "type": "pong" }
 ```
 
+On a connection the server sends `auth_ok` before anything else, and may send a command or
+`client` right behind it. The extension takes the messages of a connection in the order they
+came. One that arrives while it still checks the proof in `auth_ok` waits for that, and is then a
+message like any other. Without a valid `auth_ok` before it, any other message is a failed
+pairing (4401).
+
 | Close code | Meaning |
 |---|---|
 | 4401 | Pairing failed, timed out, or the token was rotated |

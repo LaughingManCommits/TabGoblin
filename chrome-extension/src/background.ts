@@ -1241,7 +1241,8 @@ function connectPort(port: number): void {
       return;
     }
 
-    if (client.authenticated) {
+    /** A message of a paired server. */
+    const regular = (): void => {
       if (msg.type === 'command') void onCommand(client, msg.command);
       else if (msg.type === 'cancel') cancelOperations((op) => op.key === `${port}:${msg.id}`, 'The agent cancelled the command.');
       else if (msg.type === 'client') {
@@ -1251,12 +1252,25 @@ function connectPort(port: number): void {
         }
         save();
       }
+    };
+    if (client.authenticated) {
+      regular();
       return;
     }
 
     // Not paired yet: only the challenge-response is accepted. The server must prove it knows
     // the token too, so a stray local process on this port cannot drive the browser.
+    // The messages take their turn one after the other, in the order they came.
     handshake = handshake.then(async () => {
+      // The connection was closed or dropped while this message waited for its turn.
+      if (clients.get(port) !== client || ws.readyState !== WebSocket.OPEN) return;
+      // A server may send its first message right behind `auth_ok`, while its proof is still being
+      // checked here. By its turn the server is paired, and this is a message like any other.
+      // Before that nothing has changed: without a valid `auth_ok` it is a failed pairing.
+      if (client.authenticated) {
+        regular();
+        return;
+      }
       if (msg.type === 'challenge' && !serverNonce) {
         if (!msg.versions.includes(PROTOCOL_VERSION)) {
           versionMismatch = true;

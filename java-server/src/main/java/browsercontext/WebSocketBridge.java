@@ -294,19 +294,22 @@ public class WebSocketBridge extends WebSocketServer {
                     + " required: update the extension and the server to the same release");
             return;
         }
-        peer.authenticated = true;
-        peer.tokenAtPairing = current;
-        WebSocket replaced = connection.attach(conn);
-        if (replaced != null && replaced.isOpen()) {
-            replaced.close(CLOSE_REPLACED, "Replaced by a newer connection");
-        }
         ObjectNode ack = json.createObjectNode();
         ack.put("type", "auth_ok");
         ack.put("proof", Pairing.serverProof(current, peer.nonce, clientNonce));
         ack.put("version", Protocol.VERSION);
         ack.put("clientId", clientId);
         ack.put("clientName", clientName);
+        // The answer goes out first. Once this is the paired connection, other threads send on it: a
+        // waiting tool call its command, the MCP handshake the agent's name. Anything that reached the
+        // extension ahead of `auth_ok` would be taken there for a failed pairing.
         conn.send(json.writeValueAsString(ack));
+        peer.authenticated = true;
+        peer.tokenAtPairing = current;
+        WebSocket replaced = connection.attach(conn);
+        if (replaced != null && replaced.isOpen()) {
+            replaced.close(CLOSE_REPLACED, "Replaced by a newer connection");
+        }
         Log.info("extension connected client=" + clientId + " protocol=" + Protocol.VERSION);
     }
 
