@@ -6,8 +6,9 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 - `main` = `origin/main` = `728edfd`: the merge of `mcp-standard`, made by the owner on
   2026-11-21. Earlier branches are merged and gone.
-- Branch `confirmations`: local, not pushed, not merged. On top of `728edfd`: WP-6 (Enter as a
-  full submission), WP-5 (a no stands), WP-4 (what the prompt says, and its pictures).
+- Branch `confirmations`: not merged. On top of `728edfd`: WP-6 (Enter as a full submission), WP-5
+  (a no stands), WP-4 (what the prompt says, and its pictures). The owner pushed it up to `80ea261`
+  (WP-6 and WP-5); the commits after that, starting with WP-4, are local.
 ## Active work
 
 | Item | Status | Authoritative source |
