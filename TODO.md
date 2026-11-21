@@ -1,43 +1,5 @@
 # TODO
 
-## WP-2: Text with line breaks, typed key by key
-
-**Status:** open, found 2026-11-21. **Owner:** unassigned.
-
-`browser_fill` with `method: "type"` and a line break in the text is not among the fifteen lab
-checks. A temporary check (`fill('one\ntwo', { method: 'type' })`, not kept) gave, with the tab in
-front:
-
-| Editor | Editor holds | Tool said |
-|---|---|---|
-| Draft.js | `one`, `t`, and a page error (`removeChild`) | mismatch |
-| Trix | `onetwo` | mismatch |
-| Editor.js | one block instead of two; the lab reads it as `onetwo` | **success** |
-| the other twelve | `one`, `two` | success |
-
-In a background tab the same three fail, each reported as a mismatch.
-
-What is known about the causes:
-
-- Trix draws a new paragraph in the next animation frame. Keys typed by the tool arrive faster
-  than frames, so the key after Enter is placed by the page as it was before the paragraph.
-- Editor.js leaves Enter to the browser while it does not know which block is the current one
-  (read in its source). It appears to learn that from a delayed handler of selection changes,
-  so an Enter typed right after the first characters comes too soon; this was not measured. The
-  browser then breaks the line inside the block. Whether the saved block keeps that break was
-  not looked at: the lab's reader for this editor drops markup.
-- Draft.js: not investigated.
-
-Tasks:
-
-1. Add the check to the lab for good (sixteen checks; the counts in `docs/editors.md`,
-   `docs/development.md` and the root `README.md` change with it).
-2. In a visible tab, give the editor an animation frame after an Enter that is typed as part of a
-   text, as it has between two keystrokes of a person. Measure whether that settles Trix.
-3. Decide what to do for an editor that takes Enter only after a pause; do not wait blindly.
-4. Look at what Editor.js saves in that case, and make the tool's report match it.
-
-
 ## WP-1: Follow the MCP standard, with the official SDK
 
 **Status:** open, not started. **Owner:** unassigned.

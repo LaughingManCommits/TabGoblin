@@ -1012,6 +1012,26 @@ try {
     assert(text === 'Feed the cat', `expected the key at the end, got ${JSON.stringify(text)}`);
     json(await two.tool('browser_fill', { ref: editor, text: '' }));
   });
+  await step('a typed text with line breaks is entered in one piece: a fill never presses Enter', async () => {
+    const snapshot = ok(await two.tool('browser_snapshot')).text;
+    const editor = ref(snapshot, 'Textbox: New note');
+    // Count what a message box that sends on Enter would act on, however it recognises the key.
+    await pageB.evaluate(() => {
+      window.__enters = 0;
+      document.getElementById('editor').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.keyCode === 13 || e.keyCode === 10) window.__enters += 1;
+      }, true);
+    });
+    const typed = json(await two.tool('browser_fill', { ref: editor, text: 'Feed the cat\nWater the plants', method: 'type' }));
+    assert(typed.valueMatches && /in one piece/.test(typed.note ?? ''), JSON.stringify(typed));
+    const lines = await pageB.$eval('#editor', (el) => el.innerText.split('\n').filter(Boolean));
+    assert(lines.join('|') === 'Feed the cat|Water the plants', JSON.stringify(lines));
+    assert((await pageB.evaluate(() => window.__enters)) === 0, 'a fill must not press Enter');
+    // One line is still typed key by key.
+    const line = json(await two.tool('browser_fill', { ref: editor, text: 'Buy stamps', method: 'type' }));
+    assert(line.valueMatches && !line.note, JSON.stringify(line));
+    json(await two.tool('browser_fill', { ref: editor, text: '' }));
+  });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();
     has(ok(await two.tool('browser_snapshot')).text, 'in an inner scrolling area. More below:');

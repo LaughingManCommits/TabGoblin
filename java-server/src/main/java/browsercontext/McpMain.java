@@ -247,6 +247,8 @@ public final class McpMain {
                         + "empty text clears it. Several lines and code are entered as given. For a select use the "
                         + "option label or value; for a checkbox, radio button or switch use \"true\" or \"false\". "
                         + "method=\"type\" sends key events per character, for fields that react to typing. "
+                        + "It types one line: text with line breaks is entered in one piece, because a fill never "
+                        + "presses Enter (browser_press_key does). "
                         + "The result says whether the element shows the text afterwards (valueMatches). If it does "
                         + "not, take a snapshot before trying again: never repeat a fill blindly. "
                         + "Password fields are not supported. Does not submit anything.",

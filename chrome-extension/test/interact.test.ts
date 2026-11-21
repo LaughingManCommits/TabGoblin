@@ -84,6 +84,29 @@ test('typing sends key events per character, and a handler can refuse a key', ()
   assert.equal(result.valueMatches, false, 'the field dropped a character and that is reported');
 });
 
+test('a typed line break is content: no key is pressed for it, so nothing is sent', () => {
+  const { doc } = page('<textarea id="message"></textarea>');
+  const area = doc.getElementById('message') as HTMLTextAreaElement;
+  // A message box that sends on Enter, however the page recognises that key.
+  const sent: string[] = [];
+  const keys: string[] = [];
+  for (const type of ['keydown', 'keypress', 'keyup']) {
+    area.addEventListener(type, (e) => {
+      const event = e as KeyboardEvent;
+      keys.push(event.key);
+      if (event.key === 'Enter' || event.key === '\n' || event.keyCode === 13 || event.keyCode === 10) sent.push(area.value);
+    });
+  }
+  const inputs: string[] = [];
+  area.addEventListener('input', (e) => inputs.push((e as InputEvent).inputType));
+
+  assert.equal(fillElement(area, 'a\nb', false, 'type').valueMatches, true);
+  assert.equal(area.value, 'a\nb');
+  assert.deepEqual(sent, []);
+  assert.deepEqual([...new Set(keys)], ['a', 'b'], 'keys for the characters only');
+  assert.deepEqual(inputs, ['insertText', 'insertLineBreak', 'insertText']);
+});
+
 test('fill selects options and sets checkboxes, radios and switches', () => {
   const { doc } = page(`
     <select id="s"><option value="lo">Low</option><option value="hi">High</option></select>

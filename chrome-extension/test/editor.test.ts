@@ -306,10 +306,6 @@ test('in a tab that is not drawn, a new paragraph made by the browser comes with
   // A character is checked against the page as usual.
   assert.deepEqual(await press(doc, editor, 'x'), { dispatched: true, effect: 'typed the character' });
 
-  // Typed text with a line break in it gets the same caution, as a fill that is not confirmed.
-  const typed = await fill(editor, 'a\nb', false, 'type');
-  assert.equal(typed.valueMatches, false);
-  assert.match(typed.note ?? '', /typed line by line/);
   // An editor that makes its own paragraphs is not in doubt.
   editor.addEventListener('beforeinput', (e) => {
     if ((e as InputEvent).inputType !== 'insertParagraph') return;
@@ -317,6 +313,51 @@ test('in a tab that is not drawn, a new paragraph made by the browser comes with
     editor.textContent = `${editor.textContent}\n`;
   });
   assert.deepEqual(await press(doc, editor, 'Enter'), { dispatched: true, effect: 'inserted a new paragraph' });
+});
+
+test('a fill never presses Enter: typed text with line breaks goes in in one piece', async () => {
+  const { doc, win } = page('<div id="e" contenteditable="true" tabindex="0" data-inert></div>');
+  installEditing(doc, win);
+  installClipboard(win);
+  const editor = doc.getElementById('e')!;
+  // A message box: Enter sends what is there.
+  const sent: string[] = [];
+  const keys: string[] = [];
+  editor.addEventListener('keydown', (e) => {
+    const key = (e as KeyboardEvent).key;
+    keys.push(key);
+    if (key !== 'Enter') return;
+    e.preventDefault();
+    sent.push(editor.textContent ?? '');
+    editor.textContent = '';
+  });
+  editor.addEventListener('beforeinput', (e) => {
+    const event = e as InputEvent;
+    e.preventDefault();
+    if (event.inputType === 'insertText') editor.textContent = wholeSelected(doc) ? event.data : (editor.textContent ?? '') + event.data;
+  });
+  editor.addEventListener('paste', (e) => {
+    e.preventDefault();
+    editor.textContent = pastedText(e);
+  });
+
+  const result = await fill(editor, 'first line\nsecond line', false, 'type');
+  assert.deepEqual(sent, [], 'nothing was sent');
+  assert.ok(!keys.includes('Enter'), 'because Enter was not pressed');
+  assert.equal(editor.textContent, 'first line\nsecond line');
+  assert.equal(result.valueMatches, true);
+  assert.match(result.note ?? '', /in one piece/);
+
+  // One line is typed key by key, as asked.
+  keys.length = 0;
+  const line = await fill(editor, 'hi', false, 'type');
+  assert.deepEqual(keys.filter((key) => key.length === 1), ['h', 'i']);
+  assert.equal(editor.textContent, 'hi');
+  assert.deepEqual(line, { filled: true, valueMatches: true });
+
+  // Pressing Enter stays possible, as the deliberate act it is.
+  await press(doc, editor, 'Enter');
+  assert.deepEqual(sent, ['hi']);
 });
 
 const CODE_EDITOR = `

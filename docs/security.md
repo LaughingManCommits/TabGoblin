@@ -77,7 +77,8 @@ which content scripts cannot read. It is never logged.
 
 ## Submissions
 
-- Reading, filling and submitting are separate. Filling never submits.
+- Reading, filling and submitting are separate. Filling never submits, and never presses Enter:
+  a line break in a text is entered as content, also when the text is typed key by key.
 - A submission must be declared by the agent, needs Write access, and by default your confirmation.
   Destructive, financial and publishing actions always ask.
 - You are asked before anything is typed. Declining leaves the page untouched.
@@ -135,6 +136,7 @@ content, typed text, full URLs, cookies, headers or the token.
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |
 | Hidden form fields not offered as editors; an editor input's value not returned | DOM |
 | Editor text never entered twice; an unseen result not reported as success | DOM, editor lab |
+| A fill never presses Enter, in a text area or an editor | DOM, end-to-end |
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |
@@ -158,6 +160,10 @@ Chrome.
   submission would hurt.
 - **"Confirmed by reaction"** means the page behaved as if it accepted, not that the server stored
   anything.
+- **Enter in a message box.** An agent with Write access can press Enter with
+  `browser_press_key`. In a chat or comment box that sends the message. The tool cannot tell
+  such a box from an editor where Enter starts a new line, so you are not asked first. Only
+  Enter in a field of a form is treated as a submission.
 - **Wording checks are English.** Recognising submit-like and high-impact buttons outside forms
   depends on their label.
 - **Local malware** running as you can read the token file. TabGoblin does not defend against a

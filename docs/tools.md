@@ -270,6 +270,10 @@ When the tab is in the background and the result could not be confirmed, a `note
 | Date, time, colour, range | A value in the control's own format, e.g. `1990-12-10` |
 
 `method: "type"` sends key events per character (up to 2,000), for fields that react to typing.
+It types what is on one line. A line break is content and never a press of Enter, which in a
+message box sends the message: in a text area the line break is added without a key event, and in
+an editor a text with line breaks is entered in one piece, with a `note` saying so. To press Enter,
+use `browser_press_key`.
 Password and credential-like fields are refused (`SENSITIVE_FIELD`).
 
 ```json
@@ -284,7 +288,6 @@ Password and credential-like fields are refused (`SENSITIVE_FIELD`).
 | does not show exactly the requested text | The editor changed, differently | Snapshot, then correct it |
 | changed the indentation | The words are in, leading spaces are not as given | Snapshot; matters for code |
 | could not be checked | The tab is in the background and the editor does not redraw there | Do **not** fill again; snapshot once the tab is visible |
-| typed line by line | `method: "type"` with line breaks, in a background tab: lines may have run together | Fill again without `method: "type"`, which replaces the text |
 
 Never repeat a fill only because it was not confirmed: an editor may have taken the text without
 showing it yet.

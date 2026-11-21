@@ -151,6 +151,10 @@ These details turned out to decide whether an editor cooperates:
   is not focused and ignores input. TabGoblin tells the editor it has the keyboard.
 - **Claiming.** An editor that takes an event cancels it. That, not a redraw, is the signal that
   the text arrived, because a hidden tab is not redrawn.
+- **Enter is not text.** To many editors Enter is a command: send the message, accept the
+  suggestion. A fill therefore never presses it. A text with line breaks goes in in one piece,
+  where an editor takes a line break as content, also when typing key by key was asked for.
+  Typed that way, with Enter between the lines, it also failed in three of the fourteen editors.
 - **Where the caret is.** A key goes where the caret is. An editor that does not hold the caret
   gets the key at the end of its text, not at the start, where the browser puts the caret when an
   editable region gets the keyboard.

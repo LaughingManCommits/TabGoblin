@@ -455,16 +455,29 @@ const UNKNOWN_KEY = 'The tab is in the background, where an editor can take a ke
   + 'Do not press the key again; take a snapshot once the tab is visible.';
 const UNSETTLED_KEY = 'The new paragraph is on the page, but the tab is in the background, where some editors finish an edit only when they are '
   + 'drawn: what is entered next may land in the wrong place. Safer: put the whole text, line breaks included, into one browser_fill.';
-const UNSETTLED_TEXT = 'The text is on the page, but it was typed line by line while the tab is in the background, where some editors finish a '
-  + 'new paragraph only when they are drawn: lines may have run together. Fill again without method "type", or take a snapshot once the tab is visible.';
-const UNSEEN = 'The editor accepted the text, but its tab is in the background, where it does not redraw, so the result could not be checked. '
+const ALREADY_THERE = 'It already held that text; nothing was changed.';
+const IN_ONE_PIECE = 'The text has line breaks, so it was entered in one piece and not key by key: a fill never presses Enter, '
+  + 'which is a command in many editors. To type a line and then press Enter, use browser_press_key.';
+const UNSEEN ='The editor accepted the text, but its tab is in the background, where it does not redraw, so the result could not be checked. '
   + 'Do not enter it again; take a snapshot once the tab is visible.';
 
 /**
  * Puts `text` into an editor, replacing its content or appending to it, and reports whether the
  * editor shows it afterwards.
+ *
+ * A fill enters text and never presses Enter. To an editor that key can be a command: send the
+ * message, submit, accept a suggestion. A line break in the text is content, and content with
+ * line breaks goes in in one piece, where an editor takes it as that. So only a text without line
+ * breaks is typed key by key when that is asked for.
  */
 export async function fillEditor(el: Element, text: string, append: boolean, method: 'set' | 'type' = 'set'): Promise<FillResult> {
+  const keyByKey = method === 'type' && !/[\r\n]/.test(text);
+  const result = await enterText(el, text, append, keyByKey);
+  if (method !== 'type' || keyByKey || result.note === ALREADY_THERE) return result;
+  return { ...result, note: result.note ? `${result.note} ${IN_ONE_PIECE}` : IN_ONE_PIECE };
+}
+
+async function enterText(el: Element, text: string, append: boolean, keyByKey: boolean): Promise<FillResult> {
   const kind = editorKind(el);
   if (!kind) throw new Error('not an editor');
   const read = reader(el);
@@ -472,9 +485,7 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
   const wanted = squash(text);
 
   if (kind === 'host' && !append && before === wanted) {
-    return wanted
-      ? { filled: true, valueMatches: true, note: 'It already held that text; nothing was changed.' }
-      : { filled: true, valueMatches: true };
+    return wanted ? { filled: true, valueMatches: true, note: ALREADY_THERE } : { filled: true, valueMatches: true };
   }
   if (append && text === '') return { filled: true, valueMatches: true };
 
@@ -483,7 +494,6 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
   const around = watch();
   const place = (): Promise<void> => select(el, kind, !append);
   let claimed = false;
-  let unsettled = false;
 
   if (text === '') {
     await place();
@@ -497,8 +507,8 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
     } else {
       claimed = (await firstThatWorks(el, deletions(el, kind), '', watch, place)).worked !== null;
     }
-  } else if (method === 'type') {
-    ({ took: claimed, unsettled } = await typeText(el, kind, text, watch, place));
+  } else if (keyByKey) {
+    claimed = await typeText(el, kind, text, watch, place);
   } else {
     // Several lines shown means several blocks to replace.
     const overBlocks = !append && shownText(editorSurface(el) ?? el).trim().includes('\n');
@@ -531,7 +541,7 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
     if (!append && /\n +\S/.test(text) && indentation(shownText(el)) !== indentation(text)) {
       return { filled: true, valueMatches: false, note: REINDENTED };
     }
-    return unsettled ? { filled: true, valueMatches: false, note: UNSETTLED_TEXT } : { filled: true, valueMatches: true };
+    return { filled: true, valueMatches: true };
   }
   // The surface shows more than the text (line numbers) and maybe not all of it (only what is on screen).
   const shown = compareShown(after, text);
@@ -547,25 +557,20 @@ export async function fillEditor(el: Element, text: string, append: boolean, met
 const leftUnsettled = (el: Element, kind: Kind, by: By | null): boolean => by === 'browser' && kind === 'host' && isHidden(el);
 
 /**
- * Enters text character by character, with the key events around each one. Says whether the
- * editor took it, and whether a line break in it may not have settled.
+ * Enters one line of text character by character, with the key events around each one.
+ * Returns whether the editor took it.
  */
 async function typeText(
   el: Element, kind: Kind, text: string, watch: () => string, place: () => Promise<void>,
-): Promise<{ took: boolean; unsettled: boolean }> {
+): Promise<boolean> {
   let technique: Attempt | null = null;
   let took = false;
-  let unsettled = false;
   let first = true;
   for (const char of text) {
-    const enter = char === '\n';
-    const key = enter ? 'Enter' : char;
     if (first) await place();
-    if (fireKey(el, 'keydown', key)) {
-      fireKey(el, 'keypress', key);
-      if (enter) {
-        for (const attempt of paragraphs(el, kind)) unsettled = leftUnsettled(el, kind, attempt(el, '')) || unsettled;
-      } else if (technique) {
+    if (fireKey(el, 'keydown', char)) {
+      fireKey(el, 'keypress', char);
+      if (technique) {
         technique(el, char);
       } else {
         // The first character shows which way this editor takes typing; the rest follow it.
@@ -575,11 +580,11 @@ async function typeText(
     } else {
       took = true;
     }
-    fireKey(el, 'keyup', key);
+    fireKey(el, 'keyup', char);
     await tick(el);
     first = false;
   }
-  return { took, unsettled };
+  return took;
 }
 
 export interface KeyEffect {

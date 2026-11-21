@@ -197,6 +197,13 @@ export function fillElement(el: Element, text: string, append: boolean, method: 
         fireInput(el, '', 'deleteContentBackward');
       }
       for (const char of text) {
+        // A line break is content. No key goes with it: a fill never presses Enter, which a page
+        // may take as "send".
+        if (char === '\n' || char === '\r') {
+          setNativeValue(field, field.value + char);
+          fireInput(el, char, 'insertLineBreak');
+          continue;
+        }
         if (fireKey(el, 'keydown', char)) {
           fireKey(el, 'keypress', char);
           setNativeValue(field, field.value + char);
