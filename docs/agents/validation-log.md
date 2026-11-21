@@ -3,6 +3,28 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `automatic-mode`, WP-8
+
+Points 1 and 2 of WP-8: the status tool names a session that asks differently, and the popup
+names the kind of request that passes. All on the final build of the branch.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 55 tests; `McpConformanceIT` on the built jar: 8 tests |
+| `cd chrome-extension && npm run check` | type-check clean, 130 tests, build |
+| `cd e2e && npm test` | 91 passed, 0 failed. New in existing steps: the status tool names the session that asks differently, and no longer does once the general setting is chosen again; the popup lists Enter and a click as two things that pass, with one button for both. |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node screenshots.mjs prompts` | 28 pictures of 14 views. Looked at: a session with two things that pass in both colour schemes, and with one (light). |
+| `HEADED=1 node screenshots.mjs` | run twice. `popup-automatic.png` was looked at both times and is the one picture kept. `popup-authorize.png`, `popup-full.png` and `popup-full-light.png` came out different too and were put back unopened: they show the agents' ports, which differ from run to run, and nothing this change touches. |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way: no suite. The first picture for the documentation broke "(15 min)" over two
+lines; number and unit are now held together. And a log of the editor lab was read that an
+earlier run of the day had left under the same name; the numbers above are from this run.
+
+Not tried: nothing new. CI on GitHub: see the entry that follows this one in time.
+
 ## 2026-11-21, on `automatic-mode`, after WP-7
 
 Going over WP-7 once more. The prompt now says when an Allow will stand, a control without a
@@ -194,35 +216,11 @@ the background: fourteen hold the text, and Editor.js reports its one-paragraph-
 Failed: none. Not run: `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`. CI on
 GitHub has still not been seen.
 
-## 2026-11-21, `29fea3e` on `editor-keys`
-
-Key presses in editors, on top of `7090b45`. Same machine and versions as the entry below.
-
-Passed, all on the final build:
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml package` | 52 tests, jar built |
-| `cd chrome-extension && npm run check` | type-check clean, 110 tests, build |
-| `cd e2e && npm test` | 82 passed, 0 failed |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-The six new tests in `chrome-extension/test/editor.test.ts` were also run against the source
-before the change: five failed, as they should, and so did one existing test, which now sees that
-a key used to be typed at the start of an editor.
-
-Failed: none. The cells that do not pass are the limits listed in `docs/editors.md`.
-
-Run once, not kept: two temporary lab checks, a key into an editor that was never focused, and a
-text with a line break typed key by key. The second is WP-2 in `TODO.md`.
-
-Not run: `node live.mjs` (both), `node agent.mjs`, `node screenshots.mjs`. CI on GitHub has still
-not been seen.
-
 ## Earlier, in one line each
 
+- 2026-11-21, `29fea3e` on `editor-keys`: server 52 tests, extension 110, end to end 82 of 82,
+  editor lab 222 of 225 in front and 220 of 225 in the background, no `SILENT`. CI on GitHub not
+  seen.
 - 2026-11-21, `0591970` on `editor-compatibility`: server 52 tests, extension 105, end to end 81
   of 81, editor lab 222 of 225 in front and 219 of 225 in the background with two `SILENT` cells
   (Enter in two editors, known then, fixed since). CI on GitHub not seen.

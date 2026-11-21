@@ -7,14 +7,16 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 - `main` = `origin/main` = `654e955`: the merge of `confirmations`, made by the owner on
   2026-11-21. Earlier branches are merged and gone.
 - Branch `automatic-mode`: on the remote up to `cd624c0` (WP-7, pushed by the owner), not
-  merged. One commit on top of it is local only: what going over WP-7 once more turned up.
+  merged. Two commits on top of it are local only: what going over WP-7 once more turned up,
+  and WP-8.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| Push the last commit of `automatic-mode`, then merge the branch | Waiting for the owner, who pushes and merges | git |
-| WP-8: three small things left from the automatic mode | Waiting for the owner's word on each | [TODO.md](../../TODO.md) |
+| Push the last commits of `automatic-mode`, then merge the branch | Waiting for the owner, who pushes and merges | git |
+
+The backlog in [TODO.md](../../TODO.md) is empty.
 
 ## Blockers and unknowns
 
@@ -29,10 +31,8 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, on `automatic-mode`, on its final build: the extension's
-  tests, the end-to-end suite, and the editor lab in front and in the background. The server was
-  verified one commit earlier and has not changed since. Details in the
-  [validation log](validation-log.md).
-- **Next action:** WP-8, once the owner has said which of its three points to do. What was never
-  checked is listed under "Blockers and unknowns" above; reading a CI result is the first of
-  them.
+- **Last verification:** 2026-11-21, on `automatic-mode`, all on its final build: the server's
+  tests and the conformance check, the extension's tests, the end-to-end suite, and the editor lab
+  in front and in the background. Details in the [validation log](validation-log.md).
+- **Next action:** none is planned. What was never checked is listed under "Blockers and
+  unknowns" above.

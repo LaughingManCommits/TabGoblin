@@ -330,11 +330,11 @@ test('asking every time, never, or the first time for each control', () => {
   const site = 'https://chat.example';
   const t0 = 1_000_000;
   // Every time, and never: nothing that was allowed before matters.
-  const allowed = rememberAllow(undefined, 'enter:Message', 'Message', site, t0);
+  const allowed = rememberAllow(undefined, 'enter:Message', 'enter', 'Message', site, t0);
   assert.equal(needsAsking('always', null, allowed, 'enter:Message', site, t0 + 1000), true);
   assert.equal(needsAsking('never', null, undefined, 'enter:Message', site, t0), false);
   // A high-impact action is asked about under every setting, also right after it was allowed.
-  const deleted = rememberAllow(undefined, 'click:Delete thread', 'Delete thread', site, t0);
+  const deleted = rememberAllow(undefined, 'click:Delete thread', 'click', 'Delete thread', site, t0);
   for (const mode of ['always', 'auto', 'never'] as const) {
     assert.equal(needsAsking(mode, 'delete', deleted, 'click:Delete thread', site, t0 + 1000), true, mode);
   }
@@ -349,9 +349,12 @@ test('asking every time, never, or the first time for each control', () => {
   // It ends by itself.
   assert.equal(needsAsking('auto', null, allowed, 'enter:Message', site, t0 + ALLOW_LASTS_MS - 1), false);
   assert.equal(needsAsking('auto', null, allowed, 'enter:Message', site, t0 + ALLOW_LASTS_MS), true);
-  assert.deepEqual(standingAllows(allowed, t0 + 1000), [{ label: 'Message', minutes: 15 }]);
-  assert.deepEqual(standingAllows(allowed, t0 + ALLOW_LASTS_MS - 30_000), [{ label: 'Message', minutes: 1 }]);
+  assert.deepEqual(standingAllows(allowed, t0 + 1000), [{ how: 'enter', label: 'Message', minutes: 15 }]);
+  assert.deepEqual(standingAllows(allowed, t0 + ALLOW_LASTS_MS - 30_000), [{ how: 'enter', label: 'Message', minutes: 1 }]);
   assert.deepEqual(standingAllows(allowed, t0 + ALLOW_LASTS_MS), []);
+  // A click and Enter on controls of one name are two things to allow, and are shown as two.
+  const both = rememberAllow(allowed, 'click:Message', 'click', 'Message', site, t0 + 1000);
+  assert.deepEqual(standingAllows(both, t0 + 2000).map((pass) => `${pass.how} ${pass.label}`), ['enter Message', 'click Message']);
 
   // An Allow does not cover a burst: after a few in a minute the user is asked again.
   let busy = allowed;

@@ -560,9 +560,13 @@ test('automatic: the user is asked the first time for each control, and what the
   await popup({ type: 'setAsk', session: 's1', value: 'auto' });
   assert.equal((await session()).ask, 'auto');
   assert.equal((await state()).ask, 'always', 'the general setting is as it was');
+  // The agent is told both: the general setting, and for each of its sessions what holds there.
+  const told = (await one.command('status')).result;
+  assert.equal(told.confirmation, 'always');
+  assert.equal(told.sessions.find((x: any) => x.session === 's1').confirmation, 'auto');
 
   await asked('Message');
-  assert.deepEqual((await session()).passes, [{ label: 'Message', minutes: 15 }]);
+  assert.deepEqual((await session()).passes, [{ how: 'enter', label: 'Message', minutes: 15 }]);
   await unasked('Message');
   await asked('Reply');
   // A high-impact name is asked about every time, and is not remembered.

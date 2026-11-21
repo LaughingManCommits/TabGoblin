@@ -232,6 +232,18 @@ try {
     await popup.waitForSelector('.passing');
     await shoot('automatic');
     console.log(`automatic: ${await popup.$eval('.passing', (el) => el.innerText.replace(/\s+/g, ' ').trim())}`);
+    // A second thing allowed, a click: it is told apart from Enter, and one button ends both.
+    await one.tool('browser_navigate', { url: '/form.html' });
+    const second = one.tool('browser_click', { ref: await field('Button: Add note'), intent: 'submit' });
+    popup = await open(a);
+    await popup.waitForFunction(() => !document.getElementById('confirm').hidden);
+    await popup.waitForFunction(() => !document.getElementById('allow').disabled);
+    await popup.click('#allow');
+    await second;
+    popup = await open(a);
+    await popup.waitForFunction(() => document.querySelector('.passing')?.textContent.includes('clicking'));
+    await shoot('automatic-several');
+    console.log(`automatic-several: ${await popup.$eval('.passing', (el) => el.innerText.replace(/\s+/g, ' ').trim())}`);
     // The general setting and what each of its values says, at the foot of the popup.
     for (const mode of ['always', 'auto', 'never']) {
       await popup.select('#askMode', mode);

@@ -10,7 +10,7 @@ import {
   ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, failureNote, highImpactWord, inScope,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
-  type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals, type SubmitVerdict,
+  type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, parseServerMessage,
@@ -109,7 +109,7 @@ type ConfirmAnswer = 'allow' | 'deny' | 'timeout' | 'cancelled';
  * in a field of a form, which submits the form, or by Enter in another text box, which may send
  * what is written there.
  */
-type ConfirmHow = 'click' | 'form' | 'enter';
+type ConfirmHow = SubmitHow;
 
 /** A command in flight, with what is needed to stop it at a safe point. */
 interface Operation {
@@ -534,6 +534,8 @@ function summarize(session: SessionRecord, client: Client, tab: chrome.tabs.Tab 
     generation: session.generation,
     state: session.suspended ? 'suspended' : session.paused ? 'paused' : 'active',
     paused: session.paused,
+    // For agents: when the user is asked before a submission in this session. It may differ from the general setting.
+    confirmation: session.ask ?? config.ask,
     owner: session.clientId === client.clientId ? 'you' : 'unclaimed',
     expiresAt: session.expiresAt,
     tab: tab ? { title: tab.title ?? '', url: tab.url ?? '' } : null,
@@ -704,7 +706,7 @@ async function confirmWithUser(
   // In the automatic mode what was allowed passes for a while: only if the prompt said so, and
   // only under the setting the session has now.
   if (lasting && origin !== null && remembersAllow(session.ask ?? config.ask, word, label, origin)) {
-    allows.set(session.id, rememberAllow(allows.get(session.id), key, label, origin, Date.now()));
+    allows.set(session.id, rememberAllow(allows.get(session.id), key, how, label, origin, Date.now()));
     pushState();
   }
 }

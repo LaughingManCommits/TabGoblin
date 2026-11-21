@@ -33,8 +33,9 @@ Operations of other agents are not shown.
 
 The line about confirmation gives the user's general setting: *yes*; *yes, the first time for each
 control; what the user allowed passes for a while*; or *no (only high-impact ones are put to the
-user)*. A session may be set differently. An agent does not need to act on it: a submission is
-declared the same way under every setting.
+user)*. A session with write access that the user set differently says so in its own block, in
+the same words: `Submissions need user confirmation in this session: …`. An agent does not need
+to act on either line: a submission is declared the same way under every setting.
 
 ```text
 Extension: connected (protocol 2)

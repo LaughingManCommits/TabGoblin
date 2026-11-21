@@ -63,7 +63,7 @@ pictures all of them, in the dark and the light colour scheme, into `e2e/prompt-
 git), and prints the text of each: a click, a click on a high-impact control, Enter in a text
 box, with a long name, without a name, with a high-impact name, Enter in a field of a form; then a
 session on which a no stands, the prompt in the automatic mode, a session in that mode with
-something that passes, and the general setting with each of its three values. Look at them after any change to the prompt. The end-to-end suite
+one thing that passes and with two, and the general setting with each of its three values. Look at them after any change to the prompt. The end-to-end suite
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 ## Continuous integration

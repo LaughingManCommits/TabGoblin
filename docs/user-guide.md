@@ -167,8 +167,9 @@ filling in fields.
   control without a name, which could not be told from another one.
 - A control is known by its name on its website. After you allowed "Save" on one page, "Save" on
   another page of that website passes too, for the rest of the 15 minutes.
-- In the automatic mode a session shows what currently passes without a question, and for how
-  long, with **Ask about it again** to end it. It also ends when you pause the session, change
+- In the automatic mode a session shows what currently passes without a question, such as
+  *Enter in “Comment”* or *clicking “Post comment”*, and for how long. **Ask about it again**
+  ends it; with several in the list the button reads **Ask about them again** and ends them all. It also ends when you pause the session, change
   its access, when the tab leaves its website, and when Chrome restarts the extension. No more
   than five submissions pass unasked in a minute; the next one asks.
 

@@ -42,7 +42,7 @@ interface SessionView {
   notAsked: { labels: string[]; all: boolean };
   /** When the user is asked in this session, and what passes without a question right now. */
   ask: AskMode;
-  passes: { label: string; minutes: number }[];
+  passes: { how: 'click' | 'form' | 'enter'; label: string; minutes: number }[];
 }
 
 interface ClientView {
@@ -252,9 +252,12 @@ function renderSessions(s: State): void {
       // What the user allowed and now passes without a question: there to see, and to end.
       if (session.passes.length) {
         const passing = el('div', 'passing');
-        const names = session.passes.map((pass) => `${pass.label ? `“${pass.label}”` : 'a control without a name'} (${pass.minutes} min)`);
+        // An Allow is for a kind of request on a control of that name: Enter in it, or a click on it.
+        // The time it has left stays in one piece when the line breaks.
+        const names = session.passes.map((pass) => `${pass.how === 'click' ? 'clicking' : 'Enter in'} “${pass.label}” (${pass.minutes}\u00a0min)`);
         passing.append(el('span', '', `Passes without asking: ${names.join(', ')}.`));
-        const forget = el('button', 'link forget', 'Ask about it again');
+        // One button ends all of them, and says so.
+        const forget = el('button', 'link forget', session.passes.length > 1 ? 'Ask about them again' : 'Ask about it again');
         forget.addEventListener('click', () => void request({ type: 'forgetAllowed', session: session.id }));
         passing.append(forget);
         row.append(passing);

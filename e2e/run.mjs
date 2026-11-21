@@ -883,6 +883,19 @@ try {
     json(await allowed);
     // The popup shows it at its next refresh.
     await (await openPopup()).waitForSelector(row(sA, '.passing'));
+    // A click on a button is another thing to allow. The popup tells the two apart, and one button ends both.
+    snap = ok(await one.tool('browser_snapshot')).text;
+    const posted = one.tool('browser_submit', {
+      ref: ref(snap, 'Button: Post comment'), fields: [{ ref: ref(snap, 'Textbox (multiline): Comment'), text: 'Seen again on build 513' }],
+    });
+    has((await answerPrompt(true)).label, 'Post comment');
+    json(await posted);
+    const list = await openPopup();
+    await list.waitForFunction((selector) => document.querySelector(selector)?.textContent.includes('clicking'), {}, row(sA, '.passing'));
+    const passing = await list.$eval(row(sA, '.passing span'), (el) => el.textContent);
+    assert(/^Passes without asking: Enter in “Comment” \(1[45]\smin\), clicking “Post comment” \(1[45]\smin\)\.$/.test(passing), passing);
+    assert(await list.$eval(row(sA, '.forget'), (el) => el.textContent) === 'Ask about them again', 'the button for several things that pass');
+    snap = ok(await one.tool('browser_snapshot')).text;
     const click = json(await one.tool('browser_click', { ref: ref(snap, 'Link: Partner portal') }));
     assert(click.leftAuthorizedOrigin === true && click.navigation === 'left-origin', JSON.stringify(click));
     assert(page.url().startsWith(demo.originB), `tab is at ${page.url()}`);
@@ -1314,7 +1327,10 @@ try {
     const before = await said();
     // This one session is set to automatic. The general setting stays as it is.
     await setAsking(sid, 'auto');
-    has((await two.tool('browser_status')).text, 'Submissions need user confirmation: no');
+    // The agent is told both: the general setting, and that this session asks differently.
+    const told = (await two.tool('browser_status')).text;
+    has(told, 'Submissions need user confirmation: no');
+    has(told, '  Submissions need user confirmation in this session: yes, the first time for each control');
 
     await sendMessage('Lunch at one', true);
     await sendMessage('Bring cake', false);
@@ -1332,7 +1348,8 @@ try {
     // What passes is there to see, with the time it has left, and the user can end it.
     let popup = await openPopup();
     const passing = await popup.$eval(row(sid, '.passing'), (el) => el.textContent);
-    assert(/Passes without asking: “Message to the team” \(1[45] min\)\./.test(passing), passing);
+    assert(/Passes without asking: Enter in “Message to the team” \(1[45]\smin\)\./.test(passing), passing);
+    assert(await popup.$eval(row(sid, '.forget'), (el) => el.textContent) === 'Ask about it again', 'the button for one thing that passes');
     has(await popup.$eval('#activity', (el) => el.textContent), 'Allowed automatically');
     await popup.$eval(row(sid, '.forget'), (el) => el.click());
     await popup.waitForFunction((selector) => !document.querySelector(selector), {}, row(sid, '.passing'));
@@ -1354,6 +1371,7 @@ try {
     // Back to the general setting, which replaces what a session had of its own.
     await setConfirmation(false, two);
     await popup.waitForFunction((selector) => document.querySelector(selector)?.value === 'never', {}, row(sid, '.ask'));
+    lacks((await two.tool('browser_status')).text, 'in this session');
   });
   await step('scrolling an inner container reports content that loads on scroll', async () => {
     await pageB.bringToFront();

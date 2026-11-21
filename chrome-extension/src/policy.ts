@@ -306,9 +306,12 @@ export const ALLOW_LASTS_MS = 15 * 60_000;
 export const UNASKED_PER_MINUTE = 5;
 
 /** What the user allowed in a session lately, and what passed without a question since. Never stored. */
+/** How a submission is made: by a click, by Enter in a field of a form, or by Enter in a text box. */
+export type SubmitHow = 'click' | 'form' | 'enter';
+
 export interface AllowMemory {
   /** The key is how the submission is made and what the control is called; the origin is the website it is on. */
-  allowed: { key: string; label: string; origin: string; at: number }[];
+  allowed: { key: string; how: SubmitHow; label: string; origin: string; at: number }[];
   /** When submissions passed unasked. */
   passed: number[];
 }
@@ -343,9 +346,11 @@ export function remembersAllow(mode: AskMode, word: string | null, label: string
   return mode === 'auto' && word === null && origin !== null && label.trim() !== '';
 }
 
-export function rememberAllow(memory: AllowMemory | undefined, key: string, label: string, origin: string, now: number): AllowMemory {
+export function rememberAllow(
+  memory: AllowMemory | undefined, key: string, how: SubmitHow, label: string, origin: string, now: number,
+): AllowMemory {
   const allowed = (memory?.allowed ?? []).filter((a) => now - a.at < ALLOW_LASTS_MS && !(a.key === key && a.origin === origin));
-  return { allowed: [...allowed, { key, label, origin, at: now }], passed: memory?.passed ?? [] };
+  return { allowed: [...allowed, { key, how, label, origin, at: now }], passed: memory?.passed ?? [] };
 }
 
 /** A submission passed without a question. */
@@ -353,10 +358,13 @@ export function notePassed(memory: AllowMemory, now: number): AllowMemory {
   return { allowed: memory.allowed, passed: [...memory.passed.filter((at) => now - at < 60_000), now] };
 }
 
-/** What passes unasked in a session right now, with the minutes each has left, for the user to see. */
-export function standingAllows(memory: AllowMemory | undefined, now: number): { label: string; minutes: number }[] {
+/**
+ * What passes unasked in a session right now, for the user to see: the kind of request, the name
+ * of the control, and the minutes it has left.
+ */
+export function standingAllows(memory: AllowMemory | undefined, now: number): { how: SubmitHow; label: string; minutes: number }[] {
   return (memory?.allowed ?? []).filter((a) => now - a.at < ALLOW_LASTS_MS)
-    .map((a) => ({ label: a.label, minutes: Math.max(1, Math.ceil((ALLOW_LASTS_MS - (now - a.at)) / 60_000)) }));
+    .map((a) => ({ how: a.how, label: a.label, minutes: Math.max(1, Math.ceil((ALLOW_LASTS_MS - (now - a.at)) / 60_000)) }));
 }
 
 /** How long a no stands: the same request is not put to the user again, and a session that was refused three times running is not heard. */
