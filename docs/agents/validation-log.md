@@ -3,6 +3,29 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-21, on `mcp-standard`, WP-1
+
+The reference pinned, the conformance check, and gaps 5 to 8. On top of `typed-lines`.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 54 tests; then `McpConformanceIT` on the built jar: 6 tests |
+| `cd e2e && npm test` | 87 passed, 0 failed, on the final jar |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Seen fail first, as it should: the check that the extension is told when the server ends. Before
+the change the extension got close code 1006; after it, 1001.
+
+By hand, on the built jar: `server/discover` is answered with `-32601`; `--show-tokn` prints the
+reason and the usage text and exits with 2.
+
+Not run: the extension's tests and the editor lab, which this branch does not touch. Ctrl+C on a
+running server. A real client of revision 2026-07-28. The MCP Inspector. CI on GitHub has still
+not been seen, and now runs `mvn verify`.
+
+Read, not run: the specification of revision 2026-07-28, through a summary of ten of its pages
+and its changelog. Its schema was not read.
+
 ## 2026-11-21, on `typed-lines`, WP-3
 
 The prompt cannot be answered by accident; its sentence for a field of a form is corrected.
