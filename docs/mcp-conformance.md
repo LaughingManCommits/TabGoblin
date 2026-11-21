@@ -1,7 +1,8 @@
 # MCP conformance
 
 What the server implements of the Model Context Protocol, which revision it is measured against,
-and how that is checked. Written for WP-1 in [TODO.md](../TODO.md) on 2026-11-21.
+and how that is checked. Written on 2026-11-21, for the work package that brought the server in
+line with the standard.
 
 ## The reference
 
@@ -42,7 +43,7 @@ it and the server only has to use it as intended.
 | `ping` is answered | Met | SDK |
 | A cancelled request stops, and is not answered (`notifications/cancelled`) | Met | By hand, in `StdinTap`: this API of the SDK has no handler for it. The call is stopped in the browser, and no answer is sent for it. |
 | Progress for long requests (optional) | Met | `Progress`: a client that sent a progress token is told every three seconds that the call is still running, with the time it has run. Nothing is sent after the call ended, and nothing to a client that did not ask. |
-| Structured results with an output schema (optional) | Not used | Gap 4 |
+| Structured results with an output schema (optional) | Met | The seven tools whose result is an object declare an output schema and give the object next to its text, which is unchanged. The schema says no more than "an object": the fields differ from case to case, and the SDK refuses a result that does not fit a declared schema. |
 | Log messages to the client (optional) | Not used | The SDK declares the `logging` capability by itself; the server sends nothing through it. See below. |
 
 ## A client of the newer generation
@@ -73,15 +74,15 @@ The SDK serves the newer revision only through its `modern` API, which answers a
 with an error. Serving both from one process is not something the SDK does for the stdio
 transport: it would take a part of our own in front of the two.
 
-## An open decision
+## Decided: stay with the handshake
 
-Which generation to serve is the owner's decision, recorded in WP-1:
+Decided by the owner on 2026-11-21. The alternatives were to serve both generations, which the
+SDK does not do for the stdio transport and which would need a switch of our own in front of its
+two APIs with every tool defined for both; and to serve the newer one only, which would shut out
+every client that only knows the handshake.
 
-1. **Stay with the handshake** (today). Works with every client that still sends `initialize`,
-   and with newer clients for as long as they fall back.
-2. **Serve both.** Needs our own switch in front of the SDK's two APIs, and every tool defined
-   for both.
-3. **The newer one only.** Clients that only know the handshake stop working.
+Look at this again when a client appears that no longer falls back to the handshake, or when the
+SDK serves both generations over stdio by itself.
 
 ## How it is checked
 
@@ -98,6 +99,9 @@ mvn -f java-server/pom.xml verify
 
 No browser is involved. A call that is cancelled while it runs in a real browser is covered by
 the end-to-end suite.
+
+Not checked: Ctrl+C on a running server, which a test cannot send on Windows; a real client of
+the newer generation falling back to the handshake; and the MCP Inspector, which was not tried.
 
 ## Done by hand, and why
 

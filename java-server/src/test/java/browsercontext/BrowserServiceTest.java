@@ -158,7 +158,7 @@ class BrowserServiceTest {
         assertEquals("image/jpeg", r.imageMimeType());
         assertNull(r.text());
 
-        McpSchema.CallToolResult mcp = McpMain.toMcp(r);
+        McpSchema.CallToolResult mcp = McpMain.toMcp("browser_screenshot", r);
         McpSchema.ImageContent image = (McpSchema.ImageContent) mcp.content().get(0);
         assertEquals("QUJD", image.data());
         assertEquals("image/jpeg", image.mimeType());
@@ -169,7 +169,7 @@ class BrowserServiceTest {
         String note = "This image shows only the visible viewport: 0-900px of a 6901px tall page (about 13%).";
         ext.responder = cmd -> FakeExtension.ok(cmd,
                 args().put("data", "QUJD").put("mimeType", "image/jpeg").put("note", note));
-        McpSchema.CallToolResult mcp = McpMain.toMcp(service.call("browser_screenshot", args()));
+        McpSchema.CallToolResult mcp = McpMain.toMcp("browser_screenshot", service.call("browser_screenshot", args()));
         assertEquals(2, mcp.content().size());
         assertEquals(note, ((McpSchema.TextContent) mcp.content().get(0)).text());
         assertEquals("QUJD", ((McpSchema.ImageContent) mcp.content().get(1)).data());

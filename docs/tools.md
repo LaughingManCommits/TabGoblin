@@ -6,6 +6,12 @@ sites. Longer ones are shortened on this page; the complete outputs are in
 [`examples/`](examples/). Each tool also has a title for display, such as *Page snapshot* or
 *Fill in a field*, which a client may show in its list of tools.
 
+The tools whose result is an object (`browser_click`, `browser_fill`, `browser_press_key`,
+`browser_scroll`, `browser_navigate`, `browser_wait_for`, `browser_submit`) give it twice: as the
+JSON text shown on this page, and as structured content for clients that take that. Both say the
+same. A client that sends a progress token with a call is told every three seconds that the call
+is still running; a call it cancels is stopped and not answered.
+
 | Tool | Needs | Purpose |
 |---|---|---|
 | [`browser_status`](#browser_status) | – | List this agent's sessions |
@@ -364,7 +370,7 @@ Every failure is `Error [CODE]: message`.
 | `ELEMENT_DISABLED`, `UNSUPPORTED_ELEMENT`, `OPTION_NOT_FOUND` | The control cannot take that |
 | `WAIT_TIMEOUT` | The condition did not occur in time |
 | `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried |
-| `CANCELLED`, `INTERRUPTED` | Stopped by the user or the client |
+| `CANCELLED`, `INTERRUPTED` | Stopped by the user (pause, revoke, a lower access level). A call the client itself cancels gets no answer at all. |
 | `TAB_NOT_VISIBLE`, `SCREENSHOT_FAILED` | The tab could not be captured |
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |
 | `RATE_LIMITED`, `DUPLICATE_COMMAND`, `STALE_COMMAND` | Protocol protections |

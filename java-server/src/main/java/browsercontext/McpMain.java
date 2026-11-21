@@ -410,15 +410,32 @@ public final class McpMain {
             java.util.Map.entry("browser_wait_for", "Wait for the page"),
             java.util.Map.entry("browser_submit", "Submit"));
 
+    /** Tools whose result is an object. They say so with an output schema, and give the object next to its text. */
+    static final java.util.Set<String> STRUCTURED = java.util.Set.of("browser_click", "browser_fill", "browser_press_key",
+            "browser_scroll", "browser_navigate", "browser_wait_for", "browser_submit");
+
+    /**
+     * What such a result is. It says no more than "an object": the fields come from the page and
+     * the extension and differ from case to case, and the SDK refuses a result that does not fit
+     * the schema a tool declared. The fields are described in the tool reference.
+     */
+    private static final String OUTPUT_SCHEMA = """
+            {"type":"object","description":"The result as an object, with the same fields as the JSON in the text of the result."}""";
+
+    private static final tools.jackson.databind.ObjectMapper TREE = new tools.jackson.databind.ObjectMapper();
+
     private static SyncToolSpecification tool(BrowserService service, McpJsonMapper mapper, String name,
             boolean readOnly, String description, String inputSchema) {
-        McpSchema.Tool tool = McpSchema.Tool.builder()
+        McpSchema.Tool.Builder definition = McpSchema.Tool.builder()
                 .name(name)
                 .title(TITLES.get(name))
                 .description(description)
                 .inputSchema(mapper, inputSchema)
-                .annotations(new McpSchema.ToolAnnotations(null, readOnly, !readOnly, false, true, null))
-                .build();
+                .annotations(new McpSchema.ToolAnnotations(null, readOnly, !readOnly, false, true, null));
+        if (STRUCTURED.contains(name)) {
+            definition.outputSchema(mapper, OUTPUT_SCHEMA);
+        }
+        McpSchema.Tool tool = definition.build();
         return SyncToolSpecification.builder()
                 .tool(tool)
                 .callHandler((exchange, request) -> {
@@ -440,7 +457,7 @@ public final class McpMain {
                     }
                     // A call the client cancelled gets no answer: the specification asks for none, and
                     // the client has stopped waiting. Returning nothing is how the SDK is told so.
-                    return givenUp ? null : toMcp(result);
+                    return givenUp ? null : toMcp(name, result);
                 })
                 .build();
     }
@@ -469,8 +486,20 @@ public final class McpMain {
         return request.arguments() == null ? null : service.json().valueToTree(request.arguments());
     }
 
-    static McpSchema.CallToolResult toMcp(BrowserService.ToolResult result) {
+    static McpSchema.CallToolResult toMcp(String tool, BrowserService.ToolResult result) {
         McpSchema.CallToolResult.Builder b = McpSchema.CallToolResult.builder().isError(result.isError());
+        if (STRUCTURED.contains(tool) && !result.isError()) {
+            // A tool that declared an output schema owes the client an object with every result that
+            // is not an error. Should one arrive as plain text, it is passed on as such an object
+            // instead of being refused.
+            Object structured = result.structured() != null
+                    ? TREE.convertValue(result.structured(), java.util.Map.class)
+                    : java.util.Map.of("text", result.text() == null ? "" : result.text());
+            if (result.structured() == null) {
+                Log.warn("result without an object tool=" + tool);
+            }
+            b.structuredContent(structured);
+        }
         if (result.imageBase64() != null) {
             if (result.text() != null) {
                 b.addTextContent(result.text());

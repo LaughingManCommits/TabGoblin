@@ -219,6 +219,54 @@ class McpConformanceIT {
         }
     }
 
+    /** A result that is an object is given as one, next to the text that agents have always read. */
+    @Test
+    void aResultThatIsAnObjectIsAlsoGivenAsStructuredContent() throws Exception {
+        try (Server server = new Server()) {
+            server.handshake(NEWEST_WITH_HANDSHAKE);
+            FakeExtension browser = server.browser();
+
+            int declared = 0;
+            for (JsonNode tool : server.request(2, "tools/list", null).path("result").path("tools")) {
+                boolean object = McpMain.STRUCTURED.contains(tool.path("name").asString());
+                assertEquals(object, tool.has("outputSchema"), tool.path("name").asString());
+                if (object) {
+                    assertEquals("object", tool.path("outputSchema").path("type").asString());
+                    declared++;
+                }
+            }
+            assertEquals(7, declared);
+
+            browser.responder = command -> FakeExtension.ok(command,
+                    JSON.readTree("{\"dispatched\":true,\"navigated\":false,\"navigation\":\"none\"}"));
+            JsonNode clicked = server.request(3, "tools/call", "{\"name\":\"browser_click\",\"arguments\":{\"ref\":3}}").path("result");
+            assertFalse(clicked.path("isError").asBoolean(), clicked.toString());
+            assertTrue(clicked.path("structuredContent").path("dispatched").asBoolean(), clicked.toString());
+            assertEquals(JSON.readTree(clicked.path("content").path(0).path("text").asString()), clicked.path("structuredContent"),
+                    "the text says the same, for a client that reads text");
+
+            // A result that is text has no object to give.
+            browser.responder = command -> FakeExtension.ok(command, JSON.readTree("{\"text\":\"Page: Example\"}"));
+            JsonNode snapshot = server.request(4, "tools/call", "{\"name\":\"browser_snapshot\",\"arguments\":{}}").path("result");
+            assertEquals("Page: Example", snapshot.path("content").path(0).path("text").asString());
+            assertFalse(snapshot.has("structuredContent"), snapshot.toString());
+
+            // A call that fails is an error result without an object, and is passed on as that.
+            browser.responder = command -> {
+                tools.jackson.databind.node.ObjectNode refused = JSON.createObjectNode();
+                refused.put("id", command.path("id").asString());
+                refused.put("success", false);
+                refused.set("error", JSON.readTree("{\"code\":\"STALE_REF\",\"message\":\"The element is gone.\"}"));
+                return refused;
+            };
+            JsonNode failed = server.request(5, "tools/call", "{\"name\":\"browser_click\",\"arguments\":{\"ref\":3}}").path("result");
+            assertTrue(failed.path("isError").asBoolean(), failed.toString());
+            assertTrue(failed.path("content").path(0).path("text").asString().contains("STALE_REF"), failed.toString());
+            assertFalse(failed.has("structuredContent"), failed.toString());
+            browser.close();
+        }
+    }
+
     /** A client that sends a progress token is told that a long call is still running; another is not. */
     @Test
     void aLongCallReportsProgressOnlyWhenTheClientAsks() throws Exception {
