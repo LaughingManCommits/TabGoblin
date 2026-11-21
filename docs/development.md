@@ -176,3 +176,13 @@ Proofs are `HMAC-SHA256(token, "client:" + serverNonce + ":" + clientNonce)` and
 The product is TabGoblin. Some technical names predate it and are kept so existing setups keep
 working: the jar and MCP server name (`browser-context-mcp`), the Java package (`browsercontext`),
 the token directory (`~/.browser-context-mcp`) and the `BCMCP_*` environment variables.
+
+The Java package and the Maven group, both `browsercontext`, do not follow the convention of a
+reversed domain name. That is left as it is, decided on 2026-11-21:
+
+- Nothing outside this repository sees either name. The jar is not published; it is run by its
+  path.
+- A conventional name needs a domain or an account name, which is the owner's to choose.
+- The change touches every Java file and the jar's entry point, for no change in behaviour.
+
+If the jar is ever published, rename then, in one commit that does nothing else.

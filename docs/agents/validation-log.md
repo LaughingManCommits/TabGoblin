@@ -3,7 +3,28 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
-## 2026-11-21, on `mcp-standard`, WP-1
+## 2026-11-21, on `mcp-standard`, WP-1 complete
+
+Gaps 1, 2 and 4: a cancelled call is not answered, progress for a client that asks, structured
+results. All on the final build.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 54 tests; then `McpConformanceIT` on the built jar: 8 tests |
+| `cd e2e && npm test` | 87 passed, 0 failed |
+| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
+| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
+| `node docs/agents/check-links.mjs` | all resolve |
+
+Failed on the way, and why: the end-to-end step for a cancelled call, once, with 86 of 87. It
+still waited for an answer to the call it had cancelled, which the server no longer sends. The
+commit that made that change had been checked with the server's tests only. The step and the
+test client now do what a client does: stop waiting, and note an answer that comes anyway.
+
+Not run: the extension's tests, which this branch does not touch. Ctrl+C on a running server. A
+real client of revision 2026-07-28. The MCP Inspector. CI on GitHub has still not been seen.
+
+## 2026-11-21, on `mcp-standard`, WP-1, first part
 
 The reference pinned, the conformance check, and gaps 5 to 8. On top of `typed-lines`.
 

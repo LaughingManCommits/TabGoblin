@@ -8,14 +8,13 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 - Branch `typed-lines`: local, not pushed, not merged. On top of `ba977cd`: a fill never presses
   Enter; Enter in a text box is a submission that the user allows in the popup; the prompt's look;
   the prompt cannot be answered by accident (WP-3).
-- Branch `mcp-standard`: local, not pushed, on top of `typed-lines`. WP-1 as far as it has come.
-  Merge `typed-lines` first, then this.
+- Branch `mcp-standard`: local, not pushed, on top of `typed-lines`. WP-1, complete. Merge
+  `typed-lines` first, then this.
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
 | Push and merge `typed-lines`, then `mcp-standard` | Waiting for the owner, who pushes and merges | git |
-| WP-1: follow the MCP standard with the official SDK | In progress. Done: the reference, the conformance check, gaps 5 to 8. Left: gaps 1, 2, 4, 9. **Waits for the owner's decision on which generation of the protocol to serve.** | [TODO.md](../../TODO.md), [mcp-conformance.md](../mcp-conformance.md) |
 | WP-4: a prompt that says what is asked | Open; its first task is done | [TODO.md](../../TODO.md) |
 | WP-5: requests one at a time, and not again after a no | Open, not started | [TODO.md](../../TODO.md) |
 | WP-6: Enter as a full submission, with tighter exceptions | Open, not started | [TODO.md](../../TODO.md) |
@@ -34,9 +33,9 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, on `mcp-standard`: the server's tests and the conformance
-  check on the built jar, and the end-to-end suite. The extension's tests were last run on
-  `typed-lines`, which `mcp-standard` does not change; the editor lab at its second commit.
-  Details in the [validation log](validation-log.md).
-- **Next action:** the owner's decision in WP-1 (stay with the handshake, serve both generations,
-  or the newer one only). Then gap 4 (structured results), which holds either way.
+- **Last verification:** 2026-11-21, on `mcp-standard`, all on its final build: the server's
+  tests, the conformance check on the built jar, the end-to-end suite, and the editor lab in front
+  and in the background. The extension's tests were last run on `typed-lines`, which
+  `mcp-standard` does not change. Details in the [validation log](validation-log.md).
+- **Next action:** WP-4, WP-5 and WP-6 in `TODO.md` are open and need no decision. WP-7 waits for
+  the owner's decisions, which are listed in it.

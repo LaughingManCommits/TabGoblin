@@ -8,10 +8,11 @@
 | [WP-5](#wp-5-requests-one-at-a-time-and-not-again-after-a-no) | Asking in order, and not again after a no | | 3 |
 | [WP-6](#wp-6-enter-as-a-full-submission-with-tighter-exceptions) | Enter gets what other submissions get | | 4 |
 | [WP-7](#wp-7-an-automatic-mode-for-confirmations) | A mode between asking always and never | WP-5, WP-6, and the owner's decisions | 5 |
-| [WP-1](#wp-1-follow-the-mcp-standard-with-the-official-sdk) | The server and the MCP standard | | **1: next, by the owner's word on 2026-11-21** |
 
-Done and not listed: WP-2 (text with line breaks, typed key by key) and WP-3 (consent that cannot
-be given by accident: issues A1, A2 and B6). Numbers are not reused.
+Done and not listed: WP-1 (the server follows the MCP standard; see
+[docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
+key) and WP-3 (consent that cannot be given by accident: issues A1, A2 and B6). Numbers are not
+reused.
 
 WP-4 to WP-6 come from a critical look at the work on Enter as a submission, on 2026-11-21. Their
 issues keep the letters they were noted under (A1 ... D3). In the tables, "checked" means it was
@@ -227,99 +228,3 @@ they do not remove it. `docs/security.md` has to say so under what remains the u
 - Each of the cases in task 5 passes end to end.
 - Nothing that was allowed is left after a restart of the worker (end-to-end).
 - The risk is stated in `docs/security.md`.
-
-## WP-1: Follow the MCP standard, with the official SDK
-
-**Status:** in progress since 2026-11-21: tasks 1 and 2 are done. **One decision is the owner's**
-(below). **Owner:** unassigned.
-
-### Goal
-
-The server stays on the official MCP Java SDK (`io.modelcontextprotocol.sdk:mcp`, 2.2.0 today) and
-does everything the way the protocol specification and the SDK intend. Where it does something by
-hand that the standard now covers, it uses the standard. Where it is missing something a client may
-expect, it adds it. No framework is introduced.
-
-"The standard" means, in this order: the MCP specification revision that the SDK version in
-`pom.xml` implements, the SDK's own documented usage, and ordinary Java and Maven conventions.
-
-### What pinning the reference showed
-
-The full account is in [docs/mcp-conformance.md](docs/mcp-conformance.md). In short:
-
-- SDK 2.2.0 implements two generations of the protocol through two APIs: the revisions with a
-  handshake, up to 2025-11-25, and the stateless revision 2026-07-28. The server uses the first,
-  and is measured against 2025-11-25.
-- A client of the newer revision is told to fall back to the handshake when a server answers its
-  first request with an error. This server does.
-- Gap 3 was wrong: logging to the client is deprecated in 2026-07-28, with the advice to log to
-  standard error, which the server does. It is dropped.
-- Gap 1 stays by hand: the SDK's API for the earlier revisions has no handler for a cancelled
-  request. What can improve is that a cancelled call still sends a result.
-
-### Decision for the owner: which generation to serve
-
-1. **Stay with the handshake** (today, and the default until decided). Works with every client
-   that sends `initialize`, and with newer clients for as long as they fall back.
-2. **Serve both.** The specification allows it. The SDK does not do it for the stdio transport:
-   it needs a switch of our own in front of the SDK's two APIs, and each tool defined for both.
-3. **The newer one only.** Clients that only know the handshake stop working.
-
-Gaps 4, 5 and 6 are worth doing either way, and carry over to the newer API.
-
-### Where we already conform
-
-Keep these as they are; each gets a check in task 1 so that it stays true.
-
-| Rule | How it is met |
-|---|---|
-| stdio: stdout carries protocol messages only, logs go to stderr | `McpMain` hands the real stdout to the transport and points everything else at stderr |
-| stdio: the server exits when the client closes its input | `StdinTap` |
-| A failed tool call is a result with `isError`, not a protocol error | `BrowserService.call` never throws; `McpMain.toMcp` |
-| Tools declare read-only and destructive hints | `McpMain.tool` |
-| Tool arguments are validated before anything is done | `BrowserService` |
-| The tool list does not change at run time, and the server says so | `tools(false)` |
-
-### Gaps to close
-
-Found by reading `McpMain` and `BrowserService`. Each one starts with a check against the
-specification, because some of these were written from memory of the protocol and not looked up.
-
-| # | Gap | Today | Standard way |
-|---|---|---|---|
-| 4 | Results are JSON printed as text | `browser_click`, `browser_scroll`, `browser_navigate`, `browser_fill`, `browser_wait_for`, `browser_submit` return a JSON string in a text block | Declare an output schema and return structured content, with the text kept for older clients |
-| 9 | Java naming is not conventional | Package `browsercontext`, Maven groupId `browsercontext` | A reverse-domain package and groupId |
-
-### Tasks
-
-1. Done: the reference is pinned and each requirement marked, in `docs/mcp-conformance.md`.
-2. Done: `McpConformanceIT` starts the built jar and drives it as a client would, a cancelled call
-   included. It runs with `mvn verify`, also in CI. Not done: the MCP Inspector, which was not
-   tried.
-3. **Close the gaps**, one commit each, each with a test. Done: 8 (a mistyped option is refused)
-   and 7 (the server ends in order; the path for Ctrl+C is the same code but was not tried,
-   because a test cannot send that signal on Windows), 5 (each tool has a title) and 6 (the server states the product's name as its title, and the
-   version of the build) 1 (a cancelled call is not answered) and 2 (a client that asks is told that a long call is still
-   running). Left: 4 (structured results).
-4. **Gap 4 needs care.** Agents read today's text results. Keep the text identical, add the
-   structured form next to it, and run the end-to-end suite before and after.
-5. **Decide gap 9 separately.** Renaming the package touches every file and the jar's entry point.
-   Do it last, as one mechanical commit, or record here why it is left.
-6. **Update the documentation:** `docs/tools.md` for result shapes and titles,
-   `docs/architecture.md` for cancellation and shutdown, `docs/development.md` for the
-   conformance check.
-
-### Acceptance
-
-- Every server-side requirement of the pinned specification revision is marked met or not
-  applicable, in this file or in `docs/`.
-- The conformance check runs in CI and passes.
-- `mvn test`, the end-to-end suite and the editor lab pass unchanged.
-- No tool's text output changed, unless the change is listed here.
-
-### Out of scope
-
-- A framework on top of the SDK. Looked at and set aside: the starters wrap this same SDK, and the
-  server is too small to gain from them.
-- A remote (HTTP) transport. The server is a local subprocess; that is a separate decision.
-- The Chrome extension and the protocol between it and the server.
