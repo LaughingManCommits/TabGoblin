@@ -13,6 +13,7 @@ own Chrome with your own logins, without handing them cookies, tokens or the abi
 | [Editors](editors.md) | know which rich-text and code editors an agent can fill, and how that works |
 | [Architecture](architecture.md) | understand how the pieces fit: processes, protocol, sessions, refs, submissions |
 | [Security model](security.md) | know exactly what an agent can and cannot reach, and what is still your risk |
+| [MCP conformance](mcp-conformance.md) | know which revision of the protocol the server speaks, and how that is checked |
 | [Development](development.md) | build it, run the tests, change it, regenerate the screenshots |
 
 ## The idea in one picture

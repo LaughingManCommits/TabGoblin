@@ -230,7 +230,8 @@ they do not remove it. `docs/security.md` has to say so under what remains the u
 
 ## WP-1: Follow the MCP standard, with the official SDK
 
-**Status:** open, not started. **Owner:** unassigned.
+**Status:** in progress since 2026-11-21: tasks 1 and 2 are done. **One decision is the owner's**
+(below). **Owner:** unassigned.
 
 ### Goal
 
@@ -241,6 +242,30 @@ expect, it adds it. No framework is introduced.
 
 "The standard" means, in this order: the MCP specification revision that the SDK version in
 `pom.xml` implements, the SDK's own documented usage, and ordinary Java and Maven conventions.
+
+### What pinning the reference showed
+
+The full account is in [docs/mcp-conformance.md](docs/mcp-conformance.md). In short:
+
+- SDK 2.2.0 implements two generations of the protocol through two APIs: the revisions with a
+  handshake, up to 2025-11-25, and the stateless revision 2026-07-28. The server uses the first,
+  and is measured against 2025-11-25.
+- A client of the newer revision is told to fall back to the handshake when a server answers its
+  first request with an error. This server does.
+- Gap 3 was wrong: logging to the client is deprecated in 2026-07-28, with the advice to log to
+  standard error, which the server does. It is dropped.
+- Gap 1 stays by hand: the SDK's API for the earlier revisions has no handler for a cancelled
+  request. What can improve is that a cancelled call still sends a result.
+
+### Decision for the owner: which generation to serve
+
+1. **Stay with the handshake** (today, and the default until decided). Works with every client
+   that sends `initialize`, and with newer clients for as long as they fall back.
+2. **Serve both.** The specification allows it. The SDK does not do it for the stdio transport:
+   it needs a switch of our own in front of the SDK's two APIs, and each tool defined for both.
+3. **The newer one only.** Clients that only know the handshake stop working.
+
+Gaps 4, 5 and 6 are worth doing either way, and carry over to the newer API.
 
 ### Where we already conform
 
@@ -262,9 +287,8 @@ specification, because some of these were written from memory of the protocol an
 
 | # | Gap | Today | Standard way |
 |---|---|---|---|
-| 1 | Cancellation is hand-made | `StdinTap` reads the input stream on the side to find `notifications/cancelled`, and matches calls by tool name and arguments | Use the SDK's own cancellation if 2.2.0 has it; keep `StdinTap` only for what the SDK still lacks |
+| 1 | A cancelled call still answers | `StdinTap` stops the call, by hand, because this API of the SDK has no handler for `notifications/cancelled`. A result that says "cancelled" is then sent. | The specification advises sending nothing for a cancelled request. See whether the handler can end without a result; otherwise leave it, as the client is told to ignore it. |
 | 2 | No progress for long calls | `browser_submit` can wait 95 seconds for the user's confirmation in silence | Send `notifications/progress` when the client gave a progress token |
-| 3 | No protocol logging | Diagnostics go to stderr only | Declare the `logging` capability and send log notifications at the level the client sets, in addition to stderr |
 | 4 | Results are JSON printed as text | `browser_click`, `browser_scroll`, `browser_navigate`, `browser_fill`, `browser_wait_for`, `browser_submit` return a JSON string in a text block | Declare an output schema and return structured content, with the text kept for older clients |
 | 5 | Tools have no title | Annotations are built with a null title | Give each tool a human-readable title |
 | 6 | Server identity is hard-coded and off-brand | `serverInfo("browser-context-mcp", "0.2.0")` in code, the version repeated from `pom.xml` | Name and title that match the product; the version read from the build |
@@ -274,15 +298,12 @@ specification, because some of these were written from memory of the protocol an
 
 ### Tasks
 
-1. **Pin the reference.** Record which specification revision SDK 2.2.0 implements. Go through the
-   server-side requirements of that revision (lifecycle, stdio transport, tools, cancellation,
-   progress, logging) and mark each one met, not met or not applicable. Correct the table above
-   where the specification says otherwise.
-2. **Add a conformance check to the build.** A test that starts the real jar and drives it as a
-   client would: initialize, list tools, call one, cancel one, close the input, and assert on
-   stdout purity and the exit. If the MCP Inspector can run headless, add it to CI as well.
-3. **Close gaps 1 to 8**, one commit each, each with a test. Order: 7 and 8 (small, no protocol
-   change), 5 and 6 (metadata), 1 (cancellation), 2 and 3 (notifications), 4 (structured results).
+1. Done: the reference is pinned and each requirement marked, in `docs/mcp-conformance.md`.
+2. Done: `McpConformanceIT` starts the built jar and drives it as a client would. It runs with
+   `mvn verify`, also in CI. Not done: cancelling a call there, which needs a browser and is left to
+   the end-to-end suite; and the MCP Inspector, which was not tried.
+3. **Close the gaps**, one commit each, each with a test. Order: 7 and 8 (small, no protocol
+   change), 5 and 6 (metadata), 1 (cancellation), 2 (progress), 4 (structured results).
 4. **Gap 4 needs care.** Agents read today's text results. Keep the text identical, add the
    structured form next to it, and run the end-to-end suite before and after.
 5. **Decide gap 9 separately.** Renaming the package touches every file and the jar's entry point.

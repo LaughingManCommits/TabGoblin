@@ -38,6 +38,9 @@ mvn -B -f java-server/pom.xml test -Dtest=PairingTest         # one Java test cl
 
 Success: `ℹ fail 0`, or `BUILD SUCCESS`.
 
+The built jar is checked against the protocol by `mvn -B -f java-server/pom.xml verify`, which runs
+`McpConformanceIT` after the jar is made. `package` builds without that check.
+
 The extension's type-check is separate: `cd chrome-extension && npm run typecheck`. A test can
 pass with a type error in it, because Node strips types without checking them.
 
@@ -81,7 +84,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 
 | Job | Commands |
 |---|---|
-| Java server | `mvn -B -f java-server/pom.xml package` |
+| Java server | `mvn -B -f java-server/pom.xml verify` |
 | Chrome extension | `cd chrome-extension && npm ci && npm run check` |
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
