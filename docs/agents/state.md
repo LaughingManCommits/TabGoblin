@@ -15,6 +15,7 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 | Item | Status | Authoritative source |
 |---|---|---|
 | Push and merge `typed-lines` | Waiting for the owner, who pushes and merges | git |
+| Aftercare for the Enter prompt: 18 noted issues, none fixed | Open, noted 2026-11-21. A1 and B1 first. | [TODO.md](../../TODO.md) |
 | WP-1: follow the MCP standard with the official SDK | Open, not started, no owner | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
@@ -30,9 +31,12 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-21, all four suites passed locally on the code of `typed-lines`,
-  the editor lab in front and in the background. Details in the
-  [validation log](validation-log.md).
-- **Next action, if the owner asks for it:** start WP-1 at task 1 ("Pin the reference") in
+- **Last verification:** 2026-11-21. All four suites passed locally at the second commit of
+  `typed-lines`, the editor lab in front and in the background. After the third commit, which
+  changes the popup, only the extension's tests and the end-to-end suite were run again. Details
+  in the [validation log](validation-log.md).
+- **Next action:** the aftercare list in `TODO.md`, starting with A1 (consent given by accident
+  from the keyboard) and B1 (a wrong sentence in the prompt for a field of a form).
+- **After that, if the owner asks for it:** start WP-1 at task 1 ("Pin the reference") in
   `TODO.md`. It begins with reading the specification revision that SDK 2.2.0 implements, before
   any code changes.
