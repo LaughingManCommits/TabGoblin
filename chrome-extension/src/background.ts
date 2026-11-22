@@ -1219,6 +1219,23 @@ function pushState(): void {
   }
 }
 
+/**
+ * A server that is started again has a new id and remembers nothing. What its former self left
+ * is its own again the moment it is back, by its agent's name, and not only with its first
+ * command: until then the popup would name an owner that is gone, and the server would not know
+ * of its tabs. It is the extension that says so. A session is the user's grant and is kept here;
+ * a server cannot claim one.
+ */
+function takeUp(client: Client): void {
+  const identity = { id: client.clientId, name: client.name };
+  for (const session of sessionsOfAgent(persisted.sessions, identity, connectedClientIds())) {
+    if (session.clientId === client.clientId) continue;
+    session.clientId = client.clientId;
+    session.clientName = client.name || null;
+    noteActivity(session.id, 'Session taken up by an agent');
+  }
+}
+
 function dropClient(client: Client, closeCode?: number, reason?: string): void {
   clearInterval(client.keepalive);
   if (clients.get(client.port) === client) clients.delete(client.port);
@@ -1270,9 +1287,10 @@ function connectPort(port: number): void {
         for (const session of persisted.sessions) {
           if (session.clientId === client.clientId) session.clientName = msg.name || null;
         }
-        save();
-        // A name can make a session this agent's: one its former self left behind.
-        refreshBadge();
+        // A name can make sessions this agent's: those its former self left behind. They are its
+        // own from now on, every server is told what it has, and the badge says what is so.
+        takeUp(client);
+        pushState();
       }
     };
     if (client.authenticated) {
@@ -1314,6 +1332,7 @@ function connectPort(port: number): void {
         client.clientId = msg.clientId;
         client.name = msg.clientName;
         client.authenticated = true;
+        takeUp(client);
         pairingFailed = false;
         versionMismatch = false;
         // Regular traffic also keeps the MV3 service worker alive while connected.
@@ -1405,6 +1424,7 @@ interface PopupMessage {
 
 function popupState(): object {
   const connected = connectedClientIds();
+  const agents = [...clients.values()].filter((c) => c.authenticated).map((c) => ({ id: c.clientId, name: c.name }));
   return {
     connection: connectionStatus(),
     port: config.port,
@@ -1421,7 +1441,10 @@ function popupState(): object {
     sessions: persisted.sessions.map((s) => ({
       id: s.id, tabId: s.tabId, origin: s.origin, mode: s.mode, paused: s.paused, expiresAt: s.expiresAt,
       origins: s.origins, suspended: s.suspended,
-      clientId: s.clientId, clientName: s.clientName, ownerConnected: !!s.clientId && connected.has(s.clientId),
+      // Its agent is there when the one that owns it is connected, or one that takes its place: the
+      // same agent started again, by its name.
+      clientId: s.clientId, clientName: s.clientName,
+      ownerConnected: !!s.clientId && agents.some((agent) => canUse(s, agent, connected)),
       lastSubmission: s.submissions.length ? s.submissions[s.submissions.length - 1].state : null,
       // What would not be put to the user right now, so that the popup can say so and offer to lift it.
       notAsked: standingRefusals(s.asks, Date.now()),

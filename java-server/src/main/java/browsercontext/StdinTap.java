@@ -35,6 +35,7 @@ final class StdinTap extends FilterInputStream {
 
     private final ObjectMapper json = new ObjectMapper();
     private final Runnable onEnd;
+    private final java.util.function.Consumer<String> onClientName;
     private final ByteArrayOutputStream line = new ByteArrayOutputStream();
     private final Deque<Call> arrived = new ArrayDeque<>();
     private final Map<String, Thread> running = new HashMap<>();
@@ -43,8 +44,19 @@ final class StdinTap extends FilterInputStream {
     private final Set<String> givenUp = new HashSet<>();
 
     StdinTap(InputStream in, Runnable onEnd) {
+        this(in, onEnd, name -> { });
+    }
+
+    /**
+     * @param onClientName told the name the MCP client gives itself when it opens the connection.
+     *                     The SDK hands that name to a tool handler only, which is at the first tool
+     *                     call; a server that was started again needs it at once, because its
+     *                     sessions come back to it by that name
+     */
+    StdinTap(InputStream in, Runnable onEnd, java.util.function.Consumer<String> onClientName) {
         super(in);
         this.onEnd = onEnd;
+        this.onClientName = onClientName;
     }
 
     @Override
@@ -78,9 +90,24 @@ final class StdinTap extends FilterInputStream {
         }
         String text = line.toString(StandardCharsets.UTF_8);
         line.reset();
-        // Only two kinds of message matter here; everything else is not even parsed.
+        // Only three kinds of message matter here; everything else is not even parsed.
         if (text.contains("\"tools/call\"") || text.contains("\"notifications/cancelled\"")) {
             inspect(text);
+        } else if (text.contains("\"initialize\"")) {
+            introduce(text);
+        }
+    }
+
+    /** The client's opening message says who it is. */
+    private void introduce(String text) {
+        try {
+            JsonNode msg = json.readTree(text);
+            String name = msg.path("params").path("clientInfo").path("name").asString("");
+            if (msg.path("method").asString("").equals("initialize") && !name.isBlank()) {
+                onClientName.accept(name);
+            }
+        } catch (RuntimeException e) {
+            // Not a message this server understands; the SDK will say so.
         }
     }
 

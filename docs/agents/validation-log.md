@@ -3,6 +3,43 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `restart-keeps-tabs`: a server that is started again has its tabs at once
+
+The owner: a server stopped with a session and started again did not show the session in its
+panel, while the popup showed it as connected. The cause is in two places. A server makes a new
+id at each start, and its tabs come back to it by its agent's name alone; it learned that name
+only with the agent's first tool call, and a server started by hand never had one. And the
+extension handed a tab over only with the first command that used it.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify`, in a copy of the tree | 89 tests, one of them new; `McpConformanceIT` on the built jar: 8 tests |
+| `npm run check` in `chrome-extension`, in the copy | type-check clean, 155 tests, one of them new, build |
+| the new worker test against `background.ts` as it was | fails: the popup says of the restarted agent's tab that its agent is not connected |
+| `cd e2e && npm test`, in the copy, on the final sources | 94 passed, 0 failed. The step for a restarted server now waits, before the agent calls any tool, until the popup names the agent as the tab's and the badge says `ON` |
+| `node docs/agents/check-links.mjs` | 148 links, all resolve |
+| `node docs/agents/check-personal.mjs` | nothing personal found |
+
+By hand, the owner's case, with the real extension in Chrome as the suite drives it and the real
+panel read and pressed through the accessibility interface: a server started in a console of
+its own with `--panel`, a tab authorized for it, Stop pressed twice in the panel, the server
+started again the same way.
+
+- Before the stop: the popup lists the agent and the tab's agent as *Started by hand*, the
+  badge says `ON`, the panel says `1 tab` and lists it.
+- After the stop: the popup says *Disconnected* and marks the tab's agent as not connected;
+  the badge says `OFF`.
+- After the start, with Java 21 after 3.7 seconds and with Java 26 after 3.0: the popup says
+  *1 agent connected* and names *Started by hand* as the tab's agent; the badge says `ON`; the
+  panel of the new server, which has another id, says `1 tab` and lists it.
+- A run before the hand-over was added showed the tab under the old server's id in the popup,
+  though the new server could use it. That is why the extension now makes the tab the new
+  server's own the moment it is back.
+
+Not tried: a real IDE's agent that starts its server again (the suite's client stands in for
+it); two agents of the same name, of which one is started again; Linux and macOS. Not run: the
+editor lab; CI, which has no credit.
+
 ## 2026-11-22, on `aftercare`: commands at hand, the pairing token copied, a panel that keeps its controls, an extension that shows what is so
 
 Four things the owner asked for after the documentation pass was merged, and one fault found on
@@ -513,34 +550,14 @@ Not run: the server's suites (nothing in the server changed) and the Linux conta
 was not running after a restart of the machine). Not tried: folding with the keyboard by hand,
 and a screen reader on the folded headings; the suite reads `aria-expanded` only.
 
-## 2026-11-21, on `pairing-race`: the look of the popup
-
-A pass for alignment, asked for by the owner. What changed: a heading and the action beside it
-share a baseline; the settings have a heading, and each setting its name, its control and one
-line of explanation; the "Submissions" choice of a session is one control as wide as the row
-above it; a no that stands is shown under that control, like what passes; the links in those two
-boxes have no button face; a session's chips go under its address where they do not fit beside
-it, instead of cutting the address.
-
-| Command | Result |
-|---|---|
-| `FULL=1 node screenshots.mjs prompts` | each view at its whole length and double size. Looked at before the change: a click prompt (dark), two things that pass (light), a high-impact prompt (light). After it: two things that pass (dark), the declined box (light), the prompt in the automatic mode (dark). |
-| `HEADED=1 node screenshots.mjs` | ten pictures changed; all ten were opened after the last change. The suspended session shows its whole address, with the chips under it. |
-| `cd chrome-extension && npm run check` | type-check clean, 132 tests, build |
-| `cd e2e && npm test` | 92 passed, 0 failed, on the final build |
-| `cd e2e/editors && npm test`, and with `BACKGROUND=1` | 222 and 220 of 225, no `SILENT`. Run before the last change, which moved the chips of a session. |
-| `node screenshots.mjs prompts` | 28 pictures as before; with `FULL=1`, 28 more |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Failed on the way: one run of the picture script, started right after another, timed out waiting
-for the two agents to connect. The next run passed; the cause was not looked for.
-
-Not looked at: an address too long for its line (it is cut with an ellipsis, by the rule; no
-picture has one), and the popup at another zoom level or font size. Not run: the server's
-suites and the Linux container; nothing they cover changed.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `pairing-race`, the look of the popup (a pass for alignment: headings and
+  their actions on one baseline, settings with a heading, a session's chips under its address
+  where they do not fit beside it): extension 132 tests; end to end 92 of 92; editor lab 222
+  and 220 of 225, no `SILENT`, run before the last change; ten of the documentation's pictures
+  changed, all opened. One run of the picture script timed out waiting for the agents and
+  passed when run again. Not looked at: an address too long for its line, another zoom level.
 - 2026-11-21, on `pairing-race`, WP-9 (the status tool says where the time of the last calls
   went): server 62 tests and 8 conformance tests, 70 in a Linux container; extension 132, also
   in a container; end to end 92 of 92, with a step that lets the user wait 1.5 s and reads the
