@@ -3,6 +3,83 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `server-panel`: WP-13, the server's panel
+
+A window for the server, asked for with `--panel`. Built in JavaFX after a first attempt in
+Swing was turned down by the owner. The jar was built and the suites that need it were run in a
+copy of the tree, because the session's own server runs from the tree's jar.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify`, in the copy | 84 tests; `McpConformanceIT` on the built jar: 8 tests. The jar is 17,554,410 bytes; the one before this work 7,091,063 |
+| `mvn -B -f java-server/pom.xml test`, in the tree | 84 tests. On the way: five runs and four runs in a row without a failure, after two tests had each failed once (below) |
+| the same with `-DargLine=-Djava.awt.headless=true`, as on a machine without a display | 83 tests, 6 skipped, none failed; run before the last test was added |
+| `cd e2e && npm test`, in the copy | 94 passed, 0 failed, four times, each on the jar of that moment. The last was on a jar whose own classes are those of the final jar; one test was added after it |
+| `node docs/agents/check-links.mjs` | 90 links, all resolve |
+| `node docs/agents/check-personal.mjs` | nothing personal found |
+
+Two tests failed once each in repeated runs. `aUserDisconnectIsExplainedToTheAgent` waited for
+the connection to stop being open, which happens a moment before the server notes the code it
+was closed with: it now waits for the code. `itIsReadFromTheRunningServer…` found a session
+still listed a moment after its connection had closed: the panel now shows no tabs without a
+connection, which is a change to the product and not to the test.
+
+By hand, on Windows 11, with the jar from the copy:
+
+- **The window, on Java 21 and on Java 26:** `panel shown` in the log, nothing on standard
+  output, exit code 0 when the input ends. Standard error has one warning of JavaFX on both;
+  on Java 26 four more lines of Java about a method that will be removed.
+- **Its controls, pressed in the real window** through Windows' accessibility interface, which
+  does not move the mouse: the switch off and on (the log says so, the line with the dot and
+  the hint change); Stop twice, exit code 0 a third of a second later; Kill twice, exit code 1,
+  and `ending at once on the user's word in the panel` as the last line. What the window offers
+  a screen reader was read: every label, the two states of the switch, and the log under the
+  name of its heading, after it had none.
+- **Its icon.** Windows said the window had no icon of its own; the owner had seen Java's on the
+  taskbar. The icons were set and silently passed over, because of the form of their pixels.
+  After the fix Windows returns a goblin of 32 by 32 for the small and the big icon, and the
+  window's button on the taskbar, pictured alone, shows it.
+- **The log's view, measured in the real window:** at its last line with 40, 41 and 66 lines;
+  unmoved and unwritten while scrolled up and while some of it was marked; at the new last line
+  after the view was brought back down.
+- **The keyboard:** when the window appears it is with the panel's ground, not with a button.
+- **With the real extension,** in Chrome as the suite drives it, with the Java on the path
+  (26): after the switch was pressed, `browser_status` and a snapshot said that the user had
+  switched the connection off and where, the popup said *Disconnected: is the MCP server
+  running?* with the session still listed, and opening the popup did not get the extension
+  back in. After it was pressed again the extension was connected by itself after 14.3
+  seconds, the session was the agent's again, and a snapshot worked. Stop, pressed twice,
+  ended the server with exit code 0 under a real MCP client; no line on standard output was
+  anything but protocol.
+
+On Linux, Ubuntu 26.04 in the Linux subsystem of Windows, with a Java 21 runtime fetched for
+the purpose and nothing installed:
+
+- The first build's window, without a frame and see-through, was there for the system and drew
+  nothing. The owner saw it first: an icon on the taskbar and nothing on the desktop.
+- With the system's frame the window draws: six points in its margins had the colour of the
+  panel's ground, and the picture taken after that shows the whole panel. The server ended
+  with exit code 0. Without a display it logged `panel not shown reason=no_display` and ran.
+- Not done there: pressing a button.
+
+Pictures: the six drawings of `PanelPictures`, each opened; the first is
+`docs/images/server-panel.png`. The real window was pictured on Windows in four states and on
+Linux in one; those are not in git.
+
+What went wrong on the way, and is worth knowing:
+
+- **Three captures of a place on the screen showed other windows of the owner's desktop**
+  instead of the panel, because the panel was not in front or drew nothing. They were deleted.
+  The tool that took such captures was removed from the tree before any commit, and the
+  runbook says not to picture the screen for this. Afterwards a window was pictured only once
+  points inside it had been read as the panel's own.
+- **A drawing was right where the window was wrong, twice:** the icon, and the window on
+  Linux. Neither is found by a test.
+
+Not run: the extension's suite and the editor lab (none of their files changed); the two unit
+suites on Linux in a container (Docker was not running); anything on macOS; CI. CI run #14, for
+`main` as it is, was read on GitHub as completed successfully; its jobs were not opened.
+
 ## 2026-11-22, on `ci-tab-address`: CI for the day's merges, and the step that failed in run #12
 
 Read on GitHub by a session, through TabGoblin, on a tab the owner authorized with Explore:
@@ -335,48 +412,16 @@ it does for what passes. All on the final build of the branch.
 
 Not run: the server's suites; nothing in the server changed since the entry below.
 
-## 2026-11-21, on `pairing-race`: the CI failure
-
-The first CI result a session has seen: a screenshot from the owner of the "Chrome extension"
-job, cancelled at its 15-minute limit. Its log ends with `✖ finds servers across the port range
-and refuses one that speaks another protocol version (27 ms)`, and nothing after it.
-
-Cause. The extension checks the proof in `auth_ok` a moment after the server has sent it. A
-message that arrived in that moment was taken for a failed pairing: the connection was closed
-and the search for servers stopped. The test's setup waited for the fake servers to call
-themselves paired, not for the worker, so a test could start in that moment. The first then
-found no agent, and the command of the second was never answered.
-
-Shown against the unfixed source:
-
-- A copy of `background.test.ts` whose setup returns the moment the fake servers call themselves
-  paired (run, not kept). Three runs: the first test failed within 7 ms each time
-  (`version_mismatch` instead of `connected`, or one agent instead of two); the second never got
-  an answer in two of the three. That is the CI log.
-- The new test failed: a command sent in the same turn as `auth_ok` was not answered.
-- Not shown: the failure with the test file as it was. On Linux in a container it passed once
-  alone and four times in the whole run on two cores.
-
-After the fix, all on the final build:
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check` | type-check clean, 131 tests, build |
-| the same in a Linux container (`node:24`, two cores; the command is in the runbook) | 131 tests, twice; then `background.test.ts` six more times, 16 of 16 each |
-| the copy with the early setup, three runs | its second test is answered within 3 ms each time. Its first still fails: the copy starts too early on purpose. |
-| `mvn -B -f java-server/pom.xml verify` | 55 tests; `McpConformanceIT` on the built jar: 8 tests |
-| the same in a Linux container (`maven:3.9-eclipse-temurin-21`) | 63 tests, none failed |
-| `cd e2e && npm test` | 91 passed, 0 failed |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Not shown: that the job passes on GitHub. And the server now sends `auth_ok` before it lets other
-threads use the connection: that closes a gap between two threads, which no test can hit on
-purpose. The suites show that it breaks nothing, not that the gap was ever hit.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `pairing-race`, the first CI failure a session saw (the "Chrome extension"
+  job, cancelled at its 15-minute limit): a message that arrived while the extension still
+  checked the proof in `auth_ok` was taken for a failed pairing. Shown against the unfixed
+  source with a copy of the worker's test that starts early and with a new test; not shown with
+  the test file as it was. After the fix: extension 131 tests, twice more in a Linux container;
+  server 55 tests and 8 conformance tests, 63 in a container; end to end 91 of 91; editor lab
+  222 of 225 in front and 220 of 225 in the background, no `SILENT`. Not shown then: the job
+  passing on GitHub.
 - 2026-11-21, on `automatic-mode`, WP-8 (the status tool names a session that asks differently;
   the popup names the kind of request that passes): server 55 tests and 8 conformance tests,
   extension 130, end to end 91 of 91, editor lab 222 of 225 in front and 220 of 225 in the

@@ -30,7 +30,9 @@ IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┼�
   page: confirmed, failed or uncertain, with the evidence. Pressing Enter in a message box counts
   as submitting.
 - **Control.** Pause or revoke a session, disconnect an agent, watch what happens. If a tab leaves
-  its website the session is suspended until you resume it.
+  its website the session is suspended until you resume it. Started with `--panel`, a server
+  shows a small window with its sessions, its log and a button to stop it
+  ([user guide](docs/user-guide.md#9-the-servers-panel)).
 - **Website-agnostic.** No site-specific code anywhere; the agent supplies the understanding.
 
 ## Quick start
@@ -77,7 +79,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 ## Verify
 
 ```sh
-mvn -f java-server/pom.xml verify       # 64 tests, then the built jar checked against the protocol
+mvn -f java-server/pom.xml verify       # 84 tests, then the built jar checked against the protocol
 cd chrome-extension && npm run check    # 151 tests, type-check, build
 cd e2e && npm install && npm test       # 94 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries

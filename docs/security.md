@@ -172,6 +172,32 @@ types, durations, outcomes, error categories and scope violations. They never co
 content, typed text, full URLs, cookies, headers or the token. The same holds for what the status
 tool says about where the time went: tool names and durations.
 
+## The server's panel
+
+A server that is started with `--panel` shows a window of its own
+([user guide](user-guide.md#9-the-servers-panel)). Without the option none of it is loaded.
+
+| Property | Detail |
+|---|---|
+| No new way in | It is a window of the server's process, not a page: no port is opened for it, and no website or other program can reach it |
+| Nothing of a page | A session is shown by its site, its access level and its state. The title and the address of its page, which the status tool gives the agent, are not shown. The log is the server's log, with the limits above |
+| It only takes away | Stop, kill, and a switch that closes the connection to the extension and refuses it until switched on. It authorizes no tab and changes no access level |
+| Ending takes two clicks | Stop and Kill act on the second click, within four seconds of the first. No button has the keyboard when the window appears |
+| Memory only | The last 300 log lines are kept in memory for the window and nowhere else. JavaFX unpacks its own native files into `.openjfx` in the home folder; nothing of TabGoblin's is written |
+
+Where it stops:
+
+- **The switch is not a revocation.** The agent's sessions stay in the extension while the
+  connection is off, as they do when a server ends, and a session whose owner is gone passes to
+  an agent of the same name (see [Agents](#agents)). To take tabs away, revoke them or
+  disconnect the agent in the popup.
+- **The popup does not say why.** A server that is switched off refuses the extension before
+  any pairing; to the extension it looks like a server that is not running.
+- **Anyone at the desktop can use it.** The window asks for nothing before it stops a server.
+  It can end the user's own agent's server and nothing else.
+- **Kill skips the orderly end.** The extension is not told; it finds the connection gone. A
+  command that was running has an unknown outcome.
+
 ## What is verified by tests
 
 | Property | Where |
@@ -209,6 +235,10 @@ tool says about where the time went: tool names and durations.
 | The agent's snapshots, texts and screenshots have nothing of the notice | End-to-end |
 | The notice is told a state and fixed words, and nothing of a page | Rules, DOM, worker |
 | Injected page text changes no session or permission | End-to-end |
+| The server's panel shows a session's site, access and state, and nothing of its page's title or address | Java |
+| Switched off in the panel, the extension is closed and not let in, without that counting as a failed pairing; the agent is told why; switched on, it pairs again | Java |
+| A button of the panel that ends the server acts on the second click only; bringing the panel up to date sends the server nothing | Java (needs a display) |
+| Log lines are kept in memory only when the panel is asked for | Java |
 | Logs free of token and content | End-to-end |
 
 "Rules" are the pure functions in `policy.ts`; "DOM" the snapshot, extract and interaction tests;

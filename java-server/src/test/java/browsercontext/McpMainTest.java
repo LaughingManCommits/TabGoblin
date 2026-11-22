@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import browsercontext.McpMain.Options;
 import browsercontext.McpMain.UsageException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -56,5 +57,42 @@ class McpMainTest {
         assertTrue(assertThrows(UsageException.class, () -> parse(Map.of(), "--port", "abc")).getMessage().contains("must be a number"));
         assertTrue(assertThrows(UsageException.class, () -> parse(Map.of("BCMCP_PORT", "70000"))).getMessage().contains("between 1 and"));
         assertTrue(assertThrows(UsageException.class, () -> parse(Map.of(), "--port", "0")).getMessage().contains("between 1 and"));
+    }
+
+    @Test
+    void thePanelIsAskedForAndIsOffWithoutThat() throws Exception {
+        // Headless is what a server is unless it is told otherwise: agents, CI and machines without a display.
+        assertFalse(parse(Map.of()).panel());
+        assertTrue(parse(Map.of(), "--panel").panel());
+        assertTrue(parse(Map.of(), "--port", "6000", "--panel").panel());
+        for (String on : List.of("1", "true", "yes", "on", "ON", " 1 ")) {
+            assertTrue(parse(Map.of("BCMCP_PANEL", on)).panel(), on);
+        }
+        for (String off : List.of("0", "false", "no", "off", "", "  ")) {
+            assertFalse(parse(Map.of("BCMCP_PANEL", off)).panel(), off);
+        }
+        // The option is enough where the environment says no: an option comes before the environment.
+        assertTrue(parse(Map.of("BCMCP_PANEL", "0"), "--panel").panel());
+        // A value that is neither is not taken for one of them.
+        assertEquals("BCMCP_PANEL must be 1 or 0, not \"maybe\".",
+                assertThrows(UsageException.class, () -> parse(Map.of("BCMCP_PANEL", "maybe"))).getMessage());
+        assertEquals("Unknown option: --panel=1",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--panel=1")).getMessage());
+    }
+
+    @Test
+    void withoutADisplayTheServerRunsWithoutItsPanelAndSaysSo() {
+        Log.keep(20);
+        try {
+            long before = Log.count();
+            // No window system is touched: the bridge is not even looked at.
+            assertFalse(McpMain.showPanel(null, null, () -> false));
+            assertEquals(before + 1, Log.count());
+            Log.Line said = Log.recent().get(Log.recent().size() - 1);
+            assertEquals("warn", said.level());
+            assertEquals("panel not shown reason=no_display", said.text());
+        } finally {
+            Log.keep(0);
+        }
     }
 }

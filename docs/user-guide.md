@@ -288,12 +288,89 @@ Each line is one agent's server; the popup shows the same ports next to the agen
 server only disconnects its agent: sessions, the pairing and the token are kept, and the agent
 starts a new server the next time it needs one.
 
-## 9. Settings
+A server that shows its panel can be stopped from there; see the next section.
+
+## 9. The server's panel
+
+A server has no window unless you ask for one. To get it, add `--panel` to the arguments in your
+agent's MCP settings, or set `BCMCP_PANEL=1` in the environment the agent starts the server in:
+
+```json
+"args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar", "--panel"]
+```
+
+Each server then shows one small window, for the one agent that started it. On the taskbar it
+has the goblin for its icon.
+
+<img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, where the time went, the log, and the controls">
+
+- **Under the title:** the agent's name, the id it has in the popup, and its port. Until an agent
+  has made its first tool call it has no name, and goes by its id.
+- **The line with the dot** says whether the extension is connected to this server and since
+  when, or why it is not.
+- **Sessions** are the tabs this agent has: the site, the access level, and *paused* or
+  *suspended* where that applies. The page's title and address are not shown.
+- **Where the time went** divides the time of the last tool calls, up to 200 of them, into four
+  shares: the agent and its model between calls, this server, the extension and the page, and
+  what you took to answer a question. The agent gets the same in more detail from
+  `browser_status` with `diagnostics`.
+- **Log** has the server's last 300 lines, with the newest in view. A line that begins with `!`
+  is a warning. Lines can be marked and copied, and the log holds still while you read in it:
+  nothing new is written while some of it is marked or while you have scrolled up. Back at its
+  last line, it goes on.
+- **Connection to the browser** is a switch. Off, the server closes its connection to the
+  extension and lets it in no more, until you switch it on again. The agent's tools then answer
+  that you switched it off, and where. The popup cannot tell why: it says *Disconnected*, as for
+  a server that does not run. Switched on, the extension finds the server by itself within half
+  a minute, and the agent has its tabs as before.
+- **Stop server** ends it in order, as when the agent closes it. **Kill** ends the process at
+  once, for a server that hangs; what it was doing in the browser then has an unknown outcome.
+  Each takes two clicks: after the first the button says *Click again*, and goes back by itself
+  after four seconds.
+- **The dash** at the top right puts the window away. The server keeps running, and the window
+  comes back from the taskbar. Nothing closes the window for good while the server runs.
+
+What the panel does not do:
+
+- **Other agents.** A server is one agent and knows nothing of the others. The popup is where
+  all of them are listed.
+- **Give anything.** It authorizes no tab and changes no access level; that stays in the popup,
+  where your click on the tab is. Everything in the panel takes away.
+- **Take tabs away.** Switched off or stopped, the agent's tabs stay authorized in the
+  extension, as for any server that ends: the agent has them again when it is back, and so has
+  an agent of the same name ([why](security.md#agents)). *Revoke* and *Disconnect* in the popup
+  end them.
+- **Keep an agent out for good.** Most agents start their server again when it has ended, and a
+  new server has its connection switched on. The popup's *Disconnect* is what turns an agent
+  away.
+
+Where it works, and how far that was seen:
+
+- **Windows:** the window as pictured, without a frame of the system's; its header moves it.
+  Run on Java 21 and Java 26.
+- **Linux (x64) and macOS (Apple silicon):** the same panel inside a window with the system's
+  own frame. A window without one drew nothing on the Linux it was tried on, where only its
+  icon on the taskbar was to be seen, so it is used on Windows alone. Seen: the framed window
+  with the whole panel in it, on Ubuntu 26.04 in the Linux subsystem of Windows, with Java 21,
+  and the server ending in order there. Not done there: pressing its buttons. On another Linux
+  desktop and on macOS nothing was run.
+- **Anywhere else, or without a display:** the server runs as it does without the option and
+  says in its log that the panel is not shown. That is so on a Mac with an Intel processor and
+  on Linux on ARM, for which the jar has no native part.
+- The window is drawn with JavaFX. It unpacks its native part into the folder `.openjfx` in
+  your home folder the first time, about 3 MB, and writes a warning of its own into the server's
+  log at the start; on Java 26 a few more lines follow, of Java's own, about a method that
+  JavaFX uses. None of it goes to the agent.
+- The taskbar shows the goblin; the name it gives the program is still that of Java, because
+  Java is the program that runs.
+
+## 10. Settings
 
 | Setting | Where | Default |
 |---|---|---|
 | When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
 | Indicator in the page | Switch under *Settings* in the popup | on |
+| The server's panel | `--panel` / `BCMCP_PANEL` = `1` on the server | off |
 | First port | *Connection…* in the popup; `--port` on the server | 47821 |
 | Token file | `--token-file` / `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` |
 | Log level | `BCMCP_LOG` = `debug`, `info`, `warn`, `off` | `info` |

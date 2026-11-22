@@ -170,6 +170,11 @@ public final class BrowserService {
         if (startupProblem != null) {
             sb.append("Server problem: ").append(startupProblem).append('\n');
         }
+        if (!bridge.isExtensionConnected() && bridge.isHeld()) {
+            sb.append("Extension: not connected (switched off in this server's window)\n");
+            sb.append(ExtensionConnection.NOT_CONNECTED_HELD);
+            return ToolResult.ok(sb.toString());
+        }
         if (!bridge.isExtensionConnected()) {
             sb.append("Extension: not connected\n");
             sb.append("Listening on: ws://127.0.0.1:").append(bridge.getPort()).append('\n');

@@ -2,13 +2,16 @@
 
 ## Overview
 
-Six packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Seven packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
 start, and nothing connected on an old one. Of WP-14 the files and the check were done on
-2026-11-22; the history remains, and is the owner's. The other five are not started, and each
-waits for the owner's word on its points. New work gets the next number, WP-18.
+2026-11-22; the history remains, and is the owner's. WP-13 was built on 2026-11-22 on the
+branch `server-panel` and waits for the owner's review; its entry says what is there and what
+is open. The other four are not started, and each waits for the owner's word on its points.
+WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
+documentation. New work gets the next number, WP-19.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -180,82 +183,88 @@ text changes.
 
 Asked for by the owner on 2026-11-21: "have mcp server start up small panel ui, i think the we
 should have headless and ui one were we can see metrics sessions logs etc and have options stop
-and kill the server, disconnect agents, etc". Goal: a server can be looked at and stopped from
-a small window of its own; without that window it runs as it does today.
+and kill the server, disconnect agents, etc". Taken up on 2026-11-22 with "have option to run
+headless server or with small sever admin screen showing the mentioned things", "make sure the
+server pannel is modern and matches our style", and, of the first attempt in Swing, "you are
+pro java developer that knows the latest tech". Goal: a server can be looked at and stopped
+from a small window of its own; without that window it runs as it did.
 
-### What is there today
+**Built on 2026-11-22, on the branch `server-panel`. Not merged; it waits for the owner's
+review.** What the user sees is in the [user guide](docs/user-guide.md#9-the-servers-panel),
+the rules in [security.md](docs/security.md#the-servers-panel), the build in
+[architecture.md](docs/architecture.md#the-servers-panel).
 
-Read from the source on 2026-11-21 (`McpMain.java`, `Log.java`, `Timings.java`,
-`WebSocketBridge.java`).
+### What is there
 
-- A server has no window. The agent starts it and talks to it over stdin and stdout; stdout
-  carries the MCP messages and nothing else. Its options are `--port`, `--token-file`,
-  `--extension-origin`, `--show-token`, `--rotate-token` and `--help`, and the `BCMCP_*`
-  variables.
-- **One server is one agent.** Each agent starts its own server process, on its own port. A
-  server knows its own id, name and port, whether the extension is connected, and the sessions
-  the extension reports for this agent. It knows nothing of the other agents; only the
-  extension sees them all, and its popup is where they are listed and disconnected.
-- **Metrics.** Where the time of the last tool calls went (`Timings.java`), read through
-  `browser_status` with `diagnostics: true`. Nothing else is counted.
-- **Logs.** Lines on stderr, at the level of `BCMCP_LOG`: ids, actions, durations, outcomes and
-  error codes; never page content, entered text or the token. They are not kept: where they go
-  is up to the agent's program.
-- **Stopping.** A server ends when its agent closes stdin. Otherwise the user finds it by its
-  port and ends the process ([user guide](docs/user-guide.md#8-stopping)).
+- **Two ways to run.** Without an option a server has no window and loads nothing of one. With
+  `--panel` or `BCMCP_PANEL=1` it shows one window, for its one agent. Without a display it
+  says `panel not shown reason=no_display` and runs as without the option.
+- **What the window shows:** the agent's name, id and port; whether the extension is connected,
+  since when, or why not; the sessions with site, access level and state; where the time of the
+  last calls went, as four bars; the server's last 300 log lines.
+- **What it can do:** stop the server in order, kill the process, and switch the connection to
+  the browser off and on. Stop and Kill take two clicks.
+- **Its look** is the popup's: the same colours, cards, pills and switch, and the goblin bare as
+  in the page's notice, with its eyes closed while the connection is switched off.
 
-### Proposal
+### Where it differs from what was filed
 
-1. **Two ways to run, headless as the default.** Agents, CI and machines without a display
-   start the server as today. The panel comes with an option (`--panel`, `BCMCP_PANEL=1`), and
-   a server that is asked for it where no display exists says so in its log and runs without.
-2. **A small desktop window of the server's own process**, built with what the JDK brings
-   (Swing): no new dependency and, unlike a page served on localhost, no new port that a
-   website could reach.
-3. **What it shows**, all of it what this server already holds: the agent's name and id, the
-   port, whether the extension is connected and since when; the sessions with their site,
-   access level and state; the report of where the time went; and the last few hundred log
-   lines, kept in memory for the window.
-4. **What it can do:** stop the server in the orderly way, as if the agent had closed it; kill
-   it, for one that hangs; and disconnect the extension from this server, which is this agent's
-   connection.
+1. **JavaFX, not Swing.** The proposal was "what the JDK brings, no new dependency". The first
+   attempt was Swing, painted by hand, and the owner turned it down. JavaFX gives a stylesheet
+   and the popup's look. The price: a new dependency, a jar of 17.6 MB where it was 7.1 MB,
+   native files unpacked into `.openjfx` in the home folder, and lines of JavaFX's and Java's
+   own on standard error at the start.
+2. **A switch, not a button, for the connection.** The filing said "disconnect the extension
+   from this server". Closed once, the extension's next look for servers would undo it within
+   half a minute. So the switch closes the connection and refuses the extension until it is
+   switched on again, and the agent is told why. It is still no revocation: see below.
+3. **A tool's text changed**, where the filing expected none: `browser_status` and the
+   `NOT_CONNECTED` error say that the user switched the connection off, and where.
+   `docs/tools.md` has it, and the end-to-end suite was run.
+4. **Two kinds of window.** Without a frame on Windows, in the system's frame elsewhere,
+   because the frameless one drew nothing on Linux. The owner saw that before the session did.
 
-### What it cannot do as proposed
+### What it does not do
 
-- Show or disconnect **other** agents: they are other processes. One window for all servers
-  needs either a program of its own that finds them on the port range, as the extension does,
-  or a channel between servers; neither exists. The popup stays the place for all agents.
-- Keep an agent out. A server that is stopped is usually started again by its agent's program,
-  and a connection that is closed is found again by the extension's next scan. Only the popup's
-  **Disconnect** keeps an agent out, for as long as its server runs (see WP-17).
-- Widen anything. The panel reads and stops; it authorizes no tab and changes no access level.
-  Those stay with the popup, where the user's click on the tab is.
+- Show or disconnect **other** agents: they are other processes. The popup stays the place for
+  all agents. One panel for all servers would be a package of its own.
+- Keep an agent out, or take its tabs. A stopped server is usually started again by its agent's
+  program, with its connection switched on; and while the connection is off the agent's tabs
+  stay authorized in the extension, as for any server that ends. Only the popup revokes and
+  disconnects.
+- Tell the popup why. A server that is switched off looks to the extension like one that does
+  not run: the popup says *Disconnected: is the MCP server running?*. Saying "switched off in
+  the server's window" there needs a new close code in the protocol, on both sides.
+- Follow the system's light or dark setting. It is dark, as the popup is in its dark scheme.
 
-### Decisions for the owner
+### What was seen, and what was not
 
-1. One window per server (proposal), or one panel for all servers on the machine. The second is
-   what "disconnect agents" suggests, and is a larger package: see above.
-2. Desktop window (proposal) or a page on localhost. A page needs the guards the WebSocket has:
-   loopback only, the token, the check of the origin.
-3. How the panel is asked for when the agent's program starts the server: the option in the
-   agent's MCP configuration (proposal), a file the server reads, or a tray icon that every
-   server shows and that opens the window.
-4. Whether addresses of pages belong in it. `browser_status` shows the agent the address of
-   each session's page; the log deliberately has none. Proposal: the site only, as in the popup.
-5. What "kill" does that "stop" does not. Proposal: stop cancels what runs and ends in the
-   orderly way; kill ends the process at once, and what was in the browser has an unknown
-   outcome, which the agent is told as for a lost connection.
+- **Windows 11, Java 21 and Java 26:** the built jar with its window. The controls were pressed
+  in the real window through the system's accessibility interface: the switch, Stop (exit code
+  0) and Kill (exit code 1). The taskbar's button was pictured alone: it shows the goblin.
+- **With the real extension, on Windows:** switched off, the agent's tools say so and the
+  extension is not let in, also not when the popup is opened; switched on, it was back by
+  itself after 14 seconds with the agent's session, and a snapshot worked; Stop ended a server
+  that a real MCP client held, with nothing but protocol on its standard output.
+- **Linux:** Ubuntu 26.04 in the Linux subsystem of Windows, Java 21: the framed window with
+  the whole panel was seen, and the server ended in order. Its buttons were not pressed there.
+- **Not run:** macOS; any other Linux desktop; the panel in CI, whose runner has no display
+  (six tests are skipped there); a screen reader, beyond reading what the window offers one;
+  a screen that is scaled.
 
-### Tasks and acceptance
+### Open, for the owner
 
-Per the task map, "Change MCP behaviour of the server" and "Change build wiring": the option in
-`McpMain.java`, a class for the window that reads through the same objects as the status tool,
-a buffer for the log lines in `Log.java`, and nothing on stdout. Tests: the option is parsed and
-refused cleanly without a display; the buffer keeps only what the log may carry; `mvn verify`
-still passes `McpConformanceIT` on the built jar, headless. By hand, and said so: the window
-itself, on Windows; stop and kill with an agent connected, and what the agent is told. Then the
-user guide (running, stopping), `docs/security.md` for what the window shows and can do, and
-pictures of it, each one opened and looked at. No tool's text changes.
+1. **Whether the cost of JavaFX is right:** 10 MB more in the jar, files in `.openjfx`, and the
+   warning lines on standard error. The lines go to the agent's log of the server, not to the
+   agent.
+2. **Whether the popup should say why** a server is switched off (a protocol change, see above).
+3. **macOS and other Linux desktops.** They get the framed window. Someone with such a machine
+   has to look once; the runbook says at what ("Look at the server's panel").
+4. **The panel's tests in CI.** They need a display. A virtual one on the Linux runner would run
+   them there; it was not tried, because it cannot be tried on this machine.
+5. **A name on the taskbar.** The button shows the goblin and the window's title; the name the
+   system gives the program is Java's, because Java is the program. A name of its own needs a
+   launcher, which is WP-15's subject.
 
 ## WP-14: Nothing personal in the repository
 
@@ -614,3 +623,49 @@ lets its two agents in through the real popup, and a server that is ended and st
 asks again. Then `docs/security.md` (the local connection, what remains your risk), step 6 of
 the installation guide, section 2 of the user guide, the protocol reference, and the pictures
 of the popup that show pairing. The third step of WP-15, pairing, is decided here.
+
+## WP-18: Aftercare of the server's panel, and the documentation gone over
+
+Asked for by the owner on 2026-11-22, when WP-13 was done: "make aftercare wp, after you commit
+this do docs scan make sure it is up to date concise, usser/ dev friendly, also uses seperation
+of responsibilities on it with references/links to correct doc".
+
+### Part 1: the documentation
+
+Every page that is not a record (`README.md`, `AGENTS.md`, `docs/*.md`, the runbook) is read
+against four questions:
+
+1. **Up to date.** Each claim against its source: a command against `package.json`, `pom.xml`
+   or `ci.yml`; a path against the tree; a count against a run; a text of a tool or of the popup
+   against the code that writes it.
+2. **Concise.** What a reader does not need is taken out. Records of how something came about
+   belong in git and in the validation log, not in a page that explains.
+3. **For its reader.** The user's pages say what to do and what happens, without the code's
+   names; the developer's pages say where things are and how to check a change.
+4. **One home for each fact.** The table in `AGENTS.md` ("Memory") and the row "Edit
+   documentation" in its task map say which page owns what. A fact that stands in two pages
+   stays in its owner and becomes a link in the other.
+
+Acceptance: the link check and the personal check pass; what was changed, and what was looked
+at and left, is in the validation log. The backlog, the state page and the validation log are
+records and are not rewritten.
+
+### Part 2: what the panel left behind
+
+The decisions are the owner's and stand under WP-13, "Open, for the owner": the cost of JavaFX,
+whether the popup says why a server is switched off, macOS and other Linux desktops, the
+panel's tests in CI, a name on the taskbar. What needs no decision:
+
+- **Kill with an agent connected was not tried.** Kill was pressed on a server that had no
+  client and no extension. What the agent's program reports when its server is gone at once,
+  and what the popup shows then, is not known. Stop was run with both.
+- **A server that cannot take its first port prints a stack trace** of the socket library
+  before it takes the next one, and JavaFX prints one of its own when it cannot start. Neither
+  is the server's line, and both go to the agent's log of the server.
+- **The window takes the keyboard when it appears.** No button in it has it then; the user's
+  typing still stops going where it went.
+- **On Linux the title in the panel is not bold** and the frame shows the system's own icon,
+  as far as the one picture from the Linux subsystem tells. Not looked into.
+- **The six tests of the window do not run in CI.** A virtual display on the Linux runner
+  would run them and, with them, the jar's native part for Linux; it cannot be tried on this
+  machine.

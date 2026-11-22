@@ -244,6 +244,65 @@ the same happens, in this order, and within two seconds or the process ends anyw
 A command line that is not understood starts nothing: the reason and the usage text go to
 standard error, and the exit code is 2.
 
+## The server's panel
+
+With `--panel` (or `BCMCP_PANEL=1`) a server shows a window of its own; without it nothing of the
+window's code is loaded. What the user sees and can do there is in the
+[user guide](user-guide.md#9-the-servers-panel). How it is built:
+
+- **It is in the server's process and reads the server's objects.** No port is opened for it,
+  no file is written and nothing is sent anywhere. Once a second the window asks for a
+  `PanelModel`, a record made from what the status tool also reads (`WebSocketBridge`,
+  `Timings`) and from the last lines `Log` has kept.
+- **What it shows is decided without a window.** `PanelModel` is plain data and is tested
+  without a display. `Panel` draws it and sends back one of three commands, a sealed type:
+  the connection on or off, stop, kill. `McpMain` carries them out.
+- **Stop is the same end as every other.** It runs the steps under "How a server ends". Kill
+  halts the process with exit code 1 and runs none of them: the extension finds the connection
+  gone instead of being told.
+- **The switch holds the connection off.** The server closes the extension's connection with
+  the code for "going away" and refuses the next handshake, before any pairing proof is
+  looked at, until it is switched on. A refused handshake is not a failed pairing and counts
+  nothing towards the lockout. The extension keeps looking for servers every half minute, as
+  it does for any server that is not reachable, so switching on needs nothing in the popup:
+  with the real extension it was back after 14 seconds, and the agent's session with it.
+  Meanwhile a tool call is answered `NOT_CONNECTED` with words that say where it was switched
+  off, and the popup says *Disconnected*: the extension is not told why.
+- **The log is kept only for the window.** Asked for its panel, a server keeps its last 300
+  lines in memory from its first line on. They are the lines it writes to standard error, at
+  the level `BCMCP_LOG` sets, except that info and warning lines are kept even where
+  `BCMCP_LOG` silences them. Without the option nothing is kept.
+- **No display, no panel.** Where there is no display, or JavaFX cannot start, the server logs
+  `panel not shown reason=…` and runs as it does without the option. Both were run: without a
+  display on Linux (`reason=no_display`), and with a jar from which the native files had been
+  taken out, as a stand-in for a system the jar has none for. There JavaFX prints a trace of
+  its own to standard error before the server's line (`reason=RuntimeException`); the server
+  ran on and ended with exit code 0.
+- **Two kinds of window.** On Windows the window has no frame of the system's: a rounded body
+  with its own shadow, see-through around it, moved by its header. Everywhere else the same
+  body fills a window with the system's frame. The reason is a measurement, not a taste: on
+  Linux (in the Linux subsystem of Windows) the see-through window was there for the system and
+  drew nothing, and the framed one drew. `Panel.floats` decides, and a test holds it. In both
+  kinds a request to close the window puts it away instead: the server ends by its button, or
+  by its agent.
+- **The window's icon is drawn, not loaded.** The goblin comes from the shapes of
+  `chrome-extension/icons/goblin.svg`, written out in `Panel.java`, for the header and for the
+  icon the taskbar shows. A window takes an icon only as a picture that holds its pixels as
+  bytes; a drawing comes as one number per pixel and is passed over without a word, which
+  leaves Java's own icon on the taskbar. The icons are therefore copied into the kind that is
+  taken, and a test holds that.
+- **The log follows its last line** unless the user reads in it: nothing is written while some
+  of it is marked or while it is scrolled up. Where the last line is, is known only after new
+  lines were laid out, so the view is brought down each time their height changes.
+- **JavaFX 21** is in the jar with its native part for Windows on x64, Linux on x64 and macOS
+  on Apple silicon; the jar is 17.6 MB with it, and was 7.1 MB. A jar holds one set of native
+  files per system, because those for Intel and for ARM have the same names. JavaFX is loaded
+  from the class path, which it reports with one warning line on standard error at the start.
+  On Java 26 four more lines follow, of Java's own: a method that JavaFX uses for drawing is
+  to be removed in a future release. The jar's manifest allows its code native access
+  (`Enable-Native-Access`), which newer Javas otherwise warn about as well. The 21 line of
+  JavaFX is the one that runs on Java 21; newer lines need a newer Java.
+
 ## The service worker
 
 Manifest V3 stops an idle background worker. TabGoblin is built for that:
@@ -294,12 +353,14 @@ java-server/src/main/java/browsercontext/
   McpMain.java             entry point, tool definitions, port selection
   StdinTap.java            end of input, client-side cancellation
   Timings.java             where the time of the last tool calls went
+  PanelModel.java          what the server's panel shows at a moment, without a window
+  Panel.java               the panel's window (JavaFX); panel.css in the resources is its look
   BrowserService.java      tool arguments → commands → results, submission ids
   WebSocketBridge.java     localhost endpoint, origin check, pairing, lockout, limits
   ExtensionConnection.java correlation, deadlines, cancellation, per-session ordering
   Protocol.java            typed messages, error categories
   Pairing.java             token file, rotation, HMAC proofs
-  Log.java                 diagnostics without content
+  Log.java                 diagnostics without content; the last lines, kept for the panel
 chrome-extension/src/
   background.ts            connections, sessions, gate, navigation, submissions, activity
   policy.ts                every rule, as pure functions

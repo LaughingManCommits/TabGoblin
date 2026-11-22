@@ -371,10 +371,42 @@ class WebSocketBridgeTest {
     void aUserDisconnectIsExplainedToTheAgent() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         ext.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
-        await(() -> !bridge.isExtensionConnected());
+        // Until the server has taken note of the code it was closed with: the connection stops being
+        // open a moment before that, and a call in that moment is told only that it is not connected.
+        await(() -> bridge.lastCloseCode() == Protocol.CLOSE_USER_DISCONNECTED);
         BrowserException e = assertThrows(BrowserException.class, () -> bridge.send("snapshot", "s1", null, SHORT));
         assertEquals("NOT_CONNECTED", e.code());
         assertTrue(e.getMessage().contains("user disconnected this agent"), e.getMessage());
+    }
+
+    @Test
+    void switchedOffInThePanelTheExtensionIsNotLetInAndTheAgentIsToldWhy() throws Exception {
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        assertTrue(bridge.connectedSince() > 0, "the panel can say since when the extension is connected");
+        assertFalse(bridge.isHeld());
+
+        bridge.setHeld(true);
+        // The connection that is there is closed as one that goes away, not as a failed pairing.
+        assertEquals(org.java_websocket.framing.CloseFrame.GOING_AWAY, ext.closed.get(3, TimeUnit.SECONDS));
+        await(() -> !bridge.isExtensionConnected());
+        assertEquals(0, bridge.connectedSince());
+        // The extension looks for servers every half minute. None of its attempts gets in.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            FakeExtension again = new FakeExtension(port, FakeExtension.ORIGIN, TOKEN);
+            assertFalse(again.connectBlocking(3, TimeUnit.SECONDS));
+        }
+        assertFalse(bridge.isExtensionConnected());
+        BrowserException e = assertThrows(BrowserException.class, () -> bridge.send("snapshot", "s1", null, SHORT));
+        assertEquals("NOT_CONNECTED", e.code());
+        assertEquals(ExtensionConnection.NOT_CONNECTED_HELD, e.getMessage());
+
+        // Switched on again, the extension pairs as it always does: what was turned away counted as no failed pairing.
+        bridge.setHeld(false);
+        FakeExtension back = FakeExtension.paired(port, TOKEN);
+        assertTrue(bridge.isExtensionConnected());
+        bridge.send("snapshot", "s1", null, SHORT);
+        assertEquals(1, back.commands.size());
+        assertEquals(0, ext.commands.size(), "nothing reached the connection that was closed");
     }
 
     @Test

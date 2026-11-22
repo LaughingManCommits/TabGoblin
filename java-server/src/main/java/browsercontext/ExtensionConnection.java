@@ -33,6 +33,14 @@ final class ExtensionConnection {
     private volatile WebSocket conn;
     private volatile List<Protocol.Session> sessions = List.of();
     private volatile int lastCloseCode;
+    /** When the paired connection was made, or 0 while there is none. */
+    private volatile long connectedSince;
+    /** The user switched this server's connection to the browser off, in its panel. */
+    private volatile boolean held;
+
+    /** What a tool call is told while the user has the connection switched off in the panel. */
+    static final String NOT_CONNECTED_HELD = "The user switched this server's connection to the browser off, in the "
+            + "TabGoblin server window. Ask them to switch it on again there.";
 
     ExtensionConnection(ObjectMapper json, Timings timings) {
         this.json = json;
@@ -53,6 +61,19 @@ final class ExtensionConnection {
         return lastCloseCode;
     }
 
+    /** When the extension connected, in milliseconds since the epoch, or 0 while it is not connected. */
+    long connectedSince() {
+        return isConnected() ? connectedSince : 0;
+    }
+
+    boolean held() {
+        return held;
+    }
+
+    void held(boolean on) {
+        held = on;
+    }
+
     /**
      * Makes {@code newConn} the paired connection and sends it {@code answer}, the message that
      * completes its pairing. Returns the connection it replaced, if any.
@@ -67,6 +88,7 @@ final class ExtensionConnection {
         conn = newConn;
         sessions = List.of();
         lastCloseCode = 0;
+        connectedSince = System.currentTimeMillis();
         newConn.send(answer);
         return old == newConn ? null : old;
     }
@@ -146,6 +168,10 @@ final class ExtensionConnection {
             Protocol.Timing[] inside) {
         WebSocket c = paired();
         if (c == null || !c.isOpen()) {
+            if (held) {
+                // The nearest cause comes first: nothing else can connect while this is so.
+                throw new BrowserException("NOT_CONNECTED", NOT_CONNECTED_HELD);
+            }
             throw new BrowserException("NOT_CONNECTED", switch (lastCloseCode) {
                 case Protocol.CLOSE_USER_DISCONNECTED ->
                     "The user disconnected this agent in the TabGoblin popup. Ask them to allow it again.";

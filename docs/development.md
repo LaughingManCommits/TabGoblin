@@ -27,7 +27,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 
 | Command | What it covers |
 |---|---|
-| `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel |
+| `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, and the server's panel: what it shows, its switch and its buttons. Six of the panel's tests need a display and are skipped where there is none, as in CI |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, the notice in the page, and the background worker against a fake Chrome |
 | `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
@@ -68,13 +68,22 @@ one thing that passes and with two, the general setting with each of its three v
 panels folded to one line. Look at them after any change to the prompt. The end-to-end suite
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
+The server's panel is pictured by a class among the server's tests, `PanelPictures`, which is
+run by hand ([runbook](agents/runbook.md#look-at-the-servers-panel)). It draws the panel with
+the server's own code from made-up states, at double size, without showing a window and without
+reading the screen: connected, waiting, switched off, without a port, with Stop armed, and as
+it fills a window that has the system's frame. The first of them is
+`docs/images/server-panel.png`. What a drawing cannot show is the window on a desktop: that it
+appears, its icon on the taskbar, and that its buttons do what they say. Those are looked at by
+hand, on each system the panel is to be trusted on.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every push to `main` and on every pull request:
 
 | Job | Runs on | Does |
 |---|---|---|
-| Java server | Linux | `mvn verify`: compile, test, build the jar, check the jar against the protocol |
+| Java server | Linux | `mvn verify`: compile, test, build the jar, check the jar against the protocol. The runner has no display: the tests of the panel's window are skipped there, and the panel has not been run in CI |
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
@@ -141,6 +150,10 @@ Run them by hand with `node demo-site/server.mjs`.
 - **Only allowlisted information leaves the page.** New output fields need a reason and a test
   that hidden content and credentials stay out.
 - **Errors are for the agent.** Each has a stable code and says what to do next.
+- **The server's panel takes away and gives nothing.** It may stop, kill and switch the
+  connection off. Authorizing a tab or changing an access level stays in the popup, where the
+  user's click on the tab is. What it shows is decided in `PanelModel`, without a window, and
+  has nothing of a page: no title, no address.
 - **Nothing personal in the repository.** No home directory, no mail address outside the example
   domains, no link to an agent's session, in a file or in a commit message. A path in an example
   is written with a placeholder (`<folder>`). A check keeps the files so

@@ -12,6 +12,7 @@ import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import tools.jackson.databind.JsonNode;
 
@@ -105,6 +106,10 @@ public final class McpMain {
             return;
         }
 
+        if (options.panel()) {
+            // From the first line on, so that the panel has the log of this server's start as well.
+            Log.keep(Panel.LOG_LINES);
+        }
         Supplier<String> tokens = Pairing.tokenSource(tokenFile, token);
         WebSocketBridge bridge = null;
         String startupProblem = null;
@@ -137,6 +142,9 @@ public final class McpMain {
                     Press Ctrl+C to stop it. Other uses: --show-token, --rotate-token, --help.""".formatted(bridge.getPort()));
         }
         BrowserService service = new BrowserService(bridge, startupProblem);
+        if (options.panel()) {
+            showPanel(bridge, startupProblem, Panel::possible);
+        }
 
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
         // Exit when the MCP client closes stdin, so no orphan process keeps the WebSocket port,
@@ -151,6 +159,40 @@ public final class McpMain {
                 .build());
 
         Thread.currentThread().join();
+    }
+
+    /**
+     * Shows the server's panel, if a window can be shown here. A server never fails for want of
+     * its panel: without a display, or if the window cannot be made, it says so in the log and
+     * runs as it does without the option. Returns whether the panel was opened.
+     */
+    static boolean showPanel(WebSocketBridge bridge, String startupProblem, BooleanSupplier possible) {
+        try {
+            if (!possible.getAsBoolean()) {
+                Log.warn("panel not shown reason=no_display");
+                return false;
+            }
+            Panel.open(() -> PanelModel.of(bridge, startupProblem), command -> {
+                switch (command) {
+                    case Panel.Command.Connection connection -> bridge.setHeld(!connection.on());
+                    case Panel.Command.Stop stop -> {
+                        Log.info("stopping on the user's word in the panel");
+                        end();
+                    }
+                    // At once, and without the order of an ending: that is what it is for.
+                    case Panel.Command.Kill kill -> {
+                        // The last line of this server: nothing is ended in order after it.
+                        Log.warn("ending at once on the user's word in the panel");
+                        Runtime.getRuntime().halt(1);
+                    }
+                }
+            });
+            Log.info("panel shown");
+            return true;
+        } catch (RuntimeException | LinkageError e) {
+            Log.warn("panel not shown reason=" + e.getClass().getSimpleName());
+            return false;
+        }
     }
 
     /** The name clients have it configured under; kept from before the product had its name. */
@@ -186,9 +228,11 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --help           this text
 
             Options for running:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
+                                  --panel   also show a small window with this server's connection, sessions,
+                                            times and log; it can switch the connection off and stop the server
 
             Stopping: the server exits when the agent that started it closes or disconnects.
-            Started by hand, Ctrl+C stops it.""";
+            Started by hand, Ctrl+C stops it. With --panel, the window has a button for it.""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -247,6 +291,11 @@ public final class McpMain {
 
     /** The client closed the input: end in order, then exit, without ever hanging on the way. */
     private static void inputEnded() {
+        end();
+    }
+
+    /** Ends the server in order and exits: for the client that closed the input, and for Stop in the panel. */
+    static void end() {
         Thread ending = new Thread(() -> {
             Thread stopping = new Thread(McpMain::stop, "bcmcp-stop");
             stopping.setDaemon(true);
@@ -525,7 +574,8 @@ public final class McpMain {
     }
 
     /** What the command line and the environment ask for. */
-    record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin) {
+    record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
+            boolean panel) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -539,12 +589,14 @@ public final class McpMain {
             String port = null;
             String tokenFile = null;
             String origin = null;
+            boolean panel = false;
             for (int i = 0; i < args.length; i++) {
                 String arg = args[i];
                 switch (arg) {
                     case "--help", "-h" -> help = true;
                     case "--show-token" -> showToken = true;
                     case "--rotate-token" -> rotateToken = true;
+                    case "--panel" -> panel = true;
                     case "--port", "--token-file", "--extension-origin" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
@@ -574,7 +626,20 @@ public final class McpMain {
             }
             return new Options(help, showToken, rotateToken, number,
                     Path.of(firstSet(tokenFile, environment.apply("BCMCP_TOKEN_FILE"), Pairing.defaultTokenFile().toString())),
-                    firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN));
+                    firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
+                    panel || switchedOn("BCMCP_PANEL", environment.apply("BCMCP_PANEL")));
+        }
+
+        /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */
+        private static boolean switchedOn(String name, String value) throws UsageException {
+            if (value == null || value.isBlank()) {
+                return false;
+            }
+            return switch (value.trim().toLowerCase(java.util.Locale.ROOT)) {
+                case "1", "true", "yes", "on" -> true;
+                case "0", "false", "no", "off" -> false;
+                default -> throw new UsageException(name + " must be 1 or 0, not \"" + value + "\".");
+            };
         }
 
         private static String firstSet(String option, String variable, String fallback) {

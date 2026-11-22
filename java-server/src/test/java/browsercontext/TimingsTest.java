@@ -47,6 +47,30 @@ class TimingsTest {
     }
 
     @Test
+    void theSharesForThePanelAreTheSameTimeInFourHeapsWithNothingLostOrCountedTwice() {
+        assertEquals(new Timings.Shares(0, 0, 0, 0, 0), timings.shares(), "nothing before a call has ended");
+
+        // A submission: 5 ms waiting in the server, 5 ms of its own work, 10 ms on the way, 10 ms in
+        // the tab's queue, 50 ms in the page and 30 ms for the user's answer.
+        Timings.Running first = timings.begin("browser_submit");
+        timings.waited(nanos(5));
+        timings.trip(nanos(100), new Protocol.Timing(80, 10, 30));
+        pass(110);
+        Timings.Call submit = timings.end(first, true);
+        // The agent thinks for two seconds, then reads the page: 40 ms, 4 of them the server's.
+        pass(2000);
+        Timings.Call read = call("browser_snapshot", 40, 4, new Protocol.Timing(30, 0, 0));
+
+        Timings.Shares shares = timings.shares();
+        assertEquals(2, shares.calls());
+        assertEquals(2000, shares.agent(), "the time between the calls; before the first one nothing is counted");
+        assertEquals(20 + 4 + 6, shares.server(), "the server's own work, its waiting, and the way to the extension and back");
+        assertEquals(60 + 30, shares.browser(), "the tab's queue and the page");
+        assertEquals(30, shares.user());
+        assertEquals(submit.total() + read.total() + 2000, shares.all());
+    }
+
+    @Test
     void theTimeBetweenAnAnswerAndTheNextCallIsTheAgents() {
         assertEquals(-1, call("browser_snapshot", 20, 0, null).gap(), "nothing came before the first call");
         pass(2000);
