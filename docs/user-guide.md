@@ -97,7 +97,10 @@ it. A confirmation prompt and the pairing form never fold.
 <img src="images/popup-folded.png" width="354" alt="The popup with its four panels folded to one line each">
 
 The toolbar badge says `ON` (an agent may act), `RUN` (it is acting), `II` (paused) or `?` (it is
-waiting for you).
+waiting for you). `OFF` means that tabs are authorized and no agent that may use them is
+connected: nothing can act, and the tabs are still yours to revoke. The extension asks every
+server every twenty seconds whether it is still there, so a server that hangs is shown as gone
+within about a minute, and is found again by itself when it answers.
 
 While an agent is working in a tab, a notice appears in the bottom corner of the page itself: a
 small bar, and above it a pill for each thing the agent just did.
@@ -268,15 +271,36 @@ A server that shows its panel can be stopped from there; see the next section.
 
 ## 9. The server's panel
 
-A server has no window unless you ask for one. To get it, add `--panel` after the jar's path
-where you told your agent about the server
-([step 5 of the installation guide](installation.md#5-tell-your-agent-about-the-server)), or set
-`BCMCP_PANEL=1` in the environment the agent starts the server in. Take it out again, and the
-server runs without a window as before.
+A server has no window unless you ask for one. With the option `--panel` it shows a small one.
+
+**To see it at once,** run this in the project's folder:
+
+```sh
+java -jar java-server/target/browser-context-mcp.jar --panel
+```
+
+That starts a server by hand, with its window. No agent talks to it, so the window calls it
+*Agent c-…*; your extension pairs with it and lists it in the popup. **Stop server** in the
+window ends it, and so does Ctrl+C in the terminal.
+
+**To have it on your agent's server,** add `--panel` after the jar's path where you told your
+agent about the server
+([step 5 of the installation guide](installation.md#5-tell-your-agent-about-the-server)), and
+restart the agent. In settings that are JSON:
 
 ```json
 "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar", "--panel"]
 ```
+
+In Claude Code the server is added anew with the option; `claude mcp get tabgoblin` shows the
+command that removes the entry it has:
+
+```sh
+claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --panel
+```
+
+`BCMCP_PANEL=1` in the environment the agent starts the server in does the same as the option.
+Take it out again, and the server runs without a window as before.
 
 **Rebuild the server first** if your jar is from before the panel
 ([Updating](installation.md#updating)). An older jar does not know the option and does not
@@ -298,7 +322,8 @@ elsewhere presses nothing.
   when, or why it is not; the table below has each of its sentences. An amber box under it is
   a problem the server had when it started, such as that no port was free.
 - **Sessions** are the tabs this agent has: the site, the access level, and *paused* or
-  *suspended* where that applies. The page's title and address are not shown.
+  *suspended* where that applies. The page's title and address are not shown. Three are
+  listed; where the agent has more, a line says how many, and the popup lists them all.
 - **Where the time went** divides the time of the last tool calls into four shares: the agent
   and its model between calls, this server, the extension and the page, and what you took to
   answer a question. The agent gets the same in more detail
@@ -310,6 +335,10 @@ elsewhere presses nothing.
   extension and lets it in no more until you switch it on. The agent's tools then answer that
   you switched it off, and where; the popup says *Disconnected*. Switched on, the extension
   finds the server by itself within half a minute, and the agent has its tabs as before.
+- **Pairing token** has a **Copy** button. It puts the pairing token on the clipboard, for the
+  *Pairing token* field of the extension's popup, without showing it. The token leaves the
+  clipboard again after a minute, and when you stop the server from the panel, unless you have
+  copied something else since. A clipboard history that your system keeps is not emptied.
 - **Stop server** ends it in order, as when the agent closes it. **Kill** ends the process at
   once, for a server that hangs; what it was doing in the browser then has an unknown outcome.
   Each takes two clicks: after the first the button says *Click again*, and goes back by itself
@@ -321,16 +350,19 @@ elsewhere presses nothing.
 | The line with the dot says | Because | What to do |
 |---|---|---|
 | *Connected to the browser since …* | The extension is connected to this server | Nothing |
-| *Not connected: waiting for the extension* | Chrome is not running, the extension is not paired, or it has not found this server yet | Open the popup: a paired extension connects at once, and by itself within half a minute |
+| *Not connected: waiting for the extension* | Chrome is not running, the extension is not paired, or it has not found this server yet | Open the popup: a paired extension connects at once, and by itself within half a minute. To pair, **Copy** the token here and paste it into the popup |
 | *Not connected: disconnected in the extension's popup* | You pressed *Disconnect* next to this agent | Press *Allow again* there |
-| *Not connected: the pairing has ended* | The token was rotated, or the pairing failed | Pair again: [step 6 of the installation guide](installation.md#6-pair-the-extension-with-the-server) |
+| *Not connected: the pairing has ended* | The token was rotated, or the pairing failed | Pair again: **Copy** the token here and paste it into the popup ([step 6 of the installation guide](installation.md#6-pair-the-extension-with-the-server)) |
 | *Not connected: the extension is of another version* | Jar and extension are from different builds | Rebuild both and reload the extension |
 | *Switched off here: the extension is not let in* | The switch in this window is off | Switch it on |
 
-The panel takes away and gives nothing. Authorizing a tab, changing an access level, revoking a
-tab and turning an agent away for good stay in the popup, and the panel shows one agent's server
+The header and the controls are always in view. On a low screen the part between them scrolls.
+
+The panel gives an agent nothing. Authorizing a tab, changing an access level, revoking a tab
+and turning an agent away for good stay in the popup, and the panel shows one agent's server
 and knows nothing of the others. Switching the connection off, or stopping the server, leaves
-the agent's tabs authorized. The rules, and where they stop, are in the
+the agent's tabs authorized. What it hands out, it hands to you: the pairing token, which is
+also in a file in your home folder. The rules, and where they stop, are in the
 [security model](security.md#the-servers-panel).
 
 | System | The window | Seen running |

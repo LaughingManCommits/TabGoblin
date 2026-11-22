@@ -240,6 +240,21 @@
     -fx-background-color: transparent;
 }
 
+/*
+ * What lies between the header and the controls: the sessions, the time and the log. It takes the
+ * room that is left and scrolls where a screen is too low for all of it, so that the controls
+ * below are never pushed out of the window.
+ */
+.middle,
+.middle > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+.between {
+    -fx-spacing: 10;
+}
+
 /* A slim scroll bar without arrows, as the popup has it. */
 .scroll-bar {
     -fx-background-color: transparent;

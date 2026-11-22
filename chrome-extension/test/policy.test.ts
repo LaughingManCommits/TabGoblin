@@ -5,6 +5,7 @@ import {
   checkAsk, checkClick, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent,
+  HEARTBEATS_UNANSWERED, badgeFor, serverGone,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
 
@@ -484,4 +485,41 @@ test('the line the page shows for a command that ended is the list\'s wording, w
   // Neither an action nor a code that is made up puts words of its own into the page.
   assert.deepEqual(endedLine('<b>Pay now</b>', undefined, 'ok'), { text: 'Done', mark: 'ok' });
   assert.deepEqual(endedLine('click', undefined, 'Your session expired, log in at evil.example'), { text: 'Clicking element (failed)', mark: 'error' });
+});
+
+test('the badge says ON only while an agent that may use a tab is connected', () => {
+  const open = { clientId: 'c-me', clientName: 'Me', paused: false, suspended: false };
+  const me = { id: 'c-me', name: 'Me' };
+  const other = { id: 'c-other', name: 'Other' };
+  // The user is asked, or a command runs: that comes first.
+  assert.equal(badgeFor(true, true, [open], [me]), '?');
+  assert.equal(badgeFor(false, true, [open], [me]), 'RUN');
+  // A tab and its agent, both there: an agent may act.
+  assert.equal(badgeFor(false, false, [open], [me]), 'ON');
+  // The tab is authorized and its agent's server is gone: nobody can act. This said ON once.
+  assert.equal(badgeFor(false, false, [open], []), 'OFF');
+  assert.equal(badgeFor(false, false, [open], [other]), 'OFF', 'another agent cannot use it');
+  // A tab no agent has taken up yet is for whichever agent is connected.
+  const unclaimed = { ...open, clientId: null, clientName: null };
+  assert.equal(badgeFor(false, false, [unclaimed], [other]), 'ON');
+  assert.equal(badgeFor(false, false, [unclaimed], []), 'OFF');
+  // An agent that was started again takes up what its former self left, by its name.
+  assert.equal(badgeFor(false, false, [open], [{ id: 'c-new', name: 'Me' }]), 'ON');
+  assert.equal(badgeFor(false, false, [open], [{ id: 'c-new', name: '' }]), 'OFF', 'not before it has said its name');
+  // One tab that can be acted on is enough for ON.
+  const left = { ...open, clientId: 'c-gone', clientName: 'Gone' };
+  assert.equal(badgeFor(false, false, [left, open], [me]), 'ON');
+  // Paused and suspended tabs are not ON, whoever is connected.
+  assert.equal(badgeFor(false, false, [{ ...open, paused: true }], [me]), 'II');
+  assert.equal(badgeFor(false, false, [{ ...open, suspended: true }], [me]), '');
+  assert.equal(badgeFor(false, false, [{ ...open, paused: true }, left], [me]), 'OFF');
+  assert.equal(badgeFor(false, false, [], [me]), '');
+});
+
+test('a server that leaves two heartbeats in a row unanswered is taken for gone', () => {
+  assert.equal(HEARTBEATS_UNANSWERED, 2);
+  assert.equal(serverGone(0), false);
+  assert.equal(serverGone(1), false, 'one may be late');
+  assert.equal(serverGone(2), true);
+  assert.equal(serverGone(3), true);
 });

@@ -14,7 +14,14 @@ import java.util.List;
  * leaves out. One server is one agent, so there is nothing of other agents in it.
  */
 record PanelModel(String agent, String identity, int port, String version, String problem, boolean connected,
-        boolean switchedOff, String connection, List<Row> sessions, int calls, List<Share> times, List<String> log) {
+        boolean switchedOff, String connection, List<Row> sessions, int tabs, int calls, List<Share> times,
+        List<String> log) {
+
+    /**
+     * How many sessions the panel lists. The window has a fixed height and must keep room for its
+     * controls, so the rest are counted and not listed: the extension's popup lists every tab.
+     */
+    static final int LISTED = 3;
 
     /** One session, as the popup lists it: its id, the site, the access level and what state it is in. */
     record Row(String id, String site, String access, String state) {
@@ -46,7 +53,7 @@ record PanelModel(String agent, String identity, int port, String version, Strin
                 (named ? agent + "  ·  " + clientId : "Agent " + clientId) + "  ·  port " + port,
                 port, version, problem, connected, switchedOff,
                 connection(connected, switchedOff, connectedSince, lastCloseCode, zone),
-                sessions.stream().map(PanelModel::row).toList(), time.calls(), shares(time),
+                sessions.stream().limit(LISTED).map(PanelModel::row).toList(), sessions.size(), time.calls(), shares(time),
                 log.stream().map(line -> logLine(line, zone)).toList());
     }
 
@@ -116,7 +123,13 @@ record PanelModel(String agent, String identity, int port, String version, Strin
 
     /** How many tabs this agent has, in the popup's words. */
     String sessionsCount() {
-        return sessions.isEmpty() ? "no tabs" : sessions.size() == 1 ? "1 tab" : sessions.size() + " tabs";
+        return tabs == 0 ? "no tabs" : tabs == 1 ? "1 tab" : tabs + " tabs";
+    }
+
+    /** What is said under the listed sessions when there are more of them; empty when all are listed. */
+    String notListed() {
+        int more = tabs - sessions.size();
+        return more <= 0 ? "" : "and " + more + " more: the extension's popup lists every tab";
     }
 
     /** Over how many calls the time is counted. */

@@ -129,6 +129,9 @@ Port:          47821
 Click the goblin in Chrome's toolbar, paste the token into **Pairing token**, leave the port as it
 is, and press **Save and connect**.
 
+A server that shows [its panel](user-guide.md#9-the-servers-panel) saves you the command: its
+**Copy** button puts the token on the clipboard.
+
 <img src="images/popup-pairing.png" width="354" alt="The popup before pairing">
 
 The token is created on first use and kept in `.browser-context-mcp/pairing-token` in your home

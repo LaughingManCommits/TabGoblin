@@ -9,13 +9,13 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope,
+  ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, badgeFor, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
-  judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, sessionsOfAgent,
+  judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
   type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
-  CLOSE_UNAUTHORIZED, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
+  CLOSE_UNAUTHORIZED, CLOSE_UNRESPONSIVE, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
   type CommandMessage,
 } from './protocol.ts';
 import type { SubmitBaseline } from './submit.ts';
@@ -103,6 +103,8 @@ interface Client {
   name: string;
   authenticated: boolean;
   keepalive?: ReturnType<typeof setInterval>;
+  /** Heartbeats sent since the server last said anything. */
+  unanswered: number;
   limiter: RateLimiter;
   seen: RecentIds;
 }
@@ -257,24 +259,12 @@ function pushActivity(entry: ActivityEntry): void {
   refreshBadge();
 }
 
+/** The badge says what is so now: it is set anew whenever a session, a command or a connection changes. */
 function refreshBadge(): void {
   const running = persisted.activity.some((a) => a.status === 'running');
-  const active = persisted.sessions.filter((s) => !s.paused && !s.suspended).length;
-  const paused = persisted.sessions.some((s) => s.paused && !s.suspended);
-  let text = '';
-  let color = '#5f6368';
-  if (pendingConfirms.size) {
-    text = '?';
-    color = '#d97706';
-  } else if (running) {
-    text = 'RUN';
-    color = '#2563eb';
-  } else if (!active && paused) {
-    text = 'II';
-  } else if (active) {
-    text = 'ON';
-    color = '#15803d';
-  }
+  const connected = [...clients.values()].filter((c) => c.authenticated).map((c) => ({ id: c.clientId, name: c.name }));
+  const text = badgeFor(pendingConfirms.size > 0, running, persisted.sessions, connected);
+  const color = { '?': '#d97706', RUN: '#2563eb', ON: '#15803d', OFF: '#5f6368', II: '#5f6368', '': '#5f6368' }[text];
   void chrome.action.setBadgeText({ text });
   void chrome.action.setBadgeBackgroundColor({ color });
 }
@@ -1241,7 +1231,7 @@ function connectPort(port: number): void {
   if (existing && existing.ws.readyState <= WebSocket.OPEN) return;
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
   const client: Client = {
-    port, ws, clientId: '', name: '', authenticated: false,
+    port, ws, clientId: '', name: '', authenticated: false, unanswered: 0,
     limiter: new RateLimiter(COMMANDS_PER_SECOND, COMMAND_BURST), seen: new RecentIds(),
   };
   clients.set(port, client);
@@ -1251,6 +1241,8 @@ function connectPort(port: number): void {
   let handshake: Promise<void> = Promise.resolve();
 
   ws.onmessage = (event) => {
+    // Whatever it says, it is there.
+    client.unanswered = 0;
     if (typeof event.data !== 'string' || event.data.length > MAX_INBOUND_CHARS) {
       ws.close(1009, 'Message too large');
       return;
@@ -1279,6 +1271,8 @@ function connectPort(port: number): void {
           if (session.clientId === client.clientId) session.clientName = msg.name || null;
         }
         save();
+        // A name can make a session this agent's: one its former self left behind.
+        refreshBadge();
       }
     };
     if (client.authenticated) {
@@ -1324,7 +1318,19 @@ function connectPort(port: number): void {
         versionMismatch = false;
         // Regular traffic also keeps the MV3 service worker alive while connected.
         client.keepalive = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) ws.send('{"type":"ping"}');
+          // A connection can stay open to a server that hangs. One that has answered none of the
+          // last heartbeats is taken for gone, as if it had closed: the popup and the badge then
+          // say what is so, and the port is looked at again.
+          if (serverGone(client.unanswered)) {
+            dropClient(client, CLOSE_UNRESPONSIVE, 'No answer to the heartbeat');
+            pushState();
+            setTimeout(() => scan(true), 1500);
+            return;
+          }
+          if (ws.readyState === WebSocket.OPEN) {
+            client.unanswered += 1;
+            ws.send('{"type":"ping"}');
+          }
         }, 20000);
         pushState();
       } else {

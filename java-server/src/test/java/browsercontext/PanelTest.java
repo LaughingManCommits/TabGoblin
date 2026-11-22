@@ -203,6 +203,53 @@ class PanelTest {
     }
 
     @Test
+    void theCopyButtonAsksForThePairingTokenAndTheWindowNeverHoldsIt() throws Exception {
+        List<String> seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model(true, false));
+            var steps = new ArrayList<String>();
+            steps.add(view.copy().getText() + " -> " + sent);
+            view.copy().fire();
+            steps.add(view.copy().getText() + " -> " + sent);
+            // Bringing the view up to date asks for nothing again.
+            view.show(model(true, false));
+            steps.add(view.copy().getText() + " -> " + sent);
+            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "Paste it into the extension's popup."))));
+            return steps;
+        });
+        assertEquals(List.of("Copy -> []", "Copied -> [CopyToken[]]", "Copied -> [CopyToken[]]", "true"), seen);
+    }
+
+    @Test
+    void aSecretLeavesTheClipboardAgainUnlessSomethingElseWasCopiedSince() throws Exception {
+        List<String> seen = inTheWindow(sent -> {
+            // A clipboard of the test's own: the system's is the user's and is not touched here.
+            var clipboard = new String[] {"what the user had"};
+            var secret = new Panel.Secret(() -> clipboard[0], text -> clipboard[0] = text, () -> clipboard[0] = null);
+            var steps = new ArrayList<String>();
+            secret.copy("the token");
+            steps.add("copied: " + clipboard[0] + ", holds=" + secret.holds());
+            secret.forget();
+            steps.add("forgotten: " + clipboard[0] + ", holds=" + secret.holds());
+            secret.copy("the token");
+            clipboard[0] = "something the user copied since";
+            secret.forget();
+            steps.add("forgotten after another copy: " + clipboard[0] + ", holds=" + secret.holds());
+            // Forgetting twice, or with nothing copied, takes nothing away.
+            clipboard[0] = "the token";
+            secret.forget();
+            steps.add("forgotten again: " + clipboard[0]);
+            return steps;
+        });
+        assertEquals(List.of(
+                "copied: the token, holds=true",
+                "forgotten: null, holds=false",
+                "forgotten after another copy: something the user copied since, holds=false",
+                "forgotten again: the token"), seen);
+        assertEquals(60, (int) Panel.Secret.STAYS.toSeconds());
+    }
+
+    @Test
     void theWindowsIconIsTheGoblinInAFormTheWindowTakes() throws Exception {
         List<String> icons = inTheWindow(sent -> Panel.Goblin.icons().stream().map(icon -> {
             int size = (int) icon.getWidth();

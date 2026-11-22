@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import tools.jackson.databind.JsonNode;
 
@@ -143,7 +144,7 @@ public final class McpMain {
         }
         BrowserService service = new BrowserService(bridge, startupProblem);
         if (options.panel()) {
-            showPanel(bridge, startupProblem, Panel::possible);
+            showPanel(bridge, startupProblem, tokens, Panel::possible);
         }
 
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
@@ -166,32 +167,50 @@ public final class McpMain {
      * its panel: without a display, or if the window cannot be made, it says so in the log and
      * runs as it does without the option. Returns whether the panel was opened.
      */
-    static boolean showPanel(WebSocketBridge bridge, String startupProblem, BooleanSupplier possible) {
+    static boolean showPanel(WebSocketBridge bridge, String startupProblem, Supplier<String> token,
+            BooleanSupplier possible) {
         try {
             if (!possible.getAsBoolean()) {
                 Log.warn("panel not shown reason=no_display");
                 return false;
             }
-            Panel.open(() -> PanelModel.of(bridge, startupProblem), command -> {
-                switch (command) {
-                    case Panel.Command.Connection connection -> bridge.setHeld(!connection.on());
-                    case Panel.Command.Stop stop -> {
-                        Log.info("stopping on the user's word in the panel");
-                        end();
-                    }
-                    // At once, and without the order of an ending: that is what it is for.
-                    case Panel.Command.Kill kill -> {
-                        // The last line of this server: nothing is ended in order after it.
-                        Log.warn("ending at once on the user's word in the panel");
-                        Runtime.getRuntime().halt(1);
-                    }
-                }
-            });
+            Panel.open(() -> PanelModel.of(bridge, startupProblem),
+                    command -> carryOut(command, bridge, token, Panel::copySecret));
             Log.info("panel shown");
             return true;
         } catch (RuntimeException | LinkageError e) {
             Log.warn("panel not shown reason=" + e.getClass().getSimpleName());
             return false;
+        }
+    }
+
+    /**
+     * What a command from the panel does.
+     *
+     * @param token     the pairing token as it is now; asked only when the user wants it copied
+     * @param clipboard where a copied token goes. The token goes nowhere else: not into the log,
+     *                  and not into what the panel shows
+     */
+    static void carryOut(Panel.Command command, WebSocketBridge bridge, Supplier<String> token,
+            Consumer<String> clipboard) {
+        switch (command) {
+            case Panel.Command.Connection connection -> bridge.setHeld(!connection.on());
+            case Panel.Command.CopyToken copy -> {
+                clipboard.accept(token.get());
+                Log.info("pairing token copied to the clipboard in the panel");
+            }
+            case Panel.Command.Stop stop -> {
+                // A token that is still on the clipboard does not outlive the server it was copied from.
+                Panel.forgetSecret();
+                Log.info("stopping on the user's word in the panel");
+                end();
+            }
+            // At once, and without the order of an ending: that is what it is for.
+            case Panel.Command.Kill kill -> {
+                // The last line of this server: nothing is ended in order after it.
+                Log.warn("ending at once on the user's word in the panel");
+                Runtime.getRuntime().halt(1);
+            }
         }
     }
 

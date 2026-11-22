@@ -703,3 +703,39 @@ panel's tests in CI, a name on the taskbar. What needs no decision:
 - **The six tests of the window do not run in CI.** A virtual display on the Linux runner
   would run them and, with them, the jar's native part for Linux; it cannot be tried on this
   machine.
+
+### Part 3: asked for by the owner after the merge
+
+All on 2026-11-22, on the branch `aftercare`, in two commits made on the owner's word. What
+was run is in the validation log.
+
+- **A simple command for the panel, and a page of commands.** "how do i run with single command
+  the server with ui panel", then "we need like cheat sheet md with all the important
+  commands". The user guide's section on the panel opens with the command now, and
+  `docs/cheatsheet.md` has the important commands on one line each, with the page that
+  explains each under its table.
+- **The panel can copy the pairing token.** "the server pannel should means to copy access
+  token to clipboard". A **Copy** button puts the token on the clipboard and nowhere else: not
+  into the window, not into the log. It leaves the clipboard after a minute, and at Stop, if it
+  is still what the clipboard holds.
+- **The panel keeps its controls in view.** Found while the button was added, and not asked
+  for: with six tabs or more, the list of sessions pushed the switch, Stop and Kill out of the
+  bottom of the window, where they could not be reached. Now three sessions are listed and the
+  rest counted, the window is as high as the screen allows, and the part between the header
+  and the controls scrolls where even that is not enough.
+- **The extension shows what is so.** "the extension should refresh and not show stale state,
+  check if it still connected to a server". Two things were stale. The badge said `ON` for an
+  authorized tab whether or not an agent was connected; it says `OFF` now when nobody is there
+  to act. And a server that hangs stayed "connected" for good, because the heartbeat's answers
+  were never counted; now two in a row without an answer take the server for gone, within a
+  minute, and it is found again when it answers.
+
+Left open by this part:
+
+- The copy button was pressed in the real window on Windows only. The clipboard on Linux and
+  macOS was not tried.
+- `OFF` is a new word on the toolbar, chosen by the session: it is the owner's to keep or to
+  change. The popup's own wording is unchanged.
+- While a server hangs, its agent's tool calls get no answer, as before: the extension notices,
+  the agent's program does not.
+- A screen lower than the window was drawn, not seen: no machine with one was at hand.

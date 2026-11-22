@@ -81,12 +81,37 @@ class McpMainTest {
     }
 
     @Test
+    void thePairingTokenGoesToTheClipboardAndNowhereElse() {
+        String token = "5e".repeat(32);
+        var clipboard = new java.util.ArrayList<String>();
+        var asked = new java.util.concurrent.atomic.AtomicInteger();
+        Log.keep(20);
+        try {
+            // The bridge is not looked at: a copy is between the token and the clipboard.
+            McpMain.carryOut(new Panel.Command.CopyToken(), null, () -> {
+                asked.incrementAndGet();
+                return token;
+            }, clipboard::add);
+            assertEquals(List.of(token), clipboard);
+            assertEquals(1, asked.get(), "the token is read when it is asked for, once");
+            // The log says that it happened and has nothing of the token.
+            Log.Line said = Log.recent().get(Log.recent().size() - 1);
+            assertEquals("pairing token copied to the clipboard in the panel", said.text());
+            for (Log.Line line : Log.recent()) {
+                assertFalse(line.text().contains(token.substring(0, 8)), line.text());
+            }
+        } finally {
+            Log.keep(0);
+        }
+    }
+
+    @Test
     void withoutADisplayTheServerRunsWithoutItsPanelAndSaysSo() {
         Log.keep(20);
         try {
             long before = Log.count();
             // No window system is touched: the bridge is not even looked at.
-            assertFalse(McpMain.showPanel(null, null, () -> false));
+            assertFalse(McpMain.showPanel(null, null, () -> "not asked for", () -> false));
             assertEquals(before + 1, Log.count());
             Log.Line said = Log.recent().get(Log.recent().size() - 1);
             assertEquals("warn", said.level());

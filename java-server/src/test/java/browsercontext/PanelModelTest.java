@@ -46,6 +46,22 @@ class PanelModelTest {
     }
 
     @Test
+    void withManyTabsThreeAreListedAndTheRestAreCounted() {
+        // The window has a fixed height: a list as long as the tabs would push its controls out of it.
+        var nine = java.util.stream.IntStream.rangeClosed(1, 9)
+                .mapToObj(n -> session("s" + n, "https://site-" + n + ".example.org", "read", "active")).toList();
+        PanelModel shown = model(true, false, 0, 0, nine);
+        assertEquals(List.of("s1", "s2", "s3"), shown.sessions().stream().map(PanelModel.Row::id).toList());
+        assertEquals(9, shown.tabs());
+        assertEquals("9 tabs", shown.sessionsCount());
+        assertEquals("and 6 more: the extension's popup lists every tab", shown.notListed());
+        // Up to three, all are listed and nothing is said beyond them.
+        assertEquals("", model(true, false, 0, 0, nine.subList(0, 3)).notListed());
+        assertEquals("and 1 more: the extension's popup lists every tab", model(true, false, 0, 0, nine.subList(0, 4)).notListed());
+        assertEquals("", model(true, false, 0, 0, List.of()).notListed());
+    }
+
+    @Test
     void oneLineSaysWhetherTheBrowserIsConnectedSinceWhenOrWhyNot() {
         long tenPastNoon = 12 * 3_600_000L + 10 * 60_000L + 7_000L;
         assertEquals("Connected to the browser since 12:10:07", model(true, false, tenPastNoon, 0, List.of()).connection());

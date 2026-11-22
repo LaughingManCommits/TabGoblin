@@ -6,6 +6,8 @@ export const PROTOCOL_VERSION = 2;
 export const CLOSE_UNAUTHORIZED = 4401;
 export const CLOSE_USER_DISCONNECTED = 4403;
 export const CLOSE_VERSION = 4406;
+/** The extension closes with this when a server has left its heartbeats unanswered. */
+export const CLOSE_UNRESPONSIVE = 4408;
 
 export interface CommandMessage {
   id: string;

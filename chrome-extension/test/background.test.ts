@@ -28,6 +28,10 @@ const pageLog: string[] = [];
 const waits = new Map<string, (reply: object) => void>();
 /** What a fake page answers to an operation, where a test needs more than an echo. */
 const pageResults = new Map<string, object>();
+/** What the badge on the toolbar was set to, in order. */
+const badges: string[] = [];
+/** Every repeating timer the worker set up, so that a test can let one come round without waiting for it. */
+const intervals: { fn: () => void; ms: number }[] = [];
 /** What the pages were told for their notice, in order: the tab, the state, and what else came with it. */
 const notices: { tab: number; state: unknown; text?: unknown; ended?: unknown }[] = [];
 
@@ -93,7 +97,10 @@ const fakeChrome = {
     onUpdated: new FakeEvent(), onRemoved: new FakeEvent(), onCreated: new FakeEvent(), onActivated: new FakeEvent(),
   },
   scripting: { executeScript: async () => [{}] },
-  action: { setBadgeText: async () => undefined, setBadgeBackgroundColor: async () => undefined, openPopup: async () => undefined },
+  action: {
+    setBadgeText: async ({ text }: { text: string }) => { badges.push(text); },
+    setBadgeBackgroundColor: async () => undefined, openPopup: async () => undefined,
+  },
   alarms: { create: async () => undefined, onAlarm: new FakeEvent() },
 };
 
@@ -106,6 +113,8 @@ class FakeServer {
   eager = false;
   /** The answers to those commands, in order. One that is never answered stays pending. */
   eagerAnswers: Promise<any>[] = [];
+  /** A server that hangs: its connections stay open, and it says nothing, to old ones and to new ones. */
+  silent = false;
   closeCodes: number[] = [];
   events: any[] = [];
   private nonce = 'a'.repeat(32);
@@ -124,11 +133,21 @@ class FakeServer {
   attach(socket: FakeSocket): void {
     this.socket = socket;
     this.paired = false;
+    if (this.silent) return;
     this.deliver({ type: 'challenge', nonce: this.nonce, versions: this.versions });
   }
 
+  /** The server runs again: a connection that was made meanwhile gets its answer now. */
+  wake(): void {
+    this.silent = false;
+    if (this.socket?.readyState === 1 && !this.paired) this.deliver({ type: 'challenge', nonce: this.nonce, versions: this.versions });
+  }
+
   async receive(msg: any): Promise<void> {
-    if (msg.type === 'auth') {
+    if (this.silent) return;
+    if (msg.type === 'ping') {
+      this.deliver({ type: 'pong' });
+    } else if (msg.type === 'auth') {
       assert.equal(msg.proof, await clientProof(TOKEN, this.nonce, msg.nonce), 'the extension must prove it knows the token');
       this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: 2, clientId: this.clientId, clientName: this.name });
       this.paired = true;
@@ -230,7 +249,10 @@ before(async () => {
   (globalThis as any).WebSocket = FakeSocket;
   // The worker's periodic scan would otherwise keep the test process alive.
   const realSetInterval = globalThis.setInterval;
-  (globalThis as any).setInterval = (fn: () => void, ms: number) => realSetInterval(fn, ms).unref();
+  (globalThis as any).setInterval = (fn: () => void, ms: number) => {
+    intervals.push({ fn, ms });
+    return realSetInterval(fn, ms).unref();
+  };
   await import('../src/background.ts');
   // Paired as the worker sees it. A fake server calls itself paired when it has sent `auth_ok`;
   // the worker checks that proof a moment later, and a test that starts in between finds no agent.
@@ -923,4 +945,71 @@ test('the page is told what runs and how it ended, in the list\'s fixed words an
   for (const notice of notices.slice(start)) {
     assert.deepEqual(Object.keys(notice).filter((key) => !['tab', 'state', 'text', 'ended'].includes(key)), []);
   }
+});
+
+test('a server that stops answering is taken for gone, and the badge says ON only while an agent is there to act', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  const quiet = new FakeServer('c-quiet', 'quiet-agent');
+  servers.set(BASE_PORT + 6, quiet);
+  const found = async (): Promise<boolean> => (await state()).clients.some((c: any) => c.id === 'c-quiet');
+  for (let i = 0; i < 120 && !(await found()); i++) await sleep(50);
+  assert.ok(await found(), 'the new server is found');
+  tabs.set(9, { id: 9, url: 'https://quiet.example/board', status: 'complete', active: false, windowId: 1, title: 'Board' });
+  const reply = await popup({ type: 'authorize', tabId: 9, mode: 'read', clientId: 'c-quiet' });
+  assert.equal(reply.ok, true);
+  const sid = reply.state.sessions.at(-1).id;
+  assert.equal(code(await quiet.command('snapshot', { session: sid })), 'ok');
+  await sleep(30);
+  assert.equal(badges.at(-1), 'ON');
+
+  // The heartbeat of this connection is the last one that was set up; it comes round every twenty seconds.
+  const beat = intervals.filter((i) => i.ms === 20000).at(-1)!.fn;
+  // A server that answers stays, however many heartbeats pass.
+  for (let i = 0; i < 5; i++) {
+    beat();
+    await sleep(20);
+  }
+  assert.ok(await found());
+  assert.equal(quiet.closeCodes.length, 0);
+
+  // It hangs: the connection stays open, and nothing comes back.
+  quiet.silent = true;
+  beat();
+  await sleep(20);
+  beat();
+  await sleep(20);
+  assert.ok(await found(), 'two heartbeats are let go by: one answer may be late');
+  assert.equal(quiet.closeCodes.length, 0);
+  beat();
+  await until(async () => !(await found()), 'the silent server to be taken for gone');
+  assert.ok(quiet.closeCodes.includes(4408));
+  // The other agents are untouched, and the tab stays authorized: the popup says that its agent
+  // is not connected, and the badge no longer says that an agent may act.
+  const s = await state();
+  assert.deepEqual(s.clients.map((c: any) => c.id).sort(), ['c-one', 'c-two']);
+  assert.equal(s.sessions.find((x: any) => x.id === sid).ownerConnected, false);
+  await sleep(30);
+  assert.equal(badges.at(-1), 'OFF');
+  // While it hangs it is looked for again, and gets no further than a connection without an answer.
+  for (let i = 0; i < 40; i++) {
+    await state();
+    await sleep(50);
+  }
+  assert.equal(await found(), false);
+
+  // It runs again: it is found, the tab is its own as before, and the badge says ON.
+  quiet.wake();
+  for (let i = 0; i < 120 && !(await found()); i++) await sleep(50);
+  assert.ok(await found(), 'the server is found again');
+  assert.equal(code(await quiet.command('snapshot', { session: sid })), 'ok');
+  await sleep(30);
+  assert.equal(badges.at(-1), 'ON');
+
+  await popup({ type: 'revoke', session: sid });
+  tabs.delete(9);
+  servers.delete(BASE_PORT + 6);
+  quiet.socket?.close();
+  await until(async () => !(await found()), 'the server to be gone at the end');
+  await sleep(30);
+  assert.equal(badges.at(-1), '', 'no tab is authorized: the badge says nothing');
 });

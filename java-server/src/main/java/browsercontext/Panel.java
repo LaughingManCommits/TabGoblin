@@ -73,6 +73,80 @@ final class Panel {
         /** Ends the process at once, for a server that hangs. */
         record Kill() implements Command {
         }
+
+        /** Puts the pairing token on the clipboard, for the extension's popup. The panel itself never holds it. */
+        record CopyToken() implements Command {
+        }
+    }
+
+    /**
+     * A secret on the system's clipboard, for a while. It is taken away again after a minute, and
+     * when the server is stopped from its panel, but only if it is still what the clipboard holds:
+     * what the user has copied since is theirs. A history of the clipboard that the system keeps is
+     * out of reach, and so is a clipboard that the server leaves behind when it ends within that
+     * minute.
+     */
+    static final class Secret {
+        static final Duration STAYS = Duration.seconds(60);
+        private final Supplier<String> held;
+        private final Consumer<String> put;
+        private final Runnable empty;
+        private final PauseTransition gone = new PauseTransition(STAYS);
+        private String secret;
+
+        /** @param held what the clipboard holds now; {@code put} replaces it, {@code empty} clears it */
+        Secret(Supplier<String> held, Consumer<String> put, Runnable empty) {
+            this.held = held;
+            this.put = put;
+            this.empty = empty;
+            gone.setOnFinished(over -> forget());
+        }
+
+        static Secret onTheSystemsClipboard() {
+            var clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+            return new Secret(clipboard::getString, text -> {
+                var content = new javafx.scene.input.ClipboardContent();
+                content.putString(text);
+                clipboard.setContent(content);
+            }, clipboard::clear);
+        }
+
+        void copy(String text) {
+            secret = text;
+            put.accept(text);
+            gone.playFromStart();
+        }
+
+        /** Takes the secret off the clipboard, unless something else has been copied since. */
+        void forget() {
+            gone.stop();
+            if (secret != null && secret.equals(held.get())) {
+                empty.run();
+            }
+            secret = null;
+        }
+
+        boolean holds() {
+            return secret != null;
+        }
+    }
+
+    /** The one secret this process may have on the clipboard. Used on JavaFX's thread only. */
+    private static Secret onClipboard;
+
+    /** Puts a secret on the system's clipboard, to be taken away again. On JavaFX's thread. */
+    static void copySecret(String text) {
+        if (onClipboard == null) {
+            onClipboard = Secret.onTheSystemsClipboard();
+        }
+        onClipboard.copy(text);
+    }
+
+    /** Takes back what {@link #copySecret} put there, if it is still there. On JavaFX's thread. */
+    static void forgetSecret() {
+        if (onClipboard != null) {
+            onClipboard.forget();
+        }
     }
 
     /** How many log lines the panel keeps and shows. */
@@ -81,7 +155,8 @@ final class Panel {
     static final Duration ARMED_FOR = Duration.seconds(4);
 
     static final double WIDTH = 400;
-    static final double HEIGHT = 720;
+    /** As high as the window is where the screen has room for it; on a lower screen it is as high as fits. */
+    static final double HEIGHT = 760;
     /** Room around the window's body for its shadow, where the window floats. */
     private static final double SHADOW = 22;
     /** The ground of the panel, as the stylesheet has it: what a window in the system's frame is filled with. */
@@ -109,6 +184,7 @@ final class Panel {
             Platform.setImplicitExit(false);
             var first = model.get();
             var view = new View(commands);
+            view.fit(Math.min(HEIGHT, Screen.getPrimary().getVisualBounds().getHeight() - 48));
             view.show(first);
 
             boolean floating = floats(System.getProperty("os.name", ""), Platform.isSupported(ConditionalFeature.TRANSPARENT_WINDOW));
@@ -281,12 +357,14 @@ final class Panel {
         private final VBox timeRows = new VBox();
         private final TextArea log = lines();
         private final ToggleButton browser = new ToggleButton();
+        private final Button copy = new Button("Copy");
         private final Region knob = new Region();
         private final Label browserHint = label("", "hint");
         private final Label version = label("", "foot");
         private final EndButton stop;
         private final EndButton kill;
         private List<PanelModel.Row> shownRows;
+        private int shownTabs = -1;
         private List<PanelModel.Share> shownTimes;
         private Boolean shownConnected;
 
@@ -354,12 +432,48 @@ final class Panel {
                     + "What it was doing in the browser then has an unknown outcome."));
             var ends = new HBox(stop, kill);
             ends.getStyleClass().add("row");
-            var control = card("Control", null, connect, ends,
+
+            // The pairing token is handed over and never shown: a click puts it on the clipboard.
+            copy.setMinWidth(76);
+            copy.setAccessibleText("Copy the pairing token to the clipboard");
+            copy.setTooltip(new Tooltip("Puts the pairing token on the clipboard, for the extension's popup.\n"
+                    + "It is not shown here, and it leaves the clipboard again after a minute."));
+            var copied = new PauseTransition(Duration.seconds(3));
+            copied.setOnFinished(over -> copy.setText("Copy"));
+            copy.setOnAction(click -> {
+                commands.accept(new Command.CopyToken());
+                copy.setText("Copied");
+                copied.playFromStart();
+            });
+            var pairing = new HBox(
+                    new VBox(label("Pairing token", "strong"), label("Paste it into the extension's popup.", "hint")), grow(), copy);
+            pairing.getStyleClass().add("row");
+
+            var control = card("Control", null, connect, pairing, ends,
                     label("Stop ends it in order. Kill ends the process at once.", "hint"));
 
             var foot = new HBox(grow(), version);
 
-            root.getChildren().addAll(header, status, problem, sessions, time, logCard, control, foot);
+            // What is above and below is always whole: whose server this is, and its controls. What
+            // lies between takes the room that is left, and scrolls where a screen is too low for it.
+            var between = new VBox(sessions, time, logCard);
+            between.getStyleClass().add("between");
+            var middle = new ScrollPane(between);
+            middle.getStyleClass().add("middle");
+            middle.setFitToWidth(true);
+            middle.setFitToHeight(true);
+            middle.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            middle.setFocusTraversable(false);
+            VBox.setVgrow(middle, Priority.ALWAYS);
+
+            root.getChildren().addAll(header, status, problem, middle, control, foot);
+        }
+
+        /** Makes the body this high: the log takes what is left over, and gives it up first. */
+        void fit(double height) {
+            root.setPrefHeight(height);
+            root.setMinHeight(height);
+            root.setMaxHeight(height);
         }
 
         /** The view's own node: the window's body. */
@@ -410,12 +524,16 @@ final class Panel {
             problem.setManaged(model.problem() != null);
             version.setText("TabGoblin " + model.version() + " · protocol " + Protocol.VERSION);
             sessionCount.setText(model.sessionsCount());
-            if (!model.sessions().equals(shownRows)) {
+            if (!model.sessions().equals(shownRows) || model.tabs() != shownTabs) {
                 shownRows = model.sessions();
+                shownTabs = model.tabs();
                 sessionRows.getChildren().setAll(shownRows.isEmpty()
                         ? List.of(label(model.connected() ? "No tab is authorized for this agent"
                                 : "Not known while the browser is not connected", "empty"))
                         : shownRows.stream().map(View::sessionRow).toList());
+                if (!model.notListed().isEmpty()) {
+                    sessionRows.getChildren().add(label(model.notListed(), "empty"));
+                }
             }
             callsCount.setText(model.callsCount());
             if (!model.times().equals(shownTimes)) {
@@ -527,6 +645,8 @@ final class Panel {
             // A long line goes on below itself: the window is narrow, and nobody scrolls sideways to read.
             area.setWrapText(true);
             area.setPrefRowCount(4);
+            // It gives its room up before anything else does, but not all of it.
+            area.setMinHeight(44);
             area.getStyleClass().add("lines");
             area.setStyle("-fx-font-family: '" + monospace() + "';");
             return area;
@@ -563,6 +683,11 @@ final class Panel {
             return browser;
         }
 
+        /** The button that copies the pairing token, for a test. */
+        Button copy() {
+            return copy;
+        }
+
         /** The box with the log's lines, for a test: to scroll in it and to mark some of it, as a user does. */
         TextArea log() {
             return log;
@@ -584,6 +709,8 @@ final class Panel {
                     case Label label when !label.getText().isEmpty() -> into.add(label.getText());
                     case TextArea area -> into.add(area.getText());
                     case Button button when button.getText() != null && !button.getText().isEmpty() -> into.add(button.getText());
+                    // What scrolls is held by its pane, also before the pane has been drawn.
+                    case ScrollPane pane when pane.getContent() instanceof Parent inner -> collect(inner, into);
                     case Parent inner -> collect(inner, into);
                     default -> {
                     }

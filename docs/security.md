@@ -186,7 +186,8 @@ is loaded. What it shows and how to use it is in the
 |---|---|
 | No new way in | It is a window of the server's process, not a page: no port is opened for it, and no website or other program can reach it |
 | Nothing of a page | A session is shown by its site, its access level and its state. The title and the address of its page, which the status tool gives the agent, are not shown. The log is the server's log, with the limits above |
-| It only takes away | Stop, kill, and a switch that closes the connection to the extension and refuses it until switched on. It authorizes no tab and changes no access level |
+| It gives an agent nothing | Stop, kill, and a switch that closes the connection to the extension and refuses it until switched on. It authorizes no tab and changes no access level |
+| The pairing token is handed over, not shown | A button puts the token on the clipboard, for the popup. The token is read at that moment and goes nowhere else: it is not in the window, not in what the window is given to show, and not in the log, which says only that it was copied. It leaves the clipboard after a minute, and when the server is stopped from the panel, if it is still what the clipboard holds |
 | Ending takes two clicks | Stop and Kill act on the second click, within four seconds of the first. No button has the keyboard when the window appears |
 | Memory only | The last 300 log lines are kept in memory for the window and nowhere else. Nothing of TabGoblin's is written to disk for it |
 
@@ -198,8 +199,13 @@ Where it stops:
   disconnect the agent in the popup.
 - **The popup does not say why.** A server that is switched off refuses the extension before
   any pairing; to the extension it looks like a server that is not running.
-- **Anyone at the desktop can use it.** The window asks for nothing before it stops a server.
-  It can end the user's own agent's server and nothing else.
+- **Anyone at the desktop can use it.** The window asks for nothing before it stops a server
+  or copies the token. Someone who can do that can also read the token's file: the button
+  opens no door that was shut.
+- **The clipboard is the system's.** Other programs can read it while the token is there, as
+  they can when the token is copied from a terminal. A history of the clipboard that the system
+  keeps is not emptied, and a server that ends within the minute, other than by its Stop
+  button, leaves the token where it is.
 - **Kill skips the orderly end.** The extension is not told; it finds the connection gone. A
   command that was running has an unknown outcome.
 
@@ -244,6 +250,8 @@ Where it stops:
 | Switched off in the panel, the extension is closed and not let in, without that counting as a failed pairing; the agent is told why; switched on, it pairs again | Java |
 | A button of the panel that ends the server acts on the second click only; bringing the panel up to date sends the server nothing | Java (needs a display) |
 | Log lines are kept in memory only when the panel is asked for | Java |
+| The pairing token that the panel copies goes to the clipboard and into no log line; it leaves the clipboard again unless something else was copied since | Java (the clipboard's part needs a display) |
+| The badge says `ON` only while a connected agent may use an open tab; a server that leaves two heartbeats unanswered is taken for gone | Rules, worker, end-to-end |
 | Logs free of token and content | End-to-end |
 
 "Rules" are the pure functions in `policy.ts`; "DOM" the snapshot, extract and interaction tests;

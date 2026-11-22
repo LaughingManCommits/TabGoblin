@@ -1832,9 +1832,17 @@ try {
     has(servers[0].stderr, 'category=AUTHORIZATION');
     has(servers[0].stderr, 'scope_violation=true');
   });
-  await step('servers exit when their MCP client closes stdin', async () => {
+  await step('servers exit when their MCP client closes stdin, and the badge stops saying that an agent may act', async () => {
+    // A tab is still authorized, and neither paused nor suspended: with its agent there, the badge says ON.
+    const sessions = (await (await worker()).evaluate(() => chrome.storage.session.get('state'))).state.sessions;
+    assert(sessions.some((s) => !s.paused && !s.suspended), 'no tab is left authorized and open at the end of the suite: this step needs one');
+    await until(async () => (await badge()) === 'ON', 'the badge to say ON while the agents are connected');
     assert(await one.close() === 0, 'agent one did not exit cleanly');
     assert(await two.close() === 0, 'agent two did not exit cleanly');
+    // The tab stays authorized, and nobody is there to act on it. The badge said ON for that once.
+    await until(async () => (await badge()) === 'OFF', 'the badge to say OFF once no server is left');
+    const popup = await openPopup();
+    await popup.waitForFunction(() => document.getElementById('connection').textContent.startsWith('Disconnected'));
   });
 } finally {
   await browser?.close().catch(() => undefined);

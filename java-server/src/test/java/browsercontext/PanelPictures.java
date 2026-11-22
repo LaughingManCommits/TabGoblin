@@ -41,6 +41,9 @@ final class PanelPictures {
             try {
                 for (var state : states()) {
                     var view = new Panel.View(command -> { });
+                    if (state.height() > 0) {
+                        view.fit(state.height());
+                    }
                     view.show(state.model());
                     if (state.armed()) {
                         view.ends().get(0).fire();
@@ -60,10 +63,18 @@ final class PanelPictures {
         }
     }
 
-    /** {@code armed}: Stop has had its first click. {@code framed}: as in the system's own window, where the panel does not float. */
-    private record State(String name, PanelModel model, boolean armed, boolean framed) {
+    /**
+     * {@code armed}: Stop has had its first click. {@code framed}: as in the system's own window, where
+     * the panel does not float. {@code height}: as high as on a screen that has no room for more; 0
+     * for the window's own height.
+     */
+    private record State(String name, PanelModel model, boolean armed, boolean framed, double height) {
         State(String name, PanelModel model, boolean armed) {
-            this(name, model, armed, false);
+            this(name, model, armed, false, 0);
+        }
+
+        State(String name, PanelModel model, boolean armed, boolean framed) {
+            this(name, model, armed, framed, 0);
         }
     }
 
@@ -89,7 +100,12 @@ final class PanelPictures {
                         "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
                         false, false, 0, 0, List.of(), none, List.of()), false),
                 new State("5-armed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions.subList(0, 1), times, log), true),
-                new State("6-framed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false, true));
+                new State("6-framed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false, true),
+                new State("7-many-tabs", model("claude-code", null, true, false, NOW - 498_000, 0, many(9), times, log), false),
+                // The most there is to show, on a screen 768 pixels high with a taskbar: everything has to stay inside.
+                new State("8-low-screen", model("claude-code",
+                        "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
+                        true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680));
     }
 
     private static PanelModel model(String agent, String problem, boolean connected, boolean off, long since, int closeCode,
@@ -102,6 +118,13 @@ final class PanelPictures {
         // A title and an address, as the extension reports them: the panel must show neither.
         return new Protocol.Session(id, "c-7240df8e", "a-" + id, origin, 7, 0, "d1", mode, 3, state,
                 "A page title that must not show", origin + "/a/path/that/must/not/show");
+    }
+
+    /** More tabs than the window has room for. */
+    private static List<Protocol.Session> many(int count) {
+        return java.util.stream.IntStream.rangeClosed(1, count)
+                .mapToObj(n -> session("s" + n, "https://site-" + n + ".example.org", n % 3 == 0 ? "write" : "explore", n == 4 ? "paused" : "active"))
+                .toList();
     }
 
     private static Log.Line line(long secondsAgo, String level, String text) {

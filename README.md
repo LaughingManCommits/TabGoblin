@@ -84,6 +84,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 |---|---|
 | [Installation](docs/installation.md) | Build the server and the extension, load it in Chrome, connect your agent, pair |
 | [User guide](docs/user-guide.md) | Authorize tabs, the popup, submissions, troubleshooting |
+| [Cheat sheet](docs/cheatsheet.md) | The commands at a glance: build, pair, run with the panel, stop, test |
 | [Tool reference](docs/tools.md) | Every tool with real outputs, completeness, every error code |
 | [Editors](docs/editors.md) | Which rich-text and code editors can be filled, how, and what was measured |
 | [Architecture](docs/architecture.md) | Processes, protocol, sessions, refs, navigation, submissions |
@@ -94,8 +95,8 @@ The [installation guide](docs/installation.md) walks through each step with what
 ## Verify
 
 ```sh
-mvn -f java-server/pom.xml verify       # 84 tests, then the built jar checked against the protocol
-cd chrome-extension && npm run check    # 151 tests, type-check, build
+mvn -f java-server/pom.xml verify       # 88 tests, then the built jar checked against the protocol
+cd chrome-extension && npm run check    # 154 tests, type-check, build
 cd e2e && npm install && npm test       # 94 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 13 editor libraries and 2 plain controls
 ```

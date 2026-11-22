@@ -9,6 +9,7 @@ own Chrome with your own logins, without handing them cookies, tokens or the abi
 |---|---|
 | [Installation](installation.md) | build it and get it into Chrome, step by step |
 | [User guide](user-guide.md) | authorize a tab, and understand what the popup shows and does |
+| [Cheat sheet](cheatsheet.md) | find a command: build, pair, run with the panel, stop, test |
 | [Tool reference](tools.md) | know what each tool takes and returns, with real outputs and every error code |
 | [Editors](editors.md) | know which rich-text and code editors an agent can fill, and how that works |
 | [Architecture](architecture.md) | understand how the pieces fit: processes, protocol, sessions, refs, submissions |
