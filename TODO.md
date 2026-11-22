@@ -696,6 +696,10 @@ panel's tests in CI, a name on the taskbar. What needs no decision:
   it is told so. Read in the source, not timed: the wait that is meant for a server that has
   just started is taken once more when the extension is gone, also when it is the panel that
   keeps it out (`awaitExtension` in `BrowserService.java`).
+- **GitHub's zoom buttons lie over the bottom right corner of a diagram that spans the column.**
+  The picture in the two READMEs has an empty place there now. In the architecture page the
+  buttons cover the lower "Content script" box of "A command, end to end"; the upper one is
+  whole. The other four diagrams of that page were not all looked at.
 - **The six tests of the window do not run in CI.** A virtual display on the Linux runner
   would run them and, with them, the jar's native part for Linux; it cannot be tried on this
   machine.

@@ -6,8 +6,9 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 - `main` = `origin/main` = `42eb02b`: the owner's merge of `server-panel` on 2026-11-22, which
   is WP-13, the server's panel. Earlier branches are merged.
-- Branch `docs-pass`, made from it on 2026-11-22: one commit, made on the owner's word, with
-  the first part of WP-18, a pass over the documentation. Not pushed and not merged.
+- Branch `docs-pass`, made from it on 2026-11-22: the first part of WP-18, a pass over the
+  documentation, committed on the owner's word. The owner pushed the branch
+  (`origin/docs-pass`); it is not merged.
 
 ## Active work
 
@@ -128,7 +129,7 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   check and the personal check. For the panel itself, earlier that day: the two suites of the
   server and the suite end to end in a copy of the tree, and the real window by hand. Details
   in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `docs-pass`. The first
+- **Next action:** the owner's merge of `docs-pass`. The first
   CI run with credit is the first to run the panel's code on GitHub. Then the second part of
   WP-18, WP-13's open points, WP-14's remainder (the address, the history), and the decisions
   on WP-12 and WP-15 to WP-17. Of those WP-17, a new token at every start, was recommended as

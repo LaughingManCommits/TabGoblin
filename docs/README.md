@@ -18,6 +18,7 @@ own Chrome with your own logins, without handing them cookies, tokens or the abi
 
 ## The idea in one picture
 
+<!-- The same picture is in the root README.md: change both. -->
 ```mermaid
 flowchart LR
   subgraph IDE["Your machine"]
@@ -31,6 +32,9 @@ flowchart LR
   end
   S1 -- "WebSocket on 127.0.0.1<br/>paired with a token" --> X
   S2 -- "WebSocket on 127.0.0.1" --> X
+  %% An empty place at the right edge: GitHub lays its zoom buttons over the bottom right corner of a diagram.
+  T3 ~~~ ROOM["&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"]
+  style ROOM fill:none,stroke:none
 ```
 
 - The **agent** understands the website and decides what to do.

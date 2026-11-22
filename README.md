@@ -10,9 +10,23 @@ cookies, tokens or the ability to run code, and they reach only the tabs and web
 
 <br clear="left">
 
-```text
-IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┐
-IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┼──> TabGoblin extension ──> authorized tabs
+<!-- The same picture is in docs/README.md, under "The idea in one picture": change both. -->
+```mermaid
+flowchart LR
+  subgraph IDE["Your machine"]
+    A1["AI agent<br/>(IDE, CLI)"] -- "MCP over stdio" --> S1["Java MCP server"]
+    A2["Another agent"] -- "MCP over stdio" --> S2["Java MCP server"]
+  end
+  subgraph Chrome["Your Chrome"]
+    X["TabGoblin extension"] --> T1["Tab you authorized<br/>session s1"]
+    X --> T2["Another authorized tab<br/>session s2"]
+    X -. "no access" .-> T3["Every other tab"]
+  end
+  S1 -- "WebSocket on 127.0.0.1<br/>paired with a token" --> X
+  S2 -- "WebSocket on 127.0.0.1" --> X
+  %% An empty place at the right edge: GitHub lays its zoom buttons over the bottom right corner of a diagram.
+  T3 ~~~ ROOM["&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"]
+  style ROOM fill:none,stroke:none
 ```
 
 <img src="docs/images/popup-sessions.png" width="354" alt="The TabGoblin popup with two sessions"> <img src="docs/images/popup-confirm.png" width="354" alt="The popup asking to allow a submission">

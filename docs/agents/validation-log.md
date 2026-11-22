@@ -65,6 +65,22 @@ rows in the troubleshooting table. In `AGENTS.md`: that the panel repeats the po
 and the goblin's shapes by hand. Not tried: the close button of a frame on Linux; that it puts
 the window away there too is read in the source.
 
+After the commit of this pass, on the owner's word: the root README's picture, two lines of
+plain text, is now the Mermaid diagram of `docs/README.md`, block for block, as every other
+diagram in the documentation is one. Both copies carry a comment that says to change both.
+
+Seen on GitHub, through TabGoblin, on the docs index as it is on `main`: GitHub lays its
+buttons for zooming over the bottom right corner of a diagram, and where a diagram spans the
+column they cover what is there. In this one that was most of the box "Every other tab", the
+one the words "no access" point to. Both copies now have an empty place at the right edge,
+with a comment that says why. That was checked by drawing the diagram with the Mermaid
+library in a headless Chrome, in a frame of GitHub's width with the corner marked that the
+buttons took in the picture from GitHub (112 by 105 pixels): before, "Every other tab" lay
+under it; now nothing does. Not seen: the corrected diagram on GitHub itself; it is not
+pushed. In the architecture page the diagram "Reading a page" is narrower than the column
+and clear of the buttons; in "A command, end to end" they cover the lower of the two boxes
+"Content script", whose upper one is whole. That was left as it is.
+
 Moved out of the architecture page, where they were told as a story; they are measurements of
 2026-11-22, made while the panel was built:
 
