@@ -4,24 +4,50 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `2c26e0b`: the owner's merge of `notice-box` on 2026-11-22, which is
-  WP-11. Earlier branches are merged.
-- Branch `ci-tab-address`, made from it on 2026-11-22: one commit, made on the owner's word,
-  with a fix to three steps of the end-to-end suite, for the one step that failed in CI run
-  #12. Not pushed and not merged.
+- `main` = `origin/main` = `3aa4d5f`: the owner's merge of `ci-tab-address` on 2026-11-22, the
+  fix to three steps of the end-to-end suite. Earlier branches are merged.
+- Branch `server-panel`, made from it on 2026-11-22: WP-13, the server's panel. Not pushed and
+  not merged.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| The suite asks where a tab is before its driver knows | Fixed and committed on `ci-tab-address`; not merged, and not yet run on GitHub. It failed one step in CI run #12 | [validation log](validation-log.md) |
+| WP-13, a panel for the server | Built on `server-panel`; waits for the owner's review and merge. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
+| WP-18, aftercare of the panel, and the documentation gone over | Filed on 2026-11-22 with the panel. Its first part, a pass over the documentation, is the next thing done; its second lists what the panel left behind that needs no decision | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
-| WP-12, WP-13, WP-15 | Filed on 2026-11-21, none started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step | [TODO.md](../../TODO.md) |
+| WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
 | WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
+- **The server's panel was seen on two systems.** Windows 11 with Java 21 and 26: the window,
+  its icon on the taskbar, and every control pressed in the real window. Ubuntu 26.04 in the
+  Linux subsystem of Windows with Java 21: the framed window with the whole panel, and the
+  server ending in order; its buttons were not pressed there. Not run: macOS, any other Linux
+  desktop, a scaled screen, a screen reader.
+- **The panel's window has no frame on Windows only.** On Linux the frameless see-through
+  window was there for the system and drew nothing; the owner saw it first, as an icon on the
+  taskbar and nothing else. No test finds that: a drawing of the panel is right when the
+  window is not. The runbook says what to look at by hand ("Look at the server's panel").
+- **CI does not run the panel.** Its runner has no display, so the six tests of the window are
+  skipped there (shown on this machine with `-Djava.awt.headless=true`: 6 skipped, the others
+  pass). The jar's native part for Linux has run only in the Linux subsystem.
+- **A server that is switched off in its panel looks to the popup like one that does not run:**
+  it says *Disconnected: is the MCP server running?*. The extension is refused before any
+  pairing and is not told why. Saying so needs a close code of its own, on both sides.
+- **The panel's window takes the keyboard when it appears,** as a new window does. No button in
+  it has the keyboard then, so a key typed at that moment presses nothing; it still goes to
+  the panel and not to where the user was typing.
+- **A server with its panel writes lines that are not its own to standard error:** one warning
+  of JavaFX at the start, on Java 21 and 26; and on Java 26 four lines of Java's, that a method
+  JavaFX uses for drawing is to be removed in a future release. With a log level of `off` they
+  still come. Nothing goes to standard output. What the panel does on a Java without that
+  method is not known; such a Java was not at hand.
+- **When its first port is taken, a server prints a stack trace** of the socket library before
+  it takes the next port. Seen while trying the panel; it is so on `main` too (the logging
+  library that prints it was there before) and was not looked into.
 - **The notice sits where a page may have a button of its own.** It is fixed to the bottom right
   corner, as the pill was. A click on it goes through to the page everywhere but on Pause; a
   button of the page that lies under Pause cannot be clicked while the bar is there, and what
@@ -54,21 +80,23 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   [security.md](../security.md#agents) says so. WP-17 would change it.
 - **The tree's `chrome-extension/dist` is of WP-11.** An extension that is loaded from it takes
   the change up when it is reloaded in `chrome://extensions`.
-- **The jar in `java-server/target` is older than the sources.** The session's own TabGoblin
-  server runs from that jar, so the suites that need a jar were run in a copy of the tree, with
-  a jar built there. Build it (`mvn -B -f java-server/pom.xml package`) before the suites are
-  run in the tree, and restart an agent to get the new server.
-- **CI passes on `main`:** run #13 (`2c26e0b`, the merge of `notice-box`) passed in all five
-  jobs, read on GitHub on 2026-11-22. Of the day's other runs, #11 (`3071781`) passed, and with
-  it the fifth job, "Nothing personal", on Linux for the first time; #12 (`5274b04`, the merge
-  of `disconnect-revokes`) failed in one step end to end, 92 of 93. That step is not one WP-10
-  touched: see the next point. One passing run does not show that a fault of timing is gone
-  for good.
+- **The jar in `java-server/target` is older than the sources,** and has no panel. The
+  session's own TabGoblin server runs from that jar, so the suites that need a jar were run in
+  a copy of the tree, with a jar built there. Build it (`mvn -B -f java-server/pom.xml
+  package`) before the suites are run in the tree or the panel is asked for, and restart an
+  agent to get the new server.
+- **CI passes on `main`:** run #14 (`3aa4d5f`, the merge of `ci-tab-address`) completed
+  successfully, read from the list of runs on GitHub on 2026-11-22; its jobs were not opened.
+  It is the first run with the fix to the suite's three steps. Before it, #13 (`2c26e0b`)
+  passed in all five jobs, #11 (`3071781`) passed, and #12 (`5274b04`, the merge of
+  `disconnect-revokes`) failed in one step end to end, 92 of 93. One passing run does not show
+  that a fault of timing is gone for good. `server-panel` has not been on GitHub.
 - **Why run #12 failed is concluded, not shown.** The step asked the suite's driver where the
   tab was right after the agent's tools had said that it had left its site, and the driver
   still named the page before. The two tool results in front of it passed, so the extension
   had seen the move. It never failed on this machine, and it passed in run #13 without the
-  fix. The fix on `ci-tab-address` waits for the address in the three places that ask this way.
+  fix and in run #14 with it. The fix waits for the address in the three places that ask this
+  way.
 - **Every commit still carries the owner's mail address**, a new one too: it comes from the
   owner's git settings. See WP-14, "What remains".
 - **Which of two causes failed the end-to-end job in run #8 is not known.** Both give the
@@ -90,10 +118,14 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22. On GitHub: run #13, all five jobs, for `main` as it is. On
-  `ci-tab-address`: the suite end to end in a copy of the tree, 94 passed, with the fix to its
-  three steps. Nothing else was run for the fix, which changes the suite and no product code.
-  Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `ci-tab-address`; that run is the first to
-  have the fix on GitHub. Then WP-14's remainder (the address, the history), and the decisions
-  on WP-12, WP-13 and WP-15 to WP-17.
+- **Last verification:** 2026-11-22, on `server-panel`, in a copy of the tree with a jar built
+  there: the server's 84 tests and the 8 of the conformance check, and the suite end to end, 94
+  passed. By hand: the real window on Windows with every control pressed, the real extension
+  against the switch and Stop, and the window on Linux in the Linux subsystem. Not run: the
+  extension's own suite and the editor lab, of which no file changed. Details in the
+  [validation log](validation-log.md).
+- **Next action:** the owner's review of the panel (a server started with `--panel`, after the
+  jar is built), then the push and merge of `server-panel`; that run is the first of the
+  panel's code on GitHub, where the runner has no display. Then WP-13's open points, WP-14's
+  remainder (the address, the history), and the decisions on WP-12 and WP-15 to WP-17. Of
+  those WP-17, a new token at every start, was recommended as the next to build.

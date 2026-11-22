@@ -129,6 +129,44 @@ public class WebSocketBridge extends WebSocketServer {
         return connection.sessions();
     }
 
+    /** The name the MCP client gave itself, or empty while it has not. */
+    String clientName() {
+        return clientName;
+    }
+
+    /** When the extension connected, in milliseconds since the epoch, or 0 while it is not connected. */
+    long connectedSince() {
+        return connection.connectedSince();
+    }
+
+    /** The close code of the last connection that ended, or 0. */
+    int lastCloseCode() {
+        return connection.lastCloseCode();
+    }
+
+    /** Whether the user switched this server's connection to the browser off, in the panel. */
+    boolean isHeld() {
+        return connection.held();
+    }
+
+    /**
+     * Switches this server's connection to the browser off or on, for the panel. Off closes the
+     * connection that is there and takes no new one, so the extension's next look for servers does
+     * not bring it back. It can only take away: it gives the agent nothing that the user did not
+     * give it in the popup, and on again the extension pairs as it always does.
+     */
+    void setHeld(boolean off) {
+        connection.held(off);
+        Log.info("connection to the browser switched " + (off ? "off" : "on") + " in the panel");
+        if (off) {
+            for (WebSocket conn : getConnections()) {
+                if (conn.isOpen()) {
+                    conn.close(CloseFrame.GOING_AWAY, "Switched off in the server's panel");
+                }
+            }
+        }
+    }
+
     public ObjectMapper json() {
         return json;
     }
@@ -219,6 +257,11 @@ public class WebSocketBridge extends WebSocketServer {
         if (lockedOut()) {
             Log.warn("connection rejected reason=pairing_lockout");
             throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Too many failed pairing attempts");
+        }
+        if (connection.held()) {
+            // The extension looks for servers every half minute: said once when it was switched off, not each time.
+            Log.debug("connection rejected reason=switched_off_in_panel");
+            throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Switched off in the server's panel");
         }
         return super.onWebsocketHandshakeReceivedAsServer(conn, draft, request);
     }

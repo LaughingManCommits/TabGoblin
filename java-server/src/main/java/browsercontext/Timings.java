@@ -165,6 +165,31 @@ final class Timings {
         return done;
     }
 
+    /**
+     * Where the time of the kept calls went, in the four heaps a person looks for, in milliseconds:
+     * the agent between its calls, this server with the way to the extension, the browser, and the
+     * user. The panel draws them; the report below has every part on its own.
+     */
+    record Shares(int calls, long agent, long server, long browser, long user) {
+        long all() {
+            return agent + server + browser + user;
+        }
+    }
+
+    synchronized Shares shares() {
+        long agent = 0;
+        long server = 0;
+        long browser = 0;
+        long user = 0;
+        for (Call call : calls) {
+            agent += Math.max(0, call.gap());
+            server += call.server() + call.waited() + call.way();
+            browser += call.queue() + call.browser();
+            user += call.user();
+        }
+        return new Shares(calls.size(), agent, server, browser, user);
+    }
+
     /** The report for the status tool. Empty while no call has ended. */
     String report() {
         List<Call> all;

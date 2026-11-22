@@ -167,6 +167,39 @@ draws with the extension's own `notice.ts` in a plain page, starts no server and
 and takes seconds. What it does not show is the notice at work in a tab: `screenshots.mjs` takes
 that picture (`indicator.png`), and the end-to-end suite reads the real one.
 
+## Look at the server's panel
+
+After a change to the panel, picture its states and look at them:
+
+```sh
+mvn -q -f java-server/pom.xml test-compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
+cd java-server
+java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
+```
+
+On Linux and macOS the separator in the class path is `:`. Success: six pictures at double
+size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
+waiting for the extension, switched off, without a port, Stop armed, and the panel as it fills
+a window with the system's frame. They are drawn by the server's own code from made-up states;
+no window is shown and nothing of the screen is read. It needs a display, because JavaFX does
+not start without one. `1-connected.png` is the documentation's picture: copy it to
+`docs/images/server-panel.png` when it has changed.
+
+A drawing does not show the window on a desktop. For that, start a server by hand with its
+panel, on a port outside the range the extension looks at, so that your own extension does not
+pair with it:
+
+```sh
+java -jar java-server/target/browser-context-mcp.jar --panel --port 47840
+```
+
+Look at: the window and its place, the goblin on the taskbar instead of Java's icon, the switch
+(the log says `switched off in the panel`, and `on`), the dash, and the two buttons, each of
+which needs two clicks. **Stop server** ends the process with exit code 0, **Kill** with 1. Do
+this on each system the panel is to be trusted on: a see-through window that drew nothing on
+Linux was found this way, and by no test. Do not take pictures of the screen for it: a capture
+of a place on the screen shows whatever lies on top there.
+
 ## Change the version
 
 The version is written in seven places. Change all of them in one commit:

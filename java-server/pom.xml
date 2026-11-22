@@ -13,6 +13,8 @@
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- The long-term line of JavaFX that runs on Java 21, which this server targets. Newer lines need a newer Java. -->
+        <javafx.version>21.0.13</javafx.version>
     </properties>
 
     <dependencies>
@@ -33,6 +35,39 @@
             <artifactId>slf4j-simple</artifactId>
             <version>2.0.17</version>
         </dependency>
+        <!--
+          The server's panel (the option "panel") is a JavaFX window. Nothing of JavaFX is loaded
+          without that option. The classes come with the controls; the part that draws is native
+          and differs by system, so each system's is named here and goes into the one jar.
+
+          One jar holds one set of native files per system: those for Intel and for ARM have the
+          same names, and JavaFX looks for them by name. So it is Windows on x64, Linux on x64 and
+          macOS on Apple silicon. On a Mac with an Intel processor or on Linux on ARM the server
+          runs as everywhere; asked for its panel there, it says in its log that it cannot show it.
+        -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>win</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>linux</classifier>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>${javafx.version}</version>
+            <classifier>mac-aarch64</classifier>
+        </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -43,11 +78,21 @@
 
     <build>
         <finalName>browser-context-mcp</finalName>
-        <!-- The version is written into browsercontext/build.properties, where the server reads it. -->
+        <!-- The version is written into browsercontext/build.properties, where the server reads it. Nothing else is rewritten. -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+                <includes>
+                    <include>**/build.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>**/build.properties</exclude>
+                </excludes>
             </resource>
         </resources>
         <plugins>
@@ -95,6 +140,14 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>browsercontext.McpMain</mainClass>
+                                    <manifestEntries>
+                                        <!--
+                                          The panel's window draws through native code. Java 24 and newer warn
+                                          about a jar that does so without saying that it means to, and a later
+                                          Java will refuse it. Older Javas ignore the line.
+                                        -->
+                                        <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+                                    </manifestEntries>
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>

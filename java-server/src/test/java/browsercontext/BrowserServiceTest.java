@@ -391,6 +391,24 @@ class BrowserServiceTest {
     }
 
     @Test
+    void switchedOffInTheServersWindowStatusAndToolsSaySoAndWhatToAskTheUser() throws Exception {
+        bridge.setHeld(true);
+        for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
+            Thread.sleep(20);
+        }
+        BrowserService.ToolResult status = service.call("browser_status", args());
+        assertFalse(status.isError());
+        assertEquals("Extension: not connected (switched off in this server's window)\n"
+                + "The user switched this server's connection to the browser off, in the TabGoblin server window. "
+                + "Ask them to switch it on again there.", status.text());
+        // Not the advice for an extension that is not paired: pairing would change nothing here.
+        assertFalse(status.text().contains("pairing token"));
+        String refused = service.call("browser_snapshot", args()).text();
+        assertTrue(refused.startsWith("Error [NOT_CONNECTED]"), refused);
+        assertTrue(refused.contains("Ask them to switch it on again there."), refused);
+    }
+
+    @Test
     void mcpLayerExposesExactlyTheGenericToolsAndRoutesCalls() {
         List<SyncToolSpecification> specs = McpMain.toolSpecs(service, McpJsonDefaults.getMapper());
         assertEquals(List.of("browser_status", "browser_snapshot", "browser_extract", "browser_click",

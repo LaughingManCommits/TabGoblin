@@ -52,6 +52,15 @@ Session s1
 
 A suspended session adds a `State: suspended …` line; a session spanning several sites lists them.
 
+Without the extension the result says why, as far as the server knows, and what to ask the user
+for. One case has words of its own: the user switched this server's connection off in the
+[server's panel](user-guide.md#9-the-servers-panel).
+
+```text
+Extension: not connected (switched off in this server's window)
+The user switched this server's connection to the browser off, in the TabGoblin server window. Ask them to switch it on again there.
+```
+
 ### Where the time went
 
 With `diagnostics: true` the result also answers what is slow: the agent, the server, the
@@ -417,7 +426,7 @@ Every failure is `Error [CODE]: message`.
 
 | Code | Meaning |
 |---|---|
-| `NOT_CONNECTED` | No paired extension (never paired, token rotated, or the user disconnected this agent) |
+| `NOT_CONNECTED` | No paired extension (never paired, token rotated, the user disconnected this agent in the popup, or the user switched the connection off in the server's panel). The message says which, and what to ask the user for |
 | `NOT_AUTHORIZED` | This agent has no session |
 | `UNKNOWN_SESSION` | No such session id |
 | `SESSION_REQUIRED` | Several sessions exist; name one |
