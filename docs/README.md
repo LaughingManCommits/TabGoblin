@@ -23,16 +23,15 @@ own Chrome with your own logins, without handing them cookies, tokens or the abi
 ```mermaid
 flowchart LR
   subgraph IDE["Your machine"]
-    A1["AI agent<br/>(IDE, CLI)"] -- "MCP over stdio" --> S1["Java MCP server"]
-    A2["Another agent"] -- "MCP over stdio" --> S2["Java MCP server"]
+    A1["AI agent<br/>(IDE, CLI)"] -- "MCP over stdio" --> S["Java MCP server<br/>one for all agents"]
+    A2["Another agent"] -- "MCP over stdio" --> S
   end
   subgraph Chrome["Your Chrome"]
     X["TabGoblin extension"] --> T1["Tab you authorized<br/>session s1"]
     X --> T2["Another authorized tab<br/>session s2"]
     X -. "no access" .-> T3["Every other tab"]
   end
-  S1 -- "WebSocket on 127.0.0.1<br/>paired with a token" --> X
-  S2 -- "WebSocket on 127.0.0.1" --> X
+  S -- "a WebSocket for each agent, on 127.0.0.1<br/>paired with a token" --> X
   %% Empty places at the right edge: GitHub lays its zoom buttons over the bottom right corner of a
   %% diagram. One was too little: an empty box has next to no width there, only the gap before it.
   T3 ~~~ ROOM1[" "] ~~~ ROOM2[" "]
@@ -49,7 +48,7 @@ flowchart LR
 
 | Term | Meaning |
 |---|---|
-| Agent | One MCP client (an IDE's assistant, a CLI). Each starts its own server process. |
+| Agent | One MCP client (an IDE's assistant, a CLI). All agents are served by one server process, which the first of them starts. |
 | Session | One authorized tab, bound to one agent: `s1`, `s2`, … |
 | Origin | Scheme + host + port, e.g. `https://app.example.com`. A session covers the origins you gave it and nothing else. |
 | Access level | Read (look), Explore (also navigate and expand), Read / Write (also operate and submit). |

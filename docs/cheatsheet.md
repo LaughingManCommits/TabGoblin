@@ -15,17 +15,18 @@ and bash. Nothing is explained here: under each table is the page that explains 
 
 Explained in the [installation guide](installation.md).
 
-## The server, by hand
+## Commands you run yourself
 
-Your agent starts the server itself. These are for what you do yourself.
+Your agents start the server themselves: the first that needs it, for all of them. These are
+the commands for you.
 
 | To | Command |
 |---|---|
-| Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in a server's panel, which puts it on the clipboard |
+| Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in the server's window, which puts it on the clipboard |
 | Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
-| Run a server with its panel, to look at it | `java -jar java-server/target/browser-context-mcp.jar --panel`. No agent talks to this one: to watch your agent, add `--panel` to its own server ([Your agent](#your-agent)) |
+| See the server's window, with every agent in it | `java -jar java-server/target/browser-context-mcp.jar --panel`. It brings the window up and returns; if no server runs, it starts one, which stays until you stop it |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
-| Stop a server you started | Ctrl+C in its terminal, or **Stop server** in its panel |
+| Stop the server | **Stop server** in its window. Without that it ends by itself after its last agent |
 
 *Unknown option: --panel* means that the jar is from before the panel: build the server, then
 run the command again.
@@ -51,12 +52,12 @@ Explained in the installation guide, under
 [telling your agent about the server](installation.md#5-tell-your-agent-about-the-server) and
 [checking that it works](installation.md#7-check-that-it-works).
 
-## Find and stop servers
+## Find the server
 
 | To | Windows (PowerShell) | macOS and Linux |
 |---|---|---|
-| List the servers with their ports | `Get-NetTCPConnection -State Listen -LocalPort (47821..47828) -ErrorAction SilentlyContinue \| Select-Object LocalPort, OwningProcess` | `lsof -nP -iTCP:47821-47828 -sTCP:LISTEN` |
-| Stop one | `Stop-Process -Id <OwningProcess>` | `kill <PID>` |
+| Find the server: its ports, one for each agent and its own | `Get-NetTCPConnection -State Listen -LocalPort (47821..47829) -ErrorAction SilentlyContinue \| Select-Object LocalPort, OwningProcess` | `lsof -nP -iTCP:47821-47829 -sTCP:LISTEN` |
+| End a server that hangs. Agents that still run start it again at once | `Stop-Process -Id <OwningProcess>` | `kill <PID>` |
 
 Explained in the user guide, under [stopping](user-guide.md#8-stopping).
 

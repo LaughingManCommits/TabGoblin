@@ -168,13 +168,56 @@
 .sessions {
     -fx-spacing: 6;
 }
+/* A tab is a button: a click chooses it, and the cards below show that tab alone. */
 .session {
-    -fx-alignment: center-left;
-    -fx-spacing: 8;
-    -fx-padding: 7 9 7 9;
+    -fx-padding: 7 10 7 10;
     -fx-background-color: -tg-line, -tg-raised;
     -fx-background-insets: 0, 1;
     -fx-background-radius: 10, 9;
+    -fx-cursor: hand;
+}
+.session:hover {
+    -fx-background-color: -tg-muted, -tg-raised;
+}
+.session:selected {
+    -fx-background-color: -tg-accent, -tg-accent-soft;
+}
+.session:focused {
+    -fx-background-color: -tg-accent, -tg-raised;
+}
+.session:selected:focused {
+    -fx-background-color: -tg-accent, -tg-accent-soft;
+}
+.session-line {
+    -fx-alignment: center-left;
+    -fx-spacing: 8;
+}
+/* An agent's heading over its tabs, where a server has several agents: flat, and no box of its own. */
+.session.agent {
+    -fx-background-color: transparent, transparent;
+    -fx-padding: 7 10 7 2;
+}
+.session.agent:hover {
+    -fx-background-color: -tg-line, -tg-card;
+}
+.session.agent:selected,
+.session.agent:selected:focused {
+    -fx-background-color: -tg-accent, -tg-accent-soft;
+    -fx-padding: 7 10 7 10;
+}
+.session.agent:focused {
+    -fx-background-color: -tg-accent, -tg-card;
+}
+.agent-name {
+    -fx-font-weight: bold;
+    -fx-text-fill: -tg-fg;
+}
+/* The list of tabs scrolls where there are more than it shows at a time. */
+.session-list,
+.session-list > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
 }
 .site {
     -fx-font-weight: bold;

@@ -55,10 +55,12 @@ public class WebSocketBridge extends WebSocketServer {
     private final long authTimeoutMs;
     private final long lockoutMs;
     private final String clientId = "c-" + Pairing.randomHex(4);
+    /** This agent's lines in the log: they carry its id, and go to its own log and to no other agent's. */
+    private final Log.Scope log = Log.of(clientId);
     private volatile String clientName = "";
     private final ObjectMapper json = new ObjectMapper();
-    private final Timings timings = new Timings();
-    private final ExtensionConnection connection = new ExtensionConnection(json, timings);
+    private final Timings timings = new Timings(log);
+    private final ExtensionConnection connection = new ExtensionConnection(json, timings, log);
     private final CompletableFuture<Void> started = new CompletableFuture<>();
     private final Deque<Long> failedPairings = new ArrayDeque<>();
     /** Held while a connection becomes the paired one and is answered, and while the agent's name is passed on. */
@@ -157,7 +159,7 @@ public class WebSocketBridge extends WebSocketServer {
      */
     void setHeld(boolean off) {
         connection.held(off);
-        Log.info("connection to the browser switched " + (off ? "off" : "on") + " in the panel");
+        log.info("connection to the browser switched " + (off ? "off" : "on") + " in the panel");
         if (off) {
             for (WebSocket conn : getConnections()) {
                 if (conn.isOpen()) {
@@ -219,7 +221,7 @@ public class WebSocketBridge extends WebSocketServer {
         for (WebSocket conn : getConnections()) {
             Peer peer = conn.getAttachment();
             if (peer != null && peer.authenticated && !peer.tokenAtPairing.equals(current) && conn.isOpen()) {
-                Log.info("pairing ended reason=token_rotated");
+                log.info("pairing ended reason=token_rotated");
                 conn.closeConnection(CLOSE_UNAUTHORIZED, "Pairing token changed");
             }
         }
@@ -251,16 +253,16 @@ public class WebSocketBridge extends WebSocketServer {
     public ServerHandshakeBuilder onWebsocketHandshakeReceivedAsServer(WebSocket conn, Draft draft,
             ClientHandshake request) throws InvalidDataException {
         if (!originAllowed(request.getFieldValue("Origin"))) {
-            Log.warn("connection rejected reason=origin");
+            log.warn("connection rejected reason=origin");
             throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Origin not allowed");
         }
         if (lockedOut()) {
-            Log.warn("connection rejected reason=pairing_lockout");
+            log.warn("connection rejected reason=pairing_lockout");
             throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Too many failed pairing attempts");
         }
         if (connection.held()) {
             // The extension looks for servers every half minute: said once when it was switched off, not each time.
-            Log.debug("connection rejected reason=switched_off_in_panel");
+            log.debug("connection rejected reason=switched_off_in_panel");
             throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Switched off in the server's panel");
         }
         return super.onWebsocketHandshakeReceivedAsServer(conn, draft, request);
@@ -294,7 +296,7 @@ public class WebSocketBridge extends WebSocketServer {
             return;
         }
         if (peer != null && overRate(peer)) {
-            Log.warn("connection closed reason=rate_limit");
+            log.warn("connection closed reason=rate_limit");
             conn.close(Protocol.CLOSE_RATE_LIMITED, "Too many messages");
             return;
         }
@@ -350,12 +352,12 @@ public class WebSocketBridge extends WebSocketServer {
                 && Pairing.constantTimeEquals(proof, Pairing.clientProof(current, peer.nonce, clientNonce));
         if (!ok) {
             recordFailedPairing();
-            Log.warn("connection rejected reason=pairing_proof");
+            log.warn("connection rejected reason=pairing_proof");
             conn.close(CLOSE_UNAUTHORIZED, "Pairing failed");
             return;
         }
         if (msg.path("version").asInt(1) != Protocol.VERSION) {
-            Log.warn("connection rejected reason=protocol_version peer=" + msg.path("version").asInt(1));
+            log.warn("connection rejected reason=protocol_version peer=" + msg.path("version").asInt(1));
             conn.close(Protocol.CLOSE_VERSION, "Protocol version " + Protocol.VERSION
                     + " required: update the extension and the server to the same release");
             return;
@@ -381,7 +383,7 @@ public class WebSocketBridge extends WebSocketServer {
         if (replaced != null && replaced.isOpen()) {
             replaced.close(CLOSE_REPLACED, "Replaced by a newer connection");
         }
-        Log.info("extension connected client=" + clientId + " protocol=" + Protocol.VERSION);
+        log.info("extension connected client=" + clientId + " protocol=" + Protocol.VERSION);
     }
 
     @Override
@@ -393,7 +395,7 @@ public class WebSocketBridge extends WebSocketServer {
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
         Peer peer = conn.getAttachment();
         if (peer != null && peer.authenticated) {
-            Log.info("extension disconnected client=" + clientId + " code=" + code);
+            log.info("extension disconnected client=" + clientId + " code=" + code);
         }
         connection.detach(conn, code);
     }
@@ -404,7 +406,7 @@ public class WebSocketBridge extends WebSocketServer {
             started.completeExceptionally(ex);
             return;
         }
-        Log.warn("websocket error type=" + ex.getClass().getSimpleName());
+        log.warn("websocket error type=" + ex.getClass().getSimpleName());
     }
 
     @Override

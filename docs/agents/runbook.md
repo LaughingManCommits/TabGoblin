@@ -124,9 +124,12 @@ Pairing and authorizing a tab are in the [installation guide](../installation.md
 
 ## Stop a server that is still running
 
-A server ends when its agent closes it. One started by hand waits on its input and looks like a
-hang; Ctrl+C stops it. Finding a leftover one by its port is in the
-[user guide](../user-guide.md#8-stopping).
+There is one server for all agents (`javaw` on Windows, with `--hub` in its command line). It
+ends by itself three seconds after its last agent has gone, and by **Stop server** in its
+window. The process an agent starts is a pipe to it and ends when the agent closes it; run in a
+terminal without an option it waits on its input and looks like a hang, and Ctrl+C ends it. Ending
+the server's process is no stop: agents that still run start it again. Finding it by its ports
+is in the [user guide](../user-guide.md#8-stopping).
 
 ## Regenerate screenshots and examples
 
@@ -177,27 +180,29 @@ cd java-server
 java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
 ```
 
-On Linux and macOS the separator in the class path is `:`. Success: ten pictures at double
-size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
+On Linux and macOS the separator in the class path is `:`. Success: thirteen pictures at
+double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
-screen, and a server started by hand without a tab and with two. In every one the header and
-the whole Control card must be inside the window: look at the seventh and the eighth for that.
-The last two must say that no agent talks to the server: in a box under the status line, in
-both cards, and under the tabs, where the one that is open to any agent is marked *any agent*
-and the line speaks of the other. They are drawn by the server's own code from made-up states;
+screen, the server without an agent, with two agents, the first and the second tab clicked, and
+an agent clicked. In every one the header and the whole Control card must be inside the window:
+look at the seventh and the eighth for that; there the list of tabs shows three rows and has a
+scroll bar of its own. With two agents each has a heading over its tabs. Where a tab or an
+agent is clicked, it is marked, the corner of the Sessions card says which it is, and Metrics
+and Log name it and show its part alone; nothing below the list has moved. They are drawn by the server's own code from made-up states;
 no window is shown and nothing of the screen is read. It needs a display, because JavaFX does
 not start without one. `1-connected.png` is the documentation's picture: copy it to
 `docs/images/server-panel.png` when it has changed.
 
-A drawing does not show the window on a desktop. For that, start a server by hand with its
-panel, on a port outside the range the extension looks at, so that your own extension does not
-pair with it:
+A drawing does not show the window on a desktop. For that, open the server's window yourself,
+on ports of its own, so that it is a server beside the one your agents use and your own
+extension does not pair with it:
 
 ```sh
 java -jar java-server/target/browser-context-mcp.jar --panel --port 47840
 ```
 
+The command starts the server, says so and returns; the window says that no agent is connected.
 Look at: the window and its place, the goblin on the taskbar instead of Java's icon, the switch
 (the log says `switched off in the panel`, and `on`), **Copy** (the clipboard then holds the
 token of `--show-token`, the log says that it was copied and has nothing of it, and a minute
@@ -259,7 +264,7 @@ build their planted values while they run, so the test file passes the check.
 |---|---|---|
 | The editor lab cannot find `puppeteer-core` | `npm install` was run only in `e2e/editors` | `cd e2e && npm install` |
 | End-to-end or lab fails at start with a missing jar or `dist` | A part is not built | Build both parts |
-| A build is to replace `java-server/target/browser-context-mcp.jar` while a server runs from it | An agent whose MCP settings name the tree's jar has its server running from that file; your own session may be that agent | Do not build under it: copy the tree without `.git`, `node_modules`, `target` and `dist`, build and run the suites there, and build in the tree once that agent is closed. `mvn test` in the tree writes classes only and is safe |
+| A build is to replace `java-server/target/browser-context-mcp.jar` while a server runs from it | An agent whose MCP settings name the tree's jar has its process running from that file, and so has the one server (`javaw` with `--hub`), which that process started; your own session may be that agent | Do not build under it: copy the tree without `.git`, `node_modules`, `target` and `dist`, build and run the suites there, and build in the tree once that agent is closed. `mvn test` in the tree writes classes only and is safe |
 | A change to the extension has no effect in Chrome | The extension was not reloaded | Reload it in `chrome://extensions` |
 | `agnostic.test.ts` fails | A library name or a library's class name got into `chrome-extension/src`, also in a comment | Describe the DOM fact instead |
 | A Bash here-document with backslashes or quotes fails on Windows | Git Bash quoting | Write the script to a file and run the file |

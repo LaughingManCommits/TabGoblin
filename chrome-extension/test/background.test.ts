@@ -348,6 +348,18 @@ test('commands for one tab run in order, and a queued command can be cancelled b
   // A refusal and the status are answered at once, and say so.
   assert.deepEqual(Object.keys((await one.command('status')).timing).sort(), ['asked', 'queued', 'ran']);
   assert.ok((await one.command('evaluate')).timing.queued < 40, 'nothing was in its way');
+
+  // And each answer says in which session the command ran, also when the command named none and
+  // was given the agent's only one: the server's panel shows the times and the calls of one tab.
+  const own = (await state()).sessions.find((s: any) => s.clientId === 'c-one').id;
+  assert.equal(waited.session, own, 'the command named no session');
+  assert.equal((await one.command('snapshot', { session: own })).session, own);
+  assert.equal((await held).session, own, 'a command that was cancelled ran in one too');
+  // What runs in no session names none: the status, and a command that was turned away before a
+  // session was looked for.
+  assert.equal('session' in (await one.command('status')), false);
+  assert.equal('session' in (await one.command('status', { id: 'once-more' })), false);
+  assert.equal('session' in (await one.command('snapshot', { session: 's999' })), false, 'no such session');
 });
 
 test('a replayed id, a stale deadline, a malformed message and a flood are refused', async () => {

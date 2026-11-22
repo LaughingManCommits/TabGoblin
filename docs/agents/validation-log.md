@@ -3,6 +3,84 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `one-server`: WP-19, one server for all agents, and a click on a tab
+
+The owner, after a server started by hand had been taken five times for the server the agent
+uses: "only one instance of the server may be started", with several agents connected to it and
+each with its own tabs; and for its window: a click on a session shows that session's metrics
+and log, and no click shows all. Then: "okay do your recommendations". Built in two steps.
+
+**The click, in the window as it was.** Every tab is in the list, three show at a time and the
+list scrolls; a click on a tab shows that tab's metrics and log lines, a second click or Escape
+shows all. The extension says in each answer in which session a command ran, since a command
+may name none. Run in a copy of the tree with a jar built there: the server's 96 tests and the
+8 of the conformance check, the extension's 156, end to end 94 of 94. Pressed in a real window
+through the accessibility interface, with the suite's Chrome, two tabs and seven real calls:
+each tab chosen shows its own calls and its own lines, and the same tab again shows all.
+
+**The one server.** The process an agent's program starts is a pipe to the server, which it
+starts as a process of its own if none runs. All of the following on the final sources, in a
+copy of the tree with a jar built there.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 109 tests, 17 of them new since `by-hand-panel`, and the 8 of the conformance check on the built jar, which now goes through the pipe and the server it starts; none skipped, none failed. No server was left running six seconds after it |
+| `cd chrome-extension && npm run check` | type-check clean, 156 tests, build |
+| `cd e2e && npm test` | 94 passed, 0 failed, with the suite's two agents through one server. Two checks are new in it: the server listens for agents on the port after theirs and neither process serves alone, and nothing listens there once the last agent has gone |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The suite passed 94 of 94 before its two new checks as well, unchanged: an agent's own log, its
+port and its restart are to the suite as they were.
+
+Found by the first run with real processes, and by no test before it: six servers that the
+conformance check had started were still running forty minutes later. That check ends each
+process at once, and the server took a broken connection for none at all, so that it never
+counted its agent as gone. It takes it for the agent's going now. The test for it fails against
+the code as it was; after the fix no server was left behind.
+
+The picture tool drew thirteen states. Opened and looked at: a tab clicked, the second tab
+clicked, nine tabs, the low screen, no agent, two agents, and an agent clicked. Three things
+were mended by looking: the list of tabs did not stay at three rows with nine tabs; an agent's
+name was cut short when its row was marked; and the line that said what is chosen pushed the
+cards below it down at every click, so it stands in the corner of the card now.
+
+By hand, with real processes on Windows and Java 21, read and pressed through the
+accessibility interface:
+
+- Two agents' processes started as agents' programs start them: one server process (`javaw`)
+  and two pipes; the first agent opened in 666 ms, which includes the server's start, the
+  second in 198 ms. Ports listened on: one for each agent, and the server's own. The first
+  agent left: its process ended with code 0 after 9 ms and its output closed for the program
+  that had started it; the second went on working. After the last one the server was gone and
+  nothing listened.
+- The jar run in a console of its own with `--panel`, on ports apart from the owner's: the
+  command returned, one server ran that stays without an agent, and its window said that no
+  agent is connected. An agent's process started then showed in that
+  window by its name, 441 ms after its start. **Stop server**, pressed twice: the agent's
+  process ended with code 0 and the line that the user had stopped the server in its log, the
+  server was gone, and nothing started it anew.
+- Two agents with the suite's Chrome, each with a tab of its own and real calls, one window:
+  both agents with their headings, ids and ports; an agent clicked shows its five calls and its
+  seven lines and none of the other's; a tab of the other agent clicked shows its two; clicked
+  again, everything.
+
+On the owner's word that "typed by hand" is confusing, and to be critical of what the user
+reads, the words of the window, the terminal and the help text were gone over afterwards: the
+help text is in two parts, what you run and what your agent runs; the window said that no
+agent is connected twice, and "no tabs" twice in one card, and says each once now. The three
+suites were run once more on that, with the same counts, and the pictures drawn and the changed
+ones looked at.
+
+Not tried: Linux and macOS, where the server is started as a process of its own in another
+way; an IDE's program that ends every process below it when it closes, which would end the
+server with it and leave the taking over to the other agents; Kill in the real window with
+agents connected, and the taking over with real processes, which the tests do with a server
+that is dropped inside one Java process; the jar run in a terminal while a server already runs,
+which the tests do; a process that has to serve its agent alone because another program holds
+the server's port, of which the tests cover that it is found out and not the serving; the
+owner's own Chrome and Claude Code with this build, which needs both parts built in the tree.
+Not run: the editor lab; CI, which has no credit.
+
 ## 2026-11-22, on `by-hand-panel`: what a server started by hand says, a disconnected agent's server left alone, and a panel that shows what the agent did
 
 The owner asked for a walk through GitHub with the tools, and then for the fixes of what it
@@ -509,73 +587,17 @@ Also in this session, in a second commit: WP-16 and WP-17 filed in `TODO.md`, no
 WP-16, what the documentation has today was read, and no other tool. For WP-17, how the token
 is made, kept, found and rotated was read from the source; nothing was run.
 
-## 2026-11-21, on `ci-failures`: the CI failures of runs #7 and #8
-
-Read on GitHub by a session, through TabGoblin: five runs, of which #1, #3 and #4 passed.
-
-- Run #7 (`5c9f4ab`, the merge of `pairing-race`): the Java server job failed, four tests of
-  `BrowserServiceTest`. The other three jobs passed.
-- Run #8 (`1b28c91`, the merge of `folding-panels`): the Java server job failed, three tests of
-  `BrowserServiceTest`, one of them the same as in #7; and end to end, 91 passed and 2 failed:
-  "a second agent connects on its own port and is listed" (`Cannot read properties of undefined
-  (reading 'dataset')`) and, for want of that agent's id, "the user can disconnect one agent".
-
-Causes.
-
-1. **The server.** Since `34a81a8` it sent `auth_ok` before it took the connection for its
-   paired one. An extension that held `auth_ok` could find a tool call refused with
-   `NOT_CONNECTED`. The tests' setup returns the moment `auth_ok` arrives: that is the failure
-   of the Java server job, in other tests each time.
-2. **The agent's name could be lost, in two ways.** Given between the building of `auth_ok` and
-   the marking of the connection, it was neither in the answer nor sent behind it. And passing
-   it on stopped with an exception at a connection that a newer one had just replaced, before
-   the newer one was told. The popup then lists the agent by its id for good.
-3. **The end-to-end step.** It read the names in the popup right after the count of agents. An
-   agent names itself with its first tool call; when the extension has found its server before
-   that, the popup lists it by its id until its next refresh, 700 ms at most.
-
-Which of 2 and 3 failed the step in run #8 is not known; both give its message.
-
-Shown against the unfixed source:
-
-- Two new tests of `WebSocketBridgeTest` pair 200 times each: a command right behind the
-  pairing must reach the extension that paired, and a name given during a pairing must arrive.
-  Against the server's sources of `main`, seven runs (one free, three held to one core, three
-  to two): at least one of the two failed in every run, the name in six, the command in four.
-- End to end with the second agent's first tool call held back five seconds, the step as it
-  was, and the server already fixed: 91 passed, 2 failed, the two steps and messages of run #8.
-- Not shown: the failures of `BrowserServiceTest` themselves. They passed in every local run.
-
-After the fix. The server takes the connection and sends `auth_ok` as one step for its other
-threads; the name is passed on under the same lock, and a connection that has just closed no
-longer stops it; the step waits for the name. Built and run in a copy of the tree, because the
-session's own server was running from the tree's jar.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 64 tests; `McpConformanceIT` on the built jar: 8 tests |
-| `mvn -B -f java-server/pom.xml test`, held to one core (twice) and to two (three times) | 64 tests each time |
-| `WebSocketBridgeTest` on the final sources, held to two cores (six times) and to one (three times), with the end-to-end suite running beside it | 28 tests in eight runs; in one, `closesConnectionThatFloodsMessages` got close code 1006 instead of 4429 |
-| `cd e2e && npm test`, with the five seconds held back | 93 passed, 0 failed |
-| `cd e2e && npm test`, as it is | 93 passed, 0 failed |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Found on the way, in tests that CI has not failed in: four tests asked `connectBlocking` whether
-a connection had opened that the server closes right after; it says no when the close came
-first, which it did in both runs on two cores. They now ask for the close code only. And the
-flood test in the table above, which was left as it is; the state page has it.
-
-Not run: `npm run check` of the extension (nothing in it changed; it was built for the suite),
-the editor lab, the pictures, and the Linux container (Docker was not running).
-
-On GitHub, after the owner's push: run #9 (`9ea4734`, the merge of `ci-failures`) passed in all
-four jobs: Java server, Chrome extension, End to end, Editors.
-
-Also in this session: WP-10 to WP-14 filed in `TODO.md`, none started. For WP-14 the tracked
-files and the history were searched for personal information; what was found is in the package.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `ci-failures` (the CI failures of runs #7 and #8, read on GitHub through
+  TabGoblin): the server sent `auth_ok` before it took the connection for its paired one, so a
+  tool call right behind the pairing could be refused; an agent's name given during a pairing
+  could be lost; and an end-to-end step read the names in the popup too early. Shown against
+  the unfixed source by two tests that pair 200 times each, which failed in every one of seven
+  runs, and by the suite with the second agent's first call held back. After the fix: server
+  64 tests and 8 conformance tests, also held to one and two cores; end to end 93 of 93. Which
+  of two causes failed the step in run #8 is not known. Not shown: the failures of
+  `BrowserServiceTest` themselves, which passed in every local run.
 - 2026-11-21, on `folding-panels` (Sessions, Activity, Agents and Settings fold to one line
   each): extension 136 tests; end to end 93 of 93, with a step that folds all four and finds
   them folded when the popup opens again; editor lab 222 and 220 of 225, no `SILENT`; eleven

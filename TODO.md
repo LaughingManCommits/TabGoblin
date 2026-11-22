@@ -2,7 +2,7 @@
 
 ## Overview
 
-Eight packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Nine packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -12,8 +12,9 @@ branch `server-panel` and waits for the owner's review; its entry says what is t
 is open. The other four are not started, and each waits for the owner's word on its points.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
-in place of one for each; the owner said to build it as proposed. New work
-gets the next number, WP-20.
+in place of one for each; it is built and committed on the branch `one-server`. WP-20, filed on
+the same day, is a list of blocked sites in the server; the owner decided its points and said
+to build it after WP-19 is committed. New work gets the next number, WP-21.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -860,7 +861,7 @@ Read from the source and seen on 2026-11-22.
    sees one connection for each agent, as now. An agent's tabs are its own as before, and no
    tool tells an agent anything of another.
 3. **One window, for the user:** every agent with its tabs and its metrics, and one log that
-   names the agent in each line. Started by hand, the jar is the server if there is none; if
+   names the agent in each line. Run by the user, the jar is the server if there is none; if
    there is one, it brings that server's window up and ends.
 4. **When the server's process ends while agents are connected, a connector takes its place,**
    which is the owner's "this one will take over". The agents' tabs come back to them by
@@ -890,12 +891,44 @@ and in today's window.
    the agent's tabs.
 3. When the server ends. With its last agent, or by Stop (proposal). Or it stays until the
    user stops it, which leaves a process behind when every agent has gone.
-4. What starting the jar by hand does while a server runs. It brings the window up and ends
+4. What the jar does when the user runs it while a server runs. It brings the window up and ends
    (proposal). Or it is refused with a line that says which server runs.
 5. Ports. One for each agent inside the one server, as today (proposal: the extension does
    not change). Or one port for all, which is a new version of the protocol.
 6. How it goes together with WP-17, a new secret at every start. With one server "the latest
    token" has one meaning, and WP-17's first decision falls away; its others stay.
+
+### What was built
+
+On 2026-11-22, on the branch `one-server`, in the working tree. What was run is in the
+validation log. The proposals stand, with what building them showed:
+
+- **The click on a tab came first,** in the window as it was: every tab is in the list, which
+  scrolls, a click shows that tab's metrics and log lines, and the corner of the card says
+  which is chosen. The extension says in each answer which session a command ran in. With
+  several agents an agent's heading can be clicked the same way.
+- **The server is a process of its own.** The proposal had the first process that starts be
+  the server. Built so, the server would end with the agent whose program happened to start
+  first. So that agent's process starts the server as a separate process and is a pipe to it
+  like every other; the server ends three seconds after its last agent has gone.
+- **A process that cannot have the server serves its agent alone,** as before, and says so in
+  its log: where another program holds the server's port, or the server cannot be started.
+- **The jar that the user runs with `--panel`** brings the window up and returns. Without an
+  option it is what an agent starts, and waits; only the option decides, so that an agent's
+  program that runs the jar in a terminal of its own is not turned away.
+- **A server started by hand is no agent any more.** The name *Started by hand*, its tab that
+  nobody could use and its panel that showed nobody's work, which the third part of WP-18
+  explained in the panel, are gone: a server without an agent has no port to the extension,
+  and its window says that it waits for one.
+- **Kill is no stop.** Agents that still run start the server anew at once, which is what
+  they do when its process is gone. Stop tells them that it is a stop. The window's line
+  under the buttons does not say so yet.
+- **Found by the first run with real processes:** six servers that the conformance check had
+  started were still running forty minutes later. That check ends each process at once, and
+  the server took a broken connection for none at all. It now takes it for the agent's going.
+
+Not built: nothing tells the user in the window that the jar on disk is newer than the server
+that runs; an agent that connects after a rebuild is served by the server that was there.
 
 ### Tasks and acceptance
 
@@ -908,9 +941,121 @@ today), the ending and the taking over, and the window for several agents (`Pane
 its agent's tools work; two agents through one server each reach their own tab and not the
 other's; a connector without the token is refused, and so is one from another machine's
 address; the server's process is ended and a connector takes over, with the tabs back by name
-and the running call reported as unknown; started by hand with a server running, the jar ends
+and the running call reported as unknown; run by the user with a server running, the jar ends
 and the window is up. End to end: the suite's two agents through one server, and every step
 that ends or restarts a server. Then `docs/architecture.md` (processes, how a server ends),
 `docs/security.md` (the local connection, the panel's rules, what remains your risk), the user
 guide's sections on stopping and on the panel, the cheat sheet, the diagram in the two
 READMEs, and the conformance check, which starts the jar as an agent does.
+
+## WP-20: Blocked sites
+
+Asked for by the owner on 2026-11-22: "deny URL domain basically we can created blocked sites,
+this should be properties, any action tried on site is blocked by the mcp server". Goal: the
+user names sites that no agent may work on. Whatever a tab is authorized for, an action on such
+a site is refused by the server before it reaches the browser.
+
+### What happens today
+
+Read from the source on 2026-11-22 (`BrowserService.java`, `Agent.java`; `summarize`,
+`addOrigin` and `resolveSession` in the extension).
+
+- **There is only yes, by a click.** A site is open to an agent when the user authorizes a
+  tab on it, for that exact origin. Nothing says "never this site": a click on the wrong tab,
+  or on *Add this site* for a session that left its site, is all it takes.
+- **The server knows no website,** by the constraint in `AGENTS.md`, and decides nothing about
+  one. It passes the address of a navigation on as it was given, checked for length only. The
+  extension decides whether the address is on the session's site.
+- **The server does know where each session is:** the extension reports every session with its
+  origin, the other origins the user added to it, and the address of its page. And every tool
+  call but the status goes out through one method (`BrowserService.send`).
+- **Settings are options and variables,** given where the agent's program starts its process.
+  There is no settings file. The pairing token is the only thing kept, in the folder
+  `.browser-context-mcp` of the user's home folder.
+- **One server serves every agent** since WP-19, and runs for as long as one of them does.
+
+### What the request runs into
+
+- **The constraint against websites in product code.** A list of blocked sites is the user's
+  data and not code: the server ships none and names none. Its tests use the example domains.
+- **A block that only the server knows is a trap of the kind WP-19 removed.** The popup would
+  show a tab as authorized, nothing would work in it, and the reason would stand in an agent's
+  answer. The popup has to say that a site is blocked, where the user authorizes it.
+- **The server's view of a session is the last report.** A tab cannot leave its site without
+  the session being suspended, so the report is good for the site. It is not for a session
+  that spans several sites, of which the tab may be on any: such a session has to count as
+  blocked when any of its sites is.
+- **A server that runs for hours has to see a changed list** without being stopped, which
+  would cost every agent its tools.
+- **A file the user can edit, an agent that runs commands as the user can edit.** The list is a
+  guard against a wrong click and a wandering agent, and none against an agent with a shell.
+  That belongs in `docs/security.md`, under what remains your risk, in so many words.
+- **A screenshot shows what is on the screen.** A page on a site that is not blocked may embed
+  a frame from one that is; its text is not read, since frames of another site never are, and
+  its pixels are in the picture. That is so today for every frame of another site.
+
+### Proposal
+
+1. **A properties file beside the pairing token:** `tabgoblin.properties`, with one key,
+   `blocked.sites`, and the domains after it, separated by commas. `--settings <path>` and
+   `BCMCP_SETTINGS` name another file. It is read when the server starts and again when it has
+   changed, before the next command. A file that is not there blocks nothing.
+2. **An entry is a domain, and blocks it with every subdomain,** on every port and with every
+   scheme: `example.org` blocks `example.org` and `mail.example.org`, and not
+   `notexample.org`. What a user may paste is taken down to that: a scheme, a path, a port, a
+   leading `*.` or dot, capitals. A name in another script is compared in its encoded form.
+3. **The server refuses before anything is sent:** every action in a session whose site, one
+   of whose added sites, or whose page is blocked; and a navigation to a blocked address. The
+   agent is told `SITE_BLOCKED`, with the one site it tried and that only the user can change
+   it. It is never told the list. The refusal is logged as a scope violation.
+4. **The extension is told the list, and refuses as well.** It knows where a tab is at the
+   moment of a command, which the server knows from a report. And the popup says it: on a
+   blocked site there is no Authorize but the sentence that the site is blocked in the server's
+   settings, and a session that is on one is marked.
+5. **The server's window says what is blocked and where it is set:** how many sites, the path
+   of the file, and a tab that is blocked marked as such. Nothing is edited there.
+6. **A file that is there and cannot be read blocks everything,** and the window and every
+   answer say why. A guard that is silently off is worse than tools that are off.
+
+What it is not: a list of the sites an agent may use, which stays the user's click on a tab; a
+list for one agent apart from another; or a filter on what a page that is not blocked links to
+or embeds.
+
+### Decisions for the owner
+
+Decided by the owner on 2026-11-22, from options that were put with a recommendation: the
+first three as proposed, and to build it on a branch of its own once WP-19 is committed. The
+fourth and the fifth were not asked and go by their proposals.
+
+1. What an entry blocks. The domain with its subdomains (proposal). Or that host exactly, which
+   needs an entry for each subdomain. Or patterns with `*`, which say more and are easier to
+   get wrong.
+2. Where the block shows. In the server's refusal, the popup and the window (proposal). Or in
+   the server's refusal only, as the request says it: then the popup offers a tab that will
+   not work.
+3. What an unreadable file does. Everything is refused until it is mended (proposal). Or the
+   list as it last was stays in force, and none at a start.
+4. What happens to a session on a site that is blocked later. Its actions are refused and it
+   stays, so that taking the site off the list brings it back (proposal). Or it ends.
+5. Whether a second file for the whole machine, which the user's own file cannot loosen, is
+   wanted now: for a machine that someone else sets up. Proposal: not now; the two lists
+   would add up, so it can come later without changing this one.
+
+### Tasks and acceptance
+
+A new error code and a new line in a tool's text: `docs/tools.md` and the suite end to end.
+The server: the file and its re-reading (`Settings`, beside `Pairing`), the rule as a pure
+function of a host and a list, the check in `BrowserService.send` and in `navigate`, the list
+to the extension after pairing (`Protocol.java`, `WebSocketBridge.java`), the window
+(`PanelModel`, `Panel`). The extension: the same rule in `policy.ts`, held to the server's by
+a shared list of cases as the two pairings are; the check in `background.ts` before a command
+and before an authorization; the popup's sentence and mark. Tests: the rule's cases, among them
+a look-alike domain, a subdomain, an address with a port, a name in another script and an
+address that is a number; a command in a blocked session reaches no browser; a navigation to a
+blocked address is refused before it is sent; a changed file is in force at the next command;
+an unreadable file refuses everything; the agent's answer names the site it tried and no
+other; the extension refuses what an older server would have let through. End to end, with the
+demo sites: one of them blocked in a settings file, the agent's calls there refused, the popup
+on that tab without Authorize, the other site working. Then `docs/security.md` (what an agent
+can reach, what is verified, what remains your risk), the user guide, the cheat sheet, the
+help text, and the protocol reference.

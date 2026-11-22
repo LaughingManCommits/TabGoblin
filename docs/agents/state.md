@@ -10,7 +10,12 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   agent's work shows in it, a disconnected agent's server is left alone, the panel's card of
   the times is called Metrics, its log has a line for every tool call, a tab that is open to
   any agent is marked, and the picture in the two READMEs has more room at its right edge. One
-  commit, made on the owner's word. Not pushed and not merged.
+  commit (`1310c6d`), made on the owner's word. Not pushed and not merged.
+- Branch `one-server`, made from `by-hand-panel` on 2026-11-22: WP-19, built. One commit, made
+  on the owner's word. Not pushed and not merged. There is one server process for all
+  agents; the process an agent's program starts is a pipe to it and starts it if none runs.
+  The server's window shows every agent, and a click on a tab or on an agent shows that one's
+  metrics and log lines.
 
 ## Active work
 
@@ -21,25 +26,30 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
-| WP-19, one server, and every agent connected to it | Filed on 2026-11-22 on the owner's word. It changes what a server is: the first process that starts is the server, and every later one passes its agent's messages on to it. The owner said on the same day to build it as proposed ("okay do your recommendations"), beginning with a click on a tab in today's window that shows that tab's metrics and log. Not started when `by-hand-panel` was committed | [TODO.md](../../TODO.md) |
+| WP-19, one server, and every agent connected to it | Built on 2026-11-22 on the owner's word ("okay do your recommendations"), on `one-server`, in the working tree. The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry. Committed; waits for the owner's push and merge |
+| WP-20, blocked sites | Filed on 2026-11-22 on the owner's word: sites that no agent may work on, in a properties file, refused by the server and shown in the popup and the window. The owner decided its points the same day. To be built on a branch of its own, on top of `one-server` | [TODO.md](../../TODO.md) | [TODO.md](../../TODO.md) |
 | WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
-- **A server started by hand is taken for the server the agent uses.** Five times in one
-  session, by the owner, also after its window said that no agent talks to it. It is a server
-  of its own, and an agent cannot be handed to it. The owner's answer is WP-19, one server
-  for all agents. Until then the window of an agent's work is the one its own server shows,
-  with `--panel` in the agent's settings and the agent connected anew; in Claude Code that is
-  Reconnect under `/mcp`, and whether a Reconnect reads changed settings is not in its
-  documentation.
+- **One server for all agents has run on Windows with Java 21 only.** Not tried: Linux and
+  macOS, where a process of its own is started in another way; and an IDE's program that ends
+  every process below it when it closes, which would end the server with that agent and leave
+  the others to start it anew. With real processes these were seen: two agents through one
+  server, an agent leaving, the server ending after its last agent, the jar run in a terminal
+  with `--panel`, an agent joining that server, and Stop. Done in tests only, inside one Java
+  process: the taking over when the server is gone without a stop, and the jar run in a
+  terminal while a server runs. Covered by no run: a process that serves its agent alone because
+  another program holds the server's port, beyond that it finds this out.
+- **Kill is no stop any more.** Agents that still run start the server anew at once. The
+  window's line under the two buttons still says only that Kill ends the process at once.
+- **A server that runs is not replaced by a new build.** An agent that connects after the jar
+  was rebuilt is served by the server that was there, with the old code, until that server
+  has ended: by Stop, or with its last agent. Nothing in the window says that the jar on disk
+  is newer.
 - **The owner's extension was connected to no server for some minutes on 2026-11-22**, around
   15:35, with Chrome running. Why is not known; after the owner built and reloaded it at
   15:47 it was connected.
-- **A server started by hand says so in its panel.** Read in the real window on Windows,
-  connected and not. A tab that is open to any agent beside one of its own, and the log with
-  a line for every call, were drawn and tested, not seen in a real window: the jar in the
-  tree is from before them. The popup still counts such a server as an agent.
 - **A disconnected agent's server is turned away on what it says of itself,** before any
   proof, by an extension and a server that are both of this build. With either of them older
   it is paired with and closed at every look, as before. Seen end to end in the suite's
@@ -125,16 +135,18 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   server makes when it starts; started again, it is connected again, without a tab.
   [security.md](../security.md#agents) says so. WP-17 would change it.
 - **The tree's `chrome-extension/dist` was built on 2026-11-22 at 15:47,** by the owner, and
-  has everything of `by-hand-panel`: nothing in the extension changed after that.
+  has everything of `by-hand-panel`. One thing came after: an answer names the session its
+  command ran in, without which a call that names no session is in no tab's metrics.
 - **The jar in `java-server/target` was built on 2026-11-22 at 15:47,** by the owner, from
   `by-hand-panel` as it was then. It has not what came after: the card's name Metrics, the
-  log's line for every call, and the mark on a tab that is open to any agent. The session's own TabGoblin server runs from that jar, so the suites that
+  log's line for every call, the click on a tab, and the one server. The session's own TabGoblin server runs from that jar, so the suites that
   need a jar were run in a copy of the tree, with a jar built there. Build it (`mvn -B -f
   java-server/pom.xml package`) with no server running from it, and restart an agent to get
   the new server.
 - **The session's entry for its own server in Claude Code has `--panel`** (local settings of
   this project, changed on 2026-11-22 so that the owner can watch the agent's server). Its
-  window was there after the owner's Reconnect at 15:59.
+  window was there after the owner's Reconnect at 15:59. The session's tools have been gone
+  since about 16:20, when its server was ended; they come back with a Reconnect.
 - **The panel's code has not run in CI.** Run #15 (`42eb02b`, the merge of `server-panel`)
   failed, read on GitHub on 2026-11-22: all five jobs ended after two seconds. The owner says
   the account's credit for Actions is used up; the jobs' logs were not opened. So nothing of
@@ -173,13 +185,13 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `by-hand-panel`, in a copy of the tree with a jar
-  built there: the server's 92 tests and the 8 of the conformance check, the extension's 156
-  with type-check and build, and the suite end to end, 94 passed. By hand: the real windows
-  of a server started by hand and of the session's own server, read through the accessibility
-  interface. Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `by-hand-panel`. Then WP-19, on the owner's
-  word, as proposed: first the click on a tab in today's window, then the one server.
+- **Last verification:** 2026-11-22, on `one-server`, in a copy of the tree with a jar built
+  there: the server's 109 tests and the 8 of the conformance check, the extension's 156 with
+  type-check and build, and the suite end to end, 94 passed, with two agents through one
+  server. By hand: real processes and the real window, read and pressed through the
+  accessibility interface. Details in the [validation log](validation-log.md).
+- **Next action:** the owner's push and merge of `by-hand-panel` and of `one-server`, which is
+  built on it. Then WP-20, blocked sites, which the owner said to build next.
   Both parts have to be built by the owner before it shows in the tree: the server, after the
   one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
   extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first

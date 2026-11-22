@@ -1150,7 +1150,9 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
   const timing = commandTiming(op.receivedAt, started, Date.now(), op.askedMs);
   recordDiagnostic(op.client.clientId, op.sessionId, command.action, timing.ran, code);
   save();
-  respond(op.client, { ...response, timing });
+  // And in which session it ran: a command may name none, and the server's panel shows the times
+  // and the calls of one tab. It is the id the agent has from the status tool, and nothing more.
+  respond(op.client, { ...response, timing, session: op.sessionId });
   respond(op.client, { type: 'event', event: 'activity', data: { id: command.id, session: op.sessionId, action: command.action, ms: timing.ran, code } });
 }
 

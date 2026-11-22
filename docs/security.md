@@ -53,7 +53,8 @@ Consequences:
 
 ## Agents
 
-Each agent is a separate authenticated connection with its own id. A session has one owner, and
+All agents are served by one process, and each is a separate authenticated connection to the
+extension, with its own id. A session has one owner, and
 every command is checked against it. Another agent cannot list, read or act on it, and a forged
 session id is refused.
 
@@ -64,23 +65,23 @@ is gone passes to an agent of the same name, and a name is what an agent gives i
 behind by a disconnected agent would be there for the taking. The agent's row in the popup says
 how many tabs a Disconnect will end, before you click.
 
-Where it stops: the refusal is for the server that is running. A server makes its id when it
-starts, so an agent that is started again is connected again. It has no tab then and gets one
+Where it stops: the refusal is for the agent as it is connected now. An agent gets its id when
+its program connects, so an agent that is started again is connected again. It has no tab then and gets one
 only from you; a tab you authorize for *Any agent* goes to whichever agent uses it first, this
 one included.
 
-A server that ends without your Disconnect keeps its tabs for its next start: they come back to
+An agent that goes without your Disconnect keeps its tabs for its next start: they come back to
 an agent of the same name, as soon as it is connected. That is what lets you restart an IDE, or
-its server, without authorizing every tab again. It rests on a name, which an agent gives
+the server, without authorizing every tab again. It rests on a name, which an agent gives
 itself: another program that can pair, which takes the pairing token, can give itself that
-name while the first is away. A server that a person starts in a terminal has one name for all
-such servers, *Started by hand*. An agent without a name is given nothing.
+name while the first is away. An agent without a name is given nothing.
 
 ## The local connection
 
 | Protection | Detail |
 |---|---|
-| Loopback only | Servers bind `127.0.0.1` |
+| Loopback only | The server binds `127.0.0.1`, for the extension and for the agents' processes |
+| Agents' processes prove themselves | The process an agent starts connects to the one server on the port after the agents' eight. Each side proves that it knows the pairing token, with words that differ from the extension's pairing, before a message of the agent's passes. Ten wrong proofs in a minute, and no process is taken for the rest of it. A program that can read the token can become an agent this way, as it could before by starting the jar itself |
 | Origin pinning | The WebSocket handshake must carry this extension's `chrome-extension://` id; web pages cannot forge it |
 | Mutual proof | HMAC challenge-response over the pairing token in both directions; the token is never sent, so a process squatting on the port cannot drive the browser either |
 | Nothing on an unproven word | A server names itself in its first message, before the proof. The extension uses that only to turn away an agent you disconnected; what a server is given depends on the id in its proven answer |
@@ -181,7 +182,8 @@ levels and the submission confirmation are for.
 Server logs (stderr) and the extension's activity feed contain command ids, session ids, operation
 types, durations, outcomes, error categories and scope violations. They never contain page
 content, typed text, full URLs, cookies, headers or the token. The same holds for what the status
-tool says about where the time went: tool names and durations.
+tool says about where the time went: tool names and durations. For its panel the server also
+keeps, with a call's times, the id of the session the call ran in; the agent is not told it.
 
 ## The server's panel
 
@@ -192,9 +194,10 @@ is loaded. What it shows and how to use it is in the
 
 | Property | Detail |
 |---|---|
-| No new way in | It is a window of the server's process, not a page: no port is opened for it, and no website or other program can reach it |
+| No new way in | It is a window of the server's process, not a page: no port is opened for it, and no website can reach it. A program that proves the pairing token can ask for the window to be shown, and for nothing else of it |
+| It is the user's, and shows every agent | One server, one window: each agent with its tabs, and the times and log lines of all. No tool gives an agent any of it: what an agent is told is its own, as before |
 | Nothing of a page | A session is shown by its site, its access level and its state. The title and the address of its page, which the status tool gives the agent, are not shown. The log is the server's log, with the limits above |
-| It gives an agent nothing | Stop, kill, and a switch that closes the connection to the extension and refuses it until switched on. It authorizes no tab and changes no access level |
+| It gives an agent nothing | Stop, kill, and a switch that closes the connection to the extension and refuses it until switched on. It authorizes no tab and changes no access level. A click on a tab shows that tab's metrics and log lines; it changes what the window shows and sends the server nothing |
 | The pairing token is handed over, not shown | A button puts the token on the clipboard, for the popup. The token is read at that moment and goes nowhere else: it is not in the window, not in what the window is given to show, and not in the log, which says only that it was copied. It leaves the clipboard after a minute, and when the server is stopped from the panel, if it is still what the clipboard holds |
 | Ending takes two clicks | Stop and Kill act on the second click, within four seconds of the first. No button has the keyboard when the window appears |
 | Memory only | The last 300 log lines are kept in memory for the window and nowhere else, the line of each tool call among them: its id, session, action, duration and outcome, as under [Logging](#logging). Nothing of TabGoblin's is written to disk for it |
@@ -214,8 +217,11 @@ Where it stops:
   they can when the token is copied from a terminal. A history of the clipboard that the system
   keeps is not emptied, and a server that ends within the minute, other than by its Stop
   button, leaves the token where it is.
-- **Kill skips the orderly end.** The extension is not told; it finds the connection gone. A
-  command that was running has an unknown outcome.
+- **Kill skips the orderly end, and is no stop.** The extension is not told; it finds the
+  connections gone. A command that was running has an unknown outcome, and its agent is told
+  so. Agents that are still running start the server anew at once.
+- **Stop is for all agents.** It ends the one server, and with it every agent's tools, until
+  each agent's program connects again.
 
 ## What is verified by tests
 
@@ -233,6 +239,9 @@ Where it stops:
 | An agent of the same name inherits nothing from a disconnected one | Rules, worker |
 | A disconnected agent's server is turned away on what it says of itself, before any proof, and never counts the extension as connected; a server that names another agent there is given nothing of that agent's | Java, worker |
 | A server that is started again is told its tabs by the extension, by its agent's name, before it calls a tool; an agent without a name is told of none, and another agent of none | Java, worker, end-to-end |
+| A process that does not prove the pairing token is no agent of the server, and a series of them shuts the door; a program that holds the server's port is not taken for the server | Java |
+| Agents of one server each have their own port and sessions; a command and a log line of one agent reach no other | Java, end-to-end |
+| When the server's process is gone, a call that was waiting is answered as of unknown outcome and nothing is sent to the browser twice; stopped by the user, no agent starts it anew | Java |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |
 | Hidden form fields not offered as editors; an editor input's value not returned | DOM |
@@ -258,7 +267,7 @@ Where it stops:
 | Injected page text changes no session or permission | End-to-end |
 | The server's panel shows a session's site, access and state, and nothing of its page's title or address | Java |
 | Switched off in the panel, the extension is closed and not let in, without that counting as a failed pairing; the agent is told why; switched on, it pairs again | Java |
-| A button of the panel that ends the server acts on the second click only; bringing the panel up to date sends the server nothing | Java (needs a display) |
+| A button of the panel that ends the server acts on the second click only; bringing the panel up to date, or choosing a tab in it, sends the server nothing | Java (needs a display) |
 | Log lines are kept in memory only when the panel is asked for | Java |
 | The pairing token that the panel copies goes to the clipboard and into no log line; it leaves the clipboard again unless something else was copied since | Java (the clipboard's part needs a display) |
 | The badge says `ON` only while a connected agent may use an open tab; a server that leaves two heartbeats unanswered is taken for gone | Rules, worker, end-to-end |

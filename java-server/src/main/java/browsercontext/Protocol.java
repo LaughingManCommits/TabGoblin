@@ -12,7 +12,7 @@ import tools.jackson.databind.node.ObjectNode;
  * ext:    {"type":"auth","nonce":"..","proof":"..","version":2}
  * server: {"type":"auth_ok","proof":"..","version":2,"clientId":"c-1a2b3c4d","clientName":".."}
  * server: {"id":"17","action":"click","session":"s2","params":{..},"deadline":1700000000000}
- * ext:    {"id":"17","success":true,"result":{..}}  |  {"id":"17","success":false,"error":{"code":"..","message":".."}}
+ * ext:    {"id":"17","success":true,"result":{..},"session":"s2"}  |  {"id":"17","success":false,"error":{"code":"..","message":".."}}
  * server: {"type":"cancel","id":"17"}
  * ext:    {"type":"event","event":"sessions","data":{"sessions":[..]}}
  * </pre>
@@ -48,7 +48,7 @@ final class Protocol {
 
     /** The extension's answer to a command. */
     record Response(String id, boolean success, JsonNode result, String errorCode, String errorMessage,
-            Timing timing) {
+            Timing timing, String session) {
         /** Parses and validates a response; returns null when the message is not a well-formed response. */
         static Response parse(JsonNode msg) {
             if (!msg.path("id").isString() || !msg.path("success").isBoolean()) {
@@ -62,7 +62,7 @@ final class Protocol {
             return new Response(msg.path("id").asString(), ok, msg.path("result"),
                     error.path("code").asString("ERROR"),
                     error.path("message").asString("The extension reported an error."),
-                    Timing.parse(msg.path("timing")));
+                    Timing.parse(msg.path("timing")), sessionId(msg.path("session")));
         }
     }
 
@@ -83,6 +83,14 @@ final class Protocol {
         private static boolean plausible(JsonNode v) {
             return v.isIntegralNumber() && v.asLong() >= 0 && v.asLong() <= 86_400_000L;
         }
+    }
+
+    /**
+     * The session a command ran in, as the extension says with its answer, or null when it does
+     * not say: an older extension, or a command that was refused before a session was found.
+     */
+    private static String sessionId(JsonNode n) {
+        return n.isString() && n.asString().matches("s[0-9]{1,9}") ? n.asString() : null;
     }
 
     /**

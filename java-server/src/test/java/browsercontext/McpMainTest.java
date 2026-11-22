@@ -111,7 +111,7 @@ class McpMainTest {
         try {
             long before = Log.count();
             // No window system is touched: the bridge is not even looked at.
-            assertFalse(McpMain.showPanel(null, null, false, () -> "not asked for", () -> false));
+            assertFalse(McpMain.showPanel(() -> null, command -> { }, () -> false));
             assertEquals(before + 1, Log.count());
             Log.Line said = Log.recent().get(Log.recent().size() - 1);
             assertEquals("warn", said.level());

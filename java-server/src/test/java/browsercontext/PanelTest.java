@@ -278,49 +278,165 @@ class PanelTest {
         for (String shown : List.of("Agent c-1a2b3c4d  ·  port 47821",
                 "Not connected: waiting for the extension",
                 "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
-                "no tabs", "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
+                "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));
         }
     }
 
     @Test
-    void aServerStartedByHandSaysSoUnderItsStatusAndInItsCards() throws Exception {
-        record Shown(List<String> agents, List<String> byHand, List<String> again) {
+    void aClickOnATabShowsThatTabsMetricsAndLogAndAnotherClickShowsAllAgain() throws Exception {
+        record Seen(List<String> all, List<String> one, List<String> other, List<String> again, List<String> gone,
+                String chosenAtTheEnd, boolean marked, boolean unmarked, int sentToTheServer) {
         }
-        var none = new Timings.Shares(0, 0, 0, 0, 0);
-        PanelModel agents = PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, true, false, 1_000, 0,
-                List.of(), none, List.of(), ZoneId.of("UTC"));
-        var tab = List.of(new Protocol.Session("s1", "c-1a2b3c4d", "a1", "https://mail.example.com", 7, 0, "d1", "read", 2,
-                "active", "Inbox", "https://mail.example.com/mail"),
-                // Authorized for any agent, and used by none yet: listed here too, and marked.
-                new Protocol.Session("s2", "", "a2", "https://docs.example.org", 8, 0, "d2", "explore", 1, "active",
-                        "Guide", "https://docs.example.org/guide", true));
-        PanelModel withTab = PanelModel.of("Started by hand", "c-1a2b3c4d", 47821, "9.8.7", null, true, false, 1_000, 0,
-                tab, none, List.of(), ZoneId.of("UTC")).startedByHand();
+        var sessions = List.of(
+                new Protocol.Session("s1", "c-1a2b3c4d", "a1", "https://mail.example.com", 7, 0, "d1", "write", 2, "active",
+                        "Inbox", "https://mail.example.com/mail"),
+                new Protocol.Session("s2", "c-1a2b3c4d", "a2", "https://docs.example.org", 8, 0, "d2", "read", 1, "active",
+                        "Guide", "https://docs.example.org/guide"));
+        var log = List.of(
+                new Log.Line(1_000, "info", "extension connected client=c-1a2b3c4d protocol=2"),
+                new Log.Line(2_000, "debug", "command id=1 session=s1 action=snapshot ms=12 outcome=ok", "s1"),
+                new Log.Line(3_000, "info", "command id=2 session=s2 action=fill ms=4 outcome=error code=PAUSED category=AUTHORIZATION",
+                        "s2"));
+        var times = java.util.Map.of("s1", new Timings.Shares(4, 1_000, 0, 1_000, 0), "s2", new Timings.Shares(1, 0, 0, 0, 500));
+        PanelModel model = PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, true, false, 1_000, 0, sessions,
+                TIME, times, log, ZoneId.of("UTC"));
+        PanelModel without = PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, true, false, 1_000, 0,
+                sessions.subList(0, 1), TIME, times, log, ZoneId.of("UTC"));
+
+        Seen seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model);
+            var all = view.words();
+            // A click on the second tab, as a user's.
+            view.tabs().get(1).fire();
+            var one = view.words();
+            boolean marked = view.tabs().get(1).isSelected() && !view.tabs().get(0).isSelected();
+            // Bringing the view up to date keeps what is chosen.
+            view.show(model);
+            // A click on the first chooses that one instead.
+            view.tabs().get(0).fire();
+            var other = view.words();
+            // A click on the chosen tab gives the choice up.
+            view.tabs().get(0).fire();
+            var again = view.words();
+            boolean unmarked = view.tabs().stream().noneMatch(javafx.scene.control.ToggleButton::isSelected);
+            // A chosen tab whose session ends is chosen no more: everything shows.
+            view.tabs().get(1).fire();
+            view.show(without);
+            return new Seen(all, one, other, again, view.words(), view.chosen(), marked, unmarked, sent.size());
+        });
+
+        // Nothing chosen: the shares over all calls, every line, and nothing said under the list.
+        for (String shown : List.of("time of the last 5 calls", "90%", "the last 300 lines")) {
+            assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
+        }
+        assertTrue(String.join("\n", seen.all()).contains("extension connected"));
+        assertTrue(seen.all().contains("2 tabs"), "the corner of the sessions' card counts the tabs");
+
+        // The second tab: its one call, all of it the user's, and the one line of its command.
+        for (String shown : List.of("s2  ·  time of the last call", "100%", "s2  ·  1 of the last 300 lines",
+                "showing s2 only  ·  click again for all")) {
+            assertTrue(seen.one().contains(shown), shown + " is not among:\n" + String.join("\n", seen.one()));
+        }
+        String ofOne = String.join("\n", seen.one());
+        assertTrue(ofOne.contains("command id=2 session=s2 action=fill"), ofOne);
+        assertFalse(ofOne.contains("extension connected"), "a line of no tab is not a chosen tab's");
+        assertFalse(ofOne.contains("session=s1"), ofOne);
+        assertTrue(seen.marked(), "the chosen row is marked and the other is not");
+
+        // The first tab instead.
+        for (String shown : List.of("s1  ·  time of the last 4 calls", "50%", "s1  ·  1 of the last 300 lines",
+                "showing s1 only  ·  click again for all")) {
+            assertTrue(seen.other().contains(shown), shown + " is not among:\n" + String.join("\n", seen.other()));
+        }
+        assertTrue(String.join("\n", seen.other()).contains("command id=1 session=s1 action=snapshot"));
+
+        // Given up: as at the start.
+        assertEquals(seen.all(), seen.again());
+        assertTrue(seen.unmarked());
+        // The tab that was chosen is gone with its session: all show, and none is chosen.
+        assertEquals(null, seen.chosenAtTheEnd());
+        assertTrue(seen.gone().contains("time of the last 5 calls"), String.join("\n", seen.gone()));
+        assertFalse(seen.gone().contains("docs.example.org"));
+        // Choosing is the window's own affair: the server was sent nothing.
+        assertEquals(0, seen.sentToTheServer());
+    }
+
+    @Test
+    void aServerWithoutAnAgentSaysSoUnderItsStatusAndInItsCards() throws Exception {
+        record Shown(List<String> empty, List<String> withOne) {
+        }
+        PanelModel empty = PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"));
         Shown shown = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
-            view.show(agents);
+            view.show(empty);
             var first = view.words();
-            // The same view goes from one to the other: what it says changes though no tab and no time did.
-            view.show(agents.startedByHand());
-            var second = view.words();
-            view.show(withTab);
-            return new Shown(first, second, view.words());
+            // The same view when an agent has connected: the note goes, and the agent's words come.
+            view.show(model(true, false));
+            return new Shown(first, view.words());
         });
-        String note = agents.startedByHand().note();
-        assertFalse(note.isEmpty());
-        // An agent's own server says nothing of the kind.
-        assertFalse(shown.agents().contains(note), String.join("\n", shown.agents()));
-        assertTrue(shown.agents().contains("No tab is authorized for this agent"));
-        assertTrue(shown.agents().contains("No tool call has ended yet"));
-        for (String said : List.of(note, "No tab is authorized for this server", "No tool calls: no agent talks to this server")) {
-            assertTrue(shown.byHand().contains(said), said + " is not among:\n" + String.join("\n", shown.byHand()));
+        for (String said : List.of("one server for all your agents", "No agent connected", empty.note(),
+                "No tabs", "No calls yet", "Nothing logged yet.")) {
+            assertTrue(shown.empty().contains(said), said + " is not among:\n" + String.join("\n", shown.empty()));
         }
-        assertFalse(shown.byHand().contains("No tab is authorized for this agent"));
-        // With a tab: the tab, and under it that nobody works there.
-        for (String said : List.of(note, "s1", "mail.example.com", "s2", "docs.example.org", "any agent",
-                "No agent can use the tab that is authorized for this server: authorize it for the agent, in the extension's popup")) {
-            assertTrue(shown.again().contains(said), said + " is not among:\n" + String.join("\n", shown.again()));
+        assertFalse(empty.note().isEmpty());
+        assertFalse(shown.withOne().contains(empty.note()), String.join("\n", shown.withOne()));
+        assertTrue(shown.withOne().contains("claude-code  ·  c-1a2b3c4d  ·  port 47821"));
+    }
+
+    @Test
+    void severalAgentsEachHaveAHeadingOverTheirTabsAndAClickOnOneShowsThatAgentAlone() throws Exception {
+        record Seen(List<String> all, List<String> agent, List<String> tab, List<String> again, int rows, int sentToTheServer) {
         }
+        var open = new Protocol.Session("s3", "", "a3", "https://wiki.example.net", 9, 0, "d3", "read", 1, "active", "", "", true);
+        var first = new PanelModel.Facts("claude-code", "c-11111111", 47821, null, true, 1_000, 0,
+                List.of(new Protocol.Session("s1", "c-11111111", "a1", "https://mail.example.com", 7, 0, "d1", "write", 2, "active",
+                        "Inbox", "https://mail.example.com/mail"), open),
+                new Timings.Shares(4, 1_000, 0, 1_000, 0), java.util.Map.of("s1", new Timings.Shares(3, 0, 0, 900, 100)));
+        var second = new PanelModel.Facts("IntelliJ IDEA", "c-22222222", 47822, null, false, 0, 0, List.of(),
+                new Timings.Shares(1, 0, 0, 0, 500), java.util.Map.of());
+        var log = List.of(
+                new Log.Line(1_000, "info", "server listening for agents port=47829"),
+                new Log.Line(2_000, "debug", "command id=1 session=s1 action=snapshot ms=12 outcome=ok", "s1", "c-11111111"),
+                new Log.Line(3_000, "info", "listening port=47822 client=c-22222222", null, "c-22222222"));
+        PanelModel model = PanelModel.of(List.of(first, second), 47829, "9.8.7", false, log, ZoneId.of("UTC"));
+
+        Seen seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model);
+            var all = view.words();
+            int rows = view.tabs().size();
+            // The rows in the list's order: the first agent, its two tabs, the second agent.
+            view.tabs().get(3).fire();
+            var agent = view.words();
+            view.tabs().get(1).fire();
+            var tab = view.words();
+            view.tabs().get(1).fire();
+            return new Seen(all, agent, tab, view.words(), rows, sent.size());
+        });
+
+        // Both agents, each with what it has: the first its tabs, the second the words in their place.
+        for (String shown : List.of("2 agents", "1 of 2 agents is connected to the browser", "2 agents  ·  2 tabs",
+                "claude-code", "c-11111111", ":47821", "s1", "mail.example.com", "s3", "wiki.example.net", "any agent",
+                "IntelliJ IDEA", "c-22222222", "not connected", "Not known while the browser is not connected",
+                "time of the last 5 calls", "the last 300 lines")) {
+            assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
+        }
+        assertEquals(4, seen.rows(), "two headings and two tabs can be chosen");
+        // The second agent chosen: its one call, all of it the user's, and its one line.
+        for (String shown : List.of("IntelliJ IDEA  ·  time of the last call", "100%", "IntelliJ IDEA  ·  1 of the last 300 lines",
+                "showing IntelliJ IDEA only  ·  click again for all")) {
+            assertTrue(seen.agent().contains(shown), shown + " is not among:\n" + String.join("\n", seen.agent()));
+        }
+        assertTrue(String.join("\n", seen.agent()).contains("listening port=47822"));
+        assertFalse(String.join("\n", seen.agent()).contains("session=s1"));
+        // A tab of the first agent chosen instead.
+        for (String shown : List.of("s1  ·  time of the last 3 calls", "s1  ·  1 of the last 300 lines",
+                "showing s1 only  ·  click again for all")) {
+            assertTrue(seen.tab().contains(shown), shown + " is not among:\n" + String.join("\n", seen.tab()));
+        }
+        assertEquals(seen.all(), seen.again());
+        assertEquals(0, seen.sentToTheServer());
     }
 }

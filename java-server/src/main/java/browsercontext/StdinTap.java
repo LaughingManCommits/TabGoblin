@@ -36,6 +36,8 @@ final class StdinTap extends FilterInputStream {
     private final ObjectMapper json = new ObjectMapper();
     private final Runnable onEnd;
     private final java.util.function.Consumer<String> onClientName;
+    /** The log of the agent whose input this is. */
+    private final Log.Scope log;
     private final ByteArrayOutputStream line = new ByteArrayOutputStream();
     private final Deque<Call> arrived = new ArrayDeque<>();
     private final Map<String, Thread> running = new HashMap<>();
@@ -54,14 +56,27 @@ final class StdinTap extends FilterInputStream {
      *                     sessions come back to it by that name
      */
     StdinTap(InputStream in, Runnable onEnd, java.util.function.Consumer<String> onClientName) {
+        this(in, onEnd, onClientName, Log.of(null));
+    }
+
+    StdinTap(InputStream in, Runnable onEnd, java.util.function.Consumer<String> onClientName, Log.Scope log) {
         super(in);
         this.onEnd = onEnd;
         this.onClientName = onClientName;
+        this.log = log;
     }
 
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
-        int n = super.read(b, off, len);
+        int n;
+        try {
+            n = super.read(b, off, len);
+        } catch (IOException e) {
+            // The input is gone without having ended: its process was ended, and not in order. That
+            // is the agent's going too. Without this a server would keep such an agent for good.
+            onEnd.run();
+            throw e;
+        }
         if (n < 0) {
             onEnd.run();
             return n;
@@ -74,7 +89,13 @@ final class StdinTap extends FilterInputStream {
 
     @Override
     public int read() throws IOException {
-        int c = super.read();
+        int c;
+        try {
+            c = super.read();
+        } catch (IOException e) {
+            onEnd.run();
+            throw e;
+        }
         if (c < 0) {
             onEnd.run();
         } else {
@@ -130,7 +151,7 @@ final class StdinTap extends FilterInputStream {
             String id = requestId.asString(requestId.toString());
             Thread thread = running.get(id);
             if (thread != null) {
-                Log.info("tool call cancelled by the MCP client id=" + id);
+                log.info("tool call cancelled by the MCP client id=" + id);
                 givenUp.add(id);
                 thread.interrupt();
             } else {

@@ -12,7 +12,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
+import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -81,6 +81,14 @@ async function until(fn, what, timeoutMs = 10000) {
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
     await sleep(100);
   }
+}
+/** Whether something listens on that port of the loopback address. */
+function listens(port) {
+  return new Promise((done) => {
+    const socket = connect(port, '127.0.0.1');
+    socket.once('connect', () => { socket.destroy(); done(true); });
+    socket.once('error', () => done(false));
+  });
 }
 function freePort() {
   return new Promise((done) => {
@@ -1255,6 +1263,10 @@ try {
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '2 agents connected');
     const port = /on port (\d+)/.exec((await two.tool('browser_status')).text)?.[1];
     assert(port && port !== String(wsPort), `each agent has its own port, got ${port}`);
+    // Both are agents of one server: it listens for them on the port after their eight, and
+    // neither process had to serve its agent alone.
+    assert(await listens(wsPort + 8), 'the one server does not listen for agents');
+    for (const server of servers) lacks(server.stderr, 'serving this agent alone');
     // An agent tells its name with its first tool call. The extension may have found its server
     // before that: the popup then lists it by its id until its next refresh.
     const listed = await popup.waitForFunction(() => [...document.querySelectorAll('#agents li')]
@@ -1855,6 +1867,8 @@ try {
     assert(await two.close() === 0, 'agent two did not exit cleanly');
     // The tab stays authorized, and nobody is there to act on it. The badge said ON for that once.
     await until(async () => (await badge()) === 'OFF', 'the badge to say OFF once no server is left');
+    // The one server ends by itself when its last agent has gone: nothing is left listening.
+    await until(async () => !(await listens(wsPort + 8)), 'the server to end after its last agent', 15000);
     const popup = await openPopup();
     await popup.waitForFunction(() => document.getElementById('connection').textContent.startsWith('Disconnected'));
   });

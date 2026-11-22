@@ -42,9 +42,17 @@ final class ExtensionConnection {
     static final String NOT_CONNECTED_HELD = "The user switched this server's connection to the browser off, in the "
             + "TabGoblin server window. Ask them to switch it on again there.";
 
+    /** The log of the agent this connection is for. */
+    private final Log.Scope log;
+
     ExtensionConnection(ObjectMapper json, Timings timings) {
+        this(json, timings, Log.of(null));
+    }
+
+    ExtensionConnection(ObjectMapper json, Timings timings, Log.Scope log) {
         this.json = json;
         this.timings = timings;
+        this.log = log;
     }
 
     boolean isConnected() {
@@ -149,15 +157,18 @@ final class ExtensionConnection {
         String errorCode = null;
         // What the extension says happened inside the round trip, if it answered and says so.
         Protocol.Timing[] inside = new Protocol.Timing[1];
+        // The session the command ran in: the one it named, or the one the extension says it found for
+        // a command that named none. The panel shows the times and the calls of one tab by it.
+        String[] ranIn = {session};
         try {
-            return exchange(id, action, session, params, timeout, inside);
+            return exchange(id, action, session, params, timeout, inside, ranIn);
         } catch (BrowserException e) {
             errorCode = e.code();
             throw e;
         } finally {
             long trip = System.nanoTime() - started;
-            Log.command(id, session, action, trip / 1_000_000, errorCode);
-            timings.trip(trip, inside[0]);
+            log.command(id, ranIn[0], action, trip / 1_000_000, errorCode);
+            timings.trip(trip, inside[0], ranIn[0]);
             if (lock != null) {
                 lock.unlock();
             }
@@ -165,7 +176,7 @@ final class ExtensionConnection {
     }
 
     private JsonNode exchange(String id, String action, String session, JsonNode params, Duration timeout,
-            Protocol.Timing[] inside) {
+            Protocol.Timing[] inside, String[] ranIn) {
         WebSocket c = paired();
         if (c == null || !c.isOpen()) {
             if (held) {
@@ -190,6 +201,9 @@ final class ExtensionConnection {
             c.send(command.toJson(json));
             Protocol.Response response = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             inside[0] = response.timing();
+            if (response.session() != null) {
+                ranIn[0] = response.session();
+            }
             if (response.success()) {
                 return response.result();
             }

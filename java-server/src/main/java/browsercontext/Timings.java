@@ -16,8 +16,9 @@ import java.util.function.ToLongFunction;
  *
  * <p>Only this server sees all of it. It measures the time between calls, the whole of a call and
  * the round trip to the extension itself. What happened inside the round trip the extension says
- * with each answer. Nothing but tool names and durations is kept: no session, no address and
- * nothing of a page.
+ * with each answer. Nothing but tool names, durations and the id of the session a call ran in
+ * is kept: no address and nothing of a page. The session is for the server's panel, which shows
+ * the times of one tab; the report for the agent has none of it.
  */
 final class Timings {
 
@@ -29,9 +30,11 @@ final class Timings {
     /**
      * One finished tool call, in milliseconds. A gap of -1 means that no call came before it.
      * {@code split} says that the extension gave its numbers for every round trip of the call.
+     * {@code session} is the tab the call worked in, or null for a call that worked in none: the
+     * status tool, or a call that was refused before a session was found.
      */
     record Call(String tool, long gap, long total, long waited, long trip, long ran, long queued, long asked,
-            boolean split, boolean ok) {
+            boolean split, boolean ok, String session) {
 
         /** This server's own work: what is left of the call after the waiting and the round trips. */
         long server() {
@@ -70,6 +73,7 @@ final class Timings {
         private long queued;
         private long asked;
         private boolean split = true;
+        private String session;
 
         private Running(String tool, long begun, long gap) {
             this.tool = tool;
@@ -99,12 +103,24 @@ final class Timings {
     private boolean ended;
     private long lastEnd;
 
+    /** The log of the agent whose calls these are. */
+    private final Log.Scope log;
+
     Timings() {
         this(System::nanoTime);
     }
 
+    Timings(Log.Scope log) {
+        this(System::nanoTime, log);
+    }
+
     Timings(LongSupplier nanos) {
+        this(nanos, Log.of(null));
+    }
+
+    private Timings(LongSupplier nanos, Log.Scope log) {
         this.nanos = nanos;
+        this.log = log;
     }
 
     /** A tool call begins on this thread. What came since the last answer was the agent's time. */
@@ -131,9 +147,17 @@ final class Timings {
 
     /** One round trip to the extension, and what the extension says happened inside it, if it says. */
     void trip(long duration, Protocol.Timing inside) {
+        trip(duration, inside, null);
+    }
+
+    /** The same, with the session the command ran in, if it ran in one. A call works in one tab: its first. */
+    void trip(long duration, Protocol.Timing inside, String session) {
         Running call = current.get();
         if (call == null) {
             return;
+        }
+        if (call.session == null) {
+            call.session = session;
         }
         call.trip += Math.max(0, duration);
         if (inside != null) {
@@ -151,7 +175,7 @@ final class Timings {
         long now = nanos.getAsLong();
         current.remove();
         Call done = new Call(call.tool, call.gap < 0 ? -1 : millis(call.gap), millis(now - call.begun),
-                millis(call.waited), millis(call.trip), call.ran, call.queued, call.asked, call.split, ok);
+                millis(call.waited), millis(call.trip), call.ran, call.queued, call.asked, call.split, ok, call.session);
         synchronized (this) {
             running--;
             ended = true;
@@ -161,7 +185,7 @@ final class Timings {
                 calls.removeFirst();
             }
         }
-        Log.debug(logLine(done));
+        log.debug(logLine(done));
         return done;
     }
 
@@ -177,6 +201,27 @@ final class Timings {
     }
 
     synchronized Shares shares() {
+        return shares(calls);
+    }
+
+    /**
+     * The same for each session that a kept call worked in, by the session's id: the calls of that
+     * tab alone, with the time the agent took before each of them. Calls that worked in no tab
+     * are in none of them.
+     */
+    synchronized java.util.Map<String, Shares> sharesBySession() {
+        java.util.Map<String, List<Call>> of = new java.util.TreeMap<>();
+        for (Call call : calls) {
+            if (call.session() != null) {
+                of.computeIfAbsent(call.session(), id -> new ArrayList<>()).add(call);
+            }
+        }
+        java.util.Map<String, Shares> shares = new java.util.TreeMap<>();
+        of.forEach((id, its) -> shares.put(id, shares(its)));
+        return shares;
+    }
+
+    private static Shares shares(java.util.Collection<Call> calls) {
         long agent = 0;
         long server = 0;
         long browser = 0;

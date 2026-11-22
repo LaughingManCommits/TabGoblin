@@ -273,6 +273,53 @@ class WebSocketBridgeTest {
         assertFalse(ext.commands.get(5).has("session"));
     }
 
+    /**
+     * A command may name no session: the extension then takes the agent's only one. The answer says
+     * which that was, and the call's times and its log line are that tab's from then on, so that
+     * the panel can show one tab alone.
+     */
+    @Test
+    void theSessionACommandRanInIsTakenFromItsAnswer() throws Exception {
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        // As the extension answers: with the session the command ran in, whether it was named or not.
+        ext.responder = cmd -> ((ObjectNode) FakeExtension.ok(cmd, obj()))
+                .put("session", cmd.path("session").asString("s7"));
+        Log.keep(20);
+        try {
+            Timings.Running named = bridge.timings().begin("browser_snapshot");
+            bridge.send("snapshot", "s2", null, SHORT);
+            assertEquals("s2", bridge.timings().end(named, true).session());
+            Timings.Running unnamed = bridge.timings().begin("browser_click");
+            bridge.send("click", null, obj().put("ref", 4), SHORT);
+            assertEquals("s7", bridge.timings().end(unnamed, true).session(), "the session the extension found for it");
+            assertFalse(ext.commands.get(1).has("session"), "none was sent");
+
+            // An answer that says nothing of it, as an older extension's, or says something that is no
+            // session id: the call stays with what it named, which may be nothing.
+            ext.responder = cmd -> FakeExtension.ok(cmd, obj());
+            Timings.Running older = bridge.timings().begin("browser_scroll");
+            bridge.send("scroll", null, null, SHORT);
+            assertEquals(null, bridge.timings().end(older, true).session());
+            ext.responder = cmd -> ((ObjectNode) FakeExtension.ok(cmd, obj())).put("session", "all your tabs");
+            Timings.Running odd = bridge.timings().begin("browser_scroll");
+            bridge.send("scroll", "s2", null, SHORT);
+            assertEquals("s2", bridge.timings().end(odd, true).session());
+            // A command that failed has its session too.
+            ext.responder = cmd -> ((ObjectNode) FakeExtension.fail(cmd, "PAUSED", "The session is paused.")).put("session", "s7");
+            assertThrows(BrowserException.class, () -> bridge.send("fill", null, null, SHORT));
+
+            var lines = Log.recent().stream().filter(line -> line.text().startsWith("command ")).toList();
+            assertEquals(java.util.Arrays.asList("s2", "s7", null, "s2", "s7"), lines.stream().map(Log.Line::session).toList());
+            assertTrue(lines.get(1).text().contains(" session=s7 action=click "), lines.get(1).text());
+            assertTrue(lines.get(2).text().contains(" session=- action=scroll "), lines.get(2).text());
+            assertTrue(lines.get(4).text().contains(" session=s7 action=fill ") && lines.get(4).text().contains("code=PAUSED"),
+                    lines.get(4).text());
+            assertEquals(java.util.Set.of("s2", "s7"), bridge.timings().sharesBySession().keySet());
+        } finally {
+            Log.keep(0);
+        }
+    }
+
     @Test
     void surfacesStructuredErrorsAndIgnoresMalformedResponses() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);

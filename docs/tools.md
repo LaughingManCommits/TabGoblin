@@ -446,7 +446,7 @@ Every failure is `Error [CODE]: message`.
 | `SENSITIVE_FIELD` | Password or credential field |
 | `ELEMENT_DISABLED`, `UNSUPPORTED_ELEMENT`, `OPTION_NOT_FOUND` | The control cannot take that |
 | `WAIT_TIMEOUT` | The condition did not occur in time |
-| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried |
+| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried. `CONNECTION_LOST` is also what a call answers that was running when the server's process ended: the server is started anew by itself, and the next call goes to it |
 | `CANCELLED`, `INTERRUPTED` | Stopped by the user (pause, revoke, a lower access level). A call the client itself cancels gets no answer at all. |
 | `TAB_NOT_VISIBLE`, `SCREENSHOT_FAILED` | The tab could not be captured |
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |

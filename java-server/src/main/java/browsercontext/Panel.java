@@ -151,6 +151,15 @@ final class Panel {
 
     /** How many log lines the panel keeps and shows. */
     static final int LOG_LINES = 300;
+    /** How many tabs the list shows at a time. It lists every tab, and scrolls where there are more. */
+    static final int TABS_IN_VIEW = 3;
+    /** How high a tab's row is, and the room between two of them: the list's height is counted from these. */
+    private static final double TAB_ROW = 32;
+    private static final double TAB_GAP = 6;
+    /** How many rows the list shows at a time where a server has several agents: headings and tabs together. */
+    static final int ROWS_IN_VIEW_OF_SEVERAL = 4;
+    /** How high a line of words in the list is: what stands in the place of an agent's tabs while it has none. */
+    private static final double WORDS_ROW = 18;
     /** How long a button that ends the server stays armed after its first click. */
     static final Duration ARMED_FOR = Duration.seconds(4);
 
@@ -180,6 +189,9 @@ final class Panel {
      */
     static void open(Supplier<PanelModel> model, Consumer<Command> commands) {
         onFxThread(() -> {
+            if (window != null) {
+                return;
+            }
             // The toolkit stays up when the window is put away: the server decides when the process ends.
             Platform.setImplicitExit(false);
             var first = model.get();
@@ -202,6 +214,7 @@ final class Panel {
             });
             place(stage, first.port(), floating ? SHADOW : 0);
             stage.show();
+            window = stage;
             Log.debug("panel window style=" + stage.getStyle());
             // Nothing that acts has the keyboard when the window appears: a key meant for another
             // window, typed as this one came up, presses no button here.
@@ -214,6 +227,22 @@ final class Panel {
             }));
             refresh.setCycleCount(Animation.INDEFINITE);
             refresh.play();
+        });
+    }
+
+    /** The window, once it is open. Used on JavaFX's thread only. */
+    private static Stage window;
+
+    /**
+     * Brings the window up where it was put away or lies under others: the user asked for it again.
+     * Does nothing while there is no window.
+     */
+    static void raise() {
+        onFxThread(() -> {
+            if (window != null) {
+                window.setIconified(false);
+                window.toFront();
+            }
         });
     }
 
@@ -355,6 +384,18 @@ final class Panel {
         private final Label sessionCount = label("", "aside");
         private final VBox sessionRows = new VBox();
         private final Label callsCount = label("", "aside");
+        private final Label logCount = label("", "aside");
+        private final ScrollPane sessionList = new ScrollPane(sessionRows);
+        /** One row that can be chosen: a tab, or an agent where there are several, with its id and its button. */
+        private record Choice(String id, ToggleButton button) {
+        }
+
+        /** The rows that can be chosen, in the list's order. A tab that is open to any agent is under each agent. */
+        private final List<Choice> choices = new ArrayList<>();
+        /** What the server held when the view was last brought up to date: a click shows another part of it. */
+        private PanelModel shown;
+        /** The tab whose metrics and log are shown, or null for all tabs. The view's own: the server knows nothing of it. */
+        private String chosen;
         private final VBox timeRows = new VBox();
         private final TextArea log = lines();
         private final ToggleButton browser = new ToggleButton();
@@ -365,9 +406,9 @@ final class Panel {
         private final EndButton stop;
         private final EndButton kill;
         private List<PanelModel.Row> shownRows;
-        private int shownTabs = -1;
+        private List<PanelModel.Member> shownAgents;
         private List<PanelModel.Share> shownTimes;
-        private List<String> shownUnderSessions;
+        private String shownNoSessions;
         private String shownNoTimes;
         private Boolean shownConnected;
 
@@ -405,9 +446,24 @@ final class Panel {
 
             sessionRows.getStyleClass().add("sessions");
             timeRows.getStyleClass().add("times");
-            var sessions = card("Sessions", sessionCount, sessionRows);
+            // Every tab is in the list, so that every tab can be clicked. Three of them show at a time:
+            // the window has a fixed height and must keep room for its controls, so the list scrolls.
+            sessionList.getStyleClass().add("session-list");
+            sessionList.setFitToWidth(true);
+            sessionList.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+            sessionList.setMinHeight(Region.USE_PREF_SIZE);
+            sessionList.setMaxHeight(Region.USE_PREF_SIZE);
+            sessionList.setFocusTraversable(false);
+            var sessions = card("Sessions", sessionCount, sessionList);
             var time = card("Metrics", callsCount, timeRows);
-            var logCard = card("Log", label("the last " + LOG_LINES + " lines", "aside"), log);
+            var logCard = card("Log", logCount, log);
+            // Escape gives up the tab that is chosen, wherever in the window the keyboard is.
+            root.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, key -> {
+                if (key.getCode() == javafx.scene.input.KeyCode.ESCAPE && chosen != null) {
+                    choose(chosen);
+                    key.consume();
+                }
+            });
             VBox.setVgrow(log, Priority.ALWAYS);
             VBox.setVgrow(logCard, Priority.ALWAYS);
             followLog();
@@ -433,9 +489,11 @@ final class Panel {
 
             stop = new EndButton("Stop server", "Click again to stop", () -> commands.accept(new Command.Stop()));
             kill = new EndButton("Kill", "Click again to kill", () -> commands.accept(new Command.Kill()));
-            stop.setTooltip(new Tooltip("Ends the server in order, as when the agent closes it."));
+            stop.setTooltip(new Tooltip("Ends the server in order, for every agent.\n"
+                    + "An agent has its tools again when it reconnects."));
             kill.setTooltip(new Tooltip("Ends the process at once, for a server that hangs.\n"
-                    + "What it was doing in the browser then has an unknown outcome."));
+                    + "What it was doing in the browser then has an unknown outcome.\n"
+                    + "Agents that are still running start a new server."));
             var ends = new HBox(stop, kill);
             ends.getStyleClass().add("row");
 
@@ -455,8 +513,11 @@ final class Panel {
                     new VBox(label("Pairing token", "strong"), label("Paste it into the extension's popup.", "hint")), grow(), copy);
             pairing.getStyleClass().add("row");
 
-            var control = card("Control", null, connect, pairing, ends,
-                    label("Stop ends it in order. Kill ends the process at once.", "hint"));
+            var ending = label("Stop ends the server for every agent. Kill is for a server that hangs: "
+                    + "agents that are still running start it again.", "hint");
+            ending.setWrapText(true);
+            ending.setMinHeight(Region.USE_PREF_SIZE);
+            var control = card("Control", null, connect, pairing, ends, ending);
 
             var foot = new HBox(grow(), version);
 
@@ -533,35 +594,90 @@ final class Panel {
             note.setVisible(!model.note().isEmpty());
             note.setManaged(!model.note().isEmpty());
             version.setText("TabGoblin " + model.version() + " · protocol " + Protocol.VERSION);
-            sessionCount.setText(model.sessionsCount());
-            var underSessions = List.of(model.noSessions(), model.notListed(), model.notUsed());
-            if (!model.sessions().equals(shownRows) || model.tabs() != shownTabs || !underSessions.equals(shownUnderSessions)) {
+            shown = model;
+            if (chosen != null && !model.has(chosen)) {
+                // The tab that was chosen has gone: its session ended. All tabs show again.
+                chosen = null;
+            }
+            if (!model.sessions().equals(shownRows) || !model.agents().equals(shownAgents)
+                    || !model.noSessions().equals(shownNoSessions)) {
                 shownRows = model.sessions();
-                shownTabs = model.tabs();
-                shownUnderSessions = underSessions;
-                sessionRows.getChildren().setAll(shownRows.isEmpty()
-                        ? List.of(label(model.noSessions(), "empty"))
-                        : shownRows.stream().map(View::sessionRow).toList());
-                for (String said : List.of(model.notListed(), model.notUsed())) {
-                    if (!said.isEmpty()) {
-                        var line = label(said, "empty");
-                        line.setWrapText(true);
-                        line.setMinHeight(Region.USE_PREF_SIZE);
-                        sessionRows.getChildren().add(line);
+                shownAgents = model.agents();
+                shownNoSessions = model.noSessions();
+                choices.clear();
+                List<Node> lines = new ArrayList<>();
+                if (shownAgents.size() <= 1) {
+                    // One agent: its tabs, as the panel always listed them.
+                    shownRows.forEach(row -> lines.add(choice(row.id(), sessionRow(row))));
+                    if (lines.isEmpty()) {
+                        lines.add(label(model.noSessions(), "empty"));
+                    }
+                } else {
+                    // Several: each agent's heading, and under it that agent's tabs.
+                    for (PanelModel.Member member : shownAgents) {
+                        lines.add(choice(member.id(), agentRow(member)));
+                        var its = shownRows.stream().filter(row -> member.id().equals(row.owner())).toList();
+                        its.forEach(row -> lines.add(choice(row.id(), sessionRow(row))));
+                        if (its.isEmpty()) {
+                            lines.add(label(PanelModel.noSessions(member), "empty"));
+                        }
                     }
                 }
+                sessionRows.getChildren().setAll(lines);
+                // As high as its rows, up to the ones it shows at a time; beyond those it scrolls. With
+                // nothing to choose it is as high as the words that stand in the rows' place.
+                int inView = Math.min(lines.size(), shownAgents.size() > 1 ? ROWS_IN_VIEW_OF_SEVERAL : TABS_IN_VIEW);
+                double high = (inView - 1) * TAB_GAP;
+                for (Node line : lines.subList(0, inView)) {
+                    high += line instanceof ToggleButton ? TAB_ROW : WORDS_ROW;
+                }
+                sessionList.setPrefHeight(choices.isEmpty() ? Region.USE_COMPUTED_SIZE : high);
             }
-            callsCount.setText(model.callsCount());
-            if (!model.times().equals(shownTimes) || !model.noTimes().equals(shownNoTimes)) {
-                shownTimes = model.times();
-                shownNoTimes = model.noTimes();
-                timeRows.getChildren().setAll(shownTimes.isEmpty()
-                        ? List.of(label(model.noTimes(), "empty"))
-                        : shownTimes.stream().map(View::timeRow).toList());
-            }
-            writeLog(model.log().isEmpty() ? "Nothing logged yet." : String.join("\n", model.log()));
+            showChosen(false);
             browser.setSelected(!model.switchedOff());
             browserHint.setText(model.switchedOff() ? "Off: the extension is not let in." : "On: the extension may connect.");
+        }
+
+        /**
+         * Chooses a tab: the metrics and the log are that tab's from now on. The tab that is chosen
+         * already is given up, and all tabs show again. Nothing of it reaches the server.
+         */
+        void choose(String tab) {
+            chosen = tab.equals(chosen) ? null : tab;
+            showChosen(true);
+        }
+
+        /**
+         * Shows what belongs to the chosen tab, or to all: which row is marked, what is said under
+         * the list, the metrics and the log.
+         *
+         * @param now the user has just chosen: the log changes at once, also under a place they had scrolled to
+         */
+        private void showChosen(boolean now) {
+            choices.forEach(choice -> choice.button().setSelected(choice.id().equals(chosen)));
+            // In the card's corner: how many tabs there are, or which one is chosen and how to get back.
+            // In the corner, and in no line of its own: a click moves nothing below it.
+            sessionCount.setText(chosen == null ? shown.sessionsCount() : shown.chosenNote(chosen));
+            callsCount.setText(shown.callsCount(chosen));
+            var times = shown.metrics(chosen).shares();
+            String noTimes = shown.noTimes(chosen);
+            if (!times.equals(shownTimes) || !noTimes.equals(shownNoTimes)) {
+                shownTimes = times;
+                shownNoTimes = noTimes;
+                timeRows.getChildren().setAll(times.isEmpty()
+                        ? List.of(label(noTimes, "empty"))
+                        : times.stream().map(View::timeRow).toList());
+            }
+            logCount.setText(shown.logCount(chosen, LOG_LINES));
+            var lines = shown.log(chosen);
+            String text = lines.isEmpty() ? shown.noLog(chosen) : String.join("\n", lines);
+            if (now && !text.equals(log.getText())) {
+                log.deselect();
+                log.setText(text);
+                logToEnd();
+            } else {
+                writeLog(text);
+            }
         }
 
         /**
@@ -625,7 +741,37 @@ final class Panel {
             return row;
         }
 
-        private static Node sessionRow(PanelModel.Row session) {
+        private ToggleButton choice(String id, ToggleButton button) {
+            choices.add(new Choice(id, button));
+            return button;
+        }
+
+        /**
+         * One agent, where a server has several: a heading over its tabs, and a button as a tab's row
+         * is. A click chooses the agent, and its metrics and its lines show in the cards below.
+         */
+        private ToggleButton agentRow(PanelModel.Member member) {
+            var id = label(member.id(), "chip");
+            id.setStyle("-fx-font-family: '" + monospace() + "';");
+            id.setMinWidth(Region.USE_PREF_SIZE);
+            var name = label(member.name(), "agent-name");
+            name.setMinWidth(Region.USE_PREF_SIZE);
+            // Its port while the extension is connected to it, and that it is not while it is not: the
+            // row has room for one of the two beside the name and the id.
+            var last = member.connected() ? label(":" + member.port(), "chip") : label("not connected", "chip", "state");
+            last.setMinWidth(Region.USE_PREF_SIZE);
+            if (!member.connected()) {
+                last.setTooltip(new Tooltip(member.connection()));
+            }
+            var row = new HBox(name, grow(), id, last);
+            return chooser(row, member.id(), "agent", member.name() + ": show the metrics and the log of this agent only");
+        }
+
+        /**
+         * One tab, as a button: a click on it chooses the tab, and its metrics and its log show in
+         * the cards below. Pressed again, it gives the choice up.
+         */
+        private ToggleButton sessionRow(PanelModel.Row session) {
             var id = label(session.id(), "chip", "id");
             id.setStyle("-fx-font-family: '" + monospace() + "';");
             id.setMinWidth(Region.USE_PREF_SIZE);
@@ -643,8 +789,30 @@ final class Panel {
                 state.setMinWidth(Region.USE_PREF_SIZE);
                 row.getChildren().add(state);
             }
-            row.getStyleClass().add("session");
-            return row;
+            return chooser(row, session.id(), "tab", session.id() + ", " + session.site() + ": show the metrics and the log of this tab only");
+        }
+
+        /** A row as a button that chooses what the row stands for. */
+        private ToggleButton chooser(HBox row, String id, String what, String spoken) {
+            row.getStyleClass().add("session-line");
+            var button = new ToggleButton();
+            button.setGraphic(row);
+            button.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            button.getStyleClass().setAll("session");
+            if (what.equals("agent")) {
+                button.getStyleClass().add("agent");
+            }
+            button.setMaxWidth(Double.MAX_VALUE);
+            button.setMinHeight(TAB_ROW);
+            button.setPrefHeight(TAB_ROW);
+            button.setMaxHeight(TAB_ROW);
+            // A button is as wide as what is in it: the row is made as wide as the button has room.
+            row.minWidthProperty().bind(button.widthProperty().subtract(20));
+            button.setAccessibleText(spoken);
+            button.setTooltip(new Tooltip("Shows the metrics and the log of this " + what + " only.\nClick again for everything."));
+            // The button has turned itself already: what is chosen is said in one place, and every row follows it.
+            button.setOnAction(click -> choose(id));
+            return button;
         }
 
         private static VBox card(String title, Label aside, Node... content) {
@@ -711,6 +879,16 @@ final class Panel {
             return copy;
         }
 
+        /** The rows of the tabs in the list's order, for a test: each is a button that chooses its tab. */
+        List<ToggleButton> tabs() {
+            return choices.stream().map(Choice::button).toList();
+        }
+
+        /** The tab whose metrics and log are shown, or null for all, for a test. */
+        String chosen() {
+            return chosen;
+        }
+
         /** The box with the log's lines, for a test: to scroll in it and to mark some of it, as a user does. */
         TextArea log() {
             return log;
@@ -732,6 +910,8 @@ final class Panel {
                     case Label label when !label.getText().isEmpty() -> into.add(label.getText());
                     case TextArea area -> into.add(area.getText());
                     case Button button when button.getText() != null && !button.getText().isEmpty() -> into.add(button.getText());
+                    // A tab's row is what its button shows; the button holds it only once it has been drawn.
+                    case ToggleButton toggle when toggle.getGraphic() instanceof Parent shownInIt -> collect(shownInIt, into);
                     // What scrolls is held by its pane, also before the pane has been drawn.
                     case ScrollPane pane when pane.getContent() instanceof Parent inner -> collect(inner, into);
                     case Parent inner -> collect(inner, into);

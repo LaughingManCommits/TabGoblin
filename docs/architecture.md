@@ -11,9 +11,13 @@ flowchart TB
   subgraph agentp["Agent process (IDE or CLI)"]
     AG["AI agent"]
   end
-  subgraph serverp["Java server process: one per agent"]
+  subgraph linkp["The process the agent starts: one per agent"]
+    LINK["Link<br/>passes the agent's messages on"]
+  end
+  subgraph serverp["Java server process: one for all agents"]
+    HUB["Hub<br/>127.0.0.1, proof of the pairing token"]
     TAP["StdinTap<br/>end of input, client cancel"]
-    MCP["McpMain<br/>MCP stdio, tool definitions"]
+    MCP["Agent, McpMain<br/>MCP conversation, tool definitions"]
     SVC["BrowserService<br/>arguments → commands → results"]
     BR["WebSocketBridge<br/>127.0.0.1, origin check, pairing"]
     CONN["ExtensionConnection<br/>correlation, deadlines, ordering"]
@@ -27,7 +31,7 @@ flowchart TB
   end
   PAGE["Authorized tab"]
 
-  AG -- "JSON-RPC over stdio" --> TAP --> MCP --> SVC --> BR --> CONN
+  AG -- "JSON-RPC over stdio" --> LINK -- "the same, over a local socket" --> HUB --> TAP --> MCP --> SVC --> BR --> CONN
   CONN -- "WebSocket, protocol v2" --> BG
   BG --> POL
   POP -- "runtime messages" --> BG
@@ -37,16 +41,56 @@ flowchart TB
 | Part | Responsibility | Does not |
 |---|---|---|
 | Agent | Understand the site, plan, summarise | Touch the browser except through tools |
-| Java server | Expose tools, validate arguments, bind calls to sessions, time out, cancel, remember submission ids, log | Know any website, summarise, hold page content |
+| Link | Pass its agent's MCP messages to the server and the answers back; start the server if none runs; tell the agent what it was waiting for when the server is gone | Read or change a message, send one twice |
+| Java server | Serve every agent that is connected: expose tools, validate arguments, bind calls to sessions, time out, cancel, remember submission ids, log | Know any website, summarise, hold page content, tell one agent of another |
 | Extension background | Connect to all servers, own sessions, check every command, drive navigation and submissions, keep the activity feed | Trust the page, run agent code |
 | Content script | Read the DOM into allowlisted text, perform one fixed operation per request | Persist anything, talk to anyone but the background |
 | Popup | Show state, take the user's decisions | Decide anything itself |
 
 ## Processes and ports
 
-Each MCP client starts its own server process over stdio. A server binds the first free port of
-eight, counting up from `--port` (default 47821), on `127.0.0.1` only. The extension tries every
-port of that range that has no live connection, so each agent is one WebSocket.
+There is one server process for all agents. An agent's program starts the jar as a child of its
+own and talks to it over stdio, and that cannot be changed from here: so the child stays, and is
+a *link* (`Link.java`). It connects to the server on `127.0.0.1`, on the port after the agents'
+eight (47829 by default), and passes its agent's messages on, line by line. If no server listens
+there, the link starts one as a process of its own (`McpMain.startServer`), which is not the
+link's to end and serves the agents that come after.
+
+Inside the server (`Hub.java`) each agent is what a server was while there was one for each
+agent (`Agent.java`): an id, its own port to the extension, its sessions, its times, its tools.
+An agent's port is the first free one of eight, counting up from `--port` (default 47821), on
+`127.0.0.1` only. The extension tries every port of that range that has no live connection, so
+each agent is one WebSocket, and the extension needs to know nothing of the one server. Agents
+share the process and nothing else: no tool tells one agent anything of another.
+
+Before a message passes, a link and the server each prove that they know the pairing token:
+
+```mermaid
+sequenceDiagram
+  participant L as Link
+  participant S as Server
+  Note over S: bound to 127.0.0.1, the port after the agents' eight
+  L->>S: connects
+  S->>L: hello { nonce, link: 1 }
+  L->>S: attach { nonce, proof = HMAC(token, "link:"+sn+":"+ln), link: 1, panel }
+  S->>L: attached { proof = HMAC(token, "hub:"+sn+":"+ln) }
+  Note over L,S: from here on the agent's MCP messages, as they are
+  S-->>L: { tabgoblin: "log", text } and { tabgoblin: "stopping" }, for the link itself
+```
+
+The words in the proofs differ from those of the extension's pairing, so a proof made for the
+one is no proof for the other. Ten wrong proofs within a minute and the server takes no link for
+the rest of it. A link that asks with `show` in the place of `attach` wants the server's window
+and becomes no agent. What the server writes to its log for one agent it passes to that agent's
+link, which writes it to its own standard error: an agent's program keeps the log of the
+process it started, and that is where the agent's lines are looked for. A line of the server
+itself goes to every link.
+
+Where the one server cannot be had, because another program holds its port or it cannot be
+started, the process an agent started serves that agent alone, as every such process did
+before, and says so in its log.
+
+The extension pairs with each agent's port as before:
 
 ```mermaid
 sequenceDiagram
@@ -134,9 +178,8 @@ no other agent ever does.
 **A server that is started again.** A server makes a new id each time it starts and remembers
 nothing, so its sessions come back to it by its agent's name alone, and it is the extension
 that says so: a session is the user's grant and is kept there, and a server cannot claim one.
-Three things make that happen at once. The server takes the agent's name from the message with
-which the agent opens its connection (`StdinTap`), not from its first tool call. A server that
-a person started in a terminal, which no agent names, calls itself *Started by hand*. And the
+Two things make that happen at once. The server takes the agent's name from the message with
+which the agent opens its connection (`StdinTap`), not from its first tool call. And the
 extension makes what the server's former self left the new server's own the moment it pairs,
 or the moment its name arrives, and tells it so (`takeUp` in `background.ts`). So the server's
 panel lists the tabs, and the popup names the server that is there as their agent, before any
@@ -259,27 +302,47 @@ far the call is: what it reports is the time the call has run.
 
 ## How a server ends
 
-A server ends when its MCP client closes the input, on Ctrl+C, or on a signal to stop. Each time
-the same happens, in this order, and within two seconds or the process ends anyway:
+A link ends when its agent's program closes the input, on Ctrl+C, or on a signal to stop. The
+server then ends that agent's part, in this order:
 
-1. The MCP server is closed, so that nothing new is taken on.
-2. The socket is stopped. The extension gets the close code for "going away" (1001) and drops
-   that agent at once, instead of finding the connection gone.
-3. The process exits with code 0.
+1. The agent's MCP conversation is closed, so that nothing new is taken on.
+2. The agent's socket is stopped. The extension gets the close code for "going away" (1001) and
+   drops that agent at once, instead of finding the connection gone.
+
+The other agents are not touched. The server itself ends when its last agent has gone and none
+has come for three seconds, or when the user stops it in its window; one that the user started
+with `--panel` in a terminal, or whose window the user opened that way, stays until it is
+stopped. At a stop every
+link is told so first, and ends with exit code 0, as a server did when the user stopped it.
+
+**When the server's process is gone and nobody stopped it,** each link that still has its agent
+starts the server anew, or connects to the one that another link has started meanwhile. Three
+things keep that from being a second sending of anything. The link answers every request its
+agent was waiting for, itself: a tool call gets the result of a failed call,
+[`CONNECTION_LOST`](tools.md#errors), which says that the outcome is unknown and that nothing
+was retried. It sends the new server the agent's opening message again, so that the server knows
+the agent by its name and gives it its sessions back, and does not pass the answer on, which the
+agent has already. And a message of the agent's that had not reached the old server goes to the
+new one once. The agent's connection stays what it was; its server has a new id, as after any
+restart ([sessions](#sessions)).
 
 A command line that is not understood starts nothing: the reason and the usage text go to
 standard error, and the exit code is 2.
 
 ## The server's panel
 
-With `--panel` (or `BCMCP_PANEL=1`) a server shows a window of its own; without it nothing of the
-window's code is loaded. What the user sees and can do there is in the
+The server shows a window when an agent's settings ask for it with `--panel` (or
+`BCMCP_PANEL=1`), or when the user asks for it by running the jar with `--panel` in a terminal;
+without that nothing of the window's code is loaded. There is one window, as there is one
+server: it shows every agent. What the user sees and can do there is in the
 [user guide](user-guide.md#9-the-servers-panel); what the window may and may not do, in the
 [security model](security.md#the-servers-panel). How it is built:
 
 - **A model, a window, four commands.** Once a second the window asks for a `PanelModel`: a
-  record made from what the status tool also reads (`WebSocketBridge`, `Timings`) and from the
-  lines `Log` has kept. It is plain data and is tested without a display. `Panel` draws it and
+  record made from what the status tool also reads of each agent (`WebSocketBridge`, `Timings`)
+  and from the lines `Log` has kept. With one agent it is that agent, as the panel always
+  showed it; with several, each has a heading over its tabs; with none, it says that the server
+  waits for one. It is plain data and is tested without a display. `Panel` draws it and
   sends back one of four commands, a sealed type: the connection on or off, stop, kill, and
   copy the pairing token. `McpMain` carries them out (`carryOut`).
 - **The pairing token goes to the clipboard and nowhere else.** It is read when the button is
@@ -288,9 +351,19 @@ window's code is loaded. What the user sees and can do there is in the
   clipboard again after a minute, and at Stop, if it is still what the clipboard holds.
 - **The controls are always in view.** The header above and the controls below are fixed; the
   sessions, the time and the log lie in one part between them that scrolls where a screen is
-  too low. The window is as high as the screen allows, up to 760 pixels, and three sessions
-  are listed with the rest counted (`PanelModel.LISTED`). A list as long as the tabs once
-  pushed the controls out of the window.
+  too low. The window is as high as the screen allows, up to 760 pixels. Every session is in
+  the list, three show at a time, and the list scrolls (`Panel.TABS_IN_VIEW`). A list as long
+  as the tabs once pushed the controls out of the window.
+- **One tab's or one agent's metrics and log, on a click.** A session's row is a button, and so
+  is an agent's heading where there are several. What is chosen is the window's own affair
+  (`Panel.View.choose`): it is in no model and reaches the server by no command. The model has
+  the metrics and the log for everything, for each agent and for each tab alone, and the window
+  shows the part that is chosen. A line of the log carries the agent it belongs to
+  (`Log.Scope`). For that a call's times and a
+  command's log line carry the session the command ran in (`Timings.Call`, `Log.Line`). A
+  command may name none and be given the agent's only session, so the extension says in each
+  answer which session it was ([protocol](development.md#protocol-reference)). The report the
+  agent gets has no session in it, as before.
 - **Stop and Kill.** Stop runs the steps under "How a server ends". Kill halts the process with
   exit code 1 and runs none of them: the extension finds the connection gone instead of being
   told.

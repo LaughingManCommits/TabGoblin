@@ -11,8 +11,8 @@ than fits, the popup scrolls.
 
 The [installation guide](installation.md) has every step, with what you should see and what to
 do when you do not: building the two parts, loading the extension in Chrome, and telling your
-agent about the server. Every agent you set up starts its own server; up to eight can run at
-once.
+agent about the server. All your agents share one server, which the first of them starts; up to
+eight agents can be connected to it at once.
 
 ## 2. Pair
 
@@ -229,50 +229,52 @@ and ends every session it has. *Allow again* gives the agent its connection back
 tabs. To stop an agent for a while and keep what you gave it, pause its sessions instead. None of
 these stop the server; they do not need to.
 
-**Stopping a server.** A server belongs to the agent that started it and exits by itself when
-that agent closes or disconnects from it. Normally there is nothing to stop: close the IDE or end
-the CLI session, and its server is gone a moment later.
+**Stopping the server.** There is one server for all your agents. The first agent that needs it
+starts it, and it ends by itself a few seconds after its last agent has gone. Normally there is
+nothing to stop: close the IDE or end the CLI session. An agent that ends takes only its own
+part along, and the others work on.
 
-**A server you started by hand.** If you run the jar in a terminal without `--show-token` or
-`--rotate-token`, it starts a server and waits for an agent to talk to it through that terminal.
-It says so, and how to stop it:
+To stop it yourself, press **Stop server** in its window (next section). Every agent then has
+no TabGoblin tools until its program connects again; in Claude Code that is *Reconnect* under
+`/mcp`. Its tabs are kept, and are the agent's again when it is back.
+
+**If you run the command without an option yourself.** That form is for your agent to run. In
+a terminal it only waits for an agent's messages, and says so:
 
 ```text
-TabGoblin MCP server, running on 127.0.0.1:47821.
-It is normally started by your agent (IDE or CLI), which talks to it through this input and output. …
-Press Ctrl+C to stop it. Other uses: --show-token, --rotate-token, --help.
+TabGoblin: this command is for your agent (IDE or CLI) to run, not for you. Here it only waits for an agent's messages.
+Press Ctrl+C to end it. To open the server's window, run it with --panel. See also --show-token, --rotate-token, --help.
 ```
 
-Press **Ctrl+C**. `--show-token`, `--rotate-token` and `--help` print and return on their own;
-there is nothing to stop.
+Press **Ctrl+C**. With `--panel`, `--show-token`, `--rotate-token` or `--help` the command does
+its part and returns on its own; there is nothing to stop.
 
-**A server that is left over.** If a port stays taken after its agent is gone, or Ctrl+C does
-nothing because the terminal does not pass it on (some IDE terminals do not), find the server and
-end it:
+**A server that hangs or is left over.** The agents' ports are 47821 to 47828, and the server's
+own is the one after them. To find the process:
 
 ```powershell
-# Windows (PowerShell): list the servers with their ports, then stop one by its process id
-Get-NetTCPConnection -State Listen -LocalPort (47821..47828) -ErrorAction SilentlyContinue |
+# Windows (PowerShell): the ports with their process, then end it by its process id
+Get-NetTCPConnection -State Listen -LocalPort (47821..47829) -ErrorAction SilentlyContinue |
   Select-Object LocalPort, OwningProcess
 Stop-Process -Id <OwningProcess>
 ```
 
 ```sh
 # macOS and Linux
-lsof -nP -iTCP:47821-47828 -sTCP:LISTEN
+lsof -nP -iTCP:47821-47829 -sTCP:LISTEN
 kill <PID>
 ```
 
-Each line is one agent's server; the popup shows the same ports next to the agents. Stopping a
-server only disconnects its agent: sessions, the pairing and the token are kept, and the agent
-starts a new server the next time it needs one. That server has the agent's tabs again as soon
-as the extension has found it: they come back to it by the agent's name.
-
-A server that shows its panel can be stopped from there; see the next section.
+Every line is the one server: a port for each agent, as the popup shows them, and its own.
+Ending its process this way is not a stop. Agents that are still running start the server again
+within a second and go on; a tool call that was running then answers that its outcome is
+unknown. Each agent has its tabs again as soon as the extension has found it: they come back to
+it by its name. To have no server, end the agents, or press **Stop server** in the window.
 
 ## 9. The server's panel
 
-A server has no window unless you ask for one. With the option `--panel` it shows a small one.
+The server has no window unless you ask for one. There is one window, as there is one server,
+and it shows every agent that is connected.
 
 **To see it at once,** run this in the project's folder:
 
@@ -280,19 +282,12 @@ A server has no window unless you ask for one. With the option `--panel` it show
 java -jar java-server/target/browser-context-mcp.jar --panel
 ```
 
-That starts a server by hand, with its window. No agent talks to it, so the window and the
-popup call it *Started by hand*; your extension pairs with it and lists it. **Stop server** in
-the window ends it, and so does Ctrl+C in the terminal. Started again the same way, it has the
-tabs you authorized for it as before.
+That brings up the window of the server that is running, and returns. If no server is running
+it starts one, with its window: your agents connect to it when they start, and show in it. A
+server whose window you asked for this way stays until you press **Stop server** in it.
 
-It is a window to look at and to try, and not the place where your agent's work shows. Your
-agent has a server of its own, which it started itself; that server's tabs and tool calls are
-not in this window, and a tab you authorize for *Started by hand* is used by no agent. The
-window says so in a box under the line with the dot. To watch your agent, have the panel on
-its own server, as described next.
-
-**To have it on your agent's server,** add `--panel` after the jar's path where you told your
-agent about the server
+**To have it whenever your agent runs,** add `--panel` after the jar's path where you told
+your agent about the server
 ([step 5 of the installation guide](installation.md#5-tell-your-agent-about-the-server)), and
 restart the agent. In settings that are JSON:
 
@@ -307,43 +302,52 @@ command that removes the entry it has:
 claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --panel
 ```
 
-`BCMCP_PANEL=1` in the environment the agent starts the server in does the same as the option.
-Take it out again, and the server runs without a window as before.
+`BCMCP_PANEL=1` in the environment the agent starts its process in does the same as the
+option. The window is then there while that agent runs, and goes with the server when its last
+agent has gone.
 
 **Rebuild the server first** if your jar is from before the panel
 ([Updating](installation.md#updating)). An older jar does not know the option and does not
 start at all: the agent then has no TabGoblin tools until the jar is rebuilt or the option is
 taken out.
 
-Each server shows one small window, for the one agent that started it, from the moment that
-agent starts it. With several agents there are several windows, each a step down and to the
-left of the one before; the line under the title says whose it is. On the taskbar a window has
-the goblin for its icon; the name there is Java's. A window takes the keyboard when it appears,
-as a new window does. No button in it has the keyboard then, so a key that was on its way
-elsewhere presses nothing.
+On the taskbar the window has the goblin for its icon; the name there is Java's. The window
+takes the keyboard when it appears, as a new window does. No button in it has the keyboard
+then, so a key that was on its way elsewhere presses nothing.
 
 <img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, the metrics, the log, and the controls">
 
-- **Under the title:** the agent's name, the id it has in the popup, and its port. An agent
-  says its name when it starts the server; a server you started yourself is called *Started by
-  hand*.
-- **The line with the dot** says whether the extension is connected to this server and since
-  when, or why it is not; the table below has each of its sentences. An amber box under it is
-  a problem the server had when it started, such as that no port was free. A plain box there
-  is on a server you started by hand, and says that no agent talks to it.
-- **Sessions** are the tabs this agent has: the site, the access level, and *paused* or
-  *suspended* where that applies. The page's title and address are not shown. Three are
-  listed; where the agent has more, a line says how many, and the popup lists them all. A tab
-  marked *any agent* is one you authorized for any agent and none has used yet: every server
-  lists it, and it is the agent's own from its first use.
+- **Under the title:** with one agent, its name, the id it has in the popup, and its port; with
+  several, how many there are; with none, that this is the one server for all your agents. An
+  agent says its name when its program connects.
+- **The line with the dot** says whether the extension is connected to the agent and since
+  when, or why it is not; with several agents, to how many of them. The table below has each of
+  its sentences. An amber box under it is a problem an agent had when it connected, such as
+  that no port was free. A plain box there, while no agent is connected, says what to do:
+  start your agent, and it connects by itself.
+- **Sessions** are the tabs the agents have: the site, the access level, and *paused* or
+  *suspended* where that applies. The page's title and address are not shown. Every tab is in
+  the list; three show at a time, and the list scrolls where there are more. With several
+  agents each has a heading over its tabs, with its id and its port, or *not connected*. A tab
+  marked *any agent* is one you authorized for any agent and none has used yet: it is listed
+  under each agent, and is one agent's own from that agent's first use.
+- **A click on a tab,** or on an agent's heading, shows that tab or that agent alone in the two
+  cards below: its metrics and its lines. It is marked, and the corner of the card says which
+  one is showing. A click on it again, or
+  Escape, shows all tabs again. With no tab chosen you see everything. The click changes what
+  the window shows and nothing else: the server and the agent are told nothing of it.
 - **Metrics** divides the time of the last tool calls into four shares: the agent and its
   model between calls, this server, the extension and the page, and what you took to answer a
-  question. The agent gets the same in more detail
-  ([tool reference](tools.md#where-the-time-went)).
+  question. They are shares of all that time together. For one tab they are the shares of its
+  calls, with the time the agent took before each of them. The agent gets the whole in more
+  detail ([tool reference](tools.md#where-the-time-went)).
 - **Log** has the server's last 300 lines, with the newest in view: when the extension
-  connected and left, and one line for each tool call, with the action, how long it took and
-  how it ended. Nothing of a page is in it. A line that begins with `!` is a warning. Lines can be marked and copied. While you read in it, with some of it marked or
-  scrolled up, nothing new is written; back at its last line, it goes on.
+  connected and left, and one line for each tool call, with the tab it ran in, the action,
+  how long it took and how it ended. Nothing of a page is in it. A line that begins with `!`
+  is a warning. For one tab it has the lines of that tab's calls; lines that belong to no
+  tab, such as a connection made or lost, show with no tab chosen. Lines can be marked and
+  copied. While you read in it, with some of it marked or scrolled up, nothing new is
+  written; back at its last line, it goes on.
 - **Connection to the browser** is a switch. Off, the server closes its connection to the
   extension and lets it in no more until you switch it on. The agent's tools then answer that
   you switched it off, and where; the popup says *Disconnected*. Switched on, the extension
@@ -352,8 +356,10 @@ elsewhere presses nothing.
   *Pairing token* field of the extension's popup, without showing it. The token leaves the
   clipboard again after a minute, and when you stop the server from the panel, unless you have
   copied something else since. A clipboard history that your system keeps is not emptied.
-- **Stop server** ends it in order, as when the agent closes it. **Kill** ends the process at
-  once, for a server that hangs; what it was doing in the browser then has an unknown outcome.
+- **Stop server** ends the server in order, for every agent: each then has no TabGoblin tools
+  until its program connects again. **Kill** ends the process at once, for a server that
+  hangs; what it was doing in the browser then has an unknown outcome, and agents that are
+  still running start the server anew at once.
   Each takes two clicks: after the first the button says *Click again*, and goes back by itself
   after four seconds.
 - **The dash** at the top right puts the window away. The server keeps running, and the window
@@ -362,7 +368,9 @@ elsewhere presses nothing.
 
 | The line with the dot says | Because | What to do |
 |---|---|---|
-| *Connected to the browser since …* | The extension is connected to this server | Nothing |
+| *Connected to the browser since …* | The extension is connected to the agent | Nothing |
+| *No agent connected* | The server runs and no agent's program has connected to it | Start your agent, or reconnect it; a server whose window you opened yourself waits until you stop it |
+| *1 of 2 agents is connected to the browser*, and the like | The extension is connected to some agents and not to others. An agent's heading says *not connected*; the pointer on it says why | What the reason asks for, from the rows below |
 | *Not connected: waiting for the extension* | Chrome is not running, the extension is not paired, or it has not found this server yet | Open the popup: a paired extension connects at once, and by itself within half a minute. To pair, **Copy** the token here and paste it into the popup |
 | *Not connected: disconnected in the extension's popup* | You pressed *Disconnect* next to this agent. The line and the log stay as they are until you allow it again | Press *Allow again* there |
 | *Not connected: the pairing has ended* | The token was rotated, or the pairing failed | Pair again: **Copy** the token here and paste it into the popup ([step 6 of the installation guide](installation.md#6-pair-the-extension-with-the-server)) |
@@ -372,8 +380,8 @@ elsewhere presses nothing.
 The header and the controls are always in view. On a low screen the part between them scrolls.
 
 The panel gives an agent nothing. Authorizing a tab, changing an access level, revoking a tab
-and turning an agent away for good stay in the popup, and the panel shows one agent's server
-and knows nothing of the others. Switching the connection off, or stopping the server, leaves
+and turning an agent away for good stay in the popup. The panel shows every agent of the server
+to you, and no agent anything of another. Switching the connection off, or stopping the server, leaves
 the agent's tabs authorized. What it hands out, it hands to you: the pairing token, which is
 also in a file in your home folder. The rules, and where they stop, are in the
 [security model](security.md#the-servers-panel).

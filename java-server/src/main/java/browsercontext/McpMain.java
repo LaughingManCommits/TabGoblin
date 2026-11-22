@@ -1,12 +1,8 @@
 package browsercontext;
 
-import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.json.McpJsonMapper;
-import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
-import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
-import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
 import io.modelcontextprotocol.spec.McpSchema;
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -18,11 +14,14 @@ import java.util.function.Supplier;
 import tools.jackson.databind.JsonNode;
 
 /**
- * Entry point: an MCP stdio server exposing the generic browser tools, plus the localhost WebSocket
- * the Chrome extension connects to.
+ * Entry point. One jar, started in three ways: by an agent's program, as that agent's pipe to the
+ * one server ({@link Link}); by such a pipe, as the one server ({@link Hub}), which serves every
+ * agent its MCP tools and has for each a localhost WebSocket the Chrome extension connects to
+ * ({@link Agent}); and by the user, for the server's window or the pairing token.
  *
  * <pre>
- *   java -jar browser-context-mcp.jar                  run the MCP server (stdio)
+ *   java -jar browser-context-mcp.jar                  what an agent's program starts (MCP over stdio)
+ *   java -jar browser-context-mcp.jar --panel          show the server's window
  *   java -jar browser-context-mcp.jar --show-token     print the pairing token for the extension popup
  *   java -jar browser-context-mcp.jar --rotate-token   replace the pairing token (pair the extension again)
  *   java -jar browser-context-mcp.jar --help           the above, and how to stop it
@@ -36,7 +35,7 @@ public final class McpMain {
     /** Id of the unpacked extension; fixed by the "key" in chrome-extension/manifest.json. */
     static final String DEFAULT_EXTENSION_ORIGIN = "chrome-extension://hipkpjlbggddmiognhmjnfihcgimjfop";
 
-    private static final String INSTRUCTIONS = """
+    static final String INSTRUCTIONS = """
             Generic tools for the user's own Chrome tabs. The user authorizes a tab and its website origin in the \
             TabGoblin extension popup; each authorized tab is a session (s1, s2, ...) that belongs to \
             one agent. You can only act on your sessions and only on their origin. browser_status lists them; \
@@ -61,9 +60,6 @@ public final class McpMain {
 
     private static final String SESSION = """
             "session":{"type":"string","description":"Session id from browser_status (s1, s2, ...). Optional while exactly one tab is authorized for this agent."}""";
-
-    private static final java.util.concurrent.atomic.AtomicReference<StdinTap> TAP =
-            new java.util.concurrent.atomic.AtomicReference<>();
 
     private McpMain() {
     }
@@ -107,88 +103,195 @@ public final class McpMain {
             return;
         }
 
+        Supplier<String> tokens = Pairing.tokenSource(tokenFile, token);
+        Agent.Settings settings = new Agent.Settings(port, tokens, extensionOrigin);
+        // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
+        Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
+
+        if (options.hub()) {
+            serveAll(settings, options);
+            return;
+        }
+        boolean byHand = startedByHand();
+        if (byHand && options.panel()) {
+            // A person asked for the server's window. There is one server: its window is brought up,
+            // and the server is started first if none runs. Nothing else is started here.
+            System.exit(showWindow(settings, options, mcpOut) ? 0 : 1);
+            return;
+        }
+        if (byHand) {
+            // Someone ran the command in a terminal: without this it just sits there, looking stuck.
+            System.err.println("""
+                    TabGoblin: this command is for your agent (IDE or CLI) to run, not for you. \
+                    Here it only waits for an agent's messages.
+                    Press Ctrl+C to end it. To open the server's window, run it with --panel. \
+                    See also --show-token, --rotate-token, --help.""");
+        }
+        // An agent's program started this process. There is one server for all agents: this process
+        // passes its agent's messages on to it, and starts it first if there is none.
+        Link link = new Link(System.in, mcpOut, System.err, tokens, Link.port(port), options.panel(),
+                () -> startServer(options, false));
+        if (link.connect()) {
+            System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
+            return;
+        }
+        // No server is to be had here: its port is held by something else, or it cannot be started.
+        // This process serves its agent alone then, as every such process did before there was one server.
+        serveAlone(settings, options, mcpOut);
+    }
+
+    /**
+     * The one server: every agent's process connects to it. It runs until the user stops it or its
+     * last agent has gone.
+     */
+    private static void serveAll(Agent.Settings settings, Options options) {
+        // The window may be asked for at any time: the log is kept from the first line on.
+        Log.keep(Panel.LOG_LINES);
+        Hub hub;
+        try {
+            hub = Hub.open(settings, options.standing());
+        } catch (java.io.IOException e) {
+            // The port is taken: there is a server already, and one is enough.
+            return;
+        }
+        RUNNING.add(hub::close);
+        hub.whenEmpty(McpMain::end);
+        java.util.concurrent.atomic.AtomicBoolean shown = new java.util.concurrent.atomic.AtomicBoolean();
+        hub.window(() -> {
+            if (shown.compareAndSet(false, true)) {
+                showPanel(() -> PanelModel.of(
+                        hub.agents().stream().map(agent -> PanelModel.facts(agent.bridge(), agent.startupProblem())).toList(),
+                        hub.port(), version(), hub.held(), Log.recent(), java.time.ZoneId.systemDefault()),
+                        command -> carryOut(command, hub::setHeld, settings.token(), Panel::copySecret), Panel::possible);
+            } else {
+                Panel.raise();
+            }
+        });
+        if (options.panel()) {
+            hub.showWindow();
+        }
+        hub.serve();
+    }
+
+    /**
+     * Serves this process's own agent and no other, on the process's input and output. For a
+     * machine where the one server cannot be had.
+     */
+    private static void serveAlone(Agent.Settings settings, Options options, PrintStream mcpOut) throws InterruptedException {
         if (options.panel()) {
             // From the first line on, so that the panel has the log of this server's start as well.
             Log.keep(Panel.LOG_LINES);
         }
-        Supplier<String> tokens = Pairing.tokenSource(tokenFile, token);
-        WebSocketBridge bridge = null;
-        String startupProblem = null;
-        for (int candidate = port; candidate < port + PORT_RANGE && bridge == null; candidate++) {
-            WebSocketBridge attempt = new WebSocketBridge(candidate, tokens, extensionOrigin);
-            try {
-                attempt.startAndWait();
-                bridge = attempt;
-            } catch (Exception e) {
-                // Port taken by another agent's server: try the next one.
-            }
-        }
-        if (bridge == null) {
-            bridge = new WebSocketBridge(port, tokens, extensionOrigin);
-            startupProblem = "Could not listen on any of ports " + port + "-" + (port + PORT_RANGE - 1)
-                    + " on 127.0.0.1: too many TabGoblin servers are running.";
-            Log.warn(startupProblem);
-        } else {
-            Log.info("listening port=" + bridge.getPort() + " client=" + bridge.clientId());
-            LISTENING.set(bridge);
-        }
-        // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
-        Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
-        boolean byHand = startedByHand();
-        if (byHand) {
-            // Someone typed the command: without this the terminal just sits there, looking stuck.
-            System.err.println("""
-                    TabGoblin MCP server, running on 127.0.0.1:%d.
-                    It is normally started by your agent (IDE or CLI), which talks to it through this \
-                    input and output. Started by hand it only waits; anything typed here is taken as protocol.
-                    Press Ctrl+C to stop it. Other uses: --show-token, --rotate-token, --help.""".formatted(bridge.getPort()));
-        }
-        BrowserService service = new BrowserService(bridge, startupProblem);
-        if (byHand) {
-            // No agent will say who this is. Without a name its tabs would stay with the server that
-            // was stopped: they come back to a server that is started again by its name alone.
-            service.noteClient(STARTED_BY_HAND);
-        }
+        Log.warn("serving this agent alone reason=no_server_to_connect_to");
+        Agent agent = Agent.serve(settings, System.in, mcpOut, McpMain::inputEnded, false);
+        agent.announce();
+        RUNNING.add(agent::close);
         if (options.panel()) {
-            showPanel(bridge, startupProblem, byHand, tokens, Panel::possible);
+            showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem()),
+                    command -> carryOut(command, agent.bridge()::setHeld, settings.token(), Panel::copySecret), Panel::possible);
         }
-
-        McpJsonMapper mapper = McpJsonDefaults.getMapper();
-        // Exit when the MCP client closes stdin, so no orphan process keeps the WebSocket port,
-        // and stop tool calls the client cancels.
-        // An agent's name is taken from its opening message: a server that was started again is
-        // given its tabs back by that name, and should not have to wait for a tool call to have it.
-        StdinTap stdin = new StdinTap(System.in, McpMain::inputEnded, service::noteClient);
-
-        SERVING.set(McpServer.sync(new StdioServerTransportProvider(mapper, stdin, mcpOut))
-                .serverInfo(identity())
-                .instructions(INSTRUCTIONS)
-                .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
-                .tools(toolSpecs(service, mapper, stdin))
-                .build());
-
         Thread.currentThread().join();
     }
 
-    /** What a server calls its agent when a person started it in a terminal and no agent talks to it. */
-    static final String STARTED_BY_HAND = "Started by hand";
+    /**
+     * A person asked for the server's window in a terminal. If the server runs, it is asked to
+     * bring its window up; if not, it is started for the user, with its window, and stays until
+     * the user stops it. Says whether the window is up.
+     */
+    private static boolean showWindow(Agent.Settings settings, Options options, PrintStream said) {
+        Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(), System.err,
+                settings.token(), Link.port(settings.port()), true, () -> { });
+        try {
+            if (asker.show()) {
+                said.println("The TabGoblin server is running; its window is open now. "
+                        + "It keeps running until you press Stop server in that window.");
+                return true;
+            }
+            startServer(options, true);
+            long until = System.currentTimeMillis() + 20_000;
+            while (System.currentTimeMillis() < until) {
+                Thread.sleep(200);
+                if (asker.show()) {
+                    said.println("""
+                            TabGoblin server started; its window is open.
+                            It keeps running until you press Stop server in that window.
+                            Your agents connect to it by themselves and appear there.""");
+                    return true;
+                }
+            }
+            System.err.println("The TabGoblin server did not start within 20 seconds.");
+        } catch (Link.Refused e) {
+            System.err.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that is not this "
+                    + "TabGoblin server (" + e.getMessage() + ").");
+        } catch (java.io.IOException e) {
+            System.err.println("The TabGoblin server could not be started: " + e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return false;
+    }
+
+    /**
+     * Starts the one server as a process of its own. It is not this process's to end: it outlives
+     * the agent whose process happened to start it, and serves the agents that come after.
+     *
+     * @param forTheUser the user ran the command for the window: the server shows it and stays without an agent
+     */
+    static void startServer(Options options, boolean forTheUser) throws java.io.IOException {
+        List<String> command = new ArrayList<>();
+        command.add(launcher());
+        String classPath = java.util.Arrays.stream(System.getProperty("java.class.path", "").split(java.io.File.pathSeparator))
+                .filter(entry -> !entry.isEmpty())
+                .map(entry -> Path.of(entry).toAbsolutePath().toString())
+                .collect(java.util.stream.Collectors.joining(java.io.File.pathSeparator));
+        if (classPath.endsWith(".jar") && !classPath.contains(java.io.File.pathSeparator)) {
+            command.add("-jar");
+            command.add(classPath);
+        } else {
+            command.add("-cp");
+            command.add(classPath);
+            command.add(McpMain.class.getName());
+        }
+        command.add("--hub");
+        if (forTheUser) {
+            command.add("--standing");
+            command.add("--panel");
+        }
+        command.add("--port");
+        command.add(String.valueOf(options.port()));
+        command.add("--token-file");
+        command.add(options.tokenFile().toAbsolutePath().toString());
+        command.add("--extension-origin");
+        command.add(options.extensionOrigin());
+        // Nothing of it goes to this process's input or output: those are the agent's.
+        new ProcessBuilder(command)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+                .getOutputStream().close();
+    }
+
+    /** The Java this process runs on. On Windows the launcher without a console: the server has no terminal, and none is to open for it. */
+    private static String launcher() {
+        Path running = ProcessHandle.current().info().command().map(Path::of)
+                .orElse(Path.of(System.getProperty("java.home"), "bin", "java"));
+        Path windowless = running.resolveSibling("javaw.exe");
+        boolean console = running.getFileName().toString().equalsIgnoreCase("java.exe");
+        return (console && java.nio.file.Files.isRegularFile(windowless) ? windowless : running).toString();
+    }
 
     /**
      * Shows the server's panel, if a window can be shown here. A server never fails for want of
      * its panel: without a display, or if the window cannot be made, it says so in the log and
-     * runs as it does without the option. Returns whether the panel was opened.
-     *
-     * @param byHand a person started this server in a terminal: its panel says that no agent talks to it
+     * runs as it does without it. Returns whether the panel was opened.
      */
-    static boolean showPanel(WebSocketBridge bridge, String startupProblem, boolean byHand, Supplier<String> token,
-            BooleanSupplier possible) {
+    static boolean showPanel(Supplier<PanelModel> model, Consumer<Panel.Command> commands, BooleanSupplier possible) {
         try {
             if (!possible.getAsBoolean()) {
                 Log.warn("panel not shown reason=no_display");
                 return false;
             }
-            Panel.open(() -> PanelModel.of(bridge, startupProblem, byHand),
-                    command -> carryOut(command, bridge, token, Panel::copySecret));
+            Panel.open(model, commands);
             Log.info("panel shown");
             return true;
         } catch (RuntimeException | LinkageError e) {
@@ -200,14 +303,14 @@ public final class McpMain {
     /**
      * What a command from the panel does.
      *
+     * @param hold      switches the connection to the browser off (true) or on, for every agent of the server
      * @param token     the pairing token as it is now; asked only when the user wants it copied
      * @param clipboard where a copied token goes. The token goes nowhere else: not into the log,
      *                  and not into what the panel shows
      */
-    static void carryOut(Panel.Command command, WebSocketBridge bridge, Supplier<String> token,
-            Consumer<String> clipboard) {
+    static void carryOut(Panel.Command command, Consumer<Boolean> hold, Supplier<String> token, Consumer<String> clipboard) {
         switch (command) {
-            case Panel.Command.Connection connection -> bridge.setHeld(!connection.on());
+            case Panel.Command.Connection connection -> hold.accept(!connection.on());
             case Panel.Command.CopyToken copy -> {
                 clipboard.accept(token.get());
                 Log.info("pairing token copied to the clipboard in the panel");
@@ -254,17 +357,19 @@ public final class McpMain {
     private static final String USAGE = """
             TabGoblin MCP server (browser-context-mcp)
 
-              java -jar browser-context-mcp.jar                  run the server; your agent starts it this way
+            Commands you run yourself:
+              java -jar browser-context-mcp.jar --panel          open the server's window (starts the server if it is not running)
               java -jar browser-context-mcp.jar --show-token     print the pairing token for the extension popup
               java -jar browser-context-mcp.jar --rotate-token   replace the pairing token (pair the extension again)
               java -jar browser-context-mcp.jar --help           this text
 
-            Options for running:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
-                                  --panel   also show a small window with this server's connection, sessions,
-                                            times and log; it can switch the connection off and stop the server
+            What your agent runs (this goes into the agent's MCP settings, you do not run it):
+              java -jar browser-context-mcp.jar                  add --panel to have the window open whenever that agent runs
 
-            Stopping: the server exits when the agent that started it closes or disconnects.
-            Started by hand, Ctrl+C stops it. With --panel, the window has a button for it.""";
+            There is one server for all your agents. The first agent that needs it starts it, and it ends
+            by itself when the last agent has gone. To stop it yourself, press Stop server in its window.
+
+            Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -283,38 +388,24 @@ public final class McpMain {
         }
     }
 
-    /** What is running and has to be ended in order: the MCP server, and the socket the extension connects to. */
-    private static final java.util.concurrent.atomic.AtomicReference<McpSyncServer> SERVING =
-            new java.util.concurrent.atomic.AtomicReference<>();
-    private static final java.util.concurrent.atomic.AtomicReference<WebSocketBridge> LISTENING =
-            new java.util.concurrent.atomic.AtomicReference<>();
+    /** What is running and has to be ended in order: the server with its agents, or the one agent of a process that serves alone. */
+    private static final List<Runnable> RUNNING = new java.util.concurrent.CopyOnWriteArrayList<>();
     private static final java.util.concurrent.atomic.AtomicBoolean STOPPED = new java.util.concurrent.atomic.AtomicBoolean();
     /** How long ending in order may take before the process ends anyway. */
     private static final long STOP_WITHIN_MS = 2000;
 
     /**
-     * Ends what is running, once: the MCP server first, so that nothing new is taken on, then the
-     * socket, which tells the extension that this server is going away instead of leaving it to
-     * find the connection gone.
+     * Ends what is running, once and in order: each agent's MCP conversation first, so that nothing
+     * new is taken on, then its socket, which tells the extension that it is going away instead
+     * of leaving it to find the connection gone.
      */
     private static void stop() {
         if (!STOPPED.compareAndSet(false, true)) {
             return;
         }
-        McpSyncServer server = SERVING.get();
-        if (server != null) {
+        for (Runnable close : RUNNING) {
             try {
-                server.closeGracefully();
-            } catch (RuntimeException e) {
-                // ending anyway
-            }
-        }
-        WebSocketBridge bridge = LISTENING.get();
-        if (bridge != null) {
-            try {
-                bridge.stop(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                close.run();
             } catch (RuntimeException e) {
                 // ending anyway
             }
@@ -362,16 +453,15 @@ public final class McpMain {
 
     /** @param cancellations where client-side cancellations arrive, or null when there is no client stream */
     static List<SyncToolSpecification> toolSpecs(BrowserService service, McpJsonMapper mapper, StdinTap cancellations) {
-        TAP.set(cancellations);
         List<SyncToolSpecification> specs = new ArrayList<>();
-        specs.add(tool(service, mapper, "browser_status", true,
+        specs.add(tool(service, mapper, cancellations, "browser_status", true,
                 "List this agent's browser sessions: for each authorized tab its session id, origin, access level "
                         + "(read, explore or read/write), pause state and current page. Also reports whether the "
                         + "Chrome extension is connected.",
                 """
                 {"type":"object","properties":{
                   "diagnostics":{"type":"boolean","description":"Also say where the time of the last tool calls went (the agent between calls, this server, the extension and the page, the user) and list recent operations with durations and error codes (no page content)."}}}"""));
-        specs.add(tool(service, mapper, "browser_snapshot", true,
+        specs.add(tool(service, mapper, cancellations, "browser_snapshot", true,
                 "Structured view of the visible page: sections, lists, tables, headings, text, links, buttons and "
                         + "form fields, nested by indentation, each listed element with a numbered ref like [12] for "
                         + "the other tools. Bounded: use start_line to page, ref to snapshot one section, diff to "
@@ -383,7 +473,7 @@ public final class McpMain {
                         "max_lines":{"type":"integer","description":"Lines to return (default 250, max 1000)."}""", """
                         "start_line":{"type":"integer","description":"First line to return, to continue a long snapshot (default 0)."}""", """
                         "diff":{"type":"boolean","description":"Return only lines added or removed since the previous snapshot of this page."}""")));
-        specs.add(tool(service, mapper, "browser_extract", true,
+        specs.add(tool(service, mapper, cancellations, "browser_extract", true,
                 "Read the visible content of the page as structured text: headings, paragraphs, lists, tables and "
                         + "nested replies keep their structure, and links carry their ref. Bounded: continue with "
                         + "offset, or use outline=true to list sections and then ref to read one. States how "
@@ -395,7 +485,7 @@ public final class McpMain {
                         "ref":{"type":"integer","description":"Read only this section: a heading ref from the outline, or a section, list or table ref from a snapshot."}""", """
                         "main_only":{"type":"boolean","description":"Leave out navigation, banners and footers when the page marks its main content."}""", """
                         "links":{"type":"string","enum":["none","ref","url"],"description":"How links appear: plain text, text with {ref} (default), or with destination and {ref}."}""")));
-        specs.add(tool(service, mapper, "browser_click", false,
+        specs.add(tool(service, mapper, cancellations, "browser_click", false,
                 "Click an element by ref. Following same-origin links and expanding sections needs Explore access; "
                         + "other controls need Write access. A control that submits or changes data is refused "
                         + "unless intent=\"submit\" (prefer browser_submit, which also verifies the outcome). "
@@ -403,7 +493,7 @@ public final class McpMain {
                 schema("\"ref\"", """
                         "ref":{"type":"integer","description":"Element ref from the latest browser_snapshot."}""", """
                         "intent":{"type":"string","enum":["interact","submit"],"description":"\\"interact\\" (default) for ordinary UI; \\"submit\\" to submit or change data on the user's explicit request."}""")));
-        specs.add(tool(service, mapper, "browser_fill", false,
+        specs.add(tool(service, mapper, cancellations, "browser_fill", false,
                 "Enter text into an input, textarea, select, or a rich-text or code editor (listed as Textbox, "
                         + "Editable or Editor) by ref. Needs Write access. Replaces the content unless append is true; "
                         + "empty text clears it. Several lines and code are entered as given. For a select use the "
@@ -419,7 +509,7 @@ public final class McpMain {
                         "text":{"type":"string","description":"Text to enter."}""", """
                         "append":{"type":"boolean","description":"Append instead of replacing (default false)."}""", """
                         "method":{"type":"string","enum":["set","type"],"description":"\\"set\\" (default) sets the value at once; \\"type\\" types it key by key (max 2000 characters)."}""")));
-        specs.add(tool(service, mapper, "browser_press_key", false,
+        specs.add(tool(service, mapper, cancellations, "browser_press_key", false,
                 "Press one key on an element (by ref) or on the focused element: Enter, Escape, Tab, Shift+Tab, "
                         + "Space, Backspace, Delete, arrow keys, Home, End, PageUp, PageDown, or one character. "
                         + "Navigation keys need Explore access, others Write. Enter in a text box of any kind (a form "
@@ -436,14 +526,14 @@ public final class McpMain {
                         "ref":{"type":"integer","description":"Element to focus first. Default: the currently focused element."}""", """
                         "intent":{"type":"string","enum":["interact","submit"],"description":"\\"submit\\" when the key press sends or submits something on the user's explicit request."}""", """
                         "repeat":{"type":"boolean","description":"With intent=submit: send again although the same content was just sent here. Only on the user's explicit request."}""")));
-        specs.add(tool(service, mapper, "browser_scroll", true,
+        specs.add(tool(service, mapper, cancellations, "browser_scroll", true,
                 "Scroll the page, or a scrollable element given by ref. With a ref that is not scrollable, the "
                         + "element is scrolled into view. Reports the position and whether the page loaded more content.",
                 schema("", """
                         "direction":{"type":"string","enum":["up","down","left","right","top","bottom"],"description":"Default down."}""", """
                         "amount":{"type":"integer","description":"Pixels to scroll (default: most of one viewport)."}""", """
                         "ref":{"type":"integer","description":"Optional element ref to scroll instead of the page."}""")));
-        specs.add(tool(service, mapper, "browser_navigate", false,
+        specs.add(tool(service, mapper, cancellations, "browser_navigate", false,
                 "Navigate the session's tab: to an absolute or relative URL, or back, forward or reload. Needs "
                         + "Explore access. The destination must stay on the authorized origin; anything else is "
                         + "rejected, and a redirect that leaves the origin ends the session. Returns what happened: "
@@ -451,12 +541,12 @@ public final class McpMain {
                 schema("", """
                         "url":{"type":"string","description":"Absolute URL on the authorized origin, or a path relative to the current page."}""", """
                         "history":{"type":"string","enum":["back","forward","reload"],"description":"Move through the tab's history instead of opening a URL."}""")));
-        specs.add(tool(service, mapper, "browser_screenshot", true,
+        specs.add(tool(service, mapper, cancellations, "browser_screenshot", true,
                 "Capture the visible viewport of the session's tab as an image, with a note saying how much of the "
                         + "page lies above and below it. Scroll and capture again for the rest. The tab must be the "
                         + "visible tab of its window.",
                 schema("")));
-        specs.add(tool(service, mapper, "browser_wait_for", true,
+        specs.add(tool(service, mapper, cancellations, "browser_wait_for", true,
                 "Wait (bounded) for a UI condition: visible text to appear or disappear, or an element ref to become "
                         + "visible, gone, enabled or disabled. Provide exactly one of text or ref.",
                 schema("", """
@@ -465,7 +555,7 @@ public final class McpMain {
                         "condition":{"type":"string","enum":["visible","gone","enabled","disabled"],"description":"Default visible."}""", """
                         "gone":{"type":"boolean","description":"Same as condition=\\"gone\\"."}""", """
                         "timeout_ms":{"type":"integer","description":"Maximum wait in milliseconds (default 5000, max 30000)."}""")));
-        specs.add(tool(service, mapper, "browser_submit", false,
+        specs.add(tool(service, mapper, cancellations, "browser_submit", false,
                 "Submit something the user explicitly asked for, exactly once, and verify it. Optionally fills "
                         + "fields first, clicks the submit control (or presses Enter in it when ref is a text box, such as "
                         + "a message box), then watches the page and returns CONFIRMED, "
@@ -509,7 +599,7 @@ public final class McpMain {
 
     private static final tools.jackson.databind.ObjectMapper TREE = new tools.jackson.databind.ObjectMapper();
 
-    private static SyncToolSpecification tool(BrowserService service, McpJsonMapper mapper, String name,
+    private static SyncToolSpecification tool(BrowserService service, McpJsonMapper mapper, StdinTap tap, String name,
             boolean readOnly, String description, String inputSchema) {
         McpSchema.Tool.Builder definition = McpSchema.Tool.builder()
                 .name(name)
@@ -526,7 +616,6 @@ public final class McpMain {
                 .callHandler((exchange, request) -> {
                     noteClient(service, exchange);
                     JsonNode arguments = argsOf(service, request);
-                    StdinTap tap = TAP.get();
                     String callId = tap == null ? null : tap.begin(name, arguments);
                     BrowserService.ToolResult result = null;
                     boolean givenUp = false;
@@ -607,7 +696,7 @@ public final class McpMain {
 
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
-            boolean panel) {
+            boolean panel, boolean hub, boolean standing) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -622,6 +711,8 @@ public final class McpMain {
             String tokenFile = null;
             String origin = null;
             boolean panel = false;
+            boolean hub = false;
+            boolean standing = false;
             for (int i = 0; i < args.length; i++) {
                 String arg = args[i];
                 switch (arg) {
@@ -629,6 +720,9 @@ public final class McpMain {
                     case "--show-token" -> showToken = true;
                     case "--rotate-token" -> rotateToken = true;
                     case "--panel" -> panel = true;
+                    // The two that this program gives itself when it starts the one server: not for a command line.
+                    case "--hub" -> hub = true;
+                    case "--standing" -> standing = true;
                     case "--port", "--token-file", "--extension-origin" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
@@ -659,7 +753,7 @@ public final class McpMain {
             return new Options(help, showToken, rotateToken, number,
                     Path.of(firstSet(tokenFile, environment.apply("BCMCP_TOKEN_FILE"), Pairing.defaultTokenFile().toString())),
                     firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
-                    panel || switchedOn("BCMCP_PANEL", environment.apply("BCMCP_PANEL")));
+                    panel || switchedOn("BCMCP_PANEL", environment.apply("BCMCP_PANEL")), hub, standing);
         }
 
         /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */
