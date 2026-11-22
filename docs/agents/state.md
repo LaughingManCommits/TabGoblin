@@ -4,18 +4,20 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `42eb02b`: the owner's merge of `server-panel` on 2026-11-22, which
-  is WP-13, the server's panel. Earlier branches are merged.
-- Branch `docs-pass`, made from it on 2026-11-22: the first part of WP-18, a pass over the
-  documentation, committed on the owner's word. The owner pushed the branch
-  (`origin/docs-pass`); it is not merged.
+- `main` = `origin/main` = `efc0921`: the owner's merge of `docs-pass` on 2026-11-22, the first
+  part of WP-18, a pass over the documentation. Before it, `42eb02b`, the merge of
+  `server-panel`, which is WP-13. Earlier branches are merged.
+- Branch `aftercare`, made from it on 2026-11-22: the third part of WP-18. A page of commands
+  and the panel's command in the user guide; a button in the panel that copies the pairing
+  token; a panel that keeps its controls in view; a badge and a heartbeat in the extension that
+  show what is so. Not committed, not pushed, not merged.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
-| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is done and committed on `docs-pass`; it waits for the owner's push and merge. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
+| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is built on `aftercare` and waits for the owner's word to commit. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
@@ -23,6 +25,22 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Blockers and unknowns
 
+- **The copy button of the panel was pressed on Windows only.** There the clipboard held the
+  token, the window and the log had nothing of it, and it was gone from the clipboard a minute
+  later. The clipboard on Linux and macOS was not tried. A history of the clipboard that the
+  system keeps is not emptied, and a server that ends within the minute, other than by its
+  Stop button, leaves the token on the clipboard.
+- **`OFF` on the toolbar is new, and the session's choice of word:** tabs are authorized and no
+  agent that may use them is connected. Before, the badge said `ON` for that.
+- **A server that hangs is shown as gone within a minute,** by the extension. Its agent is not
+  told: a tool call to a server that hangs gets no answer, as before. Seen once with a real
+  server whose process was stopped: 60 seconds until the badge said `OFF`, 3 seconds until it
+  said `ON` after the server ran again. Not tried: a hang while a command runs, and a machine
+  that sleeps and wakes.
+- **The panel on a screen lower than itself was drawn, not seen.** The part between its header
+  and its controls scrolls there. From about six tabs the controls of the panel as it was
+  merged fell out of the window; that is mended on `aftercare` and is so on `main` until it is
+  merged.
 - **The server's panel was seen on two systems.** Windows 11 with Java 21 and 26: the window,
   its icon on the taskbar, and every control pressed in the real window. Ubuntu 26.04 in the
   Linux subsystem of Windows with Java 21: the framed window with the whole panel, and the
@@ -124,12 +142,15 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `docs-pass`: the documentation read whole and checked
-  against the source; the server's 84 tests and the extension's 151 in the tree; the link
-  check and the personal check. For the panel itself, earlier that day: the two suites of the
-  server and the suite end to end in a copy of the tree, and the real window by hand. Details
-  in the [validation log](validation-log.md).
-- **Next action:** the owner's merge of `docs-pass`. The first
+- **Last verification:** 2026-11-22, on `aftercare`, in a copy of the tree with a jar built
+  there: the server's 88 tests and the 8 of the conformance check, the extension's 154 with
+  type-check and build, and the suite end to end, 94 passed. By hand: the copy button in the
+  real window on Windows, and the real extension against a real server whose process was
+  stopped and let run again. Details in the [validation log](validation-log.md).
+- **Next action:** the owner's word to commit `aftercare`, then its push and merge. The jar in
+  the tree has to be built by the owner before the panel can be asked for there
+  (`mvn -f java-server/pom.xml package`), and the extension reloaded for the badge and the
+  heartbeat. The first
   CI run with credit is the first to run the panel's code on GitHub. Then the second part of
   WP-18, WP-13's open points, WP-14's remainder (the address, the history), and the decisions
   on WP-12 and WP-15 to WP-17. Of those WP-17, a new token at every start, was recommended as

@@ -177,10 +177,12 @@ cd java-server
 java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
 ```
 
-On Linux and macOS the separator in the class path is `:`. Success: six pictures at double
+On Linux and macOS the separator in the class path is `:`. Success: eight pictures at double
 size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
-waiting for the extension, switched off, without a port, Stop armed, and the panel as it fills
-a window with the system's frame. They are drawn by the server's own code from made-up states;
+waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
+window with the system's frame, an agent with nine tabs, and the most there is to show on a
+low screen. In every one the header and the whole Control card must be inside the window:
+look at the last two for that. They are drawn by the server's own code from made-up states;
 no window is shown and nothing of the screen is read. It needs a display, because JavaFX does
 not start without one. `1-connected.png` is the documentation's picture: copy it to
 `docs/images/server-panel.png` when it has changed.
@@ -194,8 +196,9 @@ java -jar java-server/target/browser-context-mcp.jar --panel --port 47840
 ```
 
 Look at: the window and its place, the goblin on the taskbar instead of Java's icon, the switch
-(the log says `switched off in the panel`, and `on`), the dash, and the two buttons, each of
-which needs two clicks. **Stop server** ends the process with exit code 0, **Kill** with 1. Do
+(the log says `switched off in the panel`, and `on`), **Copy** (the clipboard then holds the
+token of `--show-token`, the log says that it was copied and has nothing of it, and a minute
+later the clipboard is empty), the dash, and the two buttons, each of which needs two clicks. **Stop server** ends the process with exit code 0, **Kill** with 1. Do
 this on each system the panel is to be trusted on: a see-through window that drew nothing on
 Linux was found this way, and by no test. Do not take pictures of the screen for it: a capture
 of a place on the screen shows whatever lies on top there.

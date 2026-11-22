@@ -95,8 +95,8 @@ The [installation guide](docs/installation.md) walks through each step with what
 ## Verify
 
 ```sh
-mvn -f java-server/pom.xml verify       # 84 tests, then the built jar checked against the protocol
-cd chrome-extension && npm run check    # 151 tests, type-check, build
+mvn -f java-server/pom.xml verify       # 88 tests, then the built jar checked against the protocol
+cd chrome-extension && npm run check    # 154 tests, type-check, build
 cd e2e && npm install && npm test       # 94 steps in your Chrome, against three demo sites
 cd e2e/editors && npm install && npm test   # text entry into 13 editor libraries and 2 plain controls
 ```

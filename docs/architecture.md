@@ -65,6 +65,13 @@ A server that offers no common protocol version is refused (close code 4406). Te
 lock a server's port for a minute. A rotated token is checked at every heartbeat and before every
 command, so stale pairings end at once.
 
+A connection can stay open to a server that no longer answers: one that hangs. So the extension
+counts the answers to its heartbeat. A server that leaves two in a row unanswered is taken for
+gone (`serverGone` in `policy.ts`): its connection is closed with code 4408 and dropped as if
+the server had closed it, its commands are cancelled, and its port is looked at again. That is
+within a minute of the server falling silent; a server that answers again is found by the next
+look.
+
 ## A command, end to end
 
 ```mermaid
@@ -251,11 +258,20 @@ window's code is loaded. What the user sees and can do there is in the
 [user guide](user-guide.md#9-the-servers-panel); what the window may and may not do, in the
 [security model](security.md#the-servers-panel). How it is built:
 
-- **A model, a window, three commands.** Once a second the window asks for a `PanelModel`: a
+- **A model, a window, four commands.** Once a second the window asks for a `PanelModel`: a
   record made from what the status tool also reads (`WebSocketBridge`, `Timings`) and from the
   lines `Log` has kept. It is plain data and is tested without a display. `Panel` draws it and
-  sends back one of three commands, a sealed type: the connection on or off, stop, kill.
-  `McpMain` carries them out.
+  sends back one of four commands, a sealed type: the connection on or off, stop, kill, and
+  copy the pairing token. `McpMain` carries them out (`carryOut`).
+- **The pairing token goes to the clipboard and nowhere else.** It is read when the button is
+  pressed and handed to the clipboard. It is not in `PanelModel`, so the window has nothing of
+  it to show, and the log says only that it was copied. `Panel.Secret` takes it off the
+  clipboard again after a minute, and at Stop, if it is still what the clipboard holds.
+- **The controls are always in view.** The header above and the controls below are fixed; the
+  sessions, the time and the log lie in one part between them that scrolls where a screen is
+  too low. The window is as high as the screen allows, up to 760 pixels, and three sessions
+  are listed with the rest counted (`PanelModel.LISTED`). A list as long as the tabs once
+  pushed the controls out of the window.
 - **Stop and Kill.** Stop runs the steps under "How a server ends". Kill halts the process with
   exit code 1 and runs none of them: the extension finds the connection gone instead of being
   told.
@@ -304,6 +320,10 @@ Manifest V3 stops an idle background worker. TabGoblin is built for that:
 - All durable state is in `chrome.storage.session` (sessions, activity) and `chrome.storage.local`
   (token, settings); the worker can be killed at any time.
 - While any agent is connected, the 20-second heartbeat keeps it alive.
+- The badge on the toolbar is set from the state as it is, whenever a session, a command or a
+  connection changes (`badgeFor` in `policy.ts`). It says `ON` only while a connected agent may
+  use a session that is neither paused nor suspended, and `OFF` for sessions nobody is there to
+  use. After a restart of the worker no server is connected yet, and the badge says so.
 - With no connection it sleeps; an alarm every 30 seconds, the popup, or switching tabs wakes it to
   look for servers.
 - After a restart, operations that were mid-flight are gone, and submissions that had been

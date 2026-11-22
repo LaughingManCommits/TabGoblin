@@ -69,7 +69,7 @@ panels folded to one line. Look at them after any change to the prompt. The end-
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 The picture of the server's panel, `docs/images/server-panel.png`, is not a capture: a class
-among the server's tests, `PanelPictures`, draws the panel in six states with the server's own
+among the server's tests, `PanelPictures`, draws the panel in eight states with the server's own
 code, without a window. The command, and what to look at in the real window besides, is in the
 [runbook](agents/runbook.md#look-at-the-servers-panel).
 
@@ -147,9 +147,13 @@ Run them by hand with `node demo-site/server.mjs`.
 - **Only allowlisted information leaves the page.** New output fields need a reason and a test
   that hidden content and credentials stay out.
 - **Errors are for the agent.** Each has a stable code and says what to do next.
-- **The server's panel takes away and gives nothing,** and shows nothing of a page. The rules
-  are in the [security model](security.md#the-servers-panel); what it shows is decided in
+- **The server's panel gives an agent nothing,** and shows nothing of a page and no secret. The
+  rules are in the [security model](security.md#the-servers-panel); what it shows is decided in
   `PanelModel`, without a window, so that a test can hold them.
+- **What is shown says what is so now.** The badge, the popup and the panel are set from the
+  state as it is, not from what was true when something last changed: the badge says `ON` only
+  while an agent that may act is connected, and a server is called connected only while it
+  answers.
 - **Nothing personal in the repository.** No home directory, no mail address outside the example
   domains, no link to an agent's session, in a file or in a commit message. A path in an example
   is written with a placeholder (`<folder>`). A check keeps the files so
@@ -235,6 +239,7 @@ without it the server counts the round trip whole.
 | 4401 | Pairing failed, timed out, or the token was rotated |
 | 4403 | The user disconnected this agent |
 | 4406 | No common protocol version |
+| 4408 | The server left two heartbeats in a row unanswered; the extension takes it for gone and looks for it again |
 | 4409 | Replaced by a newer connection |
 | 4429 | Too many messages |
 

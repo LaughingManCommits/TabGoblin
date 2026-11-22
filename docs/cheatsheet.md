@@ -21,7 +21,7 @@ Your agent starts the server itself. These are for what you do yourself.
 
 | To | Command |
 |---|---|
-| Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token` |
+| Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in a server's panel, which puts it on the clipboard |
 | Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
 | Run a server with its panel | `java -jar java-server/target/browser-context-mcp.jar --panel` |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |

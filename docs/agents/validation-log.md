@@ -3,6 +3,67 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `aftercare`: commands at hand, the pairing token copied, a panel that keeps its controls, an extension that shows what is so
+
+Four things the owner asked for after the documentation pass was merged, and one fault found on
+the way. The jar and the suites that need it were run in a copy of the tree: a build of the jar
+in the tree by the session was refused by its safety rules, and the jar there is still the one
+of 2026-11-21.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify`, in the copy | 88 tests; `McpConformanceIT` on the built jar: 8 tests |
+| `mvn -B -f java-server/pom.xml test`, in the tree | 88 tests |
+| `npm run check` in `chrome-extension`, in the copy | type-check clean, 154 tests, build. The first try stopped at the type-check: a new test did not pass it, though it ran |
+| the new worker test against `background.ts` as it was | fails: "timed out waiting for the silent server to be taken for gone" |
+| `cd e2e && npm test`, in the copy | 94 passed, 0 failed. Its last step is longer: with both servers ended the badge goes from `ON` to `OFF` and the popup says *Disconnected* |
+| `node docs/agents/check-links.mjs` | 147 links, all resolve |
+| `node docs/agents/check-personal.mjs` | nothing personal found |
+
+**A simple command, and a page of commands.** The user guide's section on the panel opens with
+the command that starts a server with its window by hand. `docs/cheatsheet.md` is new: the
+important commands on one line each, written so that a line works in PowerShell, Command Prompt
+and bash, with the page that explains each part under its table. The options and variables
+were read in `McpMain.java`. Tried from the repository's root for the form that needs no change
+of folder: `npm --prefix chrome-extension run typecheck` and `node --test
+chrome-extension/test/panels.test.ts`. The other rows in that form were not run. The owner ran
+the panel's command on the old jar and got `Unknown option: --panel`, as the user guide says;
+the cheat sheet has a line for it.
+
+**The pairing token, copied.** A button in the panel puts the token on the clipboard. By hand,
+in the real window on Windows, server run from the tree's classes with a token file of the
+test's own, the button pressed through the accessibility interface: the clipboard then held
+the token of the file; the window showed it nowhere; the log said `pairing token copied to the
+clipboard in the panel` and had nothing of the token, nor had standard output; 66 seconds later
+the clipboard was empty. The text the clipboard had held before was put back. Not tried: the
+clipboard on Linux and macOS; Stop within the minute, which is tested with a clipboard of the
+test's own.
+
+**The panel's controls.** Found by drawing the panel with nine tabs: the list pushed the switch
+and both buttons out of the window. It was so since the panel was merged, from about six tabs.
+Now three are listed and the rest counted, the window is up to 760 pixels high where the screen
+allows, and the part between header and controls scrolls. Looked at in the tool's eight
+pictures, among them nine tabs, and the most there is to show at the height of a screen of 768
+pixels: in each the header and the whole Control card are inside. Not seen: a real screen that
+low.
+
+**The extension shows what is so.** Two things were stale. The badge said `ON` for an
+authorized tab whether or not an agent was connected: it says `OFF` now. And the answers to the
+heartbeat were never counted, so a server that hangs stayed connected: now two in a row
+without an answer take it for gone. By hand, with the real extension in Chrome as the suite
+drives it and a real server whose process was stopped as a whole and later let run again
+(`NtSuspendProcess`): the badge said `ON`; 60 seconds after the server stopped answering it
+said `OFF`, and the popup said *Disconnected: is the MCP server running?* with the tab marked
+as its agent's, not connected; 3.0 seconds after the server ran again the badge said `ON`, the
+agent's status listed the session and a snapshot worked. The server's log has `extension
+disconnected … code=4408` and the new connection. Not tried: a server that hangs while a
+command runs; a machine that sleeps.
+
+Pictures: the eight drawings of the panel, six of them opened after the last change;
+`docs/images/server-panel.png` is the first, byte for byte.
+
+Not run: the editor lab; the two unit suites on Linux; CI, which has no credit.
+
 ## 2026-11-22, on `docs-pass`: the documentation gone over (WP-18, part 1)
 
 Every page that is not a record was read whole: `README.md`, `AGENTS.md`, `docs/README.md`,
@@ -478,32 +539,14 @@ Not looked at: an address too long for its line (it is cut with an ellipsis, by 
 picture has one), and the popup at another zoom level or font size. Not run: the server's
 suites and the Linux container; nothing they cover changed.
 
-## 2026-11-21, on `pairing-race`: WP-9, where the time went
-
-The status tool says, when asked for diagnostics, where the time of the last tool calls went.
-All on the final build of the branch.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 62 tests; `McpConformanceIT` on the built jar: 8 tests |
-| the same in a Linux container | 70 tests, none failed |
-| `cd chrome-extension && npm run check` | type-check clean, 132 tests, build |
-| the same in a Linux container (two cores) | 132 tests |
-| `cd e2e && SHOW_TIMES=1 npm test` | 92 passed, 0 failed. The new step lets the user wait 1.5 s before answering a prompt and reads the report: 1.6 s under the user, 5 ms under the extension and the page for that call. The example in `docs/tools.md` is from this run. |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Failed on the way: two worker tests in the first run. New assertions used a command id that a
-later test uses too, and that test's command was refused as a duplicate. They have their own ids
-now.
-
-Not shown: the report with a real agent and model. In the suites the agent is a script, so the
-time between calls is milliseconds. Not shown either: an older extension against this server
-(the note about calls without times is tested with a fake extension only).
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `pairing-race`, WP-9 (the status tool says where the time of the last calls
+  went): server 62 tests and 8 conformance tests, 70 in a Linux container; extension 132, also
+  in a container; end to end 92 of 92, with a step that lets the user wait 1.5 s and reads the
+  report; editor lab 222 of 225 in front and 220 of 225 in the background, no `SILENT`. Two
+  worker tests failed in the first run over a command id used twice. Not shown: the report with
+  a real agent and model, and an older extension against this server.
 - 2026-11-21, on `pairing-race`, the box that names what the user declined ("You declined
   Enter in “Comment”"): extension 131 tests, also in a Linux container; end to end 91 of 91,
   the box read for a declined click and a declined Enter; editor lab 222 of 225 in front and

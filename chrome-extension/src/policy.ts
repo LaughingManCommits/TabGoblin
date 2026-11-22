@@ -139,6 +139,42 @@ export function sessionsOfAgent<T extends Pick<SessionAuth, 'clientId' | 'client
   return sessions.filter((session) => session.clientId !== null && canUse(session, client, connectedClientIds));
 }
 
+/** What the badge on the toolbar says; nothing when no tab is authorized. */
+export type Badge = '?' | 'RUN' | 'ON' | 'OFF' | 'II' | '';
+
+/**
+ * What the badge on the toolbar says. `ON` is a promise: an agent may act now. That takes a
+ * session that is neither paused nor suspended and a connected agent that may use it. A session
+ * whose agent is not connected is `OFF`: the tab is still authorized, and nobody is there to act.
+ * It said `ON` for that too once, which was stale as soon as a server had gone.
+ */
+export function badgeFor(
+  asking: boolean,
+  running: boolean,
+  sessions: readonly (Pick<SessionAuth, 'clientId' | 'clientName'> & { paused: boolean; suspended: boolean })[],
+  connected: readonly ClientIdentity[],
+): Badge {
+  if (asking) return '?';
+  if (running) return 'RUN';
+  const open = sessions.filter((s) => !s.paused && !s.suspended);
+  const ids = new Set(connected.map((c) => c.id));
+  if (open.some((s) => connected.some((c) => canUse(s, c, ids)))) return 'ON';
+  if (open.length) return 'OFF';
+  return sessions.some((s) => s.paused && !s.suspended) ? 'II' : '';
+}
+
+/**
+ * How many heartbeats in a row a server may leave unanswered before it is taken for gone. A
+ * connection can stay open to a server that no longer answers: one that hangs, or one the system
+ * has stopped. The extension asks every twenty seconds, and counts the answers.
+ */
+export const HEARTBEATS_UNANSWERED = 2;
+
+/** Whether a server that has left this many heartbeats in a row unanswered is taken for gone. */
+export function serverGone(unanswered: number): boolean {
+  return unanswered >= HEARTBEATS_UNANSWERED;
+}
+
 /** Throws unless the session's access level is at least `required`. */
 export function requireMode(mode: Mode, required: Mode): void {
   if (RANK[mode] < RANK[required]) throw needs(required);
