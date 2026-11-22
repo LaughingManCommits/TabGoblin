@@ -607,6 +607,18 @@ export function activityLabel(action: string, intent?: string): { running: strin
   }
 }
 
+/**
+ * What the notice in the page says of a command that ended, and how it ended: the words of the
+ * activity list, with the short note of `failureNote` when it did not run through. It is made
+ * from the action and the error's code alone, never from an error's own text, which can carry
+ * something of the page. `began` is false for a command that was turned away before it started.
+ */
+export function endedLine(action: string, intent: string | undefined, code: string, began = true): { text: string; mark: 'ok' | 'error' } {
+  const labels = activityLabel(action, intent);
+  if (code === 'ok') return { text: labels.done, mark: 'ok' };
+  return { text: `${labels.running}${began ? '' : ' blocked'} (${failureNote(code)})`, mark: 'error' };
+}
+
 /** Short, generic reason shown in the activity feed when a command fails. */
 export function failureNote(code: string): string {
   switch (code) {

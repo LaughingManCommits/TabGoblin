@@ -126,11 +126,28 @@ it. A confirmation prompt and the pairing form never fold.
 The toolbar badge says `ON` (an agent may act), `RUN` (it is acting), `II` (paused) or `?` (it is
 waiting for you).
 
-While an agent is acting, a small pill appears in the page itself, with a **Pause** button. It is
-not part of what the agent reads, scripts of the page cannot press it, and you can switch it off
-under *Settings*.
+While an agent is working in a tab, a notice appears in the bottom corner of the page itself: a
+small bar, and above it a pill for each thing the agent just did.
 
-<img src="images/indicator.png" width="420" alt="The in-page indicator">
+<img src="images/indicator.png" width="420" alt="The notice in the page: two pills of what just ended, and under them the bar with the goblin, what runs now, and Pause">
+
+- **The bar** says what the agent is doing now ("Agent: Reading page"), that it is idle or
+  paused, or that your answer is needed in the popup. It has a **Pause** button. The bar is
+  always the same height and stays in its place.
+- **The goblin** in the bar shows the same at a glance: it glows green, softly and in pulses,
+  while the agent works, amber when you are asked, and has its eyes closed when the session is
+  paused.
+- **The pills** float above the bar, up to three, the newest at the bottom: ✓ for what ran
+  through, ✗ with a short reason for what was refused or failed. Each covers no more of the
+  page than its own words.
+- A pill stays four seconds and then fades. When nothing runs any more, the bar goes with the
+  last pill. A tab that is only authorized, or paused, has no notice.
+
+The notice is not part of what the agent reads and is in none of its screenshots. Scripts of the
+page can neither read it nor press its button. A click on it anywhere but on **Pause** goes to the
+page underneath. It says what the activity list says, never anything of the page or of what was
+typed. Where your system asks for less motion, nothing in it moves, pulses or fades: a pill is
+there and then it is not. You can switch the notice off under *Settings*.
 
 ## 5. Submissions
 

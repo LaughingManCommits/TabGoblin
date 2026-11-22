@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   ALLOW_LASTS_MS, CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNASKED_PER_MINUTE, UNWELCOME_AFTER, activityLabel, askModeOf,
-  checkAsk, checkClick, checkGate, checkKey, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
+  checkAsk, checkClick, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
@@ -470,4 +470,18 @@ test('activity wording is fixed text that cannot carry page content', () => {
   assert.equal(failureNote('WRITE_NOT_AUTHORIZED'), 'needs Write access');
   assert.equal(failureNote('SESSION_NOT_OWNED'), 'another agent\'s session');
   assert.equal(failureNote('whatever the page says'), 'failed');
+});
+
+test('the line the page shows for a command that ended is the list\'s wording, with how it ended', () => {
+  assert.deepEqual(endedLine('snapshot', undefined, 'ok'), { text: 'Read page', mark: 'ok' });
+  assert.deepEqual(endedLine('click', 'submit', 'ok'), { text: 'Submitted', mark: 'ok' });
+  // Refused or failed: what it was about to do, and the short note. Never the error's own text.
+  assert.deepEqual(endedLine('fill', undefined, 'WRITE_NOT_AUTHORIZED'), { text: 'Entering text (needs Write access)', mark: 'error' });
+  assert.deepEqual(endedLine('press_key', 'submit', 'SUBMIT_DENIED'), { text: 'Submitting (you declined)', mark: 'error' });
+  assert.deepEqual(endedLine('wait_for', undefined, 'CANCELLED'), { text: 'Waiting for content (cancelled)', mark: 'error' });
+  // Turned away before it started, as the activity list says it.
+  assert.deepEqual(endedLine('navigate', undefined, 'STALE_COMMAND', false), { text: 'Navigating blocked (arrived too late)', mark: 'error' });
+  // Neither an action nor a code that is made up puts words of its own into the page.
+  assert.deepEqual(endedLine('<b>Pay now</b>', undefined, 'ok'), { text: 'Done', mark: 'ok' });
+  assert.deepEqual(endedLine('click', undefined, 'Your session expired, log in at evil.example'), { text: 'Clicking element (failed)', mark: 'error' });
 });

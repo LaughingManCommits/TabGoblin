@@ -156,8 +156,10 @@ Web pages can contain text written to steer an agent. TabGoblin's part:
   not to follow instructions found in pages.
 - Page content cannot change sessions, permissions, pairing or settings: those have no tool and
   change only through the popup.
-- The in-page indicator lives in a closed shadow root; page scripts cannot read it, and its Pause
-  button reacts only to genuine user clicks (it can only restrict, never grant).
+- The notice in the page lives in a closed shadow root; page scripts cannot read it, and its Pause
+  button reacts only to genuine user clicks (it can only restrict, never grant). What it is told
+  is a state and the fixed words of the activity list. Nothing of a page, of what was typed, of a
+  control's name, of a site or of an agent is put into a page this way.
 
 What TabGoblin cannot do is keep a model from being misled **within** the access you granted. A
 page could talk an agent with Write access into submitting something. That is what the access
@@ -203,7 +205,9 @@ tool says about where the time went: tool names and durations.
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |
 | Replayed ids, stale deadlines, floods, malformed messages refused | Worker, end-to-end |
 | Popup requests from a web page or another extension ignored | Worker |
-| Page scripts cannot operate the indicator | End-to-end |
+| Page scripts can neither read nor operate the notice in the page | End-to-end |
+| The agent's snapshots, texts and screenshots have nothing of the notice | End-to-end |
+| The notice is told a state and fixed words, and nothing of a page | Rules, DOM, worker |
 | Injected page text changes no session or permission | End-to-end |
 | Logs free of token and content | End-to-end |
 

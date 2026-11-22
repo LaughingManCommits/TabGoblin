@@ -3,6 +3,63 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `notice-box`: WP-11, the notice in the page: a bar, and pills of what ended
+
+On the final sources, which are the two-pane form with the goblin bare. The extension's check ran
+in the tree. What needs the jar ran in a copy of the tree, with a jar built there, because the
+session's own server runs from the tree's jar. The copy held the product sources and the suite
+of the tree, compared file by file, and was removed afterwards.
+
+| Command | Result |
+|---|---|
+| `cd chrome-extension && npm run check`, in the tree | type-check clean, 151 tests, build. Twelve are new: ten of the notice (what it shows at a moment, the drawing under jsdom, the goblin), one of a line's words, one of what the worker tells a page |
+| `cd e2e && npm test`, in the copy | 94 passed, 0 failed. It is the fifth full run, and the third to pass: one on each form the look went through (see below). One step is new: two commands that ended have a pill each, the newer one last; one that failed says how; the pills stay while the next command runs; the notice fades and leaves the page; neither a snapshot nor the text has any of it; and the agent's screenshot is compared with two of the suite's own, one with the notice in it and one without. Two steps are extended: the bar says what runs, and a real click on Pause is answered in the notice |
+| `cd e2e && node notice-pictures.mjs` | 31 pictures, drawn by `notice.ts` in a plain page. Opened with the goblin bare: the bar with two pills (light), the user being asked (dark), paused (light), idle with one pill (dark). Opened in the two-pane form before that, with the goblin on its tile: three pills with a refused one (light), the longest pill (dark, and in the narrow window), a pill half way through fading (dark), the whole notice half way through fading (light). Opened in the one-box form only: Pause under the pointer, two frames of the arrival, and the fading pill with less motion asked for, where it was plain |
+| `HEADED=1 node screenshots.mjs`, in the copy | `indicator.png` made anew: a capture of the real notice in a real tab, at double size, opened, and copied into the tree. Four more came out different and none was copied. `popup-folded.png` was opened beside the tree's: it lists the two agents in the other order, which follows from which server got the first port in that run. `popup-authorize.png`, `popup-full.png` and `popup-full-light.png` show the agents with their ports; two of them were opened in an earlier run of the day and differed in the ports alone, and in this run they were not opened. The other eight, and the seven examples, were the same byte for byte |
+| `node docs/agents/check-links.mjs` | 81 links, all resolve |
+| `node docs/agents/check-personal.mjs` | nothing personal found |
+
+What the look went through, each step judged from pictures:
+
+1. A plain box, built from the description alone. Its pictures showed the dot of the row out of
+   line with the marks above it, pills that did not read as pills, a mark for "Paused by you"
+   too small to see, a box that was hard to tell from a dark page, a width that jumped from 153
+   to 323 pixels, and a Pause that did not say whose it is.
+2. The owner's word then: "modern, fun and something that fits the theme of our app". The box
+   got the popup's colours and round marks, and the goblin beside the row. Its pictures showed a
+   text for the user being asked that broke over two lines; it was shortened to "Answer needed
+   in the popup".
+3. The owner's word on its size: "i wonder if we should split it 2 planes?". The two-pane form
+   was drawn from a copy of the source and set beside the box, same state, light and dark. With
+   three pills the box is 272 by 120 pixels; bar and pills together, measured in the pictures,
+   cover about a third less, and the bar stays 42 pixels high where the box grew. That is what
+   is built. The one-box form was never committed.
+4. The owner's word on the goblin: "the little goblin should be have no background and
+   border". It stood on a dark tile with a ring around it, and the ring pulsed for the state.
+   Now it stands bare on the bar, larger, and its own outline glows: green in pulses while the
+   agent works, amber when the user is asked.
+
+Failed on the way, end to end:
+
+- First run, 93 of 94. The new step found the session paused. The step before it resumed in the
+  popup while the popup still showed the old state, and so resumed nothing; the step after it
+  used to want the session paused, which hid that. The step now waits for the popup.
+- Second run, 83 of 94. The new step passed and eleven after it failed: it had opened a tab to
+  measure the pictures in, and a new tab takes the popup away. The first of them left the
+  session paused, and the others followed from that. The step measures in the page that is open
+  anyway.
+- In the picture script: a pill pictured 150 ms after it arrived was invisible instead of half
+  faded, because its arrival was still running. The script waits for the arrival, as a real pill
+  has long arrived when it fades. And the documentation's picture first held a pill left by the
+  step before; the script now waits until the notice is gone.
+
+Not run: the server's suites (no Java source changed, and the tree's jar was not rebuilt), the
+editor lab (nothing in `editor.ts` or `snapshot.ts` changed) and the Linux container. Not seen:
+the goblin's blink and its pulsing glow in motion, in a tab. Not tried: a screen reader, a
+zoomed page, a page written from right to left, the system's high-contrast colours, and a page
+with a button of its own under the bar. Read from the source as it was and not run on it: what
+the old pill did after a pause.
+
 ## 2026-11-22, on `disconnect-revokes`: WP-10, Disconnect ends the agent's sessions
 
 On the final sources. The extension's check ran in the tree. What needs the jar ran in a copy of
@@ -304,31 +361,13 @@ earlier run of the day had left under the same name; the numbers above are from 
 
 Not tried: nothing new. CI on GitHub: see the entry that follows this one in time.
 
-## 2026-11-21, on `automatic-mode`, after WP-7
-
-Going over WP-7 once more. The prompt now says when an Allow will stand, a control without a
-name is never remembered, and what the entry below lists as not tried was tried.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check` | type-check clean, 130 tests, build |
-| `cd e2e && npm test` | 91 passed, 0 failed. New in existing steps: an Allow ends when the tab leaves its site, and the user is asked again after the return; five pass within a minute and the next is asked; the prompt of a session on two sites names the site the tab is on; the line about what an Allow reaches is in the prompt in the automatic mode and not otherwise. |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node screenshots.mjs prompts` | 26 pictures of 13 views. Looked at: the prompt in the automatic mode in both colour schemes, and the ordinary Enter prompt (dark) next to it. From the run before, now opened: the session in the automatic mode (light), "Do not ask me" (dark), and `docs/images/popup-full-light.png`. |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Failed on the way: two steps in the first run end to end. The new checks read the popup before
-its next refresh; they now wait for it.
-
-Not run: the server's suites (nothing in the server changed since the entry below) and
-`HEADED=1 node screenshots.mjs` (the documentation's pictures show nothing that changed).
-
-Not tried: a control without a name in the automatic mode in a real browser (rule and worker
-tests only). CI on GitHub has still not been seen.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `automatic-mode`, after WP-7 (the prompt says when an Allow will stand; a
+  control without a name is never remembered): extension 130 tests, end to end 91 of 91, editor
+  lab 222 of 225 in front and 220 of 225 in the background, no `SILENT`; 26 pictures of the
+  prompt, five looked at. The server's suites were not run. Not tried: a control without a name
+  in the automatic mode in a real browser. CI on GitHub not seen.
 - 2026-11-21, on `automatic-mode`, WP-7 (the automatic mode for confirmations): server 54 tests
   and 8 conformance tests, extension 129, end to end 91 of 91, editor lab 222 of 225 in front and
   220 of 225 in the background, no `SILENT`; 24 pictures of 12 views, not all of them opened. Not

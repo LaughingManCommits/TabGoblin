@@ -6,9 +6,10 @@
 // and it has no way to run agent-supplied code: commands map to a fixed set of operations.
 
 import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
+import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, failureNote, highImpactWord, inScope,
+  ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, sessionsOfAgent,
   type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
@@ -166,7 +167,6 @@ interface ConfirmFacts {
 
 const pendingConfirms = new Map<string, ConfirmFacts & { id: string; session: string; finish: (a: ConfirmAnswer) => void }>();
 const newTabs = new Map<number, number>();
-const indicatorTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let pairingFailed = false;
 let versionMismatch = false;
 let lastScan = 0;
@@ -279,18 +279,16 @@ function refreshBadge(): void {
   void chrome.action.setBadgeBackgroundColor({ color });
 }
 
-/** Shows or hides the in-page indicator. Best effort: it never injects and never blocks a command. */
-function setIndicator(session: SessionRecord, text: string | null): Promise<void> {
-  clearTimeout(indicatorTimers.get(session.id));
-  indicatorTimers.delete(session.id);
-  if (text && !config.indicator) return Promise.resolve();
-  return chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'indicator', origins: session.origins, text }, { frameId: 0 })
+/**
+ * Tells the notice in the page what the agent is at in this tab, and what just ended. Best effort:
+ * it never injects and never blocks a command. Only a state and the fixed words of the activity
+ * list go out, nothing of the page. How long a line stays is the page's to keep: this worker may
+ * be asleep by then. With the setting off, only `off` is sent.
+ */
+function setNotice(session: SessionRecord, update: NoticeUpdate): Promise<void> {
+  if (update.state !== 'off' && !config.indicator) return Promise.resolve();
+  return chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'indicator', origins: session.origins, ...update }, { frameId: 0 })
     .then(() => undefined, () => undefined);
-}
-
-function hideIndicatorSoon(session: SessionRecord): void {
-  clearTimeout(indicatorTimers.get(session.id));
-  indicatorTimers.set(session.id, setTimeout(() => void setIndicator(session, null), 2500));
 }
 
 // ---------------------------------------------------------------- sessions and authorization
@@ -362,7 +360,7 @@ function cancelOperations(match: (op: Operation) => boolean, reason: string): vo
 function endSession(session: SessionRecord, reason: string): void {
   if (!persisted.sessions.includes(session)) return;
   cancelOperations((op) => op.sessionId === session.id, 'The session ended.');
-  void setIndicator(session, null);
+  void setNotice(session, { state: 'off' });
   persisted.sessions = persisted.sessions.filter((s) => s !== session);
   forgetAllows(session.id);
   noteActivity(session.id, reason);
@@ -377,7 +375,7 @@ function endSession(session: SessionRecord, reason: string): void {
 function suspendSession(session: SessionRecord): void {
   if (!persisted.sessions.includes(session) || session.suspended) return;
   cancelOperations((op) => op.sessionId === session.id, 'The tab left the authorized sites.');
-  void setIndicator(session, null);
+  void setNotice(session, { state: 'off' });
   session.suspended = true;
   session.documentId = null;
   forgetAllows(session.id);
@@ -694,9 +692,15 @@ async function confirmWithUser(
   // What an Allow would reach is said in the prompt, before the user answers.
   const lasting = remembersAllow(mode, word, label, origin);
   const asking = Date.now();
+  // The page says that the agent waits for the user, and where the question is.
+  void setNotice(session, { state: 'asking' });
   const answer = await askUser(op, { label, how, word, origin, preview, lasts: lasting ? ALLOW_LASTS_MS / 60_000 : null });
   // The time until the answer is the user's, not the extension's: the server is told it apart.
   op.askedMs += Date.now() - asking;
+  // Answered, or withdrawn: the submission is what runs again, until it ends a moment later.
+  if (persisted.sessions.includes(session) && !session.paused && !session.suspended) {
+    void setNotice(session, { state: 'working', text: activityLabel('submit').running });
+  }
   if (answer !== 'cancelled') {
     session.asks = noteAnswer(session.asks, key, how, label, answer, Date.now());
     save();
@@ -904,7 +908,8 @@ async function screenshot(op: Operation, session: SessionRecord): Promise<object
     throw new CommandError('TAB_NOT_VISIBLE',
       'The session\'s tab is not the visible tab of its window, so it cannot be captured. Ask the user to switch to it.');
   }
-  await setIndicator(session, null);
+  // Nothing of the notice may be in the picture: it is taken away, lines and all, before the capture.
+  await setNotice(session, { state: 'off' });
   let dataUrl: string;
   try {
     dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 70 });
@@ -1127,7 +1132,8 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
     }
     entry = beginActivity(op.sessionId, labels.running);
     const session = sessionById(op.sessionId);
-    if (session && command.action !== 'screenshot') void setIndicator(session, `Agent: ${labels.running}`);
+    // A paused session runs nothing: the notice is not made to say that it does.
+    if (session && !session.paused && command.action !== 'screenshot') void setNotice(session, { state: 'working', text: labels.running });
     const result = await runCommand(op, command.action, params);
     endActivity(entry, 'ok', labels.done);
     response = { id: command.id, success: true, result };
@@ -1142,7 +1148,13 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
   } finally {
     operations.delete(op.key);
     const session = sessionById(op.sessionId);
-    if (session) hideIndicatorSoon(session);
+    // What ended is said in the page for a few seconds, with how it ended, in the list's own words.
+    if (session) {
+      void setNotice(session, {
+        state: session.paused ? 'paused' : 'idle',
+        ended: endedLine(command.action, typeof params.intent === 'string' ? params.intent : undefined, code, entry !== null),
+      });
+    }
   }
   // How long it ran, how long it waited for its turn before, and how much of the running was the user's.
   const timing = commandTiming(op.receivedAt, started, Date.now(), op.askedMs);
@@ -1478,6 +1490,8 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
         forgetAllows(session.id);
         cancelOperations((op) => op.sessionId === session.id, 'The user paused the session.');
         noteActivity(session.id, 'Paused by you');
+        // A notice that is in the page says what is true now. None is brought up for this.
+        void setNotice(session, { state: 'paused' });
         pushState();
       }
       return;
@@ -1485,6 +1499,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       if (session && session.paused) {
         session.paused = false;
         noteActivity(session.id, 'Resumed by you');
+        void setNotice(session, { state: 'idle' });
         pushState();
       }
       return;
@@ -1559,7 +1574,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
     case 'setIndicator':
       config.indicator = msg.value !== false;
       await chrome.storage.local.set({ indicator: config.indicator });
-      if (!config.indicator) persisted.sessions.forEach((s) => void setIndicator(s, null));
+      if (!config.indicator) persisted.sessions.forEach((s) => void setNotice(s, { state: 'off' }));
       return;
     case 'setFolded':
       // How the popup looks, kept across its openings. Only the four panels fold; never the prompt.
@@ -1592,7 +1607,8 @@ chrome.runtime.onMessage.addListener((msg: PopupMessage & { bcmcp?: unknown }, s
         session.paused = true;
         cancelOperations((op) => op.sessionId === session.id, 'The user paused the session.');
         noteActivity(session.id, 'Paused by you');
-        void setIndicator(session, 'Agent paused');
+        // The click is answered where it was made, in the words the activity list has for it.
+        void setNotice(session, { state: 'paused', ended: { text: 'Paused by you', mark: 'info' } });
         pushState();
       }
     });
