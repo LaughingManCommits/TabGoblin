@@ -3,6 +3,42 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `ci-tab-address`: CI for the day's merges, and the step that failed in run #12
+
+Read on GitHub by a session, through TabGoblin, on a tab the owner authorized with Explore:
+
+- Run #11 (`3071781`, the merge of `nothing-personal`): passed. It is the first run with the
+  fifth job, "Nothing personal", which had run on Windows only before.
+- Run #12 (`5274b04`, the merge of `disconnect-revokes`): failed. Four jobs passed; end to end,
+  92 passed and 1 failed: "a redirect out of the site during navigate suspends the session
+  too", with "tab is at" and the address of the first demo site. The step for Disconnect, which
+  that merge brought, passed.
+- Run #13 (`2c26e0b`, the merge of `notice-box`): passed in all five jobs. End to end took 4m
+  11s; its steps were not read one by one. It is the first run of the new step for the notice
+  on GitHub's runner.
+
+The cause of #12, concluded from its log and the step and not shown. The step lets the agent
+navigate to an address that redirects out of the site, and then asserts three things: the
+navigation is refused as having left the site, a snapshot is refused because the session is
+suspended, and the tab is on the other site. The first two passed, so the extension had seen
+the tab leave. The third asks the suite's driver, whose `url()` is what the browser last told
+it; asked right after the tools' answers, it still named the page before. Two more steps ask
+the same way: the click that leaves the site, and the move between the sites of a session.
+
+The fix is in the suite alone: the three places wait, for up to five seconds, until the driver
+names the address that is expected, and say the address it has if that does not come.
+
+| Command | Result |
+|---|---|
+| `cd e2e && npm test`, in a copy of the tree with a jar built there | 94 passed, 0 failed, the three steps among them |
+| `node docs/agents/check-links.mjs` | 79 links, all resolve |
+| `node docs/agents/check-personal.mjs` | nothing personal found |
+
+Not shown: the failure itself. It never came up on this machine, in any of the day's runs, and
+run #13 passed on GitHub with the step as it was. So the run above shows that the fix breaks
+nothing, not that it mends the step. Not run: the unit suites and the editor lab; no product
+code and none of their files changed.
+
 ## 2026-11-22, on `notice-box`: WP-11, the notice in the page: a bar, and pills of what ended
 
 On the final sources, which are the two-pane form with the goblin bare. The extension's check ran
@@ -339,30 +375,13 @@ Not shown: that the job passes on GitHub. And the server now sends `auth_ok` bef
 threads use the connection: that closes a gap between two threads, which no test can hit on
 purpose. The suites show that it breaks nothing, not that the gap was ever hit.
 
-## 2026-11-21, on `automatic-mode`, WP-8
-
-Points 1 and 2 of WP-8: the status tool names a session that asks differently, and the popup
-names the kind of request that passes. All on the final build of the branch.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 55 tests; `McpConformanceIT` on the built jar: 8 tests |
-| `cd chrome-extension && npm run check` | type-check clean, 130 tests, build |
-| `cd e2e && npm test` | 91 passed, 0 failed. New in existing steps: the status tool names the session that asks differently, and no longer does once the general setting is chosen again; the popup lists Enter and a click as two things that pass, with one button for both. |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node screenshots.mjs prompts` | 28 pictures of 14 views. Looked at: a session with two things that pass in both colour schemes, and with one (light). |
-| `HEADED=1 node screenshots.mjs` | run twice. `popup-automatic.png` was looked at both times and is the one picture kept. `popup-authorize.png`, `popup-full.png` and `popup-full-light.png` came out different too and were put back unopened: they show the agents' ports, which differ from run to run, and nothing this change touches. |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Failed on the way: no suite. The first picture for the documentation broke "(15 min)" over two
-lines; number and unit are now held together. And a log of the editor lab was read that an
-earlier run of the day had left under the same name; the numbers above are from this run.
-
-Not tried: nothing new. CI on GitHub: see the entry that follows this one in time.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `automatic-mode`, WP-8 (the status tool names a session that asks differently;
+  the popup names the kind of request that passes): server 55 tests and 8 conformance tests,
+  extension 130, end to end 91 of 91, editor lab 222 of 225 in front and 220 of 225 in the
+  background, no `SILENT`; 28 pictures of the prompt, three looked at. Three of the
+  documentation's pictures came out different in the agents' ports and were put back unopened.
 - 2026-11-21, on `automatic-mode`, after WP-7 (the prompt says when an Allow will stand; a
   control without a name is never remembered): extension 130 tests, end to end 91 of 91, editor
   lab 222 of 225 in front and 220 of 225 in the background, no `SILENT`; 26 pictures of the

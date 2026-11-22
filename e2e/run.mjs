@@ -286,6 +286,13 @@ try {
   const badge = async () => (await worker()).evaluate(() => chrome.action.getBadgeText({}));
   const json = (result) => JSON.parse(ok(result).text);
   /**
+   * Waits until a tab is where it is expected. The extension reports a move as soon as it has
+   * seen it; this suite's driver learns of it from the browser a moment later, and its
+   * `url()` is what it last learned. Asked at once, it can still name the page before.
+   */
+  const tabAt = (target, there, where) => until(() => there(target.url()), `the tab to be ${where}`, 5000)
+    .catch(() => { throw new Error(`tab is at ${target.url()}, expected ${where}`); });
+  /**
    * What the notice in a page says, or null when there is none. It is read through the browser's
    * debugging interface, which sees into a closed shadow root. A script of the page does not.
    */
@@ -1053,7 +1060,7 @@ try {
     snap = ok(await one.tool('browser_snapshot')).text;
     const click = json(await one.tool('browser_click', { ref: ref(snap, 'Link: Partner portal') }));
     assert(click.leftAuthorizedOrigin === true && click.navigation === 'left-origin', JSON.stringify(click));
-    assert(page.url().startsWith(demo.originB), `tab is at ${page.url()}`);
+    await tabAt(page, (url) => url.startsWith(demo.originB), `on ${demo.originB}`);
     for (const tool of ['browser_snapshot', 'browser_extract', 'browser_screenshot']) {
       fails(await one.tool(tool), 'SESSION_SUSPENDED');
     }
@@ -1082,7 +1089,7 @@ try {
   await step('a redirect out of the site during navigate suspends the session too', async () => {
     fails(await one.tool('browser_navigate', { url: '/redirect-out' }), 'ORIGIN_MISMATCH');
     fails(await one.tool('browser_snapshot'), 'SESSION_SUSPENDED');
-    assert(page.url().startsWith(demo.originB), `tab is at ${page.url()}`);
+    await tabAt(page, (url) => url.startsWith(demo.originB), `on ${demo.originB}`);
   });
   await step('the user can add the other site to the session; a third site stays out', async () => {
     has(await resumeFromPopup('addOrigin'), `to ${sA}`);
@@ -1109,7 +1116,7 @@ try {
   await step('moving between the sites of a session is allowed, but needs the user each time', async () => {
     const hop = json(await one.tool('browser_navigate', { url: demo.originA + '/' }));
     assert(hop.navigation === 'needs-user' && hop.suspended === true, JSON.stringify(hop));
-    assert(page.url() === `${demo.originA}/`, `tab is at ${page.url()}`);
+    await tabAt(page, (url) => url === `${demo.originA}/`, `at ${demo.originA}/`);
     fails(await one.tool('browser_snapshot'), 'SESSION_SUSPENDED');
     await resumeFromPopup('resume');
     has(ok(await one.tool('browser_snapshot')).text, 'Page: Demo Tracker: Issues');
