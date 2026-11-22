@@ -84,6 +84,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 |---|---|
 | [Installation](docs/installation.md) | Build the server and the extension, load it in Chrome, connect your agent, pair |
 | [User guide](docs/user-guide.md) | Authorize tabs, the popup, submissions, troubleshooting |
+| [Cheat sheet](docs/cheatsheet.md) | The commands at a glance: build, pair, run with the panel, stop, test |
 | [Tool reference](docs/tools.md) | Every tool with real outputs, completeness, every error code |
 | [Editors](docs/editors.md) | Which rich-text and code editors can be filled, how, and what was measured |
 | [Architecture](docs/architecture.md) | Processes, protocol, sessions, refs, navigation, submissions |

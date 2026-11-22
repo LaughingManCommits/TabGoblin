@@ -268,15 +268,36 @@ A server that shows its panel can be stopped from there; see the next section.
 
 ## 9. The server's panel
 
-A server has no window unless you ask for one. To get it, add `--panel` after the jar's path
-where you told your agent about the server
-([step 5 of the installation guide](installation.md#5-tell-your-agent-about-the-server)), or set
-`BCMCP_PANEL=1` in the environment the agent starts the server in. Take it out again, and the
-server runs without a window as before.
+A server has no window unless you ask for one. With the option `--panel` it shows a small one.
+
+**To see it at once,** run this in the project's folder:
+
+```sh
+java -jar java-server/target/browser-context-mcp.jar --panel
+```
+
+That starts a server by hand, with its window. No agent talks to it, so the window calls it
+*Agent c-…*; your extension pairs with it and lists it in the popup. **Stop server** in the
+window ends it, and so does Ctrl+C in the terminal.
+
+**To have it on your agent's server,** add `--panel` after the jar's path where you told your
+agent about the server
+([step 5 of the installation guide](installation.md#5-tell-your-agent-about-the-server)), and
+restart the agent. In settings that are JSON:
 
 ```json
 "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar", "--panel"]
 ```
+
+In Claude Code the server is added anew with the option; `claude mcp get tabgoblin` shows the
+command that removes the entry it has:
+
+```sh
+claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --panel
+```
+
+`BCMCP_PANEL=1` in the environment the agent starts the server in does the same as the option.
+Take it out again, and the server runs without a window as before.
 
 **Rebuild the server first** if your jar is from before the panel
 ([Updating](installation.md#updating)). An older jar does not know the option and does not

@@ -172,6 +172,7 @@ page that owns it:
 | [Architecture](architecture.md) | How it is built: processes, flows, where things are |
 | [MCP conformance](mcp-conformance.md) | Which revision of MCP the server speaks, and how that is checked |
 | Development, this page | Build, tests, CI, conventions, the messages between server and extension |
+| [Cheat sheet](cheatsheet.md) | The commands at a glance, one line each. It explains nothing and names the page that does; a command is changed there when it changes in its own page |
 | [Runbook](agents/runbook.md) | Commands by outcome, each with what success looks like |
 | [State](agents/state.md), [validation log](agents/validation-log.md), [TODO](../TODO.md) | Records: what is open, what was run and when, what is planned |
 
