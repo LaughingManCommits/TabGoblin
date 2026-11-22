@@ -10,14 +10,14 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 - Branch `aftercare`, made from it on 2026-11-22: the third part of WP-18. A page of commands
   and the panel's command in the user guide; a button in the panel that copies the pairing
   token; a panel that keeps its controls in view; a badge and a heartbeat in the extension that
-  show what is so. Not committed, not pushed, not merged.
+  show what is so. Two commits, made on the owner's word. Not pushed and not merged.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
-| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is built on `aftercare` and waits for the owner's word to commit. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
+| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is committed on `aftercare` and waits for the owner's push and merge. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
@@ -147,7 +147,7 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   type-check and build, and the suite end to end, 94 passed. By hand: the copy button in the
   real window on Windows, and the real extension against a real server whose process was
   stopped and let run again. Details in the [validation log](validation-log.md).
-- **Next action:** the owner's word to commit `aftercare`, then its push and merge. The jar in
+- **Next action:** the owner's push and merge of `aftercare`. The jar in
   the tree has to be built by the owner before the panel can be asked for there
   (`mvn -f java-server/pom.xml package`), and the extension reloaded for the badge and the
   heartbeat. The first

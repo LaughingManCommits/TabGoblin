@@ -706,8 +706,8 @@ panel's tests in CI, a name on the taskbar. What needs no decision:
 
 ### Part 3: asked for by the owner after the merge
 
-All on 2026-11-22, on the branch `aftercare`. Built and checked; not committed until the owner
-says so. What was run is in the validation log.
+All on 2026-11-22, on the branch `aftercare`, in two commits made on the owner's word. What
+was run is in the validation log.
 
 - **A simple command for the panel, and a page of commands.** "how do i run with single command
   the server with ui panel", then "we need like cheat sheet md with all the important
