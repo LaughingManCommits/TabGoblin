@@ -452,3 +452,4 @@ Every failure is `Error [CODE]: message`.
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |
 | `RATE_LIMITED`, `DUPLICATE_COMMAND`, `STALE_COMMAND` | Protocol protections |
 | `INVALID_ARGUMENT`, `INVALID_URL`, `UNKNOWN_TOOL`, `UNSUPPORTED_ACTION` | The request itself is wrong |
+| `PAGE_ERROR`, `EXTENSION_ERROR`, `ERROR` | Something failed that has no code of its own: in the page, in the extension, or in the server. The message says what |

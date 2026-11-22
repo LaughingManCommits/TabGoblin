@@ -3,6 +3,114 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `docs-pass`: the documentation gone over (WP-18, part 1)
+
+Every page that is not a record was read whole: `README.md`, `AGENTS.md`, `docs/README.md`,
+the installation guide, the user guide, the tool reference, the security model, the editors
+page, the architecture, the conformance page, the development page and the runbook. Claims
+were checked against the source that owns them. No product code changed.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml test`, in the tree | 84 tests, after the change to three test files below |
+| `cd chrome-extension && npm test` | 151 tests, none failed: the count the README states |
+| `git grep -n "0\.2\.0" -- ":!*package-lock.json"` | names the seven files of the runbook and no other, after the change below; before it, three test files as well |
+| `PanelPictures`, then `cmp` with `docs/images/server-panel.png` | six pictures; the first is byte for byte the documentation's picture |
+| The jar in the tree, built on 2026-11-21 before the panel, run with `--panel` | `Unknown option: --panel` and the usage text on standard error, exit code 2, nothing on standard output |
+| The window asked to close (`WM_CLOSE`, as Alt+F4 sends it), on Windows, server run from the tree's classes | The window is put away and still there; the server runs on and ends with exit code 0 when its input ends |
+| `node docs/agents/check-links.mjs` | 133 links, all resolve (91 before the pass) |
+| `node docs/agents/check-personal.mjs` | nothing personal found |
+
+Out of date, and set right, each against its source:
+
+- Installation guide: the build's example output named 52 tests (there are 84), and three
+  bundle sizes that the built bundles no longer have. Both numbers are gone: the page now says
+  what to look for.
+- "Fourteen editor libraries" in the editors page, the README (twice) and the development
+  page. The lab has fifteen pages: thirteen libraries and two plain controls, as the editors
+  page's own table and `FIXTURES` in `e2e/editors/lab.mjs` show. It has been so since the
+  page was written.
+- Tool reference: `PAGE_ERROR`, `EXTENSION_ERROR` and `ERROR` can be answered and were not in
+  the table of codes. Every other code the sources give is in it, and every parameter of every
+  tool's definition is named in that tool's section (compared by a script, not by eye).
+- Architecture: `Progress.java`, `BrowserException.java` and `pairing.ts` were not in the file
+  map.
+- Development page: the close codes 1001 and 1009 are used and were not named; `editor` was
+  missing from the list of modules that run under jsdom; CI is also started by hand.
+- The panel's tests had the product's version written into them, which made the runbook's
+  check for a change of version name three files too many. They use a made-up version now,
+  and `PanelPictures` reads the real one.
+- The popup's *Disconnected* is now also explained by a connection switched off in a server's
+  panel, in the two places that explain it.
+
+Said once now, with links from the other pages:
+
+- Installing and pairing: the installation guide. The user guide had the commands, the
+  settings and the picture again.
+- What the popup's messages mean: the user guide. The installation guide had three of them
+  again and now points there.
+- The server's panel, which stood at length in four pages: what the user sees in the user
+  guide, the rules in the security model, how it is built in the architecture, the commands in
+  the runbook. The development page and `AGENTS.md` keep a line each and link.
+- Which page owns what: a new section "Documentation" in the development page. `AGENTS.md`
+  points to it.
+
+Added, on the owner's question whether the panel needs better documentation. The pages said
+what the window shows to someone who has it; they did not say what is needed before that, or
+when it puzzles. Now in the user guide: that a jar from before the panel does not start at all
+with the option, and so costs the agent its tools (shown above); what each sentence of the line
+with the dot means and what to do about it; that several agents give several windows, that a
+window takes the keyboard when it appears, and that a request to close it puts it away; two
+rows in the troubleshooting table. In `AGENTS.md`: that the panel repeats the popup's colours
+and the goblin's shapes by hand. Not tried: the close button of a frame on Linux; that it puts
+the window away there too is read in the source.
+
+After the commit of this pass, on the owner's word: the root README's picture, two lines of
+plain text, is now the Mermaid diagram of `docs/README.md`, block for block, as every other
+diagram in the documentation is one. Both copies carry a comment that says to change both.
+
+Seen on GitHub, through TabGoblin, on the docs index as it is on `main`: GitHub lays its
+buttons for zooming over the bottom right corner of a diagram, and where a diagram spans the
+column they cover what is there. In this one that was most of the box "Every other tab", the
+one the words "no access" point to. Both copies now have an empty place at the right edge,
+with a comment that says why. That was checked by drawing the diagram with the Mermaid
+library in a headless Chrome, in a frame of GitHub's width with the corner marked that the
+buttons took in the picture from GitHub (112 by 105 pixels): before, "Every other tab" lay
+under it; now nothing does. Not seen: the corrected diagram on GitHub itself; it is not
+pushed. In the architecture page the diagram "Reading a page" is narrower than the column
+and clear of the buttons; in "A command, end to end" they cover the lower of the two boxes
+"Content script", whose upper one is whole. That was left as it is.
+
+Moved out of the architecture page, where they were told as a story; they are measurements of
+2026-11-22, made while the panel was built:
+
+- With the real extension, the connection switched on again in the panel was found by the
+  extension by itself after 14.3 seconds.
+- A copy of the jar from which the 53 native files for Windows had been taken, run with
+  `--panel` on Windows with an empty cache for JavaFX, as a stand-in for a system the jar has
+  no native part for: JavaFX printed a trace of its own, the server logged
+  `panel not shown reason=RuntimeException`, ran on, and ended with exit code 0 and nothing on
+  standard output.
+
+Looked at and left:
+
+- The user guide and the security model both state the rules for submissions, for two
+  readers. They point to each other now and were not merged.
+- Two sentences in the editors page speak of "the fourteen" editors. What they count could
+  not be told without a run of the lab.
+- The security model's numbers (sizes, limits, times) were compared with the constants in the
+  code and are right. Its table of what is verified by tests was not gone through row by row.
+- The conformance page: the SDK's version and the number of tests were compared; the rest was
+  not read against the SDK.
+- The example outputs in the tool reference were not compared with a run.
+
+CI: run #15, for `main` with the panel, failed in all five jobs after two seconds each, read
+on GitHub. The owner says the account's credit for Actions is used up; the logs were not
+opened. Nothing of that run speaks about the code.
+
+Not run: the suite end to end and the editor lab; the pass changed three test files of the
+server and no other code.
+
 ## 2026-11-22, on `server-panel`: WP-13, the server's panel
 
 A window for the server, asked for with `--panel`. Built in JavaFX after a first attempt in
@@ -394,26 +502,13 @@ Not shown: the report with a real agent and model. In the suites the agent is a 
 time between calls is milliseconds. Not shown either: an older extension against this server
 (the note about calls without times is tested with a fake extension only).
 
-## 2026-11-21, on `pairing-race`: the declined box
-
-The popup names the kind of request the user declined ("You declined Enter in “Comment”"), as
-it does for what passes. All on the final build of the branch.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check` | type-check clean, 131 tests, build |
-| the same in a Linux container (two cores) | 131 tests |
-| `cd e2e && npm test` | 91 passed, 0 failed. The box is read for a declined click and, new in an existing step, for a declined Enter. |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node screenshots.mjs prompts` | 28 pictures of 14 views. Looked at: the declined box in both colour schemes. |
-| `HEADED=1 node screenshots.mjs` | `popup-declined.png` looked at and kept. The three pictures that show the agents' ports came out different again and were put back unopened. |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Not run: the server's suites; nothing in the server changed since the entry below.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `pairing-race`, the box that names what the user declined ("You declined
+  Enter in “Comment”"): extension 131 tests, also in a Linux container; end to end 91 of 91,
+  the box read for a declined click and a declined Enter; editor lab 222 of 225 in front and
+  220 of 225 in the background, no `SILENT`; 28 pictures of the prompt, the declined box
+  looked at in both colour schemes. The server's suites were not run.
 - 2026-11-21, on `pairing-race`, the first CI failure a session saw (the "Chrome extension"
   job, cancelled at its 15-minute limit): a message that arrived while the extension still
   checked the proof in `auth_ok` was taken for a failed pairing. Shown against the unfixed

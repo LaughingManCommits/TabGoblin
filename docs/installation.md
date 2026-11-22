@@ -38,7 +38,6 @@ This compiles the server, runs its tests and packages everything into one file. 
 downloads libraries and takes a minute or two. It is done when you see:
 
 ```text
-[INFO] Tests run: 52, Failures: 0, Errors: 0, Skipped: 0
 [INFO] BUILD SUCCESS
 ```
 
@@ -54,13 +53,8 @@ npm run build
 cd ..
 ```
 
-It is done when you see the three bundles listed:
-
-```text
-  dist\content.js     75.0kb
-  dist\background.js  63.8kb
-  dist\popup.js       11.1kb
-```
+It is done when you see the three bundles listed, each with its size: `dist\content.js`,
+`dist\background.js` and `dist\popup.js`.
 
 The result is the folder **`chrome-extension/dist`**. That folder, not `chrome-extension` itself,
 is what Chrome loads.
@@ -114,6 +108,10 @@ Most MCP clients take this JSON:
 
 Restart the agent, or reload its MCP servers, so it picks the server up. You can connect several
 agents this way; each starts its own copy of the server, up to eight at once.
+
+A server has no window. With `--panel` as a further argument it shows a small one, with its
+sessions, its log and a button to stop it: see
+[the server's panel](user-guide.md#9-the-servers-panel).
 
 ## 6. Pair the extension with the server
 
@@ -189,9 +187,9 @@ do not, the popup says *Server and extension versions differ*. The pairing survi
 | **Load unpacked** is not there | Developer mode is off | Switch it on, top right |
 | Developer mode or loading is blocked | A managed (work) browser forbids unpacked extensions | Ask your administrator, or use a personal Chrome profile |
 | The extension's ID is different | The `key` in `chrome-extension/manifest.json` was changed or removed | Restore it; or start the server with `--extension-origin any` |
-| Popup: *Disconnected: is the MCP server running?* | No server is running | Start your agent, or have it call any TabGoblin tool |
-| Popup: *Pairing failed: check the token* | The token does not match | Paste the output of `--show-token` again |
 | Agent: *Could not listen on any of ports 47821-47828* | Eight servers are already running, or other programs hold those ports | Close unused agents, or start the server with `--port` and set the same *First port* in the popup under *Connection…* |
-| Agent says the extension is not connected, right after starting | It asked before the extension had found the new server | It waits up to ten seconds by itself; opening the popup connects at once |
+
+What the popup and the agent say once everything is installed (*Disconnected*, *Pairing failed*,
+"not connected") is in the user guide's [troubleshooting](user-guide.md#7-troubleshooting).
 
 Chrome is the only browser this has been run in. Other Chromium browsers may work but are untested.

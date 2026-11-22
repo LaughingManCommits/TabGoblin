@@ -15,22 +15,14 @@ import javax.imageio.ImageIO;
 
 /**
  * Pictures of the server's panel in the states it has, to look at. Not a test: it is run by hand
- * after a change to the panel, and what it writes is not in git.
- *
- * <pre>
- *   mvn -q -f java-server/pom.xml test-compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
- *   java -cp "java-server/target/classes;java-server/target/test-classes;$(cat java-server/target/classpath.txt)" \
- *        browsercontext.PanelPictures java-server/target/panel-pictures
- * </pre>
+ * after a change to the panel, and what it writes is not in git. The command, and what to look
+ * at in the real window besides, is in docs/agents/runbook.md, "Look at the server's panel".
  *
  * <p>The panel is drawn by the server's own code from made-up states, without a window being
  * shown and without a server. It needs a display all the same: JavaFX does not start without one.
  * Nothing of the screen is read, so nothing else that is on it can get into a picture. The first
  * picture is the one the documentation shows ({@code docs/images/server-panel.png}); the last is
  * the panel as it fills a window with the system's frame, as on Linux and macOS.
- *
- * <p>What they cannot show is the window itself on a desktop: whether it appears, its icon on the
- * taskbar, and that its buttons do what they say. That is looked at by hand.
  */
 final class PanelPictures {
 
@@ -102,7 +94,7 @@ final class PanelPictures {
 
     private static PanelModel model(String agent, String problem, boolean connected, boolean off, long since, int closeCode,
             List<Protocol.Session> sessions, Timings.Shares times, List<Log.Line> log) {
-        return PanelModel.of(agent, "c-7240df8e", 47821, "0.2.0", problem, connected, off, since, closeCode, sessions, times,
+        return PanelModel.of(agent, "c-7240df8e", 47821, McpMain.version(), problem, connected, off, since, closeCode, sessions, times,
                 log, ZONE);
     }
 

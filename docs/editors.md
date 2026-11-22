@@ -10,9 +10,10 @@ This page says which editors that works for, how it was measured, and where it s
 
 ## What was measured
 
-Fourteen editor libraries, each on its own local page, filled through the whole chain (MCP client
-→ server → extension in Chrome 157) and then compared with **the editor's own model**, not with
-what the page displays. Fifteen checks per editor:
+Fifteen editors, each on its own local page: thirteen editor libraries, a plain textarea and a
+plain editable region. Each was filled through the whole chain (MCP client → server → extension
+in Chrome 157) and then compared with **the editor's own model**, not with what the page
+displays. Fifteen checks per editor:
 
 | Check | What is entered |
 |---|---|

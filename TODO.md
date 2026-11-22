@@ -650,6 +650,32 @@ Acceptance: the link check and the personal check pass; what was changed, and wh
 at and left, is in the validation log. The backlog, the state page and the validation log are
 records and are not rewritten.
 
+**Done on 2026-11-22, on the branch `docs-pass`.** Every page was read whole and
+its claims checked against the source. What came of it, in short; the list is in the
+validation log:
+
+- **Out of date, and set right:** a count of tests and three sizes in the installation guide
+  that were several versions old; "fourteen editor libraries" in four places, where the lab has
+  thirteen and two plain controls; three error codes that the tool reference did not have;
+  three source files that the file map did not have; two close codes missing from the protocol
+  reference; and the panel's new tests, which had the version written into them and so broke
+  the runbook's check for a change of version.
+- **Said once now, with links from the rest:** how to install and pair (the installation
+  guide; the user guide had both again), what the popup's messages mean (the user guide; the
+  installation guide had three of them again), and the server's panel, which stood at length in
+  four pages: what the user sees in the user guide, the rules in the security model, the build
+  in the architecture, the commands in the runbook.
+- **New:** a section in `docs/development.md`, "Documentation", that says which page owns what.
+  `AGENTS.md` points to it instead of listing the owners itself.
+- **Added for the panel,** on the owner's question whether it needs better documentation: what
+  a user needs before the window is there and when it puzzles. A jar from before the panel does
+  not start at all with `--panel`; what each sentence of the line with the dot means; several
+  agents, several windows; two rows of troubleshooting.
+- **Looked at and left:** the user guide and the security model both state the rules for
+  submissions, one for the user and one as rules; they now point to each other and were not
+  merged. Two sentences in `docs/editors.md` speak of "the fourteen" editors; what they count
+  could not be checked without a run of the lab.
+
 ### Part 2: what the panel left behind
 
 The decisions are the owner's and stand under WP-13, "Open, for the owner": the cost of JavaFX,
@@ -666,6 +692,14 @@ panel's tests in CI, a name on the taskbar. What needs no decision:
   typing still stops going where it went.
 - **On Linux the title in the panel is not bold** and the frame shows the system's own icon,
   as far as the one picture from the Linux subsystem tells. Not looked into.
+- **A tool call made right after the connection was switched off may wait ten seconds** before
+  it is told so. Read in the source, not timed: the wait that is meant for a server that has
+  just started is taken once more when the extension is gone, also when it is the panel that
+  keeps it out (`awaitExtension` in `BrowserService.java`).
+- **GitHub's zoom buttons lie over the bottom right corner of a diagram that spans the column.**
+  The picture in the two READMEs has an empty place there now. In the architecture page the
+  buttons cover the lower "Content script" box of "A command, end to end"; the upper one is
+  whole. The other four diagrams of that page were not all looked at.
 - **The six tests of the window do not run in CI.** A virtual display on the Linux runner
   would run them and, with them, the jar's native part for Linux; it cannot be tried on this
   machine.

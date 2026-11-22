@@ -20,7 +20,7 @@ class PanelModelTest {
     }
 
     private static PanelModel model(boolean connected, boolean off, long since, int closeCode, List<Protocol.Session> sessions) {
-        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "0.2.0", null, connected, off, since, closeCode, sessions,
+        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, connected, off, since, closeCode, sessions,
                 NO_CALLS, List.of(), UTC);
     }
 
@@ -71,7 +71,7 @@ class PanelModelTest {
                 new PanelModel.Share("This server", 2, false),
                 new PanelModel.Share("Extension and page", 5, false),
                 new PanelModel.Share("Waiting for you", 3, true)), PanelModel.shares(time));
-        PanelModel shown = PanelModel.of("claude-code", "c-1", 47821, "0.2.0", null, true, false, 0, 0, List.of(), time,
+        PanelModel shown = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", null, true, false, 0, 0, List.of(), time,
                 List.of(), UTC);
         assertEquals("the last 12 calls", shown.callsCount());
         // Before any call has ended there is nothing to divide, and the panel says so in words.
@@ -87,7 +87,7 @@ class PanelModelTest {
         // An agent says its name with its first tool call. Until then it goes by its id, as in the popup,
         // and the line that says whose server this is does not say the id twice.
         for (String noName : new String[] {"", "  ", null}) {
-            PanelModel unnamed = PanelModel.of(noName, "c-1a2b3c4d", 47821, "0.2.0", null, false, false, 0, 0, List.of(),
+            PanelModel unnamed = PanelModel.of(noName, "c-1a2b3c4d", 47821, "9.8.7", null, false, false, 0, 0, List.of(),
                     NO_CALLS, List.of(), UTC);
             assertEquals("Agent c-1a2b3c4d", unnamed.agent());
             assertEquals("Agent c-1a2b3c4d  ·  port 47821", unnamed.identity());
@@ -95,7 +95,7 @@ class PanelModelTest {
         PanelModel named = model(true, false, 0, 0, List.of());
         assertEquals("claude-code", named.agent());
         assertEquals("claude-code  ·  c-1a2b3c4d  ·  port 47821", named.identity());
-        PanelModel stuck = PanelModel.of("claude-code", "c-1", 47821, "0.2.0", "Could not listen on any of ports 47821-47828.",
+        PanelModel stuck = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", "Could not listen on any of ports 47821-47828.",
                 false, false, 0, 0, List.of(), NO_CALLS, List.of(new Log.Line(5, "warn", "a line")), UTC);
         assertEquals("Could not listen on any of ports 47821-47828.", stuck.problem());
         // A line of the log is shown as it was written, with its time of day in front and a mark on a warning.

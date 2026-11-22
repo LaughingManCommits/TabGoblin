@@ -34,7 +34,7 @@ class PanelTest {
                         "Inbox (3) - private mail", "https://mail.example.com/mail/u/0/#inbox"),
                 new Protocol.Session("s2", "c-1a2b3c4d", "a2", "https://docs.example.org", 8, 0, "d2", "read", 1, "paused",
                         "Quarterly figures", "https://docs.example.org/d/quarterly"));
-        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "0.2.0", null, connected, off, 1_000, 0,
+        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, connected, off, 1_000, 0,
                 connected ? sessions : List.of(), TIME,
                 List.of(new Log.Line(2_000, "info", "extension connected client=c-1a2b3c4d protocol=2"),
                         new Log.Line(3_000, "warn", "connection rejected reason=pairing_proof")),
@@ -66,7 +66,7 @@ class PanelTest {
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "WHERE THE TIME WENT", "the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
-                "Stop server", "Kill", "TabGoblin 0.2.0 · protocol 2")) {
+                "Stop server", "Kill", "TabGoblin 9.8.7 · protocol 2")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + all);
         }
         // The log's lines, each with its time; a warning is marked.
@@ -141,7 +141,7 @@ class PanelTest {
             held.scene.getRoot().applyCss();
             held.scene.getRoot().layout();
         };
-        java.util.function.IntFunction<PanelModel> lines = count -> PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "0.2.0",
+        java.util.function.IntFunction<PanelModel> lines = count -> PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7",
                 null, true, false, 0, 0, List.of(), TIME,
                 java.util.stream.IntStream.rangeClosed(1, count).mapToObj(n -> new Log.Line(n * 1000L, "info", "line " + n)).toList(),
                 ZoneId.of("UTC"));
@@ -223,7 +223,7 @@ class PanelTest {
     void whereNothingIsKnownItSaysSoInWords() throws Exception {
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
-            view.show(PanelModel.of("", "c-1a2b3c4d", 47821, "0.2.0",
+            view.show(PanelModel.of("", "c-1a2b3c4d", 47821, "9.8.7",
                     "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
                     false, false, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), List.of(), ZoneId.of("UTC")));
             return view.words();

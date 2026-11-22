@@ -253,6 +253,7 @@ build their planted values while they run, so the test file passes the check.
 |---|---|---|
 | The editor lab cannot find `puppeteer-core` | `npm install` was run only in `e2e/editors` | `cd e2e && npm install` |
 | End-to-end or lab fails at start with a missing jar or `dist` | A part is not built | Build both parts |
+| A build is to replace `java-server/target/browser-context-mcp.jar` while a server runs from it | An agent whose MCP settings name the tree's jar has its server running from that file; your own session may be that agent | Do not build under it: copy the tree without `.git`, `node_modules`, `target` and `dist`, build and run the suites there, and build in the tree once that agent is closed. `mvn test` in the tree writes classes only and is safe |
 | A change to the extension has no effect in Chrome | The extension was not reloaded | Reload it in `chrome://extensions` |
 | `agnostic.test.ts` fails | A library name or a library's class name got into `chrome-extension/src`, also in a comment | Describe the DOM fact instead |
 | A Bash here-document with backslashes or quotes fails on Windows | Git Bash quoting | Write the script to a file and run the file |

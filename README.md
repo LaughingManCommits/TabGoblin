@@ -10,9 +10,23 @@ cookies, tokens or the ability to run code, and they reach only the tabs and web
 
 <br clear="left">
 
-```text
-IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┐
-IDE agent ──MCP stdio──> Java MCP server ──ws://127.0.0.1──┼──> TabGoblin extension ──> authorized tabs
+<!-- The same picture is in docs/README.md, under "The idea in one picture": change both. -->
+```mermaid
+flowchart LR
+  subgraph IDE["Your machine"]
+    A1["AI agent<br/>(IDE, CLI)"] -- "MCP over stdio" --> S1["Java MCP server"]
+    A2["Another agent"] -- "MCP over stdio" --> S2["Java MCP server"]
+  end
+  subgraph Chrome["Your Chrome"]
+    X["TabGoblin extension"] --> T1["Tab you authorized<br/>session s1"]
+    X --> T2["Another authorized tab<br/>session s2"]
+    X -. "no access" .-> T3["Every other tab"]
+  end
+  S1 -- "WebSocket on 127.0.0.1<br/>paired with a token" --> X
+  S2 -- "WebSocket on 127.0.0.1" --> X
+  %% An empty place at the right edge: GitHub lays its zoom buttons over the bottom right corner of a diagram.
+  T3 ~~~ ROOM["&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"]
+  style ROOM fill:none,stroke:none
 ```
 
 <img src="docs/images/popup-sessions.png" width="354" alt="The TabGoblin popup with two sessions"> <img src="docs/images/popup-confirm.png" width="354" alt="The popup asking to allow a submission">
@@ -74,6 +88,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 | [Editors](docs/editors.md) | Which rich-text and code editors can be filled, how, and what was measured |
 | [Architecture](docs/architecture.md) | Processes, protocol, sessions, refs, navigation, submissions |
 | [Security model](docs/security.md) | What an agent can reach, how it is enforced, what remains your risk |
+| [MCP conformance](docs/mcp-conformance.md) | Which revision of the protocol the server speaks, and how that is checked |
 | [Development](docs/development.md) | Build, tests, demo sites, conventions, protocol reference |
 
 ## Verify
@@ -82,7 +97,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 mvn -f java-server/pom.xml verify       # 84 tests, then the built jar checked against the protocol
 cd chrome-extension && npm run check    # 151 tests, type-check, build
 cd e2e && npm install && npm test       # 94 steps in your Chrome, against three demo sites
-cd e2e/editors && npm install && npm test   # text entry into 14 real editor libraries
+cd e2e/editors && npm install && npm test   # text entry into 13 editor libraries and 2 plain controls
 ```
 
 ## Limits worth knowing
@@ -94,8 +109,8 @@ cd e2e/editors && npm install && npm test   # text entry into 14 real editor lib
   two websites needs one click from you per move.
 - Frames from another website and closed shadow roots are not read.
 - Rich-text and code editors are filled without real keystrokes, which a page script cannot
-  produce. Fourteen common editor libraries are tested ([results](docs/editors.md)); editors that
-  draw to a canvas, such as Google Docs, are out of reach.
+  produce. Thirteen common editor libraries are tested ([results](docs/editors.md#results));
+  editors that draw to a canvas, such as Google Docs, are out of reach.
 - There is no hover. Content that a page shows only while the mouse is over something (CSS
   `:hover`) cannot be brought up: only a real pointer or Chrome's debugger sets that state, and
   the debugger is excluded by design. Menus that also open on click or keyboard focus work.
@@ -103,8 +118,11 @@ cd e2e/editors && npm install && npm test   # text entry into 14 real editor lib
 - Not yet tried with IntelliJ's own agent: the tools are verified with a generic MCP client and
   with the `claude` CLI.
 
-Some technical names predate the product name and are kept for compatibility: the jar and MCP
-server (`browser-context-mcp`), the token directory, and the `BCMCP_*` variables.
+What of this is a risk to you, and what else is, stands with its reasons in the security model
+under [what remains your risk](docs/security.md#what-remains-your-risk).
+
+Some technical names, such as `browser-context-mcp` and `BCMCP_*`, predate the product name and
+are kept for compatibility: [which, and why](docs/development.md#names).
 
 ## Licence
 

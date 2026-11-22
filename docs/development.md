@@ -27,11 +27,11 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 
 | Command | What it covers |
 |---|---|
-| `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, and the server's panel: what it shows, its switch and its buttons. Six of the panel's tests need a display and are skipped where there is none, as in CI |
+| `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. Six tests of the panel's window need a display and are skipped without one |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, the notice in the page, and the background worker against a fake Chrome |
 | `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
-| `cd e2e/editors && npm test` | Text entry into fourteen real editor libraries, checked against each editor's own model |
+| `cd e2e/editors && npm test` | Text entry into thirteen editor libraries and two plain controls, checked against each editor's own model |
 
 How the end-to-end run works:
 
@@ -47,7 +47,7 @@ Other scripts in `e2e/`:
 |---|---|
 | `node live.mjs <url> …` | Read-only smoke check on real websites |
 | `node agent.mjs` | Hands the tools to a real model (the `claude` CLI) with questions that need expanding, scrolling or loading more; prints the tool calls. Costs a few cents. |
-| `HEADED=1 node screenshots.mjs` | Regenerates `docs/images` and `docs/examples` |
+| `HEADED=1 node screenshots.mjs` | Regenerates the pictures of the popup and of the notice in `docs/images`, and `docs/examples` |
 | `node notice-pictures.mjs` | Pictures the notice in the page in every state, drawn by `notice.ts` in a plain page, to look at |
 | `node make-icons.mjs` | Renders the icon PNGs from `chrome-extension/icons/goblin.svg` |
 
@@ -68,22 +68,19 @@ one thing that passes and with two, the general setting with each of its three v
 panels folded to one line. Look at them after any change to the prompt. The end-to-end suite
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
-The server's panel is pictured by a class among the server's tests, `PanelPictures`, which is
-run by hand ([runbook](agents/runbook.md#look-at-the-servers-panel)). It draws the panel with
-the server's own code from made-up states, at double size, without showing a window and without
-reading the screen: connected, waiting, switched off, without a port, with Stop armed, and as
-it fills a window that has the system's frame. The first of them is
-`docs/images/server-panel.png`. What a drawing cannot show is the window on a desktop: that it
-appears, its icon on the taskbar, and that its buttons do what they say. Those are looked at by
-hand, on each system the panel is to be trusted on.
+The picture of the server's panel, `docs/images/server-panel.png`, is not a capture: a class
+among the server's tests, `PanelPictures`, draws the panel in six states with the server's own
+code, without a window. The command, and what to look at in the real window besides, is in the
+[runbook](agents/runbook.md#look-at-the-servers-panel).
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push to `main` and on every pull request:
+`.github/workflows/ci.yml` runs on every push to `main`, on every pull request, and when it is
+started by hand:
 
 | Job | Runs on | Does |
 |---|---|---|
-| Java server | Linux | `mvn verify`: compile, test, build the jar, check the jar against the protocol. The runner has no display: the tests of the panel's window are skipped there, and the panel has not been run in CI |
+| Java server | Linux | `mvn verify`: compile, test, build the jar, check the jar against the protocol. Without a display: the tests of the panel's window are skipped |
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
@@ -143,22 +140,48 @@ Run them by hand with `node demo-site/server.mjs`.
   The editor lab names libraries; the product does not, and a test (`agnostic.test.ts`) keeps it so.
 - **Rules are pure.** Anything that decides whether something is allowed goes into `policy.ts` as
   a function without `chrome.*` or DOM access, with a test.
-- **DOM code is pure too.** `snapshot`, `extract`, `interact`, `submit` and `notice` take a document and run
-  under jsdom.
+- **DOM code is pure too.** `snapshot`, `extract`, `interact`, `editor`, `submit` and `notice`
+  take a document and run under jsdom.
 - **Fail closed.** An unknown tab address, an unparseable message or a missing owner means no.
 - **Nothing is retried.** A command is sent once; unknown outcomes are reported as unknown.
 - **Only allowlisted information leaves the page.** New output fields need a reason and a test
   that hidden content and credentials stay out.
 - **Errors are for the agent.** Each has a stable code and says what to do next.
-- **The server's panel takes away and gives nothing.** It may stop, kill and switch the
-  connection off. Authorizing a tab or changing an access level stays in the popup, where the
-  user's click on the tab is. What it shows is decided in `PanelModel`, without a window, and
-  has nothing of a page: no title, no address.
+- **The server's panel takes away and gives nothing,** and shows nothing of a page. The rules
+  are in the [security model](security.md#the-servers-panel); what it shows is decided in
+  `PanelModel`, without a window, so that a test can hold them.
 - **Nothing personal in the repository.** No home directory, no mail address outside the example
   domains, no link to an agent's session, in a file or in a commit message. A path in an example
   is written with a placeholder (`<folder>`). A check keeps the files so
   ([runbook](agents/runbook.md#check-that-nothing-personal-is-in-the-files)); pictures and commit
   messages it does not read.
+
+## Documentation
+
+Each fact has one page; every other page links to it. Before writing something down, find the
+page that owns it:
+
+| Page | Owns |
+|---|---|
+| [README](../README.md) | What TabGoblin is, the quick start, the list of pages. It sums up and links |
+| [Installation](installation.md) | Setting it up, and what goes wrong while doing that |
+| [User guide](user-guide.md) | What the user sees and does: the popup, sessions, submissions, stopping, the server's panel, and what the popup's messages mean |
+| [Tool reference](tools.md) | What each tool takes and returns: every text an agent reads, every error code |
+| [Editors](editors.md) | Which editors can be filled, how, and what was measured |
+| [Security model](security.md) | The rules: what is enforced where, what is tested, what remains a risk |
+| [Architecture](architecture.md) | How it is built: processes, flows, where things are |
+| [MCP conformance](mcp-conformance.md) | Which revision of MCP the server speaks, and how that is checked |
+| Development, this page | Build, tests, CI, conventions, the messages between server and extension |
+| [Runbook](agents/runbook.md) | Commands by outcome, each with what success looks like |
+| [State](agents/state.md), [validation log](agents/validation-log.md), [TODO](../TODO.md) | Records: what is open, what was run and when, what is planned |
+
+- A page for users names what they see, not the code's classes and functions.
+- How something came about, and what a run measured on a given day, goes into the validation
+  log and into git, not into a page that explains.
+- A number that a run produces (a count of tests, a size) goes stale: state it where a command
+  beside it checks it, and nowhere else.
+- After an edit, check the links and that nothing personal got in
+  ([runbook](agents/runbook.md#check-the-documentation-links)).
 
 ## Adding a tool
 
@@ -213,6 +236,10 @@ without it the server counts the round trip whole.
 | 4406 | No common protocol version |
 | 4409 | Replaced by a newer connection |
 | 4429 | Too many messages |
+
+Two codes of the WebSocket standard are used as well: 1001 ("going away") when a server ends in
+order, or when its connection is switched off in [its panel](architecture.md#the-servers-panel);
+1009 when a message is larger than the receiver takes.
 
 Proofs are `HMAC-SHA256(token, "client:" + serverNonce + ":" + clientNonce)` and the same with
 `"server:"`, hex-encoded. A shared test vector is asserted in both `PairingTest.java` and
