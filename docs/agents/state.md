@@ -4,25 +4,75 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `be70634`: the owner's merge of `aftercare` on 2026-11-22, the
-  third part of WP-18: a page of commands, the panel's copy button, a panel that keeps its
-  controls in view, a badge and a heartbeat that show what is so. Earlier branches are merged.
-- Branch `restart-keeps-tabs`, made from it on 2026-11-22: a server that is started again has
-  its tabs at once. One commit, made on the owner's word. Not pushed and not merged.
+- `main` = `origin/main` = `38dfabb`: the owner's merge of `restart-keeps-tabs` on
+  2026-11-22, a server that is started again has its tabs at once. Earlier branches are merged.
+- Branch `by-hand-panel`, made from it on 2026-11-22: a server started by hand says that no
+  agent's work shows in it, a disconnected agent's server is left alone, the panel's card of
+  the times is called Metrics, its log has a line for every tool call, a tab that is open to
+  any agent is marked, and the picture in the two READMEs has more room at its right edge. One
+  commit (`1310c6d`), made on the owner's word. Not pushed and not merged.
+- Branch `one-server`, made from `by-hand-panel` on 2026-11-22: WP-19, built. One commit, made
+  on the owner's word. Not pushed and not merged. There is one server process for all
+  agents; the process an agent's program starts is a pipe to it and starts it if none runs.
+  The server's window shows every agent, and a click on a tab or on an agent shows that one's
+  metrics and log lines.
+- Branch `blocked-sites`, made from `one-server` on 2026-11-22: WP-20, built. One commit, made
+  on the owner's word. Not pushed and not merged. Sites that no agent may work on are named
+  in a settings file beside the pairing token; the server refuses every action there before it
+  reaches the browser, the extension refuses as well, and the popup and the server's window
+  say what is blocked.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
-| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last item: a server that is started again has its tabs at once, committed on `restart-keeps-tabs`, which waits for the owner's push and merge. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
+| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
+| WP-19, one server, and every agent connected to it | Built on 2026-11-22 on the owner's word ("okay do your recommendations"), on `one-server`, in the working tree. The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry. Committed; waits for the owner's push and merge |
+| WP-20, blocked sites | Built on 2026-11-22 on the owner's word, and committed on `blocked-sites`. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) | [TODO.md](../../TODO.md) |
 | WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
+- **Blocked sites have run on Windows only,** with Java 21 and the suite's Chrome. **Edit** in
+  the server's window was pressed there in the real window: it opened Notepad on the settings
+  file. On Linux it asks `xdg-open` and on macOS `open -t`; neither was tried. Not tried
+  either: this server with an extension from before this change, with real parts. The server
+  is built not to send such an extension the list while it checks the pairing, which it would
+  take for a failed pairing; that is covered by a test of the server alone.
+- **The settings file is beside the token that is in use.** A setup with `--token-file` has its
+  own list there, and the owner's own list is `tabgoblin.properties` in `.browser-context-mcp`
+  of the home folder. None exists until **Edit** is pressed or the file is written by hand.
+- **The server's window is 40 pixels higher** (800), for the row of blocked sites. On a screen
+  lower than that it is as high as fits, as before.
+- **After a site is taken off the list, a command can still be refused for a moment** by an
+  extension that has not been told yet. Since the server tells it ahead of the next command,
+  the suite no longer shows it; a command that was already on its way can.
+- **One server for all agents has run on Windows with Java 21 only.** Not tried: Linux and
+  macOS, where a process of its own is started in another way; and an IDE's program that ends
+  every process below it when it closes, which would end the server with that agent and leave
+  the others to start it anew. With real processes these were seen: two agents through one
+  server, an agent leaving, the server ending after its last agent, the jar run in a terminal
+  with `--panel`, an agent joining that server, and Stop. Done in tests only, inside one Java
+  process: the taking over when the server is gone without a stop, and the jar run in a
+  terminal while a server runs. Covered by no run: a process that serves its agent alone because
+  another program holds the server's port, beyond that it finds this out.
+- **Kill is no stop any more.** Agents that still run start the server anew at once. The
+  window's line under the two buttons still says only that Kill ends the process at once.
+- **A server that runs is not replaced by a new build.** An agent that connects after the jar
+  was rebuilt is served by the server that was there, with the old code, until that server
+  has ended: by Stop, or with its last agent. Nothing in the window says that the jar on disk
+  is newer.
+- **The owner's extension was connected to no server for some minutes on 2026-11-22**, around
+  15:35, with Chrome running. Why is not known; after the owner built and reloaded it at
+  15:47 it was connected.
+- **A disconnected agent's server is turned away on what it says of itself,** before any
+  proof, by an extension and a server that are both of this build. With either of them older
+  it is paired with and closed at every look, as before. Seen end to end in the suite's
+  Chrome: one disconnect in the server's log and nothing after it.
 - **Tabs come back to a server that is started again by its agent's name, and at once.** Seen
   with the suite's client and with a server started by hand, on Windows. Not tried: a real
   IDE's agent. What follows from a name being all there is: of two agents with the same name,
@@ -103,13 +153,19 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 - **Disconnect holds for one run of an agent's server.** The agent is refused by an id that its
   server makes when it starts; started again, it is connected again, without a tab.
   [security.md](../security.md#agents) says so. WP-17 would change it.
-- **The tree's `chrome-extension/dist` is of WP-11.** An extension that is loaded from it takes
-  the change up when it is reloaded in `chrome://extensions`.
-- **The jar in `java-server/target` is older than the sources,** and has no panel. The
-  session's own TabGoblin server runs from that jar, so the suites that need a jar were run in
-  a copy of the tree, with a jar built there. Build it (`mvn -B -f java-server/pom.xml
-  package`) before the suites are run in the tree or the panel is asked for, and restart an
-  agent to get the new server.
+- **The tree's `chrome-extension/dist` was built on 2026-11-22 at 15:47,** by the owner, and
+  has everything of `by-hand-panel`. One thing came after: an answer names the session its
+  command ran in, without which a call that names no session is in no tab's metrics.
+- **The jar in `java-server/target` was built on 2026-11-22 at 15:47,** by the owner, from
+  `by-hand-panel` as it was then. It has not what came after: the card's name Metrics, the
+  log's line for every call, the click on a tab, and the one server. The session's own TabGoblin server runs from that jar, so the suites that
+  need a jar were run in a copy of the tree, with a jar built there. Build it (`mvn -B -f
+  java-server/pom.xml package`) with no server running from it, and restart an agent to get
+  the new server.
+- **The session's entry for its own server in Claude Code has `--panel`** (local settings of
+  this project, changed on 2026-11-22 so that the owner can watch the agent's server). Its
+  window was there after the owner's Reconnect at 15:59. The session's tools have been gone
+  since about 16:20, when its server was ended; they come back with a Reconnect.
 - **The panel's code has not run in CI.** Run #15 (`42eb02b`, the merge of `server-panel`)
   failed, read on GitHub on 2026-11-22: all five jobs ended after two seconds. The owner says
   the account's credit for Actions is used up; the jobs' logs were not opened. So nothing of
@@ -148,12 +204,14 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `restart-keeps-tabs`, in a copy of the tree with a jar
-  built there: the server's 89 tests and the 8 of the conformance check, the extension's 155
-  with type-check and build, and the suite end to end, 94 passed. By hand: the owner's case,
-  a server started by hand with its panel, stopped and started again, with the real extension,
-  on Java 21 and 26. Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `restart-keeps-tabs`.
+- **Last verification:** 2026-11-22, on `blocked-sites`, in a copy of the tree with a jar built
+  there: the server's 126 tests and the 8 of the conformance check, the extension's 160 with
+  type-check and build, and the suite end to end, 95 passed, with a site blocked, unblocked and
+  a mistake in the file. By hand: the popup pictured in real Chrome in each state, and the
+  server's real window read and its **Edit** pressed through the accessibility interface.
+  Details in the [validation log](validation-log.md).
+- **Next action:** the owner's push and merge of `by-hand-panel`, of `one-server`, which is
+  built on it, and of `blocked-sites`, which is built on that.
   Both parts have to be built by the owner before it shows in the tree: the server, after the
   one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
   extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first

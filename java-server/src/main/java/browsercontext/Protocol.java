@@ -8,11 +8,11 @@ import tools.jackson.databind.node.ObjectNode;
  * Typed messages of the Java-to-extension WebSocket protocol. Independent of MCP.
  *
  * <pre>
- * server: {"type":"challenge","nonce":"..","versions":[2]}
+ * server: {"type":"challenge","nonce":"..","versions":[2],"clientId":"c-1a2b3c4d"}
  * ext:    {"type":"auth","nonce":"..","proof":"..","version":2}
  * server: {"type":"auth_ok","proof":"..","version":2,"clientId":"c-1a2b3c4d","clientName":".."}
  * server: {"id":"17","action":"click","session":"s2","params":{..},"deadline":1700000000000}
- * ext:    {"id":"17","success":true,"result":{..}}  |  {"id":"17","success":false,"error":{"code":"..","message":".."}}
+ * ext:    {"id":"17","success":true,"result":{..},"session":"s2"}  |  {"id":"17","success":false,"error":{"code":"..","message":".."}}
  * server: {"type":"cancel","id":"17"}
  * ext:    {"type":"event","event":"sessions","data":{"sessions":[..]}}
  * </pre>
@@ -48,7 +48,7 @@ final class Protocol {
 
     /** The extension's answer to a command. */
     record Response(String id, boolean success, JsonNode result, String errorCode, String errorMessage,
-            Timing timing) {
+            Timing timing, String session) {
         /** Parses and validates a response; returns null when the message is not a well-formed response. */
         static Response parse(JsonNode msg) {
             if (!msg.path("id").isString() || !msg.path("success").isBoolean()) {
@@ -62,7 +62,7 @@ final class Protocol {
             return new Response(msg.path("id").asString(), ok, msg.path("result"),
                     error.path("code").asString("ERROR"),
                     error.path("message").asString("The extension reported an error."),
-                    Timing.parse(msg.path("timing")));
+                    Timing.parse(msg.path("timing")), sessionId(msg.path("session")));
         }
     }
 
@@ -85,15 +85,56 @@ final class Protocol {
         }
     }
 
-    /** A browser session as the extension reports it: one authorized tab bound to one agent. */
+    /** Every site a session spans: the one it was authorized for, and those the user added to it. */
+    private static java.util.List<String> originsOf(JsonNode session) {
+        java.util.List<String> all = new java.util.ArrayList<>();
+        all.add(session.path("origin").asString(""));
+        for (JsonNode origin : session.path("origins")) {
+            if (origin.isString() && !all.contains(origin.asString())) {
+                all.add(origin.asString());
+            }
+        }
+        return java.util.List.copyOf(all);
+    }
+
+    /**
+     * The session a command ran in, as the extension says with its answer, or null when it does
+     * not say: an older extension, or a command that was refused before a session was found.
+     */
+    private static String sessionId(JsonNode n) {
+        return n.isString() && n.asString().matches("s[0-9]{1,9}") ? n.asString() : null;
+    }
+
+    /**
+     * A browser session as the extension reports it: one authorized tab bound to one agent.
+     * {@code unclaimed} is a tab the user authorized for any agent, which none has used yet: the
+     * extension reports it to every server, and it is the agent's own from its first command on.
+     */
     record Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
-            String documentId, String mode, int generation, String state, String title, String url) {
+            String documentId, String mode, int generation, String state, String title, String url, boolean unclaimed,
+            java.util.List<String> origins) {
+
+        /** A session with the one site it was authorized for. */
+        Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
+                String documentId, String mode, int generation, String state, String title, String url, boolean unclaimed) {
+            this(sessionId, clientId, authorizationId, origin, tabId, frameId, documentId, mode, generation, state, title,
+                    url, unclaimed, java.util.List.of(origin));
+        }
+
+        /** A session that is this agent's own. */
+        Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
+                String documentId, String mode, int generation, String state, String title, String url) {
+            this(sessionId, clientId, authorizationId, origin, tabId, frameId, documentId, mode, generation, state, title,
+                    url, false);
+        }
+
         static Session parse(JsonNode n) {
             return new Session(n.path("session").asString(""), n.path("clientId").asString(""),
                     n.path("authorizationId").asString(""), n.path("origin").asString(""), n.path("tabId").asInt(-1),
                     n.path("frameId").asInt(0), n.path("documentId").asString(""), n.path("mode").asString("read"),
                     n.path("generation").asInt(0), n.path("state").asString("active"),
-                    n.path("tab").path("title").asString(""), n.path("tab").path("url").asString(""));
+                    n.path("tab").path("title").asString(""), n.path("tab").path("url").asString(""),
+                    n.path("owner").asString("").equals("unclaimed"), originsOf(n));
         }
     }
 
@@ -102,8 +143,8 @@ final class Protocol {
         return switch (code) {
             case "NOT_AUTHORIZED", "PAUSED", "WRITE_NOT_AUTHORIZED", "EXPLORE_NOT_AUTHORIZED", "SESSION_NOT_OWNED",
                     "SESSION_REQUIRED", "UNKNOWN_SESSION", "AUTHORIZATION_EXPIRED", "SESSION_SUSPENDED", "SUBMIT_INTENT_REQUIRED",
-                    "SUBMIT_DENIED", "SUBMIT_NOT_CONFIRMED" -> "AUTHORIZATION";
-            case "ORIGIN_MISMATCH", "NAVIGATION_BLOCKED" -> "SCOPE";
+                    "SUBMIT_DENIED", "SUBMIT_NOT_CONFIRMED", "SETTINGS_UNREADABLE" -> "AUTHORIZATION";
+            case "ORIGIN_MISMATCH", "NAVIGATION_BLOCKED", "SITE_BLOCKED" -> "SCOPE";
             case "STALE_REF", "STALE_COMMAND", "DUPLICATE_COMMAND", "DUPLICATE_SUBMISSION" -> "STALE";
             case "INVALID_ARGUMENT", "INVALID_URL", "UNKNOWN_TOOL", "UNSUPPORTED_ACTION", "UNSUPPORTED_ELEMENT",
                     "OPTION_NOT_FOUND", "SENSITIVE_FIELD", "ELEMENT_DISABLED" -> "INPUT";

@@ -105,6 +105,20 @@ final class Pairing {
         return hmacHex(token, "server:" + serverNonce + ":" + clientNonce);
     }
 
+    /**
+     * What a process that an agent started proves to the one server before it may pass its agent's
+     * messages on. The words in front differ from those of the extension's pairing, so that a proof
+     * made for the one is no proof for the other.
+     */
+    static String linkProof(String token, String serverNonce, String linkNonce) {
+        return hmacHex(token, "link:" + serverNonce + ":" + linkNonce);
+    }
+
+    /** What the one server proves in return: that it knows the token too, and is no other program on that port. */
+    static String hubProof(String token, String serverNonce, String linkNonce) {
+        return hmacHex(token, "hub:" + serverNonce + ":" + linkNonce);
+    }
+
     static String hmacHex(String token, String message) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

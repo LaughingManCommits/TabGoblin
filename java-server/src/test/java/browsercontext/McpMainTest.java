@@ -24,6 +24,11 @@ class McpMainTest {
         assertEquals(McpMain.DEFAULT_PORT, defaults.port());
         assertEquals(Pairing.defaultTokenFile(), defaults.tokenFile());
         assertEquals(McpMain.DEFAULT_EXTENSION_ORIGIN, defaults.extensionOrigin());
+        assertEquals(Pairing.defaultTokenFile().toAbsolutePath().resolveSibling("tabgoblin.properties"), defaults.settings(),
+                "beside the pairing token");
+        // A server with a token of its own has settings of its own, beside that token.
+        assertEquals(Path.of("elsewhere", "tabgoblin.properties").toAbsolutePath(),
+                parse(Map.of(), "--token-file", Path.of("elsewhere", "token").toString()).settings());
         assertFalse(defaults.help() || defaults.showToken() || defaults.rotateToken());
 
         Map<String, String> environment = Map.of("BCMCP_PORT", "5000", "BCMCP_TOKEN_FILE", "from-env", "BCMCP_EXTENSION_ORIGIN", "chrome-extension://env");
@@ -36,6 +41,9 @@ class McpMainTest {
         assertEquals(6000, fromOptions.port());
         assertEquals(Path.of("given"), fromOptions.tokenFile());
         assertEquals("chrome-extension://given", fromOptions.extensionOrigin());
+        assertEquals(Path.of("env.properties"), parse(Map.of("BCMCP_SETTINGS", "env.properties")).settings());
+        assertEquals(Path.of("given.properties"),
+                parse(Map.of("BCMCP_SETTINGS", "env.properties"), "--settings", "given.properties").settings());
 
         assertTrue(parse(Map.of(), "--help").help());
         assertTrue(parse(Map.of(), "-h").help());
@@ -91,7 +99,7 @@ class McpMainTest {
             McpMain.carryOut(new Panel.Command.CopyToken(), null, () -> {
                 asked.incrementAndGet();
                 return token;
-            }, clipboard::add);
+            }, clipboard::add, () -> false);
             assertEquals(List.of(token), clipboard);
             assertEquals(1, asked.get(), "the token is read when it is asked for, once");
             // The log says that it happened and has nothing of the token.
@@ -111,11 +119,29 @@ class McpMainTest {
         try {
             long before = Log.count();
             // No window system is touched: the bridge is not even looked at.
-            assertFalse(McpMain.showPanel(null, null, () -> "not asked for", () -> false));
+            assertFalse(McpMain.showPanel(() -> null, command -> { }, () -> false));
             assertEquals(before + 1, Log.count());
             Log.Line said = Log.recent().get(Log.recent().size() - 1);
             assertEquals("warn", said.level());
             assertEquals("panel not shown reason=no_display", said.text());
+        } finally {
+            Log.keep(0);
+        }
+    }
+
+    @Test
+    void editInTheWindowOpensTheSettingsFileAndTheLogSaysWhetherItDidAndNotWhereItIs() {
+        Log.keep(20);
+        try {
+            var asked = new java.util.concurrent.atomic.AtomicInteger();
+            McpMain.carryOut(new Panel.Command.EditSettings(), null, null, null, () -> asked.incrementAndGet() > 0);
+            assertEquals(1, asked.get());
+            assertEquals("settings file opened in an editor on the user's word in the panel",
+                    Log.recent().get(Log.recent().size() - 1).text());
+            McpMain.carryOut(new Panel.Command.EditSettings(), null, null, null, () -> false);
+            Log.Line failed = Log.recent().get(Log.recent().size() - 1);
+            assertEquals("warn", failed.level());
+            assertTrue(failed.text().startsWith("settings file not opened: no editor could be started."), failed.text());
         } finally {
             Log.keep(0);
         }

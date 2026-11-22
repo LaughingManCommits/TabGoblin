@@ -55,10 +55,18 @@ public class WebSocketBridge extends WebSocketServer {
     private final long authTimeoutMs;
     private final long lockoutMs;
     private final String clientId = "c-" + Pairing.randomHex(4);
+    /** This agent's lines in the log: they carry its id, and go to its own log and to no other agent's. */
+    private final Log.Scope log = Log.of(clientId);
     private volatile String clientName = "";
+    /** The sites no agent may work on, as they are now. */
+    private volatile Supplier<BlockedSites.Rule> blocked = () -> BlockedSites.Rule.NONE;
+    /** The list as it was at the last look. */
+    private volatile BlockedSites.Rule lastLooked = BlockedSites.Rule.NONE;
+    /** Whether the list is looked at for changes yet: once is enough, however often it is given. */
+    private final java.util.concurrent.atomic.AtomicBoolean watchingBlocked = new java.util.concurrent.atomic.AtomicBoolean();
     private final ObjectMapper json = new ObjectMapper();
-    private final Timings timings = new Timings();
-    private final ExtensionConnection connection = new ExtensionConnection(json, timings);
+    private final Timings timings = new Timings(log);
+    private final ExtensionConnection connection = new ExtensionConnection(json, timings, log);
     private final CompletableFuture<Void> started = new CompletableFuture<>();
     private final Deque<Long> failedPairings = new ArrayDeque<>();
     /** Held while a connection becomes the paired one and is answered, and while the agent's name is passed on. */
@@ -74,6 +82,10 @@ public class WebSocketBridge extends WebSocketServer {
         final String nonce = Pairing.randomHex(16);
         volatile boolean authenticated;
         volatile String tokenAtPairing;
+        /** The extension has said something as a paired one: it has checked the server's proof. */
+        volatile boolean spoke;
+        /** The blocked sites as this extension was last told them; null before it was told. */
+        volatile BlockedSites.Rule told;
         long windowStart;
         int messagesInWindow;
     }
@@ -157,7 +169,7 @@ public class WebSocketBridge extends WebSocketServer {
      */
     void setHeld(boolean off) {
         connection.held(off);
-        Log.info("connection to the browser switched " + (off ? "off" : "on") + " in the panel");
+        log.info("connection to the browser switched " + (off ? "off" : "on") + " in the panel");
         if (off) {
             for (WebSocket conn : getConnections()) {
                 if (conn.isOpen()) {
@@ -169,6 +181,84 @@ public class WebSocketBridge extends WebSocketServer {
 
     public ObjectMapper json() {
         return json;
+    }
+
+    /**
+     * Gives this agent's part of the server the list of blocked sites. The extension is told the
+     * list once it is paired, and again whenever it changes: it refuses as the server does, with
+     * what it knows of a tab at the moment of a command, and its popup says that a site is blocked
+     * where the user would authorize it.
+     */
+    void blockedSites(Supplier<BlockedSites.Rule> source) {
+        blocked = source;
+        if (watchingBlocked.compareAndSet(false, true)) {
+            timer.scheduleWithFixedDelay(() -> {
+                try {
+                    for (WebSocket conn : getConnections()) {
+                        tellBlocked(conn);
+                    }
+                } catch (RuntimeException e) {
+                    // the next look tells it
+                }
+            }, 1, 1, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * The sites no agent may work on, as they are now. Where the list has changed since it was
+     * last looked at, the extension is told at once: ahead of the command this look is for, so
+     * that the two do not disagree about it for a moment.
+     */
+    BlockedSites.Rule blocked() {
+        BlockedSites.Rule rule = blocked.get();
+        if (!rule.equals(lastLooked)) {
+            lastLooked = rule;
+            for (WebSocket conn : getConnections()) {
+                tellBlocked(conn);
+            }
+        }
+        return rule;
+    }
+
+    /**
+     * Tells a paired extension the list of blocked sites, unless it was told it as it is now.
+     *
+     * <p>Not right behind the pairing answer, but when the extension has said something as a
+     * paired one, which it does at once: an extension from before this message would take it,
+     * arriving while it still checks the server's proof, for a pairing that failed. Once paired
+     * such an extension ignores it, and the server refuses on its own.
+     */
+    private void tellBlocked(WebSocket conn) {
+        Peer peer = conn.getAttachment();
+        if (peer == null || !peer.authenticated || !peer.spoke) {
+            return;
+        }
+        synchronized (peer) {
+            BlockedSites.Rule rule = blocked.get();
+            if (rule.equals(peer.told) || !conn.isOpen()) {
+                return;
+            }
+            ObjectNode msg = json.createObjectNode();
+            msg.put("type", "policy");
+            var sites = msg.putArray("blocked");
+            rule.domains().forEach(sites::add);
+            msg.put("unreadable", rule.everything());
+            try {
+                conn.send(json.writeValueAsString(msg));
+                peer.told = rule;
+            } catch (WebsocketNotConnectedException e) {
+                // closed between the look and the send
+            }
+        }
+    }
+
+    /**
+     * Notes an action that this server refused itself, before anything was sent: in the log, as the
+     * line of a command that failed, and with the session it was meant for.
+     */
+    void refused(String session, String action, String code) {
+        log.command("-", session, action, 0, code);
+        timings.trip(0, null, session);
     }
 
     /** Human-readable agent name (from the MCP client), shown in the extension popup. */
@@ -219,7 +309,7 @@ public class WebSocketBridge extends WebSocketServer {
         for (WebSocket conn : getConnections()) {
             Peer peer = conn.getAttachment();
             if (peer != null && peer.authenticated && !peer.tokenAtPairing.equals(current) && conn.isOpen()) {
-                Log.info("pairing ended reason=token_rotated");
+                log.info("pairing ended reason=token_rotated");
                 conn.closeConnection(CLOSE_UNAUTHORIZED, "Pairing token changed");
             }
         }
@@ -251,16 +341,16 @@ public class WebSocketBridge extends WebSocketServer {
     public ServerHandshakeBuilder onWebsocketHandshakeReceivedAsServer(WebSocket conn, Draft draft,
             ClientHandshake request) throws InvalidDataException {
         if (!originAllowed(request.getFieldValue("Origin"))) {
-            Log.warn("connection rejected reason=origin");
+            log.warn("connection rejected reason=origin");
             throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Origin not allowed");
         }
         if (lockedOut()) {
-            Log.warn("connection rejected reason=pairing_lockout");
+            log.warn("connection rejected reason=pairing_lockout");
             throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Too many failed pairing attempts");
         }
         if (connection.held()) {
             // The extension looks for servers every half minute: said once when it was switched off, not each time.
-            Log.debug("connection rejected reason=switched_off_in_panel");
+            log.debug("connection rejected reason=switched_off_in_panel");
             throw new InvalidDataException(CloseFrame.POLICY_VALIDATION, "Switched off in the server's panel");
         }
         return super.onWebsocketHandshakeReceivedAsServer(conn, draft, request);
@@ -274,6 +364,10 @@ public class WebSocketBridge extends WebSocketServer {
         challenge.put("type", "challenge");
         challenge.put("nonce", peer.nonce);
         challenge.putArray("versions").add(Protocol.VERSION);
+        // Who this is, before anything is proven. The extension uses it for one thing: an agent the
+        // user disconnected is turned away here, and not paired with first each time the extension
+        // looks at the ports. Nothing is granted on it; that takes the id in the proven answer.
+        challenge.put("clientId", clientId);
         conn.send(json.writeValueAsString(challenge));
         timer.schedule(() -> {
             if (!peer.authenticated && conn.isOpen()) {
@@ -290,7 +384,7 @@ public class WebSocketBridge extends WebSocketServer {
             return;
         }
         if (peer != null && overRate(peer)) {
-            Log.warn("connection closed reason=rate_limit");
+            log.warn("connection closed reason=rate_limit");
             conn.close(Protocol.CLOSE_RATE_LIMITED, "Too many messages");
             return;
         }
@@ -308,6 +402,11 @@ public class WebSocketBridge extends WebSocketServer {
         if (!peer.authenticated) {
             authenticate(conn, peer, msg);
             return;
+        }
+        if (!peer.spoke) {
+            // Its first word as a paired extension: now it can be told what is blocked.
+            peer.spoke = true;
+            tellBlocked(conn);
         }
         switch (msg.path("type").asString("")) {
             case "ping" -> {
@@ -346,12 +445,12 @@ public class WebSocketBridge extends WebSocketServer {
                 && Pairing.constantTimeEquals(proof, Pairing.clientProof(current, peer.nonce, clientNonce));
         if (!ok) {
             recordFailedPairing();
-            Log.warn("connection rejected reason=pairing_proof");
+            log.warn("connection rejected reason=pairing_proof");
             conn.close(CLOSE_UNAUTHORIZED, "Pairing failed");
             return;
         }
         if (msg.path("version").asInt(1) != Protocol.VERSION) {
-            Log.warn("connection rejected reason=protocol_version peer=" + msg.path("version").asInt(1));
+            log.warn("connection rejected reason=protocol_version peer=" + msg.path("version").asInt(1));
             conn.close(Protocol.CLOSE_VERSION, "Protocol version " + Protocol.VERSION
                     + " required: update the extension and the server to the same release");
             return;
@@ -377,7 +476,7 @@ public class WebSocketBridge extends WebSocketServer {
         if (replaced != null && replaced.isOpen()) {
             replaced.close(CLOSE_REPLACED, "Replaced by a newer connection");
         }
-        Log.info("extension connected client=" + clientId + " protocol=" + Protocol.VERSION);
+        log.info("extension connected client=" + clientId + " protocol=" + Protocol.VERSION);
     }
 
     @Override
@@ -389,7 +488,7 @@ public class WebSocketBridge extends WebSocketServer {
     public void onClose(WebSocket conn, int code, String reason, boolean remote) {
         Peer peer = conn.getAttachment();
         if (peer != null && peer.authenticated) {
-            Log.info("extension disconnected client=" + clientId + " code=" + code);
+            log.info("extension disconnected client=" + clientId + " code=" + code);
         }
         connection.detach(conn, code);
     }
@@ -400,7 +499,7 @@ public class WebSocketBridge extends WebSocketServer {
             started.completeExceptionally(ex);
             return;
         }
-        Log.warn("websocket error type=" + ex.getClass().getSimpleName());
+        log.warn("websocket error type=" + ex.getClass().getSimpleName());
     }
 
     @Override

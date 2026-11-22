@@ -14,19 +14,20 @@ cookies, tokens or the ability to run code, and they reach only the tabs and web
 ```mermaid
 flowchart LR
   subgraph IDE["Your machine"]
-    A1["AI agent<br/>(IDE, CLI)"] -- "MCP over stdio" --> S1["Java MCP server"]
-    A2["Another agent"] -- "MCP over stdio" --> S2["Java MCP server"]
+    A1["AI agent<br/>(IDE, CLI)"] -- "MCP over stdio" --> S["Java MCP server<br/>one for all agents"]
+    A2["Another agent"] -- "MCP over stdio" --> S
   end
   subgraph Chrome["Your Chrome"]
     X["TabGoblin extension"] --> T1["Tab you authorized<br/>session s1"]
     X --> T2["Another authorized tab<br/>session s2"]
     X -. "no access" .-> T3["Every other tab"]
   end
-  S1 -- "WebSocket on 127.0.0.1<br/>paired with a token" --> X
-  S2 -- "WebSocket on 127.0.0.1" --> X
-  %% An empty place at the right edge: GitHub lays its zoom buttons over the bottom right corner of a diagram.
-  T3 ~~~ ROOM["&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"]
-  style ROOM fill:none,stroke:none
+  S -- "a WebSocket for each agent, on 127.0.0.1<br/>paired with a token" --> X
+  %% Empty places at the right edge: GitHub lays its zoom buttons over the bottom right corner of a
+  %% diagram. One was too little: an empty box has next to no width there, only the gap before it.
+  T3 ~~~ ROOM1[" "] ~~~ ROOM2[" "]
+  style ROOM1 fill:none,stroke:none
+  style ROOM2 fill:none,stroke:none
 ```
 
 <img src="docs/images/popup-sessions.png" width="354" alt="The TabGoblin popup with two sessions"> <img src="docs/images/popup-confirm.png" width="354" alt="The popup asking to allow a submission">
@@ -47,6 +48,9 @@ flowchart LR
   its website the session is suspended until you resume it. Started with `--panel`, a server
   shows a small window with its sessions, its log and a button to stop it
   ([user guide](docs/user-guide.md#9-the-servers-panel)).
+- **Blocked sites.** Name the sites no agent may work on, in one line of a settings file. The
+  server refuses every action there, whatever a tab is authorized for
+  ([user guide](docs/user-guide.md#blocked-sites)).
 - **Website-agnostic.** No site-specific code anywhere; the agent supplies the understanding.
 
 ## Quick start

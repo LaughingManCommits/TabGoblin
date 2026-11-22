@@ -52,6 +52,22 @@ Session s1
 
 A suspended session adds a `State: suspended …` line; a session spanning several sites lists them.
 
+A session on a site the user has [blocked](user-guide.md#blocked-sites) adds a `Blocked:` line
+that names that site. Every other tool answers `SITE_BLOCKED` in that session until the user takes
+the site off their list. An agent is not given the list. While the server cannot read its
+settings file, the result begins with a `Blocked sites:` line that says so, and every other tool
+answers `SETTINGS_UNREADABLE`.
+
+```text
+Session s2
+  Authorized origin: https://mail.example.org
+  Access: read
+  Paused: no
+  Blocked: mail.example.org is on the user's list of blocked sites: no agent may work there. Only the user can change that, in the settings of the TabGoblin server.
+  Tab: Inbox
+  URL: https://mail.example.org/inbox
+```
+
 Without the extension the result says why, as far as the server knows, and what to ask the user
 for. One case has words of its own: the user switched this server's connection off in the
 [server's panel](user-guide.md#9-the-servers-panel).
@@ -272,7 +288,8 @@ Exactly one of `url` (absolute or relative) or `history` (`back`, `forward`, `re
 
 `redirected: true` with `requestedUrl` when the site sent the tab somewhere else. A destination
 outside the session's sites fails with `NAVIGATION_BLOCKED`; a redirect out of them suspends the
-session and fails with `ORIGIN_MISMATCH`.
+session and fails with `ORIGIN_MISMATCH`. An address on a site the user has blocked fails with
+`SITE_BLOCKED` before anything is sent to the browser, whatever the session.
 
 ## browser_click
 
@@ -437,6 +454,8 @@ Every failure is `Error [CODE]: message`.
 | `EXPLORE_NOT_AUTHORIZED`, `WRITE_NOT_AUTHORIZED` | The session's access level is too low |
 | `NAVIGATION_BLOCKED` | The destination is outside the session's sites |
 | `ORIGIN_MISMATCH` | The tab ended up outside them |
+| `SITE_BLOCKED` | The site is on the user's list of [blocked sites](user-guide.md#blocked-sites): the session's own site, a site the user added to it, or the address to go to. The message names that one site. Nothing was sent to the browser. There is no other way to that site through these tools; tell the user |
+| `SETTINGS_UNREADABLE` | The server cannot read its settings file, so it refuses every site until the user has mended the file. The server's window says what is wrong with it |
 | `SUBMIT_INTENT_REQUIRED` | The action submits; state it as a submission |
 | `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer. `SUBMIT_DENIED` also comes without a question: for a request the user declined in the last five minutes, and for a session whose last three requests were declined or not answered. Do not retry; tell the user, who can let the session ask again in the popup. |
 | `CONFIRMATION_PENDING` | The user is being asked about another submission. Try again when that is answered. |
@@ -446,7 +465,7 @@ Every failure is `Error [CODE]: message`.
 | `SENSITIVE_FIELD` | Password or credential field |
 | `ELEMENT_DISABLED`, `UNSUPPORTED_ELEMENT`, `OPTION_NOT_FOUND` | The control cannot take that |
 | `WAIT_TIMEOUT` | The condition did not occur in time |
-| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried |
+| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried. `CONNECTION_LOST` is also what a call answers that was running when the server's process ended: the server is started anew by itself, and the next call goes to it |
 | `CANCELLED`, `INTERRUPTED` | Stopped by the user (pause, revoke, a lower access level). A call the client itself cancels gets no answer at all. |
 | `TAB_NOT_VISIBLE`, `SCREENSHOT_FAILED` | The tab could not be captured |
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |

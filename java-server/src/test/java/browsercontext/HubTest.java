@@ -1,0 +1,469 @@
+package browsercontext;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.io.PrintStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+/**
+ * One server for all agents: the processes that agents' programs start connect to it, each proves
+ * that it knows the pairing token, and each agent has its own port, sessions and tools there. And
+ * what happens when the server ends: stopped by the user, left by its last agent, or gone.
+ */
+class HubTest {
+
+    static final String TOKEN = WebSocketBridgeTest.TOKEN;
+    static final ObjectMapper JSON = new ObjectMapper();
+
+    private final List<Hub> hubs = new ArrayList<>();
+    private final List<Client> clients = new ArrayList<>();
+
+    @AfterEach
+    void endEverything() {
+        clients.forEach(Client::leave);
+        hubs.forEach(Hub::drop);
+    }
+
+    /** A port from which this many are free in a row: the agents' ports, and the server's own after them. */
+    private static int freePorts() throws IOException {
+        for (int attempt = 0; attempt < 50; attempt++) {
+            int port = 20_000 + (int) (Math.random() * 30_000);
+            boolean free = true;
+            for (int i = 0; i <= McpMain.PORT_RANGE && free; i++) {
+                try (ServerSocket probe = new ServerSocket(port + i, 1, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
+                    probe.setReuseAddress(true);
+                } catch (IOException e) {
+                    free = false;
+                }
+            }
+            if (free) {
+                return port;
+            }
+        }
+        throw new IOException("no free ports found");
+    }
+
+    private Hub hub(int port, boolean standing) throws IOException {
+        Hub hub = Hub.open(new Agent.Settings(port, () -> TOKEN, FakeExtension.ORIGIN), standing);
+        hubs.add(hub);
+        Thread serving = new Thread(hub::serve, "test-hub");
+        serving.setDaemon(true);
+        serving.start();
+        return hub;
+    }
+
+    private static void await(java.util.function.BooleanSupplier condition, String what) throws InterruptedException {
+        for (int i = 0; i < 300 && !condition.getAsBoolean(); i++) {
+            Thread.sleep(20);
+        }
+        assertTrue(condition.getAsBoolean(), "not reached in time: " + what);
+    }
+
+    /** An agent's program and the process it started: it writes MCP messages into the link and reads what comes back. */
+    private final class Client {
+        final PipedOutputStream toLink = new PipedOutputStream();
+        final BlockingQueue<JsonNode> received = new LinkedBlockingQueue<>();
+        final ByteArrayOutputStream log = new ByteArrayOutputStream();
+        final AtomicInteger starts = new AtomicInteger();
+        final Link link;
+        final CompletableFuture<Link.End> ended = new CompletableFuture<>();
+
+        Client(int port, String token, Link.Starter starter) throws IOException {
+            PipedInputStream linkIn = new PipedInputStream(toLink, 1 << 16);
+            PipedOutputStream linkOut = new PipedOutputStream();
+            BufferedReader fromLink = new BufferedReader(new InputStreamReader(new PipedInputStream(linkOut, 1 << 16), StandardCharsets.UTF_8));
+            link = new Link(linkIn, linkOut, new PrintStream(log, true, StandardCharsets.UTF_8), () -> token, Link.port(port), false, () -> {
+                starts.incrementAndGet();
+                starter.start();
+            });
+            Thread reading = new Thread(() -> {
+                try {
+                    String line;
+                    while ((line = fromLink.readLine()) != null) {
+                        received.add(JSON.readTree(line));
+                    }
+                } catch (IOException | RuntimeException e) {
+                    // the link is gone
+                }
+            }, "test-client-reader");
+            reading.setDaemon(true);
+            reading.start();
+            clients.add(this);
+        }
+
+        /** Connects, and passes messages from then on. */
+        boolean connect() {
+            if (!link.connect()) {
+                return false;
+            }
+            Thread running = new Thread(() -> ended.complete(link.run()), "test-link");
+            running.setDaemon(true);
+            running.start();
+            return true;
+        }
+
+        void send(String message) throws IOException {
+            toLink.write((message + "\n").getBytes(StandardCharsets.UTF_8));
+            toLink.flush();
+        }
+
+        /** The answer to the request with that id; what else arrives before it is left out. */
+        JsonNode answerTo(int id) throws InterruptedException {
+            long until = System.currentTimeMillis() + 8000;
+            while (System.currentTimeMillis() < until) {
+                JsonNode msg = received.poll(200, TimeUnit.MILLISECONDS);
+                if (msg != null && msg.path("id").isNumber() && msg.path("id").asInt() == id && !msg.has("method")) {
+                    return msg;
+                }
+            }
+            throw new AssertionError("no answer to request " + id + "; this process's log:\n" + log());
+        }
+
+        JsonNode open(String name) throws Exception {
+            send("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-06-18\","
+                    + "\"capabilities\":{},\"clientInfo\":{\"name\":\"" + name + "\",\"version\":\"1\"}}}");
+            JsonNode answer = answerTo(0);
+            send("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
+            return answer;
+        }
+
+        void call(int id, String tool, String arguments) throws IOException {
+            send("{\"jsonrpc\":\"2.0\",\"id\":" + id + ",\"method\":\"tools/call\",\"params\":{\"name\":\"" + tool
+                    + "\",\"arguments\":" + arguments + "}}");
+        }
+
+        String text(JsonNode answer) {
+            return answer.path("result").path("content").path(0).path("text").asString("");
+        }
+
+        String log() {
+            return log.toString(StandardCharsets.UTF_8);
+        }
+
+        void leave() {
+            try {
+                toLink.close();
+            } catch (IOException e) {
+                // gone anyway
+            }
+        }
+    }
+
+    @Test
+    void anAgentsProcessConnectsToTheServerAndItsToolsWorkThroughIt() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        Client client = new Client(port, TOKEN, () -> { });
+        assertTrue(client.connect());
+        assertEquals(0, client.starts.get(), "the server was there: none was started");
+
+        JsonNode opened = client.open("claude-code");
+        assertEquals("browser-context-mcp", opened.path("result").path("serverInfo").path("name").asString());
+        await(() -> hub.agents().size() == 1, "the agent to be with the server");
+        Agent agent = hub.agents().get(0);
+        // The agent's name comes from its opening message, as it does where an agent has a process of its own.
+        await(() -> agent.bridge().clientName().equals("claude-code"), "the agent's name");
+        assertEquals(port, agent.bridge().getPort(), "the first agent has the first port");
+
+        client.send("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
+        assertEquals(11, client.answerTo(1).path("result").path("tools").size());
+
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        client.call(2, "browser_status", "{}");
+        String status = client.text(client.answerTo(2));
+        assertTrue(status.contains("Extension: connected"), status);
+        assertTrue(status.contains("This agent: " + agent.bridge().clientId() + " on port " + port), status);
+        ext.closeBlocking();
+    }
+
+    @Test
+    void twoAgentsOfOneServerEachHaveTheirOwnPortAndTheirOwnSessions() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        Client first = new Client(port, TOKEN, () -> { });
+        Client second = new Client(port, TOKEN, () -> { });
+        assertTrue(first.connect());
+        first.open("claude-code");
+        await(() -> hub.agents().size() == 1, "the first agent");
+        assertTrue(second.connect());
+        second.open("IntelliJ IDEA");
+        await(() -> hub.agents().size() == 2, "the second agent");
+
+        Agent one = hub.agents().get(0);
+        Agent two = hub.agents().get(1);
+        assertEquals(port, one.bridge().getPort());
+        assertEquals(port + 1, two.bridge().getPort(), "each agent has a port of its own to the extension");
+        assertNotEquals(one.bridge().clientId(), two.bridge().clientId());
+        await(() -> two.bridge().clientName().equals("IntelliJ IDEA"), "the second agent's name");
+
+        // The extension is connected to each agent on that agent's port, and tells each its own sessions.
+        FakeExtension toOne = FakeExtension.paired(port, TOKEN);
+        FakeExtension toTwo = FakeExtension.paired(port + 1, TOKEN);
+        toOne.send("""
+                {"type":"event","event":"sessions","data":{"sessions":[{"session":"s1","origin":"https://a.example","mode":"read","state":"active"}]}}""");
+        await(() -> one.bridge().sessions().size() == 1, "the first agent's session");
+        assertTrue(two.bridge().sessions().isEmpty(), "an agent is told nothing of another's tabs");
+        // A command of one agent goes to that agent's connection, and to no other.
+        toOne.responder = cmd -> FakeExtension.ok(cmd, JSON.createObjectNode().put("text", "the first agent's page"));
+        toTwo.responder = cmd -> FakeExtension.fail(cmd, "NOT_AUTHORIZED", "No tab is authorized for this agent.");
+        first.call(5, "browser_snapshot", "{}");
+        assertTrue(first.text(first.answerTo(5)).contains("the first agent's page"));
+        second.call(5, "browser_snapshot", "{}");
+        assertTrue(second.text(second.answerTo(5)).contains("Error [NOT_AUTHORIZED]"));
+        assertEquals(1, toOne.commands.size());
+        assertEquals(1, toTwo.commands.size());
+
+        // A line of the log that is one agent's goes to the log of that agent's process, and to no other's.
+        await(() -> second.log().contains("code=NOT_AUTHORIZED"), "the second agent's line in its own log");
+        assertFalse(first.log().contains("code=NOT_AUTHORIZED"), first.log());
+        assertTrue(first.log().contains("listening port=" + port + " client=" + one.bridge().clientId()), first.log());
+        assertFalse(first.log().contains(two.bridge().clientId()), "nothing of the other agent: " + first.log());
+
+        // One agent goes: the other works on, and the first port is free for the next one.
+        first.leave();
+        assertEquals(Link.End.AGENT_LEFT, first.ended.get(5, TimeUnit.SECONDS));
+        await(() -> hub.agents().size() == 1, "the first agent to be gone");
+        second.call(6, "browser_snapshot", "{}");
+        assertTrue(second.text(second.answerTo(6)).contains("Error [NOT_AUTHORIZED]"));
+        toTwo.closeBlocking();
+    }
+
+    @Test
+    void aProcessThatDoesNotKnowTheTokenIsNoAgentAndASeriesOfThemIsShutOut() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        Client stranger = new Client(port, "f".repeat(64), () -> { });
+        assertFalse(stranger.connect());
+        assertTrue(stranger.log().contains("reason=proof"), stranger.log());
+        assertTrue(hub.agents().isEmpty());
+        assertEquals(0, stranger.starts.get(), "a server that refuses is not started a second time");
+
+        // Something that is not a link at all: it is given the first line, and nothing after it.
+        try (Socket raw = new Socket(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), Link.port(port))) {
+            raw.setSoTimeout(3000);
+            BufferedReader from = new BufferedReader(new InputStreamReader(raw.getInputStream(), StandardCharsets.UTF_8));
+            JsonNode hello = JSON.readTree(from.readLine());
+            assertEquals("hello", hello.path("type").asString());
+            assertFalse(hello.has("clientId"), "it says nothing of an agent before the proof");
+            raw.getOutputStream().write("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+            raw.getOutputStream().flush();
+            assertNull(from.readLine(), "closed without a word");
+        }
+        // Wrong proofs are counted, and after ten nobody is listened to for a while: not the right one either.
+        for (int i = 0; i < 10; i++) {
+            assertFalse(new Client(port, "e".repeat(64), () -> { }).connect());
+        }
+        Client late = new Client(port, TOKEN, () -> { });
+        assertFalse(late.connect());
+        assertTrue(hub.agents().isEmpty());
+    }
+
+    @Test
+    void aProgramThatHoldsTheServersPortIsNotTakenForTheServer() throws Exception {
+        int port = freePorts();
+        try (ServerSocket other = new ServerSocket(Link.port(port), 5, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
+            Thread answering = new Thread(() -> {
+                try (Socket socket = other.accept()) {
+                    socket.getOutputStream().write("220 some other service ready\r\n".getBytes(StandardCharsets.UTF_8));
+                    socket.getOutputStream().flush();
+                    Thread.sleep(500);
+                } catch (IOException | InterruptedException e) {
+                    // the test is over
+                }
+            }, "test-other-program");
+            answering.setDaemon(true);
+            answering.start();
+            Client client = new Client(port, TOKEN, () -> { });
+            // The process then serves its agent alone: that is the caller's part, and none of the agent's messages was touched.
+            assertFalse(client.connect());
+            assertTrue(client.log().contains("no server to connect to reason=not_a_tabgoblin_server"), client.log());
+            assertEquals(0, client.starts.get());
+        }
+    }
+
+    @Test
+    void whereThereIsNoServerOneIsStartedAndTheAgentWaitsForIt() throws Exception {
+        int port = freePorts();
+        Client client = new Client(port, TOKEN, () -> hub(port, false));
+        assertTrue(client.connect());
+        assertEquals(1, client.starts.get());
+        assertEquals("browser-context-mcp", client.open("claude-code").path("result").path("serverInfo").path("name").asString());
+    }
+
+    @Test
+    void whenTheServerIsGoneAndNobodyStoppedItItIsStartedAnewAndTheAgentIsToldWhatItWaitedFor() throws Exception {
+        int port = freePorts();
+        Hub first = hub(port, false);
+        Client client = new Client(port, TOKEN, () -> hub(port, false));
+        assertTrue(client.connect());
+        client.open("claude-code");
+        await(() -> first.agents().size() == 1, "the agent");
+        String firstId = first.agents().get(0).bridge().clientId();
+        // A call that the browser does not answer: the agent is waiting for it when the server's process ends.
+        FakeExtension silent = FakeExtension.paired(port, TOKEN);
+        silent.responder = cmd -> null;
+        client.call(7, "browser_click", "{\"ref\":4}");
+        await(() -> silent.commands.size() == 1, "the command to reach the browser");
+
+        first.drop();
+
+        // The agent gets an answer to its call: the outcome is unknown, and it was not sent again.
+        JsonNode lost = client.answerTo(7);
+        assertTrue(lost.path("result").path("isError").asBoolean(), lost.toString());
+        assertTrue(client.text(lost).startsWith("Error [CONNECTION_LOST]"), client.text(lost));
+        assertTrue(client.text(lost).contains("not retried"), client.text(lost));
+        // A server is started in its place, once, and told who this agent is: by the opening message sent anew.
+        await(() -> hubs.size() == 2 && hubs.get(1).agents().size() == 1, "the agent to be with the new server");
+        assertEquals(1, client.starts.get());
+        Agent again = hubs.get(1).agents().get(0);
+        await(() -> again.bridge().clientName().equals("claude-code"), "the agent's name at the new server");
+        assertNotEquals(firstId, again.bridge().clientId(), "a new server, and a new id");
+        // The agent goes on as if nothing had happened to its connection, and sees no second answer to its opening.
+        client.send("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/list\"}");
+        assertEquals(11, client.answerTo(8).path("result").path("tools").size());
+        assertTrue(client.received.stream().noneMatch(msg -> msg.path("id").asInt(-1) == 0), "the opening was answered once");
+        assertEquals(1, silent.commands.size(), "nothing was sent to the browser a second time");
+        assertTrue(client.log().contains("the server has gone: starting it anew"), client.log());
+    }
+
+    @Test
+    void stoppedByTheUserTheServerEndsForEveryAgentAndNoneStartsItAnew() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        Client first = new Client(port, TOKEN, () -> hub(port, false));
+        Client second = new Client(port, TOKEN, () -> hub(port, false));
+        assertTrue(first.connect());
+        assertTrue(second.connect());
+        first.open("claude-code");
+        second.open("IntelliJ IDEA");
+        await(() -> hub.agents().size() == 2, "both agents");
+
+        hub.close();
+
+        assertEquals(Link.End.SERVER_STOPPED, first.ended.get(5, TimeUnit.SECONDS));
+        assertEquals(Link.End.SERVER_STOPPED, second.ended.get(5, TimeUnit.SECONDS));
+        assertEquals(0, first.starts.get() + second.starts.get(), "a stop is no loss to make good");
+        assertFalse(hub.open());
+        assertEquals(1, hubs.size());
+    }
+
+    @Test
+    void theServerEndsWhenItsLastAgentHasGoneUnlessTheUserStartedIt() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        hub.emptyFor(300);
+        AtomicInteger ended = new AtomicInteger();
+        hub.whenEmpty(ended::incrementAndGet);
+        // Before its first agent it waits as well: the process that started it is on its way.
+        Client client = new Client(port, TOKEN, () -> { });
+        assertTrue(client.connect());
+        client.open("claude-code");
+        await(() -> hub.agents().size() == 1, "the agent");
+        Thread.sleep(500);
+        assertEquals(0, ended.get(), "it stays while an agent is there");
+        client.leave();
+        await(() -> ended.get() == 1, "the server to end after its last agent");
+
+        // One that the user started stays, with no agent, until it is stopped.
+        int other = freePorts();
+        Hub standing = hub(other, true);
+        standing.emptyFor(200);
+        AtomicInteger never = new AtomicInteger();
+        standing.whenEmpty(never::incrementAndGet);
+        Thread.sleep(700);
+        assertEquals(0, never.get());
+        assertTrue(standing.open());
+    }
+
+    /**
+     * An agent's program may end the process it started at once, without closing anything. The
+     * server then finds that agent's connection broken, not ended. That is the agent's going all
+     * the same: found by six servers that were still running forty minutes after their agents'
+     * processes had been ended that way.
+     */
+    @Test
+    void anAgentWhoseProcessIsEndedAtOnceIsGoneForTheServerAsOneThatLeftInOrder() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        hub.emptyFor(300);
+        AtomicInteger ended = new AtomicInteger();
+        hub.whenEmpty(ended::incrementAndGet);
+
+        // What a link does, by hand, so that the connection can be broken as a killed process breaks it.
+        Socket socket = new Socket(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), Link.port(port));
+        BufferedReader from = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
+        String serverNonce = JSON.readTree(from.readLine()).path("nonce").asString();
+        String nonce = Pairing.randomHex(16);
+        socket.getOutputStream().write(("{\"type\":\"attach\",\"nonce\":\"" + nonce + "\",\"proof\":\""
+                + Pairing.linkProof(TOKEN, serverNonce, nonce) + "\",\"link\":" + Link.VERSION + ",\"panel\":false}\n")
+                .getBytes(StandardCharsets.UTF_8));
+        socket.getOutputStream().flush();
+        assertEquals("attached", JSON.readTree(from.readLine()).path("type").asString());
+        socket.getOutputStream().write(("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":"
+                + "\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"claude-code\",\"version\":\"1\"}}}\n")
+                .getBytes(StandardCharsets.UTF_8));
+        socket.getOutputStream().flush();
+        await(() -> hub.agents().size() == 1, "the agent to be with the server");
+        int agentsPort = hub.agents().get(0).bridge().getPort();
+
+        // Broken, not closed: the other side gets an error where it would have got the end.
+        socket.setSoLinger(true, 0);
+        socket.close();
+
+        await(() -> hub.agents().isEmpty(), "the agent to be gone for the server");
+        await(() -> ended.get() == 1, "the server to end after its last agent");
+        // And its port to the extension is given up, for the next agent.
+        try (ServerSocket free = new ServerSocket(agentsPort, 1, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
+            assertTrue(free.isBound());
+        }
+    }
+
+    @Test
+    void askedForItsWindowTheServerShowsItAndStaysForTheUser() throws Exception {
+        int port = freePorts();
+        Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(),
+                new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, Link.port(port), true, () -> { });
+        assertFalse(asker.show(), "no server runs: there is no window to ask for");
+
+        Hub hub = hub(port, false);
+        AtomicInteger shown = new AtomicInteger();
+        hub.window(shown::incrementAndGet);
+        assertFalse(hub.standing());
+        assertTrue(asker.show());
+        assertEquals(1, shown.get());
+        // The user asked for it by hand: the server is theirs to stop now, and does not end with its agents.
+        assertTrue(hub.standing());
+        assertTrue(hub.agents().isEmpty(), "asking for the window makes no agent");
+        // An agent whose settings ask for the window has it shown as well.
+        PipedOutputStream toLink = new PipedOutputStream();
+        Link wishing = new Link(new PipedInputStream(toLink), java.io.OutputStream.nullOutputStream(),
+                new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, Link.port(port), true, () -> { });
+        assertTrue(wishing.connect());
+        await(() -> shown.get() == 2, "the window to be asked for by the agent's settings");
+        toLink.close();
+    }
+}

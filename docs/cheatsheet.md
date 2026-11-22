@@ -15,24 +15,27 @@ and bash. Nothing is explained here: under each table is the page that explains 
 
 Explained in the [installation guide](installation.md).
 
-## The server, by hand
+## Commands you run yourself
 
-Your agent starts the server itself. These are for what you do yourself.
+Your agents start the server themselves: the first that needs it, for all of them. These are
+the commands for you.
 
 | To | Command |
 |---|---|
-| Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in a server's panel, which puts it on the clipboard |
+| Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in the server's window, which puts it on the clipboard |
 | Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
-| Run a server with its panel | `java -jar java-server/target/browser-context-mcp.jar --panel` |
+| See the server's window, with every agent in it | `java -jar java-server/target/browser-context-mcp.jar --panel`. It brings the window up and returns; if no server runs, it starts one, which stays until you stop it |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
-| Stop a server you started | Ctrl+C in its terminal, or **Stop server** in its panel |
+| Block a site for every agent | **Edit** next to *Blocked sites* in the server's window opens the settings file. Write `blocked.sites = example.org, intranet.example` and save: it is in force at once |
+| Stop the server | **Stop server** in its window. Without that it ends by itself after its last agent |
 
 *Unknown option: --panel* means that the jar is from before the panel: build the server, then
 run the command again.
 
 Explained in the installation guide, under
 [pairing](installation.md#6-pair-the-extension-with-the-server), and in the user guide, under
-[the server's panel](user-guide.md#9-the-servers-panel) and [stopping](user-guide.md#8-stopping).
+[the server's panel](user-guide.md#9-the-servers-panel), [stopping](user-guide.md#8-stopping) and
+[blocked sites](user-guide.md#blocked-sites).
 
 ## Your agent
 
@@ -51,12 +54,12 @@ Explained in the installation guide, under
 [telling your agent about the server](installation.md#5-tell-your-agent-about-the-server) and
 [checking that it works](installation.md#7-check-that-it-works).
 
-## Find and stop servers
+## Find the server
 
 | To | Windows (PowerShell) | macOS and Linux |
 |---|---|---|
-| List the servers with their ports | `Get-NetTCPConnection -State Listen -LocalPort (47821..47828) -ErrorAction SilentlyContinue \| Select-Object LocalPort, OwningProcess` | `lsof -nP -iTCP:47821-47828 -sTCP:LISTEN` |
-| Stop one | `Stop-Process -Id <OwningProcess>` | `kill <PID>` |
+| Find the server: its ports, one for each agent and its own | `Get-NetTCPConnection -State Listen -LocalPort (47821..47829) -ErrorAction SilentlyContinue \| Select-Object LocalPort, OwningProcess` | `lsof -nP -iTCP:47821-47829 -sTCP:LISTEN` |
+| End a server that hangs. Agents that still run start it again at once | `Stop-Process -Id <OwningProcess>` | `kill <PID>` |
 
 Explained in the user guide, under [stopping](user-guide.md#8-stopping).
 
@@ -71,6 +74,7 @@ started in, and the option wins.
 | `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
 | `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
 | `--panel` | `BCMCP_PANEL=1` | off | Whether the server shows its panel |
+| `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is: it names the [blocked sites](user-guide.md#blocked-sites) |
 | none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
 
 Explained in the user guide, under [settings](user-guide.md#10-settings).

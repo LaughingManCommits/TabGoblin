@@ -161,6 +161,8 @@ class WebSocketBridgeTest {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         assertTrue(bridge.isExtensionConnected());
         assertEquals(Protocol.VERSION, ext.challenge.path("versions").get(0).asInt());
+        // Who it is, is in its first message as well: an extension can turn it away on that alone.
+        assertEquals(bridge.clientId(), ext.challenge.path("clientId").asString());
         assertEquals(bridge.clientId(), ext.clientId);
         assertTrue(ext.clientId.matches("c-[0-9a-f]{8}"));
 
@@ -271,6 +273,53 @@ class WebSocketBridgeTest {
         assertFalse(ext.commands.get(5).has("session"));
     }
 
+    /**
+     * A command may name no session: the extension then takes the agent's only one. The answer says
+     * which that was, and the call's times and its log line are that tab's from then on, so that
+     * the panel can show one tab alone.
+     */
+    @Test
+    void theSessionACommandRanInIsTakenFromItsAnswer() throws Exception {
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        // As the extension answers: with the session the command ran in, whether it was named or not.
+        ext.responder = cmd -> ((ObjectNode) FakeExtension.ok(cmd, obj()))
+                .put("session", cmd.path("session").asString("s7"));
+        Log.keep(20);
+        try {
+            Timings.Running named = bridge.timings().begin("browser_snapshot");
+            bridge.send("snapshot", "s2", null, SHORT);
+            assertEquals("s2", bridge.timings().end(named, true).session());
+            Timings.Running unnamed = bridge.timings().begin("browser_click");
+            bridge.send("click", null, obj().put("ref", 4), SHORT);
+            assertEquals("s7", bridge.timings().end(unnamed, true).session(), "the session the extension found for it");
+            assertFalse(ext.commands.get(1).has("session"), "none was sent");
+
+            // An answer that says nothing of it, as an older extension's, or says something that is no
+            // session id: the call stays with what it named, which may be nothing.
+            ext.responder = cmd -> FakeExtension.ok(cmd, obj());
+            Timings.Running older = bridge.timings().begin("browser_scroll");
+            bridge.send("scroll", null, null, SHORT);
+            assertEquals(null, bridge.timings().end(older, true).session());
+            ext.responder = cmd -> ((ObjectNode) FakeExtension.ok(cmd, obj())).put("session", "all your tabs");
+            Timings.Running odd = bridge.timings().begin("browser_scroll");
+            bridge.send("scroll", "s2", null, SHORT);
+            assertEquals("s2", bridge.timings().end(odd, true).session());
+            // A command that failed has its session too.
+            ext.responder = cmd -> ((ObjectNode) FakeExtension.fail(cmd, "PAUSED", "The session is paused.")).put("session", "s7");
+            assertThrows(BrowserException.class, () -> bridge.send("fill", null, null, SHORT));
+
+            var lines = Log.recent().stream().filter(line -> line.text().startsWith("command ")).toList();
+            assertEquals(java.util.Arrays.asList("s2", "s7", null, "s2", "s7"), lines.stream().map(Log.Line::session).toList());
+            assertTrue(lines.get(1).text().contains(" session=s7 action=click "), lines.get(1).text());
+            assertTrue(lines.get(2).text().contains(" session=- action=scroll "), lines.get(2).text());
+            assertTrue(lines.get(4).text().contains(" session=s7 action=fill ") && lines.get(4).text().contains("code=PAUSED"),
+                    lines.get(4).text());
+            assertEquals(java.util.Set.of("s2", "s7"), bridge.timings().sharesBySession().keySet());
+        } finally {
+            Log.keep(0);
+        }
+    }
+
     @Test
     void surfacesStructuredErrorsAndIgnoresMalformedResponses() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
@@ -377,6 +426,50 @@ class WebSocketBridgeTest {
         BrowserException e = assertThrows(BrowserException.class, () -> bridge.send("snapshot", "s1", null, SHORT));
         assertEquals("NOT_CONNECTED", e.code());
         assertTrue(e.getMessage().contains("user disconnected this agent"), e.getMessage());
+    }
+
+    /**
+     * While its popup is open, the extension looks at every port every few seconds, and the server
+     * of an agent the user disconnected is still on one of them. It is turned away on what it says
+     * of itself in its first message, before the extension has proven anything. The server then
+     * never counted the extension as connected: its status stays what it was, and its log says
+     * nothing. Before, each look was a pairing and a close, and a panel's log filled with them.
+     */
+    @Test
+    void anExtensionThatLeavesAtTheFirstMessageWasNeverConnectedAndLeavesNoLine() throws Exception {
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        ext.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
+        await(() -> bridge.lastCloseCode() == Protocol.CLOSE_USER_DISCONNECTED);
+
+        Log.keep(50);
+        try {
+            long lines = Log.count();
+            for (int look = 0; look < 3; look++) {
+                // Proves nothing: it has no token to prove with. It reads who the server is and goes.
+                FakeExtension again = new FakeExtension(port, FakeExtension.ORIGIN, null);
+                assertTrue(again.connectBlocking(3, TimeUnit.SECONDS));
+                for (int i = 0; i < 100 && again.challenge == null; i++) {
+                    Thread.sleep(20);
+                }
+                assertEquals(bridge.clientId(), again.challenge.path("clientId").asString());
+                again.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
+                assertEquals(Protocol.CLOSE_USER_DISCONNECTED, again.closed.get(3, TimeUnit.SECONDS));
+                assertFalse(bridge.isExtensionConnected());
+                assertEquals(0, bridge.connectedSince());
+            }
+            // Longer than the time a connection is given to prove itself: nothing follows from it.
+            Thread.sleep(600);
+            assertEquals(Protocol.CLOSE_USER_DISCONNECTED, bridge.lastCloseCode(), "the reason it is not connected stays the user's");
+            assertEquals(lines, Log.count(), () -> "written meanwhile: "
+                    + Log.recent().stream().map(Log.Line::text).toList());
+        } finally {
+            Log.keep(0);
+        }
+
+        // Allowed again, it pairs as always: what was turned away counted as no failed pairing.
+        FakeExtension back = FakeExtension.paired(port, TOKEN);
+        assertTrue(bridge.isExtensionConnected());
+        back.closeBlocking();
     }
 
     @Test

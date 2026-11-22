@@ -21,8 +21,9 @@ import javax.imageio.ImageIO;
  * <p>The panel is drawn by the server's own code from made-up states, without a window being
  * shown and without a server. It needs a display all the same: JavaFX does not start without one.
  * Nothing of the screen is read, so nothing else that is on it can get into a picture. The first
- * picture is the one the documentation shows ({@code docs/images/server-panel.png}); the last is
- * the panel as it fills a window with the system's frame, as on Linux and macOS.
+ * picture is the one the documentation shows ({@code docs/images/server-panel.png}); the sixth is
+ * the panel as it fills a window with the system's frame, as on Linux and macOS. Further on are
+ * the one server without an agent and with two, and a tab and an agent clicked.
  */
 final class PanelPictures {
 
@@ -48,6 +49,9 @@ final class PanelPictures {
                     if (state.armed()) {
                         view.ends().get(0).fire();
                     }
+                    if (state.chosen() >= 0) {
+                        view.tabs().get(state.chosen()).fire();
+                    }
                     write(view.picture(2, !state.framed()), out.resolve(state.name() + ".png"));
                     System.out.println(state.name() + ".png");
                 }
@@ -66,15 +70,25 @@ final class PanelPictures {
     /**
      * {@code armed}: Stop has had its first click. {@code framed}: as in the system's own window, where
      * the panel does not float. {@code height}: as high as on a screen that has no room for more; 0
-     * for the window's own height.
+     * for the window's own height. {@code chosen}: the tab that was clicked, counted from 0 in the
+     * list, or -1 for none.
      */
-    private record State(String name, PanelModel model, boolean armed, boolean framed, double height) {
+    private record State(String name, PanelModel model, boolean armed, boolean framed, double height, int chosen) {
         State(String name, PanelModel model, boolean armed) {
-            this(name, model, armed, false, 0);
+            this(name, model, armed, false, 0, -1);
         }
 
         State(String name, PanelModel model, boolean armed, boolean framed) {
-            this(name, model, armed, framed, 0);
+            this(name, model, armed, framed, 0, -1);
+        }
+
+        State(String name, PanelModel model, boolean armed, boolean framed, double height) {
+            this(name, model, armed, framed, height, -1);
+        }
+
+        /** The same with one tab clicked. */
+        State chosen(String as, int tab) {
+            return new State(as, model, armed, framed, height, tab);
         }
     }
 
@@ -87,13 +101,31 @@ final class PanelPictures {
                 line(-512, "info", "listening port=47821 client=c-7240df8e"),
                 line(-511, "info", "panel shown"),
                 line(-498, "info", "extension connected client=c-7240df8e protocol=2"),
-                line(-214, "info", "command id=12 session=s2 action=fill ms=4 outcome=error code=PAUSED category=AUTHORIZATION"),
+                line(-301, "debug", "command id=9 session=s1 action=snapshot ms=18 outcome=ok", "s1"),
+                line(-214, "info", "command id=12 session=s2 action=fill ms=4 outcome=error code=PAUSED category=AUTHORIZATION", "s2"),
                 line(-61, "warn", "connection rejected reason=pairing_proof"),
-                line(-9, "info", "command id=27 session=s1 action=navigate ms=31 outcome=error code=NAVIGATION_BLOCKED category=SCOPE scope_violation=true"));
+                line(-40, "debug", "command id=26 session=s1 action=click ms=702 outcome=ok", "s1"),
+                line(-9, "info", "command id=27 session=s1 action=navigate ms=31 outcome=error code=NAVIGATION_BLOCKED category=SCOPE scope_violation=true", "s1"));
         var times = timings();
         var none = new Timings.Shares(0, 0, 0, 0, 0);
+        var twoAgents = new State("10-two-agents", PanelModel.of(List.of(
+                new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0,
+                        List.of(sessions.get(0), new Protocol.Session("s4", "", "a-s4", "https://wiki.example.net", 9, 0, "d4",
+                                "read", 1, "active", "A page title that must not show", "https://wiki.example.net/not/shown", true)),
+                        new Timings.Shares(3, 7_200, 60, 1_300, 0), java.util.Map.of("s1", new Timings.Shares(3, 7_200, 60, 1_300, 0))),
+                new PanelModel.Facts("IntelliJ IDEA", "c-3b9a01c2", 47822, null, false, 0, Protocol.CLOSE_USER_DISCONNECTED,
+                        List.of(), new Timings.Shares(1, 14_000, 8, 52, 1_600), java.util.Map.of())),
+                47829, McpMain.version(), false, List.of(
+                        line(-512, "info", "server listening for agents port=47829"),
+                        new Log.Line(NOW - 510_000, "info", "listening port=47821 client=c-7240df8e", null, "c-7240df8e"),
+                        new Log.Line(NOW - 498_000, "info", "extension connected client=c-7240df8e protocol=2", null, "c-7240df8e"),
+                        new Log.Line(NOW - 301_000, "debug", "command id=9 session=s1 action=snapshot ms=18 outcome=ok", "s1", "c-7240df8e"),
+                        new Log.Line(NOW - 120_000, "info", "listening port=47822 client=c-3b9a01c2", null, "c-3b9a01c2"),
+                        new Log.Line(NOW - 90_000, "info", "extension disconnected client=c-3b9a01c2 code=4403", null, "c-3b9a01c2")),
+                ZONE), false);
+        var connected = new State("1-connected", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false);
         return List.of(
-                new State("1-connected", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false),
+                connected,
                 new State("2-waiting", model("", null, false, false, 0, 0, List.of(), none, log.subList(0, 2)), false),
                 new State("3-switched-off", model("IntelliJ IDEA", null, false, true, 0, 1001, List.of(), times, log), false),
                 new State("4-no-port", model("claude-code",
@@ -105,13 +137,40 @@ final class PanelPictures {
                 // The most there is to show, on a screen 768 pixels high with a taskbar: everything has to stay inside.
                 new State("8-low-screen", model("claude-code",
                         "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
-                        true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680));
+                        true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680),
+                // The one server before any agent has connected: started by the user, it waits and says so.
+                new State("9-no-agent", PanelModel.of(List.of(), 47829, McpMain.version(), false,
+                        List.of(line(-512, "info", "server listening for agents port=47829"), line(-511, "info", "panel shown")),
+                        ZONE), false),
+                // Two agents of the one server: each with a heading over its tabs. And the second agent clicked.
+                twoAgents,
+                twoAgents.chosen("13-agent-chosen", 3),
+                // The first tab clicked: its metrics and its calls alone. And the second, which has one call.
+                connected.chosen("11-tab-chosen", 0),
+                connected.chosen("12-other-tab-chosen", 1),
+                // Sites the user has blocked: named in the controls, and the tab on one of them says so.
+                new State("14-blocked", blocked(sessions, times, log,
+                        new BlockedSites.Rule(List.of("docs.example.org", "intranet.example", "mail.example.com"), null)), false),
+                // A settings file with a mistake in it: every tab is blocked, and the window says what is wrong.
+                new State("15-settings-unreadable", blocked(sessions, times, log, new BlockedSites.Rule(List.of(),
+                        "\"exam_ple.org\" in blocked.sites is no domain")), false));
+    }
+
+    private static PanelModel blocked(List<Protocol.Session> sessions, Timings.Shares times, List<Log.Line> log, BlockedSites.Rule rule) {
+        var more = new java.util.ArrayList<>(log);
+        more.add(line(-4, "info", "command id=28 session=s3 action=snapshot ms=0 outcome=error code=SITE_BLOCKED category=SCOPE scope_violation=true", "s3"));
+        return PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0, sessions, times,
+                java.util.Map.of("s1", new Timings.Shares(3, 7_200, 60, 1_300, 0), "s2", new Timings.Shares(1, 14_000, 8, 52, 1_600)))),
+                47821, McpMain.version(), false, more, ZONE, rule, "~/.browser-context-mcp/tabgoblin.properties");
     }
 
     private static PanelModel model(String agent, String problem, boolean connected, boolean off, long since, int closeCode,
             List<Protocol.Session> sessions, Timings.Shares times, List<Log.Line> log) {
+        // The tabs' own times, where there are any at all: most of the calls in the first tab, one in the second.
+        java.util.Map<String, Timings.Shares> ofTab = times.calls() == 0 ? java.util.Map.of()
+                : java.util.Map.of("s1", new Timings.Shares(3, 7_200, 60, 1_300, 0), "s2", new Timings.Shares(1, 14_000, 8, 52, 1_600));
         return PanelModel.of(agent, "c-7240df8e", 47821, McpMain.version(), problem, connected, off, since, closeCode, sessions, times,
-                log, ZONE);
+                ofTab, log, ZONE);
     }
 
     private static Protocol.Session session(String id, String origin, String mode, String state) {
@@ -128,7 +187,12 @@ final class PanelPictures {
     }
 
     private static Log.Line line(long secondsAgo, String level, String text) {
-        return new Log.Line(NOW + secondsAgo * 1000, level, text);
+        return line(secondsAgo, level, text, null);
+    }
+
+    /** The line of a command, with the tab it ran in. */
+    private static Log.Line line(long secondsAgo, String level, String text, String session) {
+        return new Log.Line(NOW + secondsAgo * 1000, level, text, session);
     }
 
     /** Where the time went, from a few made-up calls. */

@@ -9,10 +9,10 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, badgeFor, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope,
+  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, RateLimiter, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
-  type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
+  type AllowMemory, type AskMemory, type AskMode, type Blocked, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_UNRESPONSIVE, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
@@ -107,6 +107,8 @@ interface Client {
   unanswered: number;
   limiter: RateLimiter;
   seen: RecentIds;
+  /** The sites no agent may work on, as this server last said. */
+  blocked: Blocked;
 }
 
 type ConfirmAnswer = 'allow' | 'deny' | 'timeout' | 'cancelled';
@@ -227,6 +229,27 @@ function connectedClientIds(): Set<string> {
   return new Set([...clients.values()].filter((c) => c.authenticated).map((c) => c.clientId));
 }
 
+/**
+ * What is blocked for the user's own clicks: what any connected server says is. A tab that one
+ * server would refuse is not offered for an agent of another.
+ */
+function blockedNow(): Blocked {
+  const servers = [...clients.values()].filter((c) => c.authenticated);
+  return {
+    sites: [...new Set(servers.flatMap((c) => [...c.blocked.sites]))].sort(),
+    everything: servers.some((c) => c.blocked.everything),
+  };
+}
+
+/** Refuses the user's own click on a blocked site, in words for the popup. */
+function refuseBlockedSite(origin: string): void {
+  const host = blockedAmong(blockedNow(), [origin]);
+  if (host === '*') {
+    throw new Error('No agent can work in any tab: the TabGoblin server cannot read its settings file. The server\'s window says what is wrong.');
+  }
+  if (host) throw new Error(`${host} is on your list of blocked sites. No agent can work there.`);
+}
+
 // ---------------------------------------------------------------- activity feed and badge
 
 function beginActivity(session: string | null, label: string): ActivityEntry {
@@ -297,6 +320,8 @@ async function authorize(tabId: number, mode: Mode, clientId: string | null, min
   if (!origin) {
     throw new Error('This page cannot be authorized. Open an http(s) website, then click the extension icon on that tab.');
   }
+  // A site on the user's list of blocked sites is not authorized: a tab that would never work is not offered.
+  refuseBlockedSite(origin);
   const owner = clientId ? [...clients.values()].find((c) => c.authenticated && c.clientId === clientId) : undefined;
   if (clientId && !owner) throw new Error('That agent is no longer connected.');
   // One authorization per tab: a new one replaces the old.
@@ -578,6 +603,8 @@ async function gate(op: Operation, action: string): Promise<{ session: SessionRe
     if (e instanceof CommandError && e.code === 'AUTHORIZATION_EXPIRED') endSession(session, 'Authorization expired');
     throw e;
   }
+  // Where the tab is now, and every site the session spans: none of them may be on the list.
+  checkBlocked(op.client.blocked, [tab?.url, ...session.origins]);
   return { session, tab: tab as chrome.tabs.Tab };
 }
 
@@ -1150,7 +1177,9 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
   const timing = commandTiming(op.receivedAt, started, Date.now(), op.askedMs);
   recordDiagnostic(op.client.clientId, op.sessionId, command.action, timing.ran, code);
   save();
-  respond(op.client, { ...response, timing });
+  // And in which session it ran: a command may name none, and the server's panel shows the times
+  // and the calls of one tab. It is the id the agent has from the status tool, and nothing more.
+  respond(op.client, { ...response, timing, session: op.sessionId });
   respond(op.client, { type: 'event', event: 'activity', data: { id: command.id, session: op.sessionId, action: command.action, ms: timing.ran, code } });
 }
 
@@ -1249,7 +1278,7 @@ function connectPort(port: number): void {
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
   const client: Client = {
     port, ws, clientId: '', name: '', authenticated: false, unanswered: 0,
-    limiter: new RateLimiter(COMMANDS_PER_SECOND, COMMAND_BURST), seen: new RecentIds(),
+    limiter: new RateLimiter(COMMANDS_PER_SECOND, COMMAND_BURST), seen: new RecentIds(), blocked: NOTHING_BLOCKED,
   };
   clients.set(port, client);
   const token = config.token;
@@ -1282,7 +1311,11 @@ function connectPort(port: number): void {
     const regular = (): void => {
       if (msg.type === 'command') void onCommand(client, msg.command);
       else if (msg.type === 'cancel') cancelOperations((op) => op.key === `${port}:${msg.id}`, 'The agent cancelled the command.');
-      else if (msg.type === 'client') {
+      else if (msg.type === 'policy') {
+        // What this server refuses: checked before each of its commands, and shown in the popup.
+        client.blocked = { sites: msg.blocked, everything: msg.unreadable };
+        pushState();
+      } else if (msg.type === 'client') {
         client.name = msg.name;
         for (const session of persisted.sessions) {
           if (session.clientId === client.clientId) session.clientName = msg.name || null;
@@ -1312,6 +1345,14 @@ function connectPort(port: number): void {
         return;
       }
       if (msg.type === 'challenge' && !serverNonce) {
+        // A server says who it is before anything is proven. That is believed for one thing only:
+        // an agent the user disconnected is turned away here. Otherwise it would be paired with
+        // and closed again each time the ports are looked at, and its log would fill with that.
+        // What a server is given depends on the id in its proven answer, as before.
+        if (msg.clientId && persisted.blockedClients.includes(msg.clientId)) {
+          dropClient(client, CLOSE_USER_DISCONNECTED, 'Disconnected by the user');
+          return;
+        }
         if (!msg.versions.includes(PROTOCOL_VERSION)) {
           versionMismatch = true;
           ws.close(CLOSE_VERSION, 'No common protocol version');
@@ -1438,7 +1479,10 @@ function popupState(): object {
       tabs: sessionsOfAgent(persisted.sessions, { id: c.clientId, name: c.name }, connected).length,
     })),
     blockedClients: persisted.blockedClients,
+    // The sites no agent may work on, for the popup to say so where the user would authorize one.
+    blocked: blockedNow(),
     sessions: persisted.sessions.map((s) => ({
+      blocked: blockedAmong(blockedNow(), s.origins) !== null,
       id: s.id, tabId: s.tabId, origin: s.origin, mode: s.mode, paused: s.paused, expiresAt: s.expiresAt,
       origins: s.origins, suspended: s.suspended,
       // Its agent is there when the one that owns it is connected, or one that takes its place: the
@@ -1545,6 +1589,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       if (!origin || msg.tabId !== session.tabId) {
         throw new Error('Click the extension icon on the session\'s own tab to resume it.');
       }
+      refuseBlockedSite(origin);
       if (!session.origins.includes(origin)) {
         if (msg.type !== 'addOrigin') throw new Error('This tab is on a site that is not part of the session.');
         session.origins.push(origin);

@@ -149,7 +149,94 @@ public final class BrowserService {
     }
 
     private JsonNode send(String action, JsonNode a, ObjectNode params, Duration timeout) {
-        return bridge.send(action, session(a), params, timeout);
+        String session = session(a);
+        refuseIfBlocked(action, session, null);
+        return bridge.send(action, session, params, timeout);
+    }
+
+    /** What an agent is told of a site on the user's list. It names the one site it tried, and never the list. */
+    static String blockedMessage(String host) {
+        return host + " is on the user's list of blocked sites: no agent may work there. Only the user can "
+                + "change that, in the settings of the TabGoblin server.";
+    }
+
+    static final String SETTINGS_UNREADABLE = "The TabGoblin server's settings file cannot be read, so every site "
+            + "counts as blocked until the user has mended it. Tell the user: the server's window says what is wrong.";
+
+    /**
+     * Refuses an action on a blocked site, before anything is sent to the browser: where the
+     * session's site, one of the sites the user added to it, or its page is on the list, and where
+     * the action would go to an address that is. The server knows a session's sites from the
+     * extension's last report; a tab cannot leave them without the session being suspended. A
+     * session that is in no report yet is asked for before the command is sent: what the server
+     * refuses must not depend on which extension it talks to.
+     *
+     * @param address where the action would take the tab, if it names an address of its own
+     */
+    private void refuseIfBlocked(String action, String session, String address) {
+        BlockedSites.Rule rule = bridge.blocked();
+        if (rule.everything()) {
+            bridge.refused(session, action, "SETTINGS_UNREADABLE");
+            throw new BrowserException("SETTINGS_UNREADABLE", SETTINGS_UNREADABLE);
+        }
+        if (rule.domains().isEmpty()) {
+            return;
+        }
+        java.util.List<String> addresses = new java.util.ArrayList<>();
+        if (address != null) {
+            addresses.add(address);
+        }
+        java.util.List<Protocol.Session> known = bridge.sessions();
+        Protocol.Session meant = session == null
+                ? (known.size() == 1 ? known.get(0) : null)
+                : known.stream().filter(s -> s.sessionId().equals(session)).findFirst().orElse(null);
+        String id = meant == null ? session : meant.sessionId();
+        if (meant != null) {
+            addresses.addAll(meant.origins());
+            addresses.add(meant.url());
+        } else if (bridge.isExtensionConnected()) {
+            // The report may be a moment old. Where the session is, is asked: an answer that does not
+            // come is the end of this call, and nothing was sent.
+            JsonNode found = null;
+            int count = 0;
+            for (JsonNode each : bridge.send("status", null, json.createObjectNode(), defaultTimeout).path("sessions")) {
+                count++;
+                if (session == null || session.equals(each.path("session").asString(""))) {
+                    found = each;
+                }
+            }
+            // Without a name the command is for the agent's only session; with several it reaches none.
+            if (found != null && (session != null || count == 1)) {
+                id = found.path("session").asString("");
+                addresses.addAll(addressesOf(found));
+            }
+        }
+        String host = rule.among(addresses);
+        if (host != null) {
+            bridge.refused(id, action, "SITE_BLOCKED");
+            throw new BrowserException("SITE_BLOCKED", blockedMessage(host));
+        }
+    }
+
+    /** Whether an address names a site of its own, and is not one within the site the tab is on. */
+    private static boolean absolute(String url) {
+        // As a browser reads it: a backslash is a slash, and blanks in front do not count.
+        String address = url.strip().replace('\\', '/');
+        return address.startsWith("//") || address.matches("(?i)^[a-z][a-z0-9+.-]*:.*");
+    }
+
+    /** The site of a session, as the extension reports it, that is on the list of blocked sites; or null. */
+    private static String blockedIn(BlockedSites.Rule rule, JsonNode session) {
+        return rule.among(addressesOf(session));
+    }
+
+    /** Every address a session is at, as the extension reports it: its site, the sites added to it, and its page. */
+    private static java.util.List<String> addressesOf(JsonNode session) {
+        java.util.List<String> addresses = new java.util.ArrayList<>();
+        addresses.add(session.path("origin").asString(""));
+        session.path("origins").forEach(origin -> addresses.add(origin.asString("")));
+        addresses.add(session.path("tab").path("url").asString(""));
+        return addresses;
     }
 
     /** The session argument, validated; null lets the extension pick this agent's only session. */
@@ -182,6 +269,10 @@ public final class BrowserService {
                     .append("and pair it with this server's pairing token. A paired extension finds a new server ")
                     .append("within about 30 seconds, or at once when its popup is opened.");
             return ToolResult.ok(sb.toString());
+        }
+        BlockedSites.Rule rule = bridge.blocked();
+        if (rule.everything()) {
+            sb.append("Blocked sites: ").append(SETTINGS_UNREADABLE).append('\n');
         }
         ObjectNode p = json.createObjectNode();
         p.put("diagnostics", optBool(a, "diagnostics", false));
@@ -224,6 +315,9 @@ public final class BrowserService {
             }
             if (session.path("owner").asString("").equals("unclaimed")) {
                 sb.append("  Owner: not yet claimed (your first command on it claims it)\n");
+            }
+            if (blockedIn(rule, session) != null) {
+                sb.append("  Blocked: ").append(blockedMessage(blockedIn(rule, session))).append('\n');
             }
             JsonNode tab = session.path("tab");
             if (tab.isObject()) {
@@ -375,6 +469,9 @@ public final class BrowserService {
                 throw new BrowserException("INVALID_ARGUMENT", "url must be 1-" + MAX_URL_CHARS + " characters.");
             }
             p.put("url", url);
+            if (absolute(url)) {
+                refuseIfBlocked("navigate", session(a), url);
+            }
         } else {
             String history = requireString(a, "history");
             if (!Set.of("back", "forward", "reload").contains(history)) {

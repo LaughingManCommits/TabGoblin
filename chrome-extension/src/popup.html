@@ -74,6 +74,9 @@
         </button></h2>
       </div>
       <div class="body" id="sessionsBody">
+      <div id="blockedAll" class="callout blocked" hidden>
+        <p>No agent can work in any tab: the TabGoblin server cannot read its settings file, so it treats every site as blocked. The server's window says what is wrong.</p>
+      </div>
       <div id="sessions"></div>
       <div id="resumeBox" class="callout" hidden>
         <p id="resumeHint"></p>
@@ -84,7 +87,7 @@
       </div>
       <div id="authorizeBox" class="callout" hidden>
         <p id="authorizeHint"></p>
-        <div class="row">
+        <div class="row" id="authorizeChoices">
           <select id="newAccess" aria-label="Access to grant">
             <option value="read">Read</option>
             <option value="explore">Explore</option>

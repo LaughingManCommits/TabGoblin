@@ -52,6 +52,25 @@ class StdinTapTest {
     }
 
     @Test
+    void anInputThatBreaksIsAnInputThatEnded() {
+        // A pipe or a socket whose other side was ended at once gives an error, not the end. The
+        // one who waits for the end is told all the same, and the error goes on to the reader.
+        AtomicBoolean ended = new AtomicBoolean();
+        var broken = new java.io.InputStream() {
+            @Override
+            public int read() throws java.io.IOException {
+                throw new java.io.IOException("Connection reset");
+            }
+        };
+        StdinTap tap = new StdinTap(broken, () -> ended.set(true));
+        org.junit.jupiter.api.Assertions.assertThrows(java.io.IOException.class, () -> tap.read(new byte[16], 0, 16));
+        assertTrue(ended.get());
+        ended.set(false);
+        org.junit.jupiter.api.Assertions.assertThrows(java.io.IOException.class, tap::read);
+        assertTrue(ended.get());
+    }
+
+    @Test
     void theClientsNameIsTakenFromItsOpeningMessage() throws Exception {
         var names = new java.util.ArrayList<String>();
         String opening = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\","

@@ -134,6 +134,8 @@ code { font: 11px ui-monospace, "Cascadia Code", Consolas, monospace; background
 
 .row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .row:last-child { margin-bottom: 0; }
+/* A row lays itself out, which would show it although it is hidden. */
+.row[hidden] { display: none; }
 .row.top { margin-top: 10px; }
 .grow { flex: 1; }
 
@@ -287,6 +289,12 @@ button.link:hover { color: var(--fg); }
 .callout p { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 .callout > select { margin-bottom: 6px; }
 .callout > button { width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* A site the user has blocked: a statement, with nothing to press. */
+.callout.blocked { border-style: solid; border-color: var(--warn-line); background: var(--warn-soft); }
+.callout.blocked p { color: var(--warn); margin-bottom: 0; }
+.session .meta.blocked-note { color: var(--warn); margin-top: -5px; }
+/* Said once for all tabs, above them. */
+#blockedAll { margin: 0 0 8px; }
 
 /* ---------- activity ---------- */
 .activity { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; min-height: 20px; }

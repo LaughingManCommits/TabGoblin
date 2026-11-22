@@ -59,6 +59,66 @@ export function originOf(url: string | undefined | null): string | null {
   }
 }
 
+/** The host of an address or an origin, as hosts are compared: lower case, and a name in another script in its encoded form. */
+export function hostOf(address: string | undefined | null): string | null {
+  if (!address) return null;
+  try {
+    return new URL(address).hostname.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The entry of the list of blocked sites that blocks this host, or null if none does. A host is
+ * blocked by an entry that is the host itself or a domain it lies under; an address that is a
+ * number is blocked only by itself. The server has the same rule (BlockedSites.java), and both
+ * are held to the same cases.
+ */
+export function blockedBy(host: string | null, blocked: readonly string[]): string | null {
+  if (!host) return null;
+  const number = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[');
+  for (const domain of blocked) {
+    if (host === domain || (!number && host.endsWith(`.${domain}`))) return domain;
+  }
+  return null;
+}
+
+/** What a server said of blocked sites: the domains, and whether everything is refused because its settings cannot be read. */
+export interface Blocked {
+  sites: readonly string[];
+  everything: boolean;
+}
+
+export const NOTHING_BLOCKED: Blocked = { sites: [], everything: false };
+
+/** The site among these addresses that is blocked, as its host; '*' when everything is; null when none is. */
+export function blockedAmong(blocked: Blocked, addresses: readonly (string | null | undefined)[]): string | null {
+  if (blocked.everything) return '*';
+  for (const address of addresses) {
+    const host = hostOf(address);
+    if (blockedBy(host, blocked.sites)) return host;
+  }
+  return null;
+}
+
+/**
+ * Refuses a command in a session whose tab, or one of whose sites, is on the user's list of
+ * blocked sites. The server refuses the same before it sends anything; here it is checked
+ * against where the tab is at this moment, which the server knows only from a report.
+ */
+export function checkBlocked(blocked: Blocked, addresses: readonly (string | null | undefined)[]): void {
+  const host = blockedAmong(blocked, addresses);
+  if (host === '*') {
+    throw new CommandError('SETTINGS_UNREADABLE',
+      'The TabGoblin server\'s settings file cannot be read, so every site counts as blocked until the user has mended it.');
+  }
+  if (host) {
+    throw new CommandError('SITE_BLOCKED',
+      `${host} is on the user's list of blocked sites: no agent may work there. Only the user can change that, in the settings of the TabGoblin server.`);
+  }
+}
+
 function needs(mode: Mode): CommandError {
   return mode === 'write'
     ? new CommandError('WRITE_NOT_AUTHORIZED',
@@ -674,6 +734,8 @@ export function failureNote(code: string): string {
     case 'CONFIRMATION_PENDING': return 'another request was waiting for you';
     case 'DUPLICATE_SUBMISSION': return 'duplicate submission blocked';
     case 'NAVIGATION_BLOCKED': return 'outside authorized site';
+    case 'SITE_BLOCKED': return 'site blocked';
+    case 'SETTINGS_UNREADABLE': return 'settings unreadable';
     case 'STALE_REF': return 'page changed';
     case 'STALE_COMMAND': return 'arrived too late';
     case 'DUPLICATE_COMMAND': return 'duplicate command';

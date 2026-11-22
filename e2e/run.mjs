@@ -11,8 +11,8 @@
 //   BCMCP_CHROME=<path>     use a specific Chrome/Chromium binary
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
-import { createServer } from 'node:net';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -82,6 +82,14 @@ async function until(fn, what, timeoutMs = 10000) {
     await sleep(100);
   }
 }
+/** Whether something listens on that port of the loopback address. */
+function listens(port) {
+  return new Promise((done) => {
+    const socket = connect(port, '127.0.0.1');
+    socket.once('connect', () => { socket.destroy(); done(true); });
+    socket.once('error', () => done(false));
+  });
+}
 function freePort() {
   return new Promise((done) => {
     const s = createServer();
@@ -94,6 +102,8 @@ function freePort() {
 
 const work = mkdtempSync(join(tmpdir(), 'bcmcp-e2e-'));
 const tokenFile = join(work, 'pairing-token');
+// The server's settings are beside its pairing token: the sites no agent may work on are named there.
+const settingsFile = join(work, 'tabgoblin.properties');
 const demo = await startDemo(0, 0, 0);
 const wsPort = await freePort();
 // Every agent's server gets the same arguments; each takes the first free port from wsPort up.
@@ -1255,6 +1265,10 @@ try {
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '2 agents connected');
     const port = /on port (\d+)/.exec((await two.tool('browser_status')).text)?.[1];
     assert(port && port !== String(wsPort), `each agent has its own port, got ${port}`);
+    // Both are agents of one server: it listens for them on the port after their eight, and
+    // neither process had to serve its agent alone.
+    assert(await listens(wsPort + 8), 'the one server does not listen for agents');
+    for (const server of servers) lacks(server.stderr, 'serving this agent alone');
     // An agent tells its name with its first tool call. The extension may have found its server
     // before that: the popup then lists it by its id until its next refresh.
     const listed = await popup.waitForFunction(() => [...document.querySelectorAll('#agents li')]
@@ -1671,6 +1685,8 @@ try {
     await popup.waitForFunction((selector) => document.querySelector(`${selector} .tabs`)?.textContent === '1 tab', {}, agentRow);
     has(await popup.$eval(agentRow, (el) => el.querySelector('.disconnect').title), 'ends its 1 tab');
     has(await popup.$eval(`#agents li[data-client="${oneId}"] .tabs`, (el) => el.textContent), '2 tabs');
+    const lines = (text, part) => text.split('\n').filter((line) => line.includes(part)).length;
+    const pairedBefore = lines(two.stderr, 'extension connected');
     await popup.$eval(`${agentRow} .disconnect`, (el) => el.click());
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
     // Its tab is gone from the popup, and the list says why. The other agent's tabs are still there.
@@ -1684,6 +1700,11 @@ try {
     has(refused.text, 'user disconnected this agent');
     await sleep(2500); // it must not slip back in on the next scan
     fails(await two.tool('browser_snapshot'), 'NOT_CONNECTED');
+    // Its server was looked at again meanwhile, as every port is. It was turned away on what it
+    // says of itself, before any pairing: its log has the one disconnect and nothing after it.
+    assert(lines(two.stderr, 'code=4403') === 1, `one disconnect in the server's log, got ${lines(two.stderr, 'code=4403')}`);
+    assert(lines(two.stderr, 'extension connected') === pairedBefore,
+      `the server was paired with again after the disconnect: ${lines(two.stderr, 'extension connected') - pairedBefore} times`);
     ok(await one.tool('browser_snapshot', { session: sA }));
     lacks((await one.tool('browser_status')).text, demo.originB);
 
@@ -1828,7 +1849,82 @@ try {
     assert(/ {2}s\d+ snapshot 0ms UNKNOWN_SESSION/.test(status), status);
     for (const leak of [ENTERED_TEXT, 'Ada Lovelace', 'Widget Handbook', token]) lacks(status, leak);
   });
+  await step('a site the user blocked in the server\'s settings: nothing an agent does there goes through, and unblocked it works again', async () => {
+    // A second tab on the same demo site under another host name: localhost is not 127.0.0.1.
+    const portA = new URL(demo.originA).port;
+    const pageL = await browser.newPage();
+    await pageL.goto(`http://localhost:${portA}/`);
+    const sL = await authorize(pageL, 'write');
+    has(ok(await one.tool('browser_snapshot', { session: sL })).text, 'Page: Demo Tracker: Issues');
 
+    // The user names the site in the settings file while the server runs: it is in force without a restart.
+    writeFileSync(settingsFile, '# Sites no agent may work on.\nblocked.sites = localhost\n');
+    await until(async () => (await one.tool('browser_snapshot', { session: sL })).text.includes('Error [SITE_BLOCKED]'), 'the block to be in force');
+    has((await one.tool('browser_snapshot', { session: sL })).text,
+      'Error [SITE_BLOCKED]: localhost is on the user\'s list of blocked sites: no agent may work there.');
+    for (const [tool, args] of [['browser_extract', {}], ['browser_screenshot', {}], ['browser_scroll', { direction: 'down' }],
+      ['browser_click', { ref: 1 }], ['browser_fill', { ref: 1, text: 'x' }], ['browser_press_key', { key: 'Tab' }],
+      ['browser_navigate', { url: '/page2.html' }], ['browser_wait_for', { text: 'Issues' }]]) {
+      fails(await one.tool(tool, { session: sL, ...args }), 'SITE_BLOCKED');
+    }
+    // The tab itself did not move, and the page was not touched.
+    assert(pageL.url() === `http://localhost:${portA}/`, pageL.url());
+    // The tab on the other host is none of the list's business. Going from it to the blocked site is refused as blocked.
+    has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
+    fails(await one.tool('browser_navigate', { session: sA, url: `http://localhost:${portA}/page2.html` }), 'SITE_BLOCKED');
+    // The agent is told which of its sessions is blocked, when it asks where it stands.
+    const status = (await one.tool('browser_status')).text;
+    has(status, '  Blocked: localhost is on the user\'s list of blocked sites');
+    assert(status.split('  Blocked: ').length === 2, status);
+
+    // The user sees it in the popup: the session is marked and says why, and it is not ended.
+    const popup = await openPopup(pageL, { fresh: true });
+    await popup.waitForFunction((chips, note) => [...document.querySelectorAll(chips)].some((c) => c.textContent === 'blocked')
+      && document.querySelector(note)?.textContent === 'Blocked: this site is on your list of blocked sites.',
+    {}, row(sL, '.chip'), row(sL, '.blocked-note')).catch(() => { throw new Error('the popup did not mark the blocked session'); });
+    assert(await popup.$(row(sA, '.blocked-note')) === null, 'the other session is not marked');
+    // And a tab on the blocked site that has no session is offered none: a statement, and nothing to press.
+    const pageN = await browser.newPage();
+    await pageN.goto(`http://localhost:${portA}/page2.html`);
+    const popupN = await openPopup(pageN, { fresh: true });
+    // Seen, not only marked as hidden: a row that lays itself out shows although it is hidden.
+    await popupN.waitForFunction(() => !document.getElementById('authorizeBox').hidden
+      && ['authorize', 'authorizeChoices', 'newAgent'].every((id) => document.getElementById(id).getClientRects().length === 0)
+      && document.getElementById('authorizeHint').getClientRects().length > 0
+      && document.getElementById('authorizeHint').textContent.startsWith('localhost is on your list of blocked sites. No agent can work in this tab.'))
+      .catch(async () => { throw new Error('the popup on a blocked site: ' + await popupN.evaluate(() => document.getElementById('authorizeBox').outerHTML.slice(0, 600))); });
+    await pageN.close();
+
+    // Taken off the list, the same session works again.
+    writeFileSync(settingsFile, 'blocked.sites =\n');
+    await until(async () => !(await one.tool('browser_snapshot', { session: sL })).isError, 'the block to be lifted');
+    lacks((await one.tool('browser_status')).text, '  Blocked: ');
+
+    // A mistake in the file blocks everything, and says so, instead of leaving the site it was meant for open.
+    writeFileSync(settingsFile, 'blocked.sites = local_host\n');
+    await until(async () => (await one.tool('browser_snapshot', { session: sA })).text.includes('Error [SETTINGS_UNREADABLE]'), 'the mistake to be noticed');
+    fails(await one.tool('browser_snapshot', { session: sL }), 'SETTINGS_UNREADABLE');
+    has((await one.tool('browser_status')).text, 'Blocked sites: The TabGoblin server\'s settings file cannot be read');
+    // The popup says it once, above the sessions, and offers nothing.
+    const popupU = await openPopup(page, { fresh: true });
+    await popupU.waitForFunction(() => document.getElementById('blockedAll').getClientRects().length > 0
+      && document.getElementById('blockedAll').textContent.includes('cannot read its settings file')
+      && document.querySelectorAll('.blocked-note').length === 0
+      && [...document.querySelectorAll('.session .chip')].filter((c) => c.textContent === 'blocked').length === 2)
+      .catch(() => { throw new Error('the popup did not say that the settings cannot be read'); });
+    // Mended, everything is as it was.
+    writeFileSync(settingsFile, '');
+    await until(async () => !(await one.tool('browser_snapshot', { session: sA })).isError, 'the mended file to be in force');
+    has(ok(await one.tool('browser_snapshot', { session: sL })).text, 'Page: Demo Tracker: Issues');
+
+    // The refusals are in the server's log as scope violations, by session, and without the site.
+    has(one.stderr, 'code=SITE_BLOCKED category=SCOPE scope_violation=true');
+    const popupL = await openPopup(pageL, { fresh: true });
+    await popupL.$eval(row(sL, '.revoke'), (el) => el.click());
+    await until(async () => !(await one.tool('browser_status')).text.includes(`Session ${sL}`), 'the session to be revoked');
+    await openPopup(page, { fresh: true });
+    await pageL.close();
+  });
   console.log('\nShutdown');
   await step('server logs carry ids and outcomes but never the token or page content; stdout stayed pure JSON-RPC', async () => {
     for (const server of servers) {
@@ -1848,6 +1944,8 @@ try {
     assert(await two.close() === 0, 'agent two did not exit cleanly');
     // The tab stays authorized, and nobody is there to act on it. The badge said ON for that once.
     await until(async () => (await badge()) === 'OFF', 'the badge to say OFF once no server is left');
+    // The one server ends by itself when its last agent has gone: nothing is left listening.
+    await until(async () => !(await listens(wsPort + 8)), 'the server to end after its last agent', 15000);
     const popup = await openPopup();
     await popup.waitForFunction(() => document.getElementById('connection').textContent.startsWith('Disconnected'));
   });

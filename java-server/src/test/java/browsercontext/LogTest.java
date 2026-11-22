@@ -51,14 +51,31 @@ class LogTest {
     }
 
     @Test
-    void whatIsNotLoggedIsNotKeptEither() {
+    void aDetailIsKeptOnlyWhenItIsLoggedAndACallThatWentThroughAlways() {
         // Run with BCMCP_LOG=debug, a debug line is logged, and then it is kept too.
         org.junit.jupiter.api.Assumptions.assumeFalse("debug".equalsIgnoreCase(System.getenv("BCMCP_LOG")));
         Log.keep(5);
-        // A command that went through is a debug line, and the tests run at the default level: it is not written.
-        Log.command("8", "s1", "snapshot", 12, null);
+        // A detail is a debug line, and the tests run at the default level: it is not written, and not kept.
         Log.debug("a detail");
         assertEquals(List.of(), texts());
+        // A call that went through is written at debug only, and kept for the panel all the same:
+        // that is where the user looks for what the agent did. It carries no mark of a warning.
+        Log.command("8", "s1", "snapshot", 12, null);
+        assertEquals(List.of("command id=8 session=s1 action=snapshot ms=12 outcome=ok"), texts());
+        assertEquals("debug", Log.recent().get(0).level());
+        // And the tab it ran in, by which the panel shows one tab's calls. Any other line has none.
+        assertEquals("s1", Log.recent().get(0).session());
+        Log.command("9", "s2", "fill", 4, "PAUSED");
+        Log.command("10", null, "status", 1, null);
+        Log.info("extension connected");
+        assertEquals(java.util.Arrays.asList("s1", "s2", null, null), Log.recent().stream().map(Log.Line::session).toList());
+        Log.keep(0);
+        Log.keep(5);
+        Log.command("8", "s1", "snapshot", 12, null);
+        assertEquals("00:00:00  command id=8 session=s1 action=snapshot ms=12 outcome=ok",
+                PanelModel.logLine(new Log.Line(0, "debug", texts().get(0)), java.time.ZoneId.of("UTC")));
+        Log.keep(0);
+        Log.keep(5);
         // Fewer lines asked for: the oldest go at once.
         Log.info("a");
         Log.info("b");

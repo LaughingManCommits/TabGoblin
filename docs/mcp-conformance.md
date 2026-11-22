@@ -86,7 +86,9 @@ SDK serves both generations over stdio by itself.
 
 ## How it is checked
 
-`McpConformanceIT` starts the built jar and talks to it over its standard input and output:
+`McpConformanceIT` starts the built jar as an agent's program does and talks to it over its
+standard input and output. Since there is one server for all agents, that process is a pipe to
+the server, which it starts: what is measured is what an agent gets, through both.
 handshake, negotiation of the revision, `ping`, the list of tools and what each must have, a tool
 that fails, an unknown tool, an unknown method, the probe of a newer client, the exit when the
 input is closed, and that every line on standard output is a protocol message. With a stand-in

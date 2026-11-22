@@ -201,16 +201,17 @@ page that owns it:
 Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 
 ```json
-{ "type": "challenge", "nonce": "…", "versions": [2] }
+{ "type": "challenge", "nonce": "…", "versions": [2], "clientId": "c-1a2b3c4d" }
 { "type": "auth", "nonce": "…", "proof": "…", "version": 2 }
 { "type": "auth_ok", "proof": "…", "version": 2, "clientId": "c-1a2b3c4d", "clientName": "…" }
 
 { "id": "17", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
-{ "id": "17", "success": true, "result": {}, "timing": { "ran": 132, "queued": 0, "asked": 0 } }
+{ "id": "17", "success": true, "result": {}, "timing": { "ran": 132, "queued": 0, "asked": 0 }, "session": "s2" }
 { "id": "17", "success": false, "error": { "code": "NOT_AUTHORIZED", "message": "…" } }
 
 { "type": "cancel", "id": "17" }
 { "type": "client", "name": "IntelliJ IDEA" }
+{ "type": "policy", "blocked": ["example.org"], "unreadable": false }
 { "type": "event", "event": "sessions", "data": { "sessions": [] } }
 { "type": "event", "event": "activity", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
 { "type": "ping" }   { "type": "pong" }
@@ -222,9 +223,25 @@ step for the server's other threads (`WebSocketBridge.authenticate`): an extensi
 `auth_ok` is connected for every tool call from then on, and none is told `NOT_CONNECTED`. The
 agent's name is in `auth_ok` if the server knows it by then, and follows as `client` if it
 learns it later. An agent names itself when it opens its connection to the server
-(`initialize`), and a server started by hand calls itself *Started by hand*. When a name
-arrives, the extension tells every server its sessions anew: a name can make sessions an
-agent's own ([architecture](architecture.md#sessions)).
+(`initialize`). When a name arrives, the extension tells every agent its sessions anew: a name
+can make sessions an agent's own ([architecture](architecture.md#sessions)).
+
+`policy` is the user's list of [blocked sites](security.md#blocked-sites), as the server's settings
+have it: the domains, in lower case and in their encoded form; `unreadable` is true while the
+settings file cannot be read and every site is refused. The extension takes the list whole or not
+at all. The server sends it when the extension has said its first word as a paired one, which it
+does at once with its sessions, and again when the list has changed. It is not sent right behind
+`auth_ok`: an extension from before this message, still checking the server's proof, would take a
+message it does not know for a failed pairing. Once paired, such an extension ignores it. What an
+entry blocks is decided in two places, `BlockedSites.java` and `blockedBy` in `policy.ts`; both are
+held to one list of cases, `java-server/src/test/resources/browsercontext/blocked-sites-cases.json`.
+
+`clientId` in `challenge` is who the server says it is before anything is proven. The
+extension uses it for one thing: the server of an agent the user disconnected is closed there
+with 4403, without a proof being sent, so that server never counts the extension as connected
+and logs nothing. Nothing is granted on it; that takes the id in `auth_ok`, which is proven.
+The field is optional: without it a disconnected agent is turned away after the pairing, as
+before, and an older extension ignores it.
 
 The extension takes the messages of a connection in the order they came. One that arrives while
 it still checks the proof in `auth_ok` waits for that, and is then a message like any other.
@@ -236,6 +253,32 @@ the running was waiting for the user's answer. The server cannot see inside the 
 these it says where the time of a tool call went (`Timings.java`,
 [tools.md](tools.md#where-the-time-went)). The field is optional: an older server ignores it, and
 without it the server counts the round trip whole.
+
+`session` comes with the answer of every command that ran in a session, failed ones too: the
+id of that session. A command may name none and be given the agent's only one, and the
+server's panel shows the times and the calls of one tab
+([architecture](architecture.md#the-servers-panel)). The status and a command that was refused
+before a session was looked for have none. The field is optional: without it the server keeps
+the session the command named.
+
+Between the process an agent starts and the one server there is a second, smaller protocol, on
+the port after the agents' eight (`Link.java`, `Hub.java`): one line of JSON each way to prove
+the pairing token, then the agent's MCP messages as they are. Its version is 1.
+
+```json
+{ "type": "hello", "nonce": "…", "link": 1 }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 1, "panel": false }
+{ "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
+
+{ "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
+{ "tabgoblin": "stopping" }
+```
+
+`show` in the place of `attach` asks for the server's window and is answered with `shown`. The
+two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
+agent: a line of the agent's log, and the word that the user stopped the server, without which
+a link takes the server's end for a loss and starts it anew
+([architecture](architecture.md#how-a-server-ends)).
 
 | Close code | Meaning |
 |---|---|

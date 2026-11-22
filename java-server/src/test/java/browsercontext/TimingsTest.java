@@ -47,6 +47,53 @@ class TimingsTest {
     }
 
     @Test
+    void theSharesAreKeptForEachTabACallWorkedInAndTheReportHasNoneOfIt() {
+        assertEquals(java.util.Map.of(), timings.sharesBySession());
+
+        // Two calls in one tab, with the agent thinking for a second between them.
+        Timings.Running first = timings.begin("browser_snapshot");
+        timings.trip(nanos(30), new Protocol.Timing(25, 0, 0), "s1");
+        pass(40);
+        assertEquals("s1", timings.end(first, true).session());
+        pass(1000);
+        Timings.Running second = timings.begin("browser_click");
+        timings.trip(nanos(50), new Protocol.Timing(45, 0, 0), "s1");
+        pass(60);
+        timings.end(second, true);
+        // One in another tab, three seconds later: a submission in two round trips. A call works in
+        // one tab, the first it is told of.
+        pass(3000);
+        Timings.Running third = timings.begin("browser_submit");
+        timings.trip(nanos(20), new Protocol.Timing(15, 0, 0), "s2");
+        timings.trip(nanos(70), new Protocol.Timing(60, 0, 40), "s2");
+        pass(100);
+        timings.end(third, true);
+        // And the status tool, which works in no tab, with a round trip that names none.
+        pass(500);
+        Timings.Running status = timings.begin("browser_status");
+        timings.trip(nanos(2), new Protocol.Timing(1, 0, 0), null);
+        pass(5);
+        assertEquals(null, timings.end(status, true).session());
+
+        var of = timings.sharesBySession();
+        assertEquals(java.util.Set.of("s1", "s2"), of.keySet(), "a call that worked in no tab is in none");
+        assertEquals(2, of.get("s1").calls());
+        assertEquals(1000, of.get("s1").agent(), "the time the agent took before the tab's calls");
+        assertEquals(1, of.get("s2").calls());
+        assertEquals(3000, of.get("s2").agent());
+        assertEquals(40, of.get("s2").user());
+        // The whole is every call, the one without a tab included: more than the tabs together.
+        Timings.Shares all = timings.shares();
+        assertEquals(4, all.calls());
+        assertEquals(1000 + 3000 + 500, all.agent());
+        assertTrue(all.all() > of.get("s1").all() + of.get("s2").all());
+        // What the agent is told has tool names and durations, as before, and no session.
+        String report = timings.report();
+        assertFalse(report.contains("s1"), report);
+        assertFalse(report.contains("s2"), report);
+    }
+
+    @Test
     void theSharesForThePanelAreTheSameTimeInFourHeapsWithNothingLostOrCountedTwice() {
         assertEquals(new Timings.Shares(0, 0, 0, 0, 0), timings.shares(), "nothing before a call has ended");
 

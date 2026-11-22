@@ -3,6 +3,216 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `blocked-sites`: WP-20, sites that no agent may work on
+
+The owner: "deny URL domain basically we can created blocked sites, this should be properties,
+any action tried on site is blocked by the mcp server", and, from options: an entry is a domain
+with its subdomains; the block shows in the server's answer, the popup and the window; a file
+that cannot be read refuses everything. Built on a branch made from `one-server`, and
+committed there on the owner's word; not pushed.
+
+All of the following on the final sources, in a copy of the tree with a jar built there.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 126 tests, 17 of them new, and the 8 of the conformance check on the built jar |
+| `cd chrome-extension && npm run check` | type-check clean, 160 tests, 4 of them new, build |
+| `cd e2e && npm test` | 95 passed, 0 failed. The new step: a second tab on the demo site under `localhost`, which is another host than `127.0.0.1`; the site written into the settings file while the server runs; nine tools refused there with `SITE_BLOCKED`, the tab not moved; the other tab working, and a navigation from it to the blocked host refused; the status naming the blocked session; the popup marking it, and offering nothing on a new tab of that site, checked as drawn and not as marked; the site taken off the list and the same session working; a mistake in the file refusing both sessions, the popup saying so once; the file mended |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The suite was run four times. What the earlier runs showed:
+
+- **Run 1, 94 and the new step failed:** the popup's sentence named the tab's address with its
+  scheme and port, and the step expected the host. The sentence was the fault: no list has an
+  address in it. It names the host now, and the entry that blocks it where that is a domain
+  above it.
+- **Run 2, the new step passed and the step behind it failed:** the diagnostics step looks for
+  one old operation among the recent ones, and the new step's many snapshots had pushed it out.
+  No fault of the product; the new step stands behind that one now. The same run's list showed
+  the extension refusing for up to a second after a site was taken off the list, because the
+  server had read the file and not told it yet. The server tells it ahead of the next command
+  now.
+- **Run 3, 95 of 95.** Then the look below found three things in the popup and the window, and
+  they were mended.
+- **Run 4, 95 of 95,** on what is in the tree.
+
+Found by reading, by no run: a list sent right behind the pairing answer would have made an
+extension from before this change close the connection, every time, since it takes a message it
+does not know for a failed pairing while it still checks the server's proof. The list is sent
+after the extension's first word as a paired one. A test of the server alone holds that; an
+older extension was not run against it.
+
+The picture tool drew fifteen states, two of them new: sites blocked with a tab on one, and a
+settings file with a mistake. Opened and looked at: those two, the first, and the low screen.
+Mended by looking: the new row had left the log two lines, so the window is 40 pixels higher;
+and the sentence on a mistake took three lines, and takes two. `docs/images/server-panel.png`
+is the first drawing, byte for byte.
+
+By hand, with real parts on Windows and Java 21: the jar from the copy as an agent's program
+starts it, with `--panel`, on ports of its own; the suite's Chrome with the built extension;
+the demo site. The popup was pictured in five states and each picture opened. The server's real
+window was read and pressed through the accessibility interface.
+
+- A tab authorized on `localhost`, then `localhost` written into the settings file: the agent's
+  next snapshot there answered `SITE_BLOCKED` with that host and nothing else of the list. The
+  popup marked the session and said why in its row. The window marked the tab *blocked*.
+- A tab on the blocked site without a session, and one on `app.localhost`: the popup had a
+  statement and nothing to press. **The first pictures showed the two selects for access and
+  duration still drawn** under the statement, though the code hid them: the row's own layout
+  beat the hidden mark. Mended, and the suite's step now checks what is drawn.
+- The window's line read "bank.example, intranet.example and 1 more", and the one more was the
+  entry that blocked the tab in view. Entries that block a tab come first now; the real window
+  then read "localhost, bank.example and 1 more".
+- **Edit**, pressed in the real window: a text editor started on the settings file of that
+  server. It was Notepad; its window was closed again by its own close command.
+- A mistake written into the file (`local_host`): the agent's calls answered
+  `SETTINGS_UNREADABLE`, the status began with it, the window said in its amber box which
+  entry is no domain, and both tabs were marked. The popup said it three times, in each row
+  and in a box; it says it once now, above the rows. The file written whole again: the window
+  showed the list at once, without anything restarted.
+- After the look no server and no editor from it was left running.
+
+Not run: the editor lab; nothing it covers changed. Not tried: **Edit** on Linux and macOS;
+this server with an extension from before this change; the owner's own Chrome and agent with
+this build; a list of hundreds of entries.
+
+## 2026-11-22, on `one-server`: WP-19, one server for all agents, and a click on a tab
+
+The owner, after a server started by hand had been taken five times for the server the agent
+uses: "only one instance of the server may be started", with several agents connected to it and
+each with its own tabs; and for its window: a click on a session shows that session's metrics
+and log, and no click shows all. Then: "okay do your recommendations". Built in two steps.
+
+**The click, in the window as it was.** Every tab is in the list, three show at a time and the
+list scrolls; a click on a tab shows that tab's metrics and log lines, a second click or Escape
+shows all. The extension says in each answer in which session a command ran, since a command
+may name none. Run in a copy of the tree with a jar built there: the server's 96 tests and the
+8 of the conformance check, the extension's 156, end to end 94 of 94. Pressed in a real window
+through the accessibility interface, with the suite's Chrome, two tabs and seven real calls:
+each tab chosen shows its own calls and its own lines, and the same tab again shows all.
+
+**The one server.** The process an agent's program starts is a pipe to the server, which it
+starts as a process of its own if none runs. All of the following on the final sources, in a
+copy of the tree with a jar built there.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 109 tests, 17 of them new since `by-hand-panel`, and the 8 of the conformance check on the built jar, which now goes through the pipe and the server it starts; none skipped, none failed. No server was left running six seconds after it |
+| `cd chrome-extension && npm run check` | type-check clean, 156 tests, build |
+| `cd e2e && npm test` | 94 passed, 0 failed, with the suite's two agents through one server. Two checks are new in it: the server listens for agents on the port after theirs and neither process serves alone, and nothing listens there once the last agent has gone |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The suite passed 94 of 94 before its two new checks as well, unchanged: an agent's own log, its
+port and its restart are to the suite as they were.
+
+Found by the first run with real processes, and by no test before it: six servers that the
+conformance check had started were still running forty minutes later. That check ends each
+process at once, and the server took a broken connection for none at all, so that it never
+counted its agent as gone. It takes it for the agent's going now. The test for it fails against
+the code as it was; after the fix no server was left behind.
+
+The picture tool drew thirteen states. Opened and looked at: a tab clicked, the second tab
+clicked, nine tabs, the low screen, no agent, two agents, and an agent clicked. Three things
+were mended by looking: the list of tabs did not stay at three rows with nine tabs; an agent's
+name was cut short when its row was marked; and the line that said what is chosen pushed the
+cards below it down at every click, so it stands in the corner of the card now.
+
+By hand, with real processes on Windows and Java 21, read and pressed through the
+accessibility interface:
+
+- Two agents' processes started as agents' programs start them: one server process (`javaw`)
+  and two pipes; the first agent opened in 666 ms, which includes the server's start, the
+  second in 198 ms. Ports listened on: one for each agent, and the server's own. The first
+  agent left: its process ended with code 0 after 9 ms and its output closed for the program
+  that had started it; the second went on working. After the last one the server was gone and
+  nothing listened.
+- The jar run in a console of its own with `--panel`, on ports apart from the owner's: the
+  command returned, one server ran that stays without an agent, and its window said that no
+  agent is connected. An agent's process started then showed in that
+  window by its name, 441 ms after its start. **Stop server**, pressed twice: the agent's
+  process ended with code 0 and the line that the user had stopped the server in its log, the
+  server was gone, and nothing started it anew.
+- Two agents with the suite's Chrome, each with a tab of its own and real calls, one window:
+  both agents with their headings, ids and ports; an agent clicked shows its five calls and its
+  seven lines and none of the other's; a tab of the other agent clicked shows its two; clicked
+  again, everything.
+
+On the owner's word that "typed by hand" is confusing, and to be critical of what the user
+reads, the words of the window, the terminal and the help text were gone over afterwards: the
+help text is in two parts, what you run and what your agent runs; the window said that no
+agent is connected twice, and "no tabs" twice in one card, and says each once now. The three
+suites were run once more on that, with the same counts, and the pictures drawn and the changed
+ones looked at.
+
+Not tried: Linux and macOS, where the server is started as a process of its own in another
+way; an IDE's program that ends every process below it when it closes, which would end the
+server with it and leave the taking over to the other agents; Kill in the real window with
+agents connected, and the taking over with real processes, which the tests do with a server
+that is dropped inside one Java process; the jar run in a terminal while a server already runs,
+which the tests do; a process that has to serve its agent alone because another program holds
+the server's port, of which the tests cover that it is found out and not the serving; the
+owner's own Chrome and Claude Code with this build, which needs both parts built in the tree.
+Not run: the editor lab; CI, which has no credit.
+
+## 2026-11-22, on `by-hand-panel`: what a server started by hand says, a disconnected agent's server left alone, and a panel that shows what the agent did
+
+The owner asked for a walk through GitHub with the tools, and then for the fixes of what it
+showed. A server started by hand with its panel stood beside the session's own server, which
+had no window: the owner authorized a tab for the first, which no agent can use, and watched
+its panel for the agent's sessions, times and calls. That panel's log filled with a pairing
+and a close every few seconds, after its agent had been disconnected in the popup. Asked for
+on the way: the card of the times is to be called Metrics, and the log is to show what the
+agent did.
+
+The walk itself, on a tab of `github.com`, some seventy tool calls through the session's own
+server, first with the owner's extension as built at 10:03 and then with the one built at
+15:47. With Read: outline, sections, scrolling, a wait, two screenshots; a fill, a navigation,
+the Tab key and a link refused with the level each needs. With Explore: links followed, pages
+read, the Actions page and the list of commits, the way back, a folder opened in the file
+tree; another site refused, buttons refused, one screenshot refused while another tab was in
+front. No fault of the tools was found. A file in GitHub's file tree could not be opened by a
+click with Explore: it is a tree item and no link, so it counts as a control; its address
+opens it.
+
+All of the following on the final sources, in a copy of the tree with a jar built there.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 92 tests, 3 of them new, and the 8 of the conformance check on the built jar; none skipped, none failed |
+| `cd chrome-extension && npm run check` | type-check clean, 156 tests, 1 of them new, build |
+| `cd e2e && npm test` | 94 passed, 0 failed. The step that disconnects an agent now reads the server's log: one disconnect, and no pairing after it, across the next looks at the ports |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The new worker test fails against the worker as it was: a proof went to the disconnected
+agent's server again. The picture tool drew ten states. Opened and looked at: the first, which
+is the documentation's picture and was taken into `docs/images` with the card's new name, and
+the two of a server started by hand, without a tab and with one of its own beside one that is
+open to any agent.
+
+By hand, in the real windows on Windows with Java 21, read through the accessibility interface:
+
+- A server started in a console of its own from a jar built in a copy, not connected to a
+  browser: the box under the status line, the words of both cards, and the box, the cards'
+  words, Copy, Stop, Kill and the version line all inside the window (444 by 804).
+- The owner's own server started by hand from the jar the owner built at 15:47, connected: the
+  box, *1 tab* for a tab the owner had authorized for any agent, and under it the line that no
+  agent can use it. That line was wrong: the session used the tab a moment later, and the
+  window then said *No tab is authorized for this server*. Mended after that: the line speaks
+  of the server's own tabs, and an open tab is marked *any agent*. The mended form was drawn
+  and tested, not seen in a real window.
+- The session's own server, after the owner's Reconnect in Claude Code at 15:59, from the same
+  jar and with `--panel`: its window named `claude-code`, the tab, the four shares over the
+  last six calls, and a log with the start, the connection and the one call that was refused.
+  The calls that went through were not in it, which is what the owner had missed; they are
+  kept now, tested, and not seen in a real window, which needs the jar built again.
+- That Reconnect was the first restart of a real agent's server: the new server, with another
+  id, had the tab at once, by the name `claude-code`.
+
+Not tried: an older extension against this server and the other way round, which are as before
+by the source and by one half of the worker test; the owner's extension with a disconnected
+agent, by hand. Not seen on GitHub: the picture in the two READMEs with its wider edge, which
+needs a push. Not run: the editor lab; Linux and macOS; CI, which has no credit.
+
 ## 2026-11-22, on `restart-keeps-tabs`: a server that is started again has its tabs at once
 
 The owner: a server stopped with a session and started again did not show the session in its
@@ -414,144 +624,33 @@ an agent's name too long for its row beside the count (it is cut with an ellipsi
 name is in its hint; no picture has one), the button's hint by eye (the suite reads its text),
 and a Disconnect while a real model is at work.
 
-## 2026-11-22, on `nothing-personal`: WP-14, the files and the check
-
-No product code changed. What changed: four examples in the documentation, a check with its
-tests and its job in CI, and the pages that name them.
-
-| Command | Result |
-|---|---|
-| `node --test docs/agents/check-personal.test.mjs` | 5 tests, none failed |
-| `node docs/agents/check-personal.mjs` | 121 files read, 17 binary files not read, nothing personal found; exit 0 |
-| the same, with a home directory planted in a new file and at the end of a tracked one | 2 findings, each with its file and line and without the text; exit 1. With both taken out again: exit 0 |
-| `node docs/agents/check-links.mjs` | 73 links, all resolve |
-
-Looked at: all thirteen pictures in `docs/images`. Eleven show the popup, one the notice in a
-demo page beside a sign-in form with its password as dots, one Chrome's extensions page with
-TabGoblin alone. In them: loopback addresses, ports, the names the two test agents give
-themselves, the extension's id and version. No folder, account, name or other extension. A
-script that was not kept listed the chunks of the seventeen tracked PNG files: a header, picture
-data and an end in each, and no text.
-
-Searched again, with `git grep` and `git log`: the tracked files, the messages of the 61
-commits, and every line a commit ever added, for home directories, mail addresses, the user's
-and the machine's name, and links to sessions. Found: what `TODO.md` lists under WP-14, "What
-is still there", and nothing else.
-
-Failed on the way: nothing in the check. One command that planted the home directory broke on
-its quoting before it wrote anything; the script was then run from a file, as the runbook says.
-
-Not run: the server's suites, the extension's check, end to end and the editor lab; nothing
-they cover changed. The new job has not run on GitHub, and its commands not on Linux: Docker
-was not running and the Ubuntu in WSL has no Node. Not done, and the owner's: the history, and
-the address that commits carry.
-
-Also in this session, in a second commit: WP-16 and WP-17 filed in `TODO.md`, none started. For
-WP-16, what the documentation has today was read, and no other tool. For WP-17, how the token
-is made, kept, found and rotated was read from the source; nothing was run.
-
-## 2026-11-21, on `ci-failures`: the CI failures of runs #7 and #8
-
-Read on GitHub by a session, through TabGoblin: five runs, of which #1, #3 and #4 passed.
-
-- Run #7 (`5c9f4ab`, the merge of `pairing-race`): the Java server job failed, four tests of
-  `BrowserServiceTest`. The other three jobs passed.
-- Run #8 (`1b28c91`, the merge of `folding-panels`): the Java server job failed, three tests of
-  `BrowserServiceTest`, one of them the same as in #7; and end to end, 91 passed and 2 failed:
-  "a second agent connects on its own port and is listed" (`Cannot read properties of undefined
-  (reading 'dataset')`) and, for want of that agent's id, "the user can disconnect one agent".
-
-Causes.
-
-1. **The server.** Since `34a81a8` it sent `auth_ok` before it took the connection for its
-   paired one. An extension that held `auth_ok` could find a tool call refused with
-   `NOT_CONNECTED`. The tests' setup returns the moment `auth_ok` arrives: that is the failure
-   of the Java server job, in other tests each time.
-2. **The agent's name could be lost, in two ways.** Given between the building of `auth_ok` and
-   the marking of the connection, it was neither in the answer nor sent behind it. And passing
-   it on stopped with an exception at a connection that a newer one had just replaced, before
-   the newer one was told. The popup then lists the agent by its id for good.
-3. **The end-to-end step.** It read the names in the popup right after the count of agents. An
-   agent names itself with its first tool call; when the extension has found its server before
-   that, the popup lists it by its id until its next refresh, 700 ms at most.
-
-Which of 2 and 3 failed the step in run #8 is not known; both give its message.
-
-Shown against the unfixed source:
-
-- Two new tests of `WebSocketBridgeTest` pair 200 times each: a command right behind the
-  pairing must reach the extension that paired, and a name given during a pairing must arrive.
-  Against the server's sources of `main`, seven runs (one free, three held to one core, three
-  to two): at least one of the two failed in every run, the name in six, the command in four.
-- End to end with the second agent's first tool call held back five seconds, the step as it
-  was, and the server already fixed: 91 passed, 2 failed, the two steps and messages of run #8.
-- Not shown: the failures of `BrowserServiceTest` themselves. They passed in every local run.
-
-After the fix. The server takes the connection and sends `auth_ok` as one step for its other
-threads; the name is passed on under the same lock, and a connection that has just closed no
-longer stops it; the step waits for the name. Built and run in a copy of the tree, because the
-session's own server was running from the tree's jar.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 64 tests; `McpConformanceIT` on the built jar: 8 tests |
-| `mvn -B -f java-server/pom.xml test`, held to one core (twice) and to two (three times) | 64 tests each time |
-| `WebSocketBridgeTest` on the final sources, held to two cores (six times) and to one (three times), with the end-to-end suite running beside it | 28 tests in eight runs; in one, `closesConnectionThatFloodsMessages` got close code 1006 instead of 4429 |
-| `cd e2e && npm test`, with the five seconds held back | 93 passed, 0 failed |
-| `cd e2e && npm test`, as it is | 93 passed, 0 failed |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Found on the way, in tests that CI has not failed in: four tests asked `connectBlocking` whether
-a connection had opened that the server closes right after; it says no when the close came
-first, which it did in both runs on two cores. They now ask for the close code only. And the
-flood test in the table above, which was left as it is; the state page has it.
-
-Not run: `npm run check` of the extension (nothing in it changed; it was built for the suite),
-the editor lab, the pictures, and the Linux container (Docker was not running).
-
-On GitHub, after the owner's push: run #9 (`9ea4734`, the merge of `ci-failures`) passed in all
-four jobs: Java server, Chrome extension, End to end, Editors.
-
-Also in this session: WP-10 to WP-14 filed in `TODO.md`, none started. For WP-14 the tracked
-files and the history were searched for personal information; what was found is in the package.
-
-## 2026-11-21, on `folding-panels`: panels that fold
-
-Sessions, Activity, Agents and Settings fold to one line each, which says what is inside. All on
-the final build of the branch.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check` | type-check clean, 136 tests, build |
-| `cd e2e && npm test` | 93 passed, 0 failed. The new step folds all four, reads each line, opens the popup again and finds them folded, and unfolds them. |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `FULL=1 node screenshots.mjs prompts` | looked at: all four folded (dark), two folded (light). Without `FULL`: 32 pictures. |
-| `HEADED=1 node screenshots.mjs` | eleven pictures, one of them new (`popup-folded.png`); all eleven opened after the last run |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Found by the suite, and a fault of the feature, not of the test: a step presses Tab and Enter
-the instant a prompt appears, for keys that were on their way to the page. With the answers held
-for that moment, Tab went on to the heading of Sessions and Enter folded it; three later steps
-then could not find the Authorize button. For that moment the rest of the popup now takes no key
-or click. The step checks that no panel is folded afterwards.
-
-Failed on the way, besides that: the new step assumed two agents where one is connected, and
-left the panels folded when it failed; it now unfolds them whatever happens. A worker test asked
-for a wait of exactly 0 ms where 1 ms is in order. The first picture of the folded popup caught
-the arrows turning and the pointer on a heading; the script now waits and moves the pointer.
-
-And the commit was first made on `main`. The owner had merged `pairing-race` meanwhile; the
-command that committed printed the branch first, and nobody read it. The commit was moved to
-`folding-panels` and local `main` set back to the remote's. The working rule in `AGENTS.md` now
-says how to make the commit refuse.
-
-Not run: the server's suites (nothing in the server changed) and the Linux container (Docker
-was not running after a restart of the machine). Not tried: folding with the keyboard by hand,
-and a screen reader on the folded headings; the suite reads `aria-expanded` only.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `nothing-personal` (WP-14, the files and the check): no product code changed;
+  four examples in the documentation, and a check that reads the files for home directories,
+  mail addresses outside the example domains and links to sessions, with 5 tests and a job in
+  CI. It read 121 files and found nothing; with a home directory planted in two places it gave
+  2 findings, each with file and line and without the text. All thirteen pictures in
+  `docs/images` were opened and held nothing personal. The history and the address of commits
+  were left to the owner. Not run: the suites, since nothing they cover changed; the new job on
+  GitHub.
+- 2026-11-21, on `ci-failures` (the CI failures of runs #7 and #8, read on GitHub through
+  TabGoblin): the server sent `auth_ok` before it took the connection for its paired one, so a
+  tool call right behind the pairing could be refused; an agent's name given during a pairing
+  could be lost; and an end-to-end step read the names in the popup too early. Shown against
+  the unfixed source by two tests that pair 200 times each, which failed in every one of seven
+  runs, and by the suite with the second agent's first call held back. After the fix: server
+  64 tests and 8 conformance tests, also held to one and two cores; end to end 93 of 93. Which
+  of two causes failed the step in run #8 is not known. Not shown: the failures of
+  `BrowserServiceTest` themselves, which passed in every local run.
+- 2026-11-21, on `folding-panels` (Sessions, Activity, Agents and Settings fold to one line
+  each): extension 136 tests; end to end 93 of 93, with a step that folds all four and finds
+  them folded when the popup opens again; editor lab 222 and 220 of 225, no `SILENT`; eleven
+  of the documentation's pictures, one new, all opened. Found by the suite: a key on its way
+  to the page folded a panel the instant a prompt appeared; the rest of the popup takes no key
+  or click for that moment now. The commit was first made on `main` and moved; the rule in
+  `AGENTS.md` that makes the commit refuse comes from that. Not run: the server's suites, the
+  Linux container. Not tried: folding with the keyboard by hand, a screen reader.
 - 2026-11-21, on `pairing-race`, the look of the popup (a pass for alignment: headings and
   their actions on one baseline, settings with a heading, a session's chips under its address
   where they do not fit beside it): extension 132 tests; end to end 92 of 92; editor lab 222

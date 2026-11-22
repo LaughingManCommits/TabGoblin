@@ -24,6 +24,8 @@ final class FakeExtension extends WebSocketClient {
     /** Ids of commands the server cancelled. */
     final List<String> cancels = new CopyOnWriteArrayList<>();
     final List<String> clientNames = new CopyOnWriteArrayList<>();
+    /** What the server said of blocked sites, each time it said it: after the pairing, and when the list changed. */
+    final List<JsonNode> policies = new CopyOnWriteArrayList<>();
     /** The agent's name as the extension knows it: from the pairing answer, then from each {@code client} message. */
     volatile String agentName;
     /** What arrived ahead of the pairing answer. The real extension takes any such message for a failed pairing. */
@@ -102,6 +104,8 @@ final class FakeExtension extends WebSocketClient {
                     .equals(Pairing.serverProof(token, serverNonce, clientNonce)));
         } else if (type.equals("cancel")) {
             cancels.add(msg.path("id").asString());
+        } else if (type.equals("policy")) {
+            policies.add(msg);
         } else if (type.equals("client")) {
             clientNames.add(msg.path("name").asString());
             agentName = msg.path("name").asString();
