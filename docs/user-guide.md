@@ -285,6 +285,12 @@ popup call it *Started by hand*; your extension pairs with it and lists it. **St
 the window ends it, and so does Ctrl+C in the terminal. Started again the same way, it has the
 tabs you authorized for it as before.
 
+It is a window to look at and to try, and not the place where your agent's work shows. Your
+agent has a server of its own, which it started itself; that server's tabs and tool calls are
+not in this window, and a tab you authorize for *Started by hand* is used by no agent. The
+window says so in a box under the line with the dot. To watch your agent, have the panel on
+its own server, as described next.
+
 **To have it on your agent's server,** add `--panel` after the jar's path where you told your
 agent about the server
 ([step 5 of the installation guide](installation.md#5-tell-your-agent-about-the-server)), and
@@ -316,23 +322,27 @@ the goblin for its icon; the name there is Java's. A window takes the keyboard w
 as a new window does. No button in it has the keyboard then, so a key that was on its way
 elsewhere presses nothing.
 
-<img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, where the time went, the log, and the controls">
+<img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, the metrics, the log, and the controls">
 
 - **Under the title:** the agent's name, the id it has in the popup, and its port. An agent
   says its name when it starts the server; a server you started yourself is called *Started by
   hand*.
 - **The line with the dot** says whether the extension is connected to this server and since
   when, or why it is not; the table below has each of its sentences. An amber box under it is
-  a problem the server had when it started, such as that no port was free.
+  a problem the server had when it started, such as that no port was free. A plain box there
+  is on a server you started by hand, and says that no agent talks to it.
 - **Sessions** are the tabs this agent has: the site, the access level, and *paused* or
   *suspended* where that applies. The page's title and address are not shown. Three are
-  listed; where the agent has more, a line says how many, and the popup lists them all.
-- **Where the time went** divides the time of the last tool calls into four shares: the agent
-  and its model between calls, this server, the extension and the page, and what you took to
-  answer a question. The agent gets the same in more detail
+  listed; where the agent has more, a line says how many, and the popup lists them all. A tab
+  marked *any agent* is one you authorized for any agent and none has used yet: every server
+  lists it, and it is the agent's own from its first use.
+- **Metrics** divides the time of the last tool calls into four shares: the agent and its
+  model between calls, this server, the extension and the page, and what you took to answer a
+  question. The agent gets the same in more detail
   ([tool reference](tools.md#where-the-time-went)).
-- **Log** has the server's last 300 lines, with the newest in view. A line that begins with `!`
-  is a warning. Lines can be marked and copied. While you read in it, with some of it marked or
+- **Log** has the server's last 300 lines, with the newest in view: when the extension
+  connected and left, and one line for each tool call, with the action, how long it took and
+  how it ended. Nothing of a page is in it. A line that begins with `!` is a warning. Lines can be marked and copied. While you read in it, with some of it marked or
   scrolled up, nothing new is written; back at its last line, it goes on.
 - **Connection to the browser** is a switch. Off, the server closes its connection to the
   extension and lets it in no more until you switch it on. The agent's tools then answer that
@@ -354,7 +364,7 @@ elsewhere presses nothing.
 |---|---|---|
 | *Connected to the browser since …* | The extension is connected to this server | Nothing |
 | *Not connected: waiting for the extension* | Chrome is not running, the extension is not paired, or it has not found this server yet | Open the popup: a paired extension connects at once, and by itself within half a minute. To pair, **Copy** the token here and paste it into the popup |
-| *Not connected: disconnected in the extension's popup* | You pressed *Disconnect* next to this agent | Press *Allow again* there |
+| *Not connected: disconnected in the extension's popup* | You pressed *Disconnect* next to this agent. The line and the log stay as they are until you allow it again | Press *Allow again* there |
 | *Not connected: the pairing has ended* | The token was rotated, or the pairing failed | Pair again: **Copy** the token here and paste it into the popup ([step 6 of the installation guide](installation.md#6-pair-the-extension-with-the-server)) |
 | *Not connected: the extension is of another version* | Jar and extension are from different builds | Rebuild both and reload the extension |
 | *Switched off here: the extension is not let in* | The switch in this window is off | Switch it on |

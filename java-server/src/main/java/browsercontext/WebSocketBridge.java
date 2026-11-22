@@ -274,6 +274,10 @@ public class WebSocketBridge extends WebSocketServer {
         challenge.put("type", "challenge");
         challenge.put("nonce", peer.nonce);
         challenge.putArray("versions").add(Protocol.VERSION);
+        // Who this is, before anything is proven. The extension uses it for one thing: an agent the
+        // user disconnected is turned away here, and not paired with first each time the extension
+        // looks at the ports. Nothing is granted on it; that takes the id in the proven answer.
+        challenge.put("clientId", clientId);
         conn.send(json.writeValueAsString(challenge));
         timer.schedule(() -> {
             if (!peer.authenticated && conn.isOpen()) {

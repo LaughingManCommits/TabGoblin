@@ -89,12 +89,12 @@ class PanelModelTest {
                 new PanelModel.Share("Waiting for you", 3, true)), PanelModel.shares(time));
         PanelModel shown = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", null, true, false, 0, 0, List.of(), time,
                 List.of(), UTC);
-        assertEquals("the last 12 calls", shown.callsCount());
+        assertEquals("time of the last 12 calls", shown.callsCount());
         // Before any call has ended there is nothing to divide, and the panel says so in words.
         assertEquals(List.of(), PanelModel.shares(NO_CALLS));
         assertEquals(List.of(), PanelModel.shares(new Timings.Shares(1, 0, 0, 0, 0)));
         assertEquals("", model(true, false, 0, 0, List.of()).callsCount());
-        assertEquals("the last call", PanelModel.of("a", "c-1", 1, "v", null, true, false, 0, 0, List.of(),
+        assertEquals("time of the last call", PanelModel.of("a", "c-1", 1, "v", null, true, false, 0, 0, List.of(),
                 new Timings.Shares(1, 0, 4, 0, 0), List.of(), UTC).callsCount());
     }
 
@@ -122,6 +122,64 @@ class PanelModelTest {
     }
 
     @Test
+    void aServerStartedByHandSaysThatNoAgentsWorkShowsInIt() {
+        // An agent's own server: nothing is added, and the words are the ones it always had.
+        PanelModel agents = model(true, false, 0, 0, List.of());
+        assertFalse(agents.byHand());
+        assertEquals("", agents.note());
+        assertEquals("No tab is authorized for this agent", agents.noSessions());
+        assertEquals("No tool call has ended yet", agents.noTimes());
+        assertEquals("", model(true, false, 0, 0, List.of(session("s1", "https://a.example", "read", "active"))).notUsed());
+
+        // One that a person started in a terminal has no agent. Its panel was taken for the place
+        // where an agent's tabs and times show, and nothing in it said otherwise.
+        PanelModel hand = agents.startedByHand();
+        assertTrue(hand.byHand());
+        assertEquals("Started by hand: no agent talks to this server. An agent's tabs and tool calls are in its own "
+                + "server's window, which that server shows when it is started with --panel.", hand.note());
+        assertEquals("No tab is authorized for this server", hand.noSessions());
+        assertEquals("No tool calls: no agent talks to this server", hand.noTimes());
+        assertEquals("", hand.notUsed(), "without a tab there is nothing to say of one");
+        // Everything else is as it was.
+        assertEquals(agents.identity(), hand.identity());
+        assertEquals(agents.connection(), hand.connection());
+        assertEquals(agents.sessionsCount(), hand.sessionsCount());
+
+        // A tab can be authorized for it, and then nobody works there: said under the tab.
+        var one = List.of(session("s1", "https://a.example", "read", "active"));
+        assertEquals("No agent can use this tab: authorize it for the agent, in the extension's popup",
+                model(true, false, 0, 0, one).startedByHand().notUsed());
+        var nine = java.util.stream.IntStream.rangeClosed(1, 9)
+                .mapToObj(n -> session("s" + n, "https://site-" + n + ".example.org", "read", "active")).toList();
+        PanelModel many = model(true, false, 0, 0, nine).startedByHand();
+        assertEquals("No agent can use these tabs: authorize them for the agent, in the extension's popup", many.notUsed());
+        assertEquals("and 6 more: the extension's popup lists every tab", many.notListed());
+
+        // A tab that the user authorized for any agent is listed by every server until one agent has
+        // used it. It is not this server's own, and an agent can take it: nothing is said against it.
+        var open = new Protocol.Session("s2", "", "a2", "https://b.example", 8, 0, "d2", "explore", 1, "active", "", "", true);
+        PanelModel onlyOpen = model(true, false, 0, 0, List.of(open)).startedByHand();
+        assertEquals(1, onlyOpen.tabs());
+        assertEquals(1, onlyOpen.open());
+        assertEquals("", onlyOpen.notUsed());
+        assertEquals(List.of(new PanelModel.Row("s2", "b.example", "Explore", "active", true)), onlyOpen.sessions());
+        // Beside one of its own, the line names which it means.
+        PanelModel both = model(true, false, 0, 0, List.of(one.get(0), open)).startedByHand();
+        assertEquals("No agent can use the tab that is authorized for this server: authorize it for the agent, "
+                + "in the extension's popup", both.notUsed());
+        assertEquals("No agent can use the tabs that are authorized for this server: authorize them for the agent, "
+                + "in the extension's popup", model(true, false, 0, 0, List.of(one.get(0), nine.get(1), open)).startedByHand().notUsed());
+        // On an agent's own server it is marked the same way, and its own tabs are not.
+        assertEquals(List.of(false, true), model(true, false, 0, 0, List.of(one.get(0), open)).sessions().stream()
+                .map(PanelModel.Row::open).toList());
+
+        // Without the browser it is not known whether there is a tab, whoever started the server.
+        PanelModel apart = model(false, false, 0, 0, List.of());
+        assertEquals("Not known while the browser is not connected", apart.noSessions());
+        assertEquals("Not known while the browser is not connected", apart.startedByHand().noSessions());
+    }
+
+    @Test
     void theWindowDoesWithoutTheSystemsFrameOnlyWhereThatWasSeenToWork() {
         assertTrue(Panel.floats("Windows 11", true));
         assertTrue(Panel.floats("windows server 2022", true));
@@ -139,7 +197,9 @@ class PanelModelTest {
         bridge.startAndWait();
         try {
             bridge.setClientName("claude-code");
-            PanelModel alone = PanelModel.of(bridge, null);
+            PanelModel alone = PanelModel.of(bridge, null, false);
+            assertFalse(alone.byHand());
+            assertTrue(PanelModel.of(bridge, null, true).byHand(), "said by the one who started the server");
             assertEquals("claude-code", alone.agent());
             assertEquals("claude-code  ·  " + bridge.clientId() + "  ·  port " + bridge.getPort(), alone.identity());
             assertEquals(bridge.getPort(), alone.port());
@@ -153,7 +213,7 @@ class PanelModelTest {
             for (int i = 0; i < 100 && bridge.sessions().isEmpty(); i++) {
                 Thread.sleep(20);
             }
-            PanelModel paired = PanelModel.of(bridge, null);
+            PanelModel paired = PanelModel.of(bridge, null, false);
             assertTrue(paired.connected());
             assertTrue(paired.connection().startsWith("Connected to the browser since "), paired.connection());
             assertEquals(List.of(new PanelModel.Row("s1", "app.example.com", "Explore", "active")), paired.sessions());
@@ -164,7 +224,7 @@ class PanelModelTest {
             for (int i = 0; i < 100 && bridge.isExtensionConnected(); i++) {
                 Thread.sleep(20);
             }
-            PanelModel off = PanelModel.of(bridge, null);
+            PanelModel off = PanelModel.of(bridge, null, false);
             assertTrue(off.switchedOff());
             assertEquals("Switched off here: the extension is not let in", off.connection());
             assertTrue(off.sessions().isEmpty(), "what the extension reported went with its connection");

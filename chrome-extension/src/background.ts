@@ -1312,6 +1312,14 @@ function connectPort(port: number): void {
         return;
       }
       if (msg.type === 'challenge' && !serverNonce) {
+        // A server says who it is before anything is proven. That is believed for one thing only:
+        // an agent the user disconnected is turned away here. Otherwise it would be paired with
+        // and closed again each time the ports are looked at, and its log would fill with that.
+        // What a server is given depends on the id in its proven answer, as before.
+        if (msg.clientId && persisted.blockedClients.includes(msg.clientId)) {
+          dropClient(client, CLOSE_USER_DISCONNECTED, 'Disconnected by the user');
+          return;
+        }
         if (!msg.versions.includes(PROTOCOL_VERSION)) {
           versionMismatch = true;
           ws.close(CLOSE_VERSION, 'No common protocol version');

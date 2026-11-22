@@ -351,6 +351,7 @@ final class Panel {
         private final Region dot = new Region();
         private final Label connection = label("");
         private final Label problem = label("", "problem");
+        private final Label note = label("", "note");
         private final Label sessionCount = label("", "aside");
         private final VBox sessionRows = new VBox();
         private final Label callsCount = label("", "aside");
@@ -366,6 +367,8 @@ final class Panel {
         private List<PanelModel.Row> shownRows;
         private int shownTabs = -1;
         private List<PanelModel.Share> shownTimes;
+        private List<String> shownUnderSessions;
+        private String shownNoTimes;
         private Boolean shownConnected;
 
         View(Consumer<Command> commands) {
@@ -396,11 +399,14 @@ final class Panel {
             problem.setMaxWidth(Double.MAX_VALUE);
             // As high as its words need when they run over more than one line.
             problem.setMinHeight(Region.USE_PREF_SIZE);
+            note.setWrapText(true);
+            note.setMaxWidth(Double.MAX_VALUE);
+            note.setMinHeight(Region.USE_PREF_SIZE);
 
             sessionRows.getStyleClass().add("sessions");
             timeRows.getStyleClass().add("times");
             var sessions = card("Sessions", sessionCount, sessionRows);
-            var time = card("Where the time went", callsCount, timeRows);
+            var time = card("Metrics", callsCount, timeRows);
             var logCard = card("Log", label("the last " + LOG_LINES + " lines", "aside"), log);
             VBox.setVgrow(log, Priority.ALWAYS);
             VBox.setVgrow(logCard, Priority.ALWAYS);
@@ -466,7 +472,7 @@ final class Panel {
             middle.setFocusTraversable(false);
             VBox.setVgrow(middle, Priority.ALWAYS);
 
-            root.getChildren().addAll(header, status, problem, middle, control, foot);
+            root.getChildren().addAll(header, status, problem, note, middle, control, foot);
         }
 
         /** Makes the body this high: the log takes what is left over, and gives it up first. */
@@ -522,24 +528,35 @@ final class Panel {
             problem.setText(model.problem() == null ? "" : model.problem());
             problem.setVisible(model.problem() != null);
             problem.setManaged(model.problem() != null);
+            // Whose work does not show here: said by a server that no agent talks to, and by no other.
+            note.setText(model.note());
+            note.setVisible(!model.note().isEmpty());
+            note.setManaged(!model.note().isEmpty());
             version.setText("TabGoblin " + model.version() + " · protocol " + Protocol.VERSION);
             sessionCount.setText(model.sessionsCount());
-            if (!model.sessions().equals(shownRows) || model.tabs() != shownTabs) {
+            var underSessions = List.of(model.noSessions(), model.notListed(), model.notUsed());
+            if (!model.sessions().equals(shownRows) || model.tabs() != shownTabs || !underSessions.equals(shownUnderSessions)) {
                 shownRows = model.sessions();
                 shownTabs = model.tabs();
+                shownUnderSessions = underSessions;
                 sessionRows.getChildren().setAll(shownRows.isEmpty()
-                        ? List.of(label(model.connected() ? "No tab is authorized for this agent"
-                                : "Not known while the browser is not connected", "empty"))
+                        ? List.of(label(model.noSessions(), "empty"))
                         : shownRows.stream().map(View::sessionRow).toList());
-                if (!model.notListed().isEmpty()) {
-                    sessionRows.getChildren().add(label(model.notListed(), "empty"));
+                for (String said : List.of(model.notListed(), model.notUsed())) {
+                    if (!said.isEmpty()) {
+                        var line = label(said, "empty");
+                        line.setWrapText(true);
+                        line.setMinHeight(Region.USE_PREF_SIZE);
+                        sessionRows.getChildren().add(line);
+                    }
                 }
             }
             callsCount.setText(model.callsCount());
-            if (!model.times().equals(shownTimes)) {
+            if (!model.times().equals(shownTimes) || !model.noTimes().equals(shownNoTimes)) {
                 shownTimes = model.times();
+                shownNoTimes = model.noTimes();
                 timeRows.getChildren().setAll(shownTimes.isEmpty()
-                        ? List.of(label("No tool call has ended yet", "empty"))
+                        ? List.of(label(model.noTimes(), "empty"))
                         : shownTimes.stream().map(View::timeRow).toList());
             }
             writeLog(model.log().isEmpty() ? "Nothing logged yet." : String.join("\n", model.log()));
@@ -615,6 +632,12 @@ final class Panel {
             var access = label(session.access(), "chip");
             access.setMinWidth(Region.USE_PREF_SIZE);
             var row = new HBox(id, label(session.site(), "site"), grow(), access);
+            if (session.open()) {
+                // Authorized for any agent and used by none yet: every server lists it until one has it.
+                var open = label("any agent", "chip");
+                open.setMinWidth(Region.USE_PREF_SIZE);
+                row.getChildren().add(open);
+            }
             if (!session.state().equals("active")) {
                 var state = label(session.state(), "chip", "state");
                 state.setMinWidth(Region.USE_PREF_SIZE);

@@ -12,8 +12,9 @@ import java.util.List;
  * page content, entered text, URLs with their query, cookies, headers or the pairing token.
  *
  * <p>For the server's panel the last lines can be kept in memory ({@link #keep}). What is kept is
- * the line as it is written here and when: nothing that the log does not carry. Without a panel
- * nothing is kept.
+ * the line as it is written here and when: nothing that the log does not carry. That includes
+ * one line for each call that went through, which is written only at debug, so that the panel
+ * shows what the agent did. Without a panel nothing is kept.
  */
 final class Log {
 
@@ -71,7 +72,14 @@ final class Log {
                 .append(" session=").append(session == null ? "-" : session)
                 .append(" action=").append(action).append(" ms=").append(millis);
         if (errorCode == null) {
-            debug(line.append(" outcome=ok").toString());
+            // Written at debug only: a line for every call is too much for an agent's log of the
+            // server. Kept for the panel all the same, which is where the user looks for what the
+            // agent did: without it the panel's log has the calls that failed and none that worked.
+            String ok = line.append(" outcome=ok").toString();
+            if (LEVEL <= 0) {
+                write(ok);
+            }
+            remember("debug", ok);
             return;
         }
         String category = Protocol.category(errorCode);
@@ -89,7 +97,8 @@ final class Log {
     /**
      * Keeps the last {@code lines} lines from now on, for the panel. What is kept is what is logged at
      * info and above whatever BCMCP_LOG says, so that the panel has something to show where the
-     * agent's program throws stderr away; debug lines are kept only when they are asked for.
+     * agent's program throws stderr away, and the line of each finished call. Other debug lines
+     * are kept only when they are asked for.
      */
     static synchronized void keep(int lines) {
         keep = Math.max(0, lines);

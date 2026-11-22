@@ -201,7 +201,7 @@ page that owns it:
 Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 
 ```json
-{ "type": "challenge", "nonce": "…", "versions": [2] }
+{ "type": "challenge", "nonce": "…", "versions": [2], "clientId": "c-1a2b3c4d" }
 { "type": "auth", "nonce": "…", "proof": "…", "version": 2 }
 { "type": "auth_ok", "proof": "…", "version": 2, "clientId": "c-1a2b3c4d", "clientName": "…" }
 
@@ -225,6 +225,13 @@ learns it later. An agent names itself when it opens its connection to the serve
 (`initialize`), and a server started by hand calls itself *Started by hand*. When a name
 arrives, the extension tells every server its sessions anew: a name can make sessions an
 agent's own ([architecture](architecture.md#sessions)).
+
+`clientId` in `challenge` is who the server says it is before anything is proven. The
+extension uses it for one thing: the server of an agent the user disconnected is closed there
+with 4403, without a proof being sent, so that server never counts the extension as connected
+and logs nothing. Nothing is granted on it; that takes the id in `auth_ok`, which is proven.
+The field is optional: without it a disconnected agent is turned away after the pairing, as
+before, and an older extension ignores it.
 
 The extension takes the messages of a connection in the order they came. One that arrives while
 it still checks the proof in `auth_ok` waits for that, and is then a message like any other.

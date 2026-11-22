@@ -150,7 +150,7 @@ public final class McpMain {
             service.noteClient(STARTED_BY_HAND);
         }
         if (options.panel()) {
-            showPanel(bridge, startupProblem, tokens, Panel::possible);
+            showPanel(bridge, startupProblem, byHand, tokens, Panel::possible);
         }
 
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
@@ -170,22 +170,24 @@ public final class McpMain {
         Thread.currentThread().join();
     }
 
+    /** What a server calls its agent when a person started it in a terminal and no agent talks to it. */
+    static final String STARTED_BY_HAND = "Started by hand";
+
     /**
      * Shows the server's panel, if a window can be shown here. A server never fails for want of
      * its panel: without a display, or if the window cannot be made, it says so in the log and
      * runs as it does without the option. Returns whether the panel was opened.
+     *
+     * @param byHand a person started this server in a terminal: its panel says that no agent talks to it
      */
-    /** What a server calls its agent when a person started it in a terminal and no agent talks to it. */
-    static final String STARTED_BY_HAND = "Started by hand";
-
-    static boolean showPanel(WebSocketBridge bridge, String startupProblem, Supplier<String> token,
+    static boolean showPanel(WebSocketBridge bridge, String startupProblem, boolean byHand, Supplier<String> token,
             BooleanSupplier possible) {
         try {
             if (!possible.getAsBoolean()) {
                 Log.warn("panel not shown reason=no_display");
                 return false;
             }
-            Panel.open(() -> PanelModel.of(bridge, startupProblem),
+            Panel.open(() -> PanelModel.of(bridge, startupProblem, byHand),
                     command -> carryOut(command, bridge, token, Panel::copySecret));
             Log.info("panel shown");
             return true;

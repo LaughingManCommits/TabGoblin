@@ -1671,6 +1671,8 @@ try {
     await popup.waitForFunction((selector) => document.querySelector(`${selector} .tabs`)?.textContent === '1 tab', {}, agentRow);
     has(await popup.$eval(agentRow, (el) => el.querySelector('.disconnect').title), 'ends its 1 tab');
     has(await popup.$eval(`#agents li[data-client="${oneId}"] .tabs`, (el) => el.textContent), '2 tabs');
+    const lines = (text, part) => text.split('\n').filter((line) => line.includes(part)).length;
+    const pairedBefore = lines(two.stderr, 'extension connected');
     await popup.$eval(`${agentRow} .disconnect`, (el) => el.click());
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
     // Its tab is gone from the popup, and the list says why. The other agent's tabs are still there.
@@ -1684,6 +1686,11 @@ try {
     has(refused.text, 'user disconnected this agent');
     await sleep(2500); // it must not slip back in on the next scan
     fails(await two.tool('browser_snapshot'), 'NOT_CONNECTED');
+    // Its server was looked at again meanwhile, as every port is. It was turned away on what it
+    // says of itself, before any pairing: its log has the one disconnect and nothing after it.
+    assert(lines(two.stderr, 'code=4403') === 1, `one disconnect in the server's log, got ${lines(two.stderr, 'code=4403')}`);
+    assert(lines(two.stderr, 'extension connected') === pairedBefore,
+      `the server was paired with again after the disconnect: ${lines(two.stderr, 'extension connected') - pairedBefore} times`);
     ok(await one.tool('browser_snapshot', { session: sA }));
     lacks((await one.tool('browser_status')).text, demo.originB);
 

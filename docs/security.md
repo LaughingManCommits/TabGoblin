@@ -83,6 +83,7 @@ such servers, *Started by hand*. An agent without a name is given nothing.
 | Loopback only | Servers bind `127.0.0.1` |
 | Origin pinning | The WebSocket handshake must carry this extension's `chrome-extension://` id; web pages cannot forge it |
 | Mutual proof | HMAC challenge-response over the pairing token in both directions; the token is never sent, so a process squatting on the port cannot drive the browser either |
+| Nothing on an unproven word | A server names itself in its first message, before the proof. The extension uses that only to turn away an agent you disconnected; what a server is given depends on the id in its proven answer |
 | Version negotiation | A peer speaking another protocol version is refused with a reason |
 | Lockout | Ten failed pairings block new connections to that server for a minute |
 | Rotation | `--rotate-token` ends every pairing before its next command |
@@ -196,7 +197,7 @@ is loaded. What it shows and how to use it is in the
 | It gives an agent nothing | Stop, kill, and a switch that closes the connection to the extension and refuses it until switched on. It authorizes no tab and changes no access level |
 | The pairing token is handed over, not shown | A button puts the token on the clipboard, for the popup. The token is read at that moment and goes nowhere else: it is not in the window, not in what the window is given to show, and not in the log, which says only that it was copied. It leaves the clipboard after a minute, and when the server is stopped from the panel, if it is still what the clipboard holds |
 | Ending takes two clicks | Stop and Kill act on the second click, within four seconds of the first. No button has the keyboard when the window appears |
-| Memory only | The last 300 log lines are kept in memory for the window and nowhere else. Nothing of TabGoblin's is written to disk for it |
+| Memory only | The last 300 log lines are kept in memory for the window and nowhere else, the line of each tool call among them: its id, session, action, duration and outcome, as under [Logging](#logging). Nothing of TabGoblin's is written to disk for it |
 
 Where it stops:
 
@@ -230,6 +231,7 @@ Where it stops:
 | Another agent's session unreachable, forged session id refused | Rules, worker, end-to-end |
 | A disconnected agent's sessions end with it; allowed again, it has no tab and its old session id is refused | Rules, worker, end-to-end |
 | An agent of the same name inherits nothing from a disconnected one | Rules, worker |
+| A disconnected agent's server is turned away on what it says of itself, before any proof, and never counts the extension as connected; a server that names another agent there is given nothing of that agent's | Java, worker |
 | A server that is started again is told its tabs by the extension, by its agent's name, before it calls a tool; an agent without a name is told of none, and another agent of none | Java, worker, end-to-end |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |

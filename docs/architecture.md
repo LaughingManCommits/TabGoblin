@@ -54,7 +54,7 @@ sequenceDiagram
   participant S as Server
   Note over S: bound to 127.0.0.1, Origin must be the extension's id
   E->>S: WebSocket handshake
-  S->>E: challenge { nonce, versions: [2] }
+  S->>E: challenge { nonce, versions: [2], clientId }
   E->>S: auth { nonce, proof = HMAC(token, "client:"+sn+":"+cn), version: 2 }
   S->>E: auth_ok { proof = HMAC(token, "server:"+sn+":"+cn), clientId, clientName }
   Note over E,S: both sides proved they know the token, which never crossed the socket
@@ -148,6 +148,14 @@ it could have taken up with its next command (`sessionsOfAgent` in `policy.ts`).
 agent has taken up yet stays. So nothing waits for *Allow again*, and nothing is left for an
 agent of the same name to inherit. An agent that goes away by itself keeps its sessions, as
 above.
+
+The server of a disconnected agent keeps running, and the extension cannot know whose server
+holds a port without connecting to it. So it connects each time it looks at the ports, and the
+server says who it is in its first message (`clientId` in `challenge`). On that the extension
+closes the connection again, before it has proven anything: the server never counts it as
+connected, its status stays *disconnected in the extension's popup*, and its log says nothing.
+What a server says there turns it away and gives it nothing; a server from before this is
+turned away after the pairing, on the id in its proven answer.
 
 **Why "suspended" exists.** Chrome withdraws the `activeTab` grant whenever a tab changes origin,
 and only a user click on the extension's icon gives it back. So after any cross-origin move the
@@ -295,7 +303,10 @@ window's code is loaded. What the user sees and can do there is in the
   say where the connection was switched off.
 - **The log is kept only when the panel is asked for:** the last 300 lines, in memory, from the
   server's first line on. They are the lines written to standard error at the level `BCMCP_LOG`
-  sets, except that info and warning lines are kept even where `BCMCP_LOG` silences them. In
+  sets, with two additions: info and warning lines are kept even where `BCMCP_LOG` silences
+  them, and so is the line of each tool call that went through, which standard error has only
+  at the level `debug`. Without that the window's log has the calls that failed and none that
+  worked, and it is where the user looks for what the agent did (`Log.command`). In
   the window the log follows its last line unless the user reads in it. Where the last line
   is, is known only after new lines were laid out, so the view is brought down each time their
   height changes.

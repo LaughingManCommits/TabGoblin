@@ -161,6 +161,8 @@ class WebSocketBridgeTest {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         assertTrue(bridge.isExtensionConnected());
         assertEquals(Protocol.VERSION, ext.challenge.path("versions").get(0).asInt());
+        // Who it is, is in its first message as well: an extension can turn it away on that alone.
+        assertEquals(bridge.clientId(), ext.challenge.path("clientId").asString());
         assertEquals(bridge.clientId(), ext.clientId);
         assertTrue(ext.clientId.matches("c-[0-9a-f]{8}"));
 
@@ -377,6 +379,50 @@ class WebSocketBridgeTest {
         BrowserException e = assertThrows(BrowserException.class, () -> bridge.send("snapshot", "s1", null, SHORT));
         assertEquals("NOT_CONNECTED", e.code());
         assertTrue(e.getMessage().contains("user disconnected this agent"), e.getMessage());
+    }
+
+    /**
+     * While its popup is open, the extension looks at every port every few seconds, and the server
+     * of an agent the user disconnected is still on one of them. It is turned away on what it says
+     * of itself in its first message, before the extension has proven anything. The server then
+     * never counted the extension as connected: its status stays what it was, and its log says
+     * nothing. Before, each look was a pairing and a close, and a panel's log filled with them.
+     */
+    @Test
+    void anExtensionThatLeavesAtTheFirstMessageWasNeverConnectedAndLeavesNoLine() throws Exception {
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        ext.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
+        await(() -> bridge.lastCloseCode() == Protocol.CLOSE_USER_DISCONNECTED);
+
+        Log.keep(50);
+        try {
+            long lines = Log.count();
+            for (int look = 0; look < 3; look++) {
+                // Proves nothing: it has no token to prove with. It reads who the server is and goes.
+                FakeExtension again = new FakeExtension(port, FakeExtension.ORIGIN, null);
+                assertTrue(again.connectBlocking(3, TimeUnit.SECONDS));
+                for (int i = 0; i < 100 && again.challenge == null; i++) {
+                    Thread.sleep(20);
+                }
+                assertEquals(bridge.clientId(), again.challenge.path("clientId").asString());
+                again.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
+                assertEquals(Protocol.CLOSE_USER_DISCONNECTED, again.closed.get(3, TimeUnit.SECONDS));
+                assertFalse(bridge.isExtensionConnected());
+                assertEquals(0, bridge.connectedSince());
+            }
+            // Longer than the time a connection is given to prove itself: nothing follows from it.
+            Thread.sleep(600);
+            assertEquals(Protocol.CLOSE_USER_DISCONNECTED, bridge.lastCloseCode(), "the reason it is not connected stays the user's");
+            assertEquals(lines, Log.count(), () -> "written meanwhile: "
+                    + Log.recent().stream().map(Log.Line::text).toList());
+        } finally {
+            Log.keep(0);
+        }
+
+        // Allowed again, it pairs as always: what was turned away counted as no failed pairing.
+        FakeExtension back = FakeExtension.paired(port, TOKEN);
+        assertTrue(bridge.isExtensionConnected());
+        back.closeBlocking();
     }
 
     @Test

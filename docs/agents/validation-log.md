@@ -3,6 +3,65 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `by-hand-panel`: what a server started by hand says, a disconnected agent's server left alone, and a panel that shows what the agent did
+
+The owner asked for a walk through GitHub with the tools, and then for the fixes of what it
+showed. A server started by hand with its panel stood beside the session's own server, which
+had no window: the owner authorized a tab for the first, which no agent can use, and watched
+its panel for the agent's sessions, times and calls. That panel's log filled with a pairing
+and a close every few seconds, after its agent had been disconnected in the popup. Asked for
+on the way: the card of the times is to be called Metrics, and the log is to show what the
+agent did.
+
+The walk itself, on a tab of `github.com`, some seventy tool calls through the session's own
+server, first with the owner's extension as built at 10:03 and then with the one built at
+15:47. With Read: outline, sections, scrolling, a wait, two screenshots; a fill, a navigation,
+the Tab key and a link refused with the level each needs. With Explore: links followed, pages
+read, the Actions page and the list of commits, the way back, a folder opened in the file
+tree; another site refused, buttons refused, one screenshot refused while another tab was in
+front. No fault of the tools was found. A file in GitHub's file tree could not be opened by a
+click with Explore: it is a tree item and no link, so it counts as a control; its address
+opens it.
+
+All of the following on the final sources, in a copy of the tree with a jar built there.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 92 tests, 3 of them new, and the 8 of the conformance check on the built jar; none skipped, none failed |
+| `cd chrome-extension && npm run check` | type-check clean, 156 tests, 1 of them new, build |
+| `cd e2e && npm test` | 94 passed, 0 failed. The step that disconnects an agent now reads the server's log: one disconnect, and no pairing after it, across the next looks at the ports |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The new worker test fails against the worker as it was: a proof went to the disconnected
+agent's server again. The picture tool drew ten states. Opened and looked at: the first, which
+is the documentation's picture and was taken into `docs/images` with the card's new name, and
+the two of a server started by hand, without a tab and with one of its own beside one that is
+open to any agent.
+
+By hand, in the real windows on Windows with Java 21, read through the accessibility interface:
+
+- A server started in a console of its own from a jar built in a copy, not connected to a
+  browser: the box under the status line, the words of both cards, and the box, the cards'
+  words, Copy, Stop, Kill and the version line all inside the window (444 by 804).
+- The owner's own server started by hand from the jar the owner built at 15:47, connected: the
+  box, *1 tab* for a tab the owner had authorized for any agent, and under it the line that no
+  agent can use it. That line was wrong: the session used the tab a moment later, and the
+  window then said *No tab is authorized for this server*. Mended after that: the line speaks
+  of the server's own tabs, and an open tab is marked *any agent*. The mended form was drawn
+  and tested, not seen in a real window.
+- The session's own server, after the owner's Reconnect in Claude Code at 15:59, from the same
+  jar and with `--panel`: its window named `claude-code`, the tab, the four shares over the
+  last six calls, and a log with the start, the connection and the one call that was refused.
+  The calls that went through were not in it, which is what the owner had missed; they are
+  kept now, tested, and not seen in a real window, which needs the jar built again.
+- That Reconnect was the first restart of a real agent's server: the new server, with another
+  id, had the tab at once, by the name `claude-code`.
+
+Not tried: an older extension against this server and the other way round, which are as before
+by the source and by one half of the worker test; the owner's extension with a disconnected
+agent, by hand. Not seen on GitHub: the picture in the two READMEs with its wider edge, which
+needs a push. Not run: the editor lab; Linux and macOS; CI, which has no credit.
+
 ## 2026-11-22, on `restart-keeps-tabs`: a server that is started again has its tabs at once
 
 The owner: a server stopped with a session and started again did not show the session in its
@@ -515,43 +574,16 @@ four jobs: Java server, Chrome extension, End to end, Editors.
 Also in this session: WP-10 to WP-14 filed in `TODO.md`, none started. For WP-14 the tracked
 files and the history were searched for personal information; what was found is in the package.
 
-## 2026-11-21, on `folding-panels`: panels that fold
-
-Sessions, Activity, Agents and Settings fold to one line each, which says what is inside. All on
-the final build of the branch.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check` | type-check clean, 136 tests, build |
-| `cd e2e && npm test` | 93 passed, 0 failed. The new step folds all four, reads each line, opens the popup again and finds them folded, and unfolds them. |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `FULL=1 node screenshots.mjs prompts` | looked at: all four folded (dark), two folded (light). Without `FULL`: 32 pictures. |
-| `HEADED=1 node screenshots.mjs` | eleven pictures, one of them new (`popup-folded.png`); all eleven opened after the last run |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Found by the suite, and a fault of the feature, not of the test: a step presses Tab and Enter
-the instant a prompt appears, for keys that were on their way to the page. With the answers held
-for that moment, Tab went on to the heading of Sessions and Enter folded it; three later steps
-then could not find the Authorize button. For that moment the rest of the popup now takes no key
-or click. The step checks that no panel is folded afterwards.
-
-Failed on the way, besides that: the new step assumed two agents where one is connected, and
-left the panels folded when it failed; it now unfolds them whatever happens. A worker test asked
-for a wait of exactly 0 ms where 1 ms is in order. The first picture of the folded popup caught
-the arrows turning and the pointer on a heading; the script now waits and moves the pointer.
-
-And the commit was first made on `main`. The owner had merged `pairing-race` meanwhile; the
-command that committed printed the branch first, and nobody read it. The commit was moved to
-`folding-panels` and local `main` set back to the remote's. The working rule in `AGENTS.md` now
-says how to make the commit refuse.
-
-Not run: the server's suites (nothing in the server changed) and the Linux container (Docker
-was not running after a restart of the machine). Not tried: folding with the keyboard by hand,
-and a screen reader on the folded headings; the suite reads `aria-expanded` only.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `folding-panels` (Sessions, Activity, Agents and Settings fold to one line
+  each): extension 136 tests; end to end 93 of 93, with a step that folds all four and finds
+  them folded when the popup opens again; editor lab 222 and 220 of 225, no `SILENT`; eleven
+  of the documentation's pictures, one new, all opened. Found by the suite: a key on its way
+  to the page folded a panel the instant a prompt appeared; the rest of the popup takes no key
+  or click for that moment now. The commit was first made on `main` and moved; the rule in
+  `AGENTS.md` that makes the commit refuse comes from that. Not run: the server's suites, the
+  Linux container. Not tried: folding with the keyboard by hand, a screen reader.
 - 2026-11-21, on `pairing-race`, the look of the popup (a pass for alignment: headings and
   their actions on one baseline, settings with a heading, a session's chips under its address
   where they do not fit beside it): extension 132 tests; end to end 92 of 92; editor lab 222

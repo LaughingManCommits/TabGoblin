@@ -33,9 +33,11 @@ flowchart LR
   end
   S1 -- "WebSocket on 127.0.0.1<br/>paired with a token" --> X
   S2 -- "WebSocket on 127.0.0.1" --> X
-  %% An empty place at the right edge: GitHub lays its zoom buttons over the bottom right corner of a diagram.
-  T3 ~~~ ROOM["&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"]
-  style ROOM fill:none,stroke:none
+  %% Empty places at the right edge: GitHub lays its zoom buttons over the bottom right corner of a
+  %% diagram. One was too little: an empty box has next to no width there, only the gap before it.
+  T3 ~~~ ROOM1[" "] ~~~ ROOM2[" "]
+  style ROOM1 fill:none,stroke:none
+  style ROOM2 fill:none,stroke:none
 ```
 
 - The **agent** understands the website and decides what to do.

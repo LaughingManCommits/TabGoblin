@@ -20,7 +20,8 @@ export interface CommandMessage {
 }
 
 export type ServerMessage =
-  | { type: 'challenge'; nonce: string; versions: number[] }
+  /** `clientId` is who the server says it is before anything is proven; empty from a server that does not say. */
+  | { type: 'challenge'; nonce: string; versions: number[]; clientId: string }
   | { type: 'auth_ok'; proof: string; version: number; clientId: string; clientName: string }
   | { type: 'pong' }
   | { type: 'cancel'; id: string }
@@ -41,7 +42,7 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     case 'challenge': {
       const nonce = str(raw.nonce, 128);
       const versions = Array.isArray(raw.versions) ? raw.versions.filter((v): v is number => Number.isInteger(v)) : [];
-      return nonce ? { type: 'challenge', nonce, versions } : null;
+      return nonce ? { type: 'challenge', nonce, versions, clientId: str(raw.clientId, 64) ?? '' } : null;
     }
     case 'auth_ok': {
       const proof = str(raw.proof, 128);

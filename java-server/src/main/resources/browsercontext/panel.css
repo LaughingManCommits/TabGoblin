@@ -129,6 +129,16 @@
     -fx-font-size: 12px;
 }
 
+/* Said by a server that no agent talks to: quiet, in the card's own colours, and not a warning. */
+.note {
+    -fx-background-color: -tg-line, -tg-raised;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 10, 9;
+    -fx-padding: 8 11 8 11;
+    -fx-text-fill: -tg-fg;
+    -fx-font-size: 12px;
+}
+
 /* ---------- cards ---------- */
 .card {
     -fx-background-color: -tg-line, -tg-card;

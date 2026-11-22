@@ -177,12 +177,15 @@ cd java-server
 java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
 ```
 
-On Linux and macOS the separator in the class path is `:`. Success: eight pictures at double
+On Linux and macOS the separator in the class path is `:`. Success: ten pictures at double
 size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
-window with the system's frame, an agent with nine tabs, and the most there is to show on a
-low screen. In every one the header and the whole Control card must be inside the window:
-look at the last two for that. They are drawn by the server's own code from made-up states;
+window with the system's frame, an agent with nine tabs, the most there is to show on a low
+screen, and a server started by hand without a tab and with two. In every one the header and
+the whole Control card must be inside the window: look at the seventh and the eighth for that.
+The last two must say that no agent talks to the server: in a box under the status line, in
+both cards, and under the tabs, where the one that is open to any agent is marked *any agent*
+and the line speaks of the other. They are drawn by the server's own code from made-up states;
 no window is shown and nothing of the screen is read. It needs a display, because JavaFX does
 not start without one. `1-connected.png` is the documentation's picture: copy it to
 `docs/images/server-panel.png` when it has changed.

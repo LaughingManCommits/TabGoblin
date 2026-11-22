@@ -64,7 +64,7 @@ class PanelTest {
         String all = String.join("\n", words);
         for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d  ·  port 47821",
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
-                "s2", "docs.example.org", "Read", "paused", "WHERE THE TIME WENT", "the last 5 calls", "Agent and its model",
+                "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
                 "Stop server", "Kill", "TabGoblin 9.8.7 · protocol 2")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + all);
@@ -280,6 +280,47 @@ class PanelTest {
                 "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
                 "no tabs", "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));
+        }
+    }
+
+    @Test
+    void aServerStartedByHandSaysSoUnderItsStatusAndInItsCards() throws Exception {
+        record Shown(List<String> agents, List<String> byHand, List<String> again) {
+        }
+        var none = new Timings.Shares(0, 0, 0, 0, 0);
+        PanelModel agents = PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, true, false, 1_000, 0,
+                List.of(), none, List.of(), ZoneId.of("UTC"));
+        var tab = List.of(new Protocol.Session("s1", "c-1a2b3c4d", "a1", "https://mail.example.com", 7, 0, "d1", "read", 2,
+                "active", "Inbox", "https://mail.example.com/mail"),
+                // Authorized for any agent, and used by none yet: listed here too, and marked.
+                new Protocol.Session("s2", "", "a2", "https://docs.example.org", 8, 0, "d2", "explore", 1, "active",
+                        "Guide", "https://docs.example.org/guide", true));
+        PanelModel withTab = PanelModel.of("Started by hand", "c-1a2b3c4d", 47821, "9.8.7", null, true, false, 1_000, 0,
+                tab, none, List.of(), ZoneId.of("UTC")).startedByHand();
+        Shown shown = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(agents);
+            var first = view.words();
+            // The same view goes from one to the other: what it says changes though no tab and no time did.
+            view.show(agents.startedByHand());
+            var second = view.words();
+            view.show(withTab);
+            return new Shown(first, second, view.words());
+        });
+        String note = agents.startedByHand().note();
+        assertFalse(note.isEmpty());
+        // An agent's own server says nothing of the kind.
+        assertFalse(shown.agents().contains(note), String.join("\n", shown.agents()));
+        assertTrue(shown.agents().contains("No tab is authorized for this agent"));
+        assertTrue(shown.agents().contains("No tool call has ended yet"));
+        for (String said : List.of(note, "No tab is authorized for this server", "No tool calls: no agent talks to this server")) {
+            assertTrue(shown.byHand().contains(said), said + " is not among:\n" + String.join("\n", shown.byHand()));
+        }
+        assertFalse(shown.byHand().contains("No tab is authorized for this agent"));
+        // With a tab: the tab, and under it that nobody works there.
+        for (String said : List.of(note, "s1", "mail.example.com", "s2", "docs.example.org", "any agent",
+                "No agent can use the tab that is authorized for this server: authorize it for the agent, in the extension's popup")) {
+            assertTrue(shown.again().contains(said), said + " is not among:\n" + String.join("\n", shown.again()));
         }
     }
 }

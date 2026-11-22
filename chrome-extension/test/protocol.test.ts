@@ -3,8 +3,15 @@ import { test } from 'node:test';
 import { PROTOCOL_VERSION, commandTiming, parseServerMessage } from '../src/protocol.ts';
 
 test('well-formed protocol messages are typed', () => {
-  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [1, 2] }),
-    { type: 'challenge', nonce: 'abc', versions: [1, 2] });
+  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [1, 2], clientId: 'c-1' }),
+    { type: 'challenge', nonce: 'abc', versions: [1, 2], clientId: 'c-1' });
+  // A server from before it said who it is in its first message, or one that says it wrongly: nobody.
+  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [2] }),
+    { type: 'challenge', nonce: 'abc', versions: [2], clientId: '' });
+  for (const noId of [7, '', 'x'.repeat(65), null, ['c-1']]) {
+    assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [2], clientId: noId }),
+      { type: 'challenge', nonce: 'abc', versions: [2], clientId: '' });
+  }
   assert.deepEqual(parseServerMessage({ type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION, clientId: 'c-1', clientName: 'IDE' }),
     { type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION, clientId: 'c-1', clientName: 'IDE' });
   assert.deepEqual(parseServerMessage({ type: 'cancel', id: '17' }), { type: 'cancel', id: '17' });
@@ -19,7 +26,7 @@ test('well-formed protocol messages are typed', () => {
 });
 
 test('a pre-versioning server offers no versions', () => {
-  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc' }), { type: 'challenge', nonce: 'abc', versions: [] });
+  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc' }), { type: 'challenge', nonce: 'abc', versions: [], clientId: '' });
 });
 
 test('malformed or forged messages are rejected', () => {

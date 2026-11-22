@@ -12,10 +12,14 @@ import java.util.List;
  * <p>It is what this server holds, and less: of a session the site, the access level and the
  * state, not the page's title or address, which the status tool gives the agent and the log
  * leaves out. One server is one agent, so there is nothing of other agents in it.
+ *
+ * <p>{@code byHand} is a server that a person started in a terminal. No agent talks to it, so it
+ * never has a tool call, and a tab authorized for it is used by nobody. Its panel is easily taken
+ * for the place where an agent's work shows: it says in words that it is not.
  */
-record PanelModel(String agent, String identity, int port, String version, String problem, boolean connected,
-        boolean switchedOff, String connection, List<Row> sessions, int tabs, int calls, List<Share> times,
-        List<String> log) {
+record PanelModel(String agent, boolean byHand, String identity, int port, String version, String problem,
+        boolean connected, boolean switchedOff, String connection, List<Row> sessions, int tabs, int open, int calls,
+        List<Share> times, List<String> log) {
 
     /**
      * How many sessions the panel lists. The window has a fixed height and must keep room for its
@@ -23,8 +27,16 @@ record PanelModel(String agent, String identity, int port, String version, Strin
      */
     static final int LISTED = 3;
 
-    /** One session, as the popup lists it: its id, the site, the access level and what state it is in. */
-    record Row(String id, String site, String access, String state) {
+    /**
+     * One session, as the popup lists it: its id, the site, the access level and what state it is
+     * in. {@code open} is a tab that the user authorized for any agent and none has used yet. It
+     * is listed by every server, and is this one's own only from its agent's first command on.
+     */
+    record Row(String id, String site, String access, String state, boolean open) {
+        /** A session that is this server's own. */
+        Row(String id, String site, String access, String state) {
+            this(id, site, access, state, false);
+        }
     }
 
     /** One heap of the time of the last tool calls, as a share of all of it. {@code yours} marks the user's own. */
@@ -33,15 +45,26 @@ record PanelModel(String agent, String identity, int port, String version, Strin
 
     private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss");
 
-    /** Reads everything from the running server. */
-    static PanelModel of(WebSocketBridge bridge, String startupProblem) {
+    /**
+     * Reads everything from the running server.
+     *
+     * @param byHand a person started this server in a terminal, and no agent talks to it
+     */
+    static PanelModel of(WebSocketBridge bridge, String startupProblem, boolean byHand) {
         // Asked once, so that the picture agrees with itself. And no tabs without a connection: for a
         // moment after a connection has closed the server still holds what it reported.
         boolean connected = bridge.isExtensionConnected();
-        return of(bridge.clientName(), bridge.clientId(), bridge.getPort(), McpMain.version(), startupProblem,
+        PanelModel model = of(bridge.clientName(), bridge.clientId(), bridge.getPort(), McpMain.version(), startupProblem,
                 connected, bridge.isHeld(), bridge.connectedSince(), bridge.lastCloseCode(),
                 connected ? bridge.sessions() : List.of(), bridge.timings().shares(), Log.recent(),
                 ZoneId.systemDefault());
+        return byHand ? model.startedByHand() : model;
+    }
+
+    /** The same of a server that a person started in a terminal: no agent talks to it. */
+    PanelModel startedByHand() {
+        return new PanelModel(agent, true, identity, port, version, problem, connected, switchedOff, connection,
+                sessions, tabs, open, calls, times, log);
     }
 
     static PanelModel of(String agent, String clientId, int port, String version, String problem, boolean connected,
@@ -49,11 +72,12 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             Timings.Shares time, List<Log.Line> log, ZoneId zone) {
         // An agent says its name with its first tool call. Until then it goes by its id, as in the popup.
         boolean named = agent != null && !agent.isBlank();
-        return new PanelModel(named ? agent : "Agent " + clientId,
+        return new PanelModel(named ? agent : "Agent " + clientId, false,
                 (named ? agent + "  ·  " + clientId : "Agent " + clientId) + "  ·  port " + port,
                 port, version, problem, connected, switchedOff,
                 connection(connected, switchedOff, connectedSince, lastCloseCode, zone),
-                sessions.stream().limit(LISTED).map(PanelModel::row).toList(), sessions.size(), time.calls(), shares(time),
+                sessions.stream().limit(LISTED).map(PanelModel::row).toList(), sessions.size(),
+                (int) sessions.stream().filter(Protocol.Session::unclaimed).count(), time.calls(), shares(time),
                 log.stream().map(line -> logLine(line, zone)).toList());
     }
 
@@ -63,7 +87,8 @@ record PanelModel(String agent, String identity, int port, String version, Strin
     }
 
     private static Row row(Protocol.Session session) {
-        return new Row(session.sessionId(), site(session.origin()), access(session.mode()), session.state());
+        return new Row(session.sessionId(), site(session.origin()), access(session.mode()), session.state(),
+                session.unclaimed());
     }
 
     /** The site as the popup shows it: without the scheme when that is https. */
@@ -132,8 +157,48 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         return more <= 0 ? "" : "and " + more + " more: the extension's popup lists every tab";
     }
 
-    /** Over how many calls the time is counted. */
+    /**
+     * What stands under the status line of a server that was started by hand, and is empty for any
+     * other: that no agent's work shows here, and where it does show.
+     */
+    String note() {
+        return byHand ? "Started by hand: no agent talks to this server. An agent's tabs and tool calls are in its "
+                + "own server's window, which that server shows when it is started with --panel." : "";
+    }
+
+    /** What stands in place of the sessions while none is listed. */
+    String noSessions() {
+        if (!connected) {
+            return "Not known while the browser is not connected";
+        }
+        return byHand ? "No tab is authorized for this server" : "No tab is authorized for this agent";
+    }
+
+    /**
+     * What is said under the sessions of a server that was started by hand; empty where there is
+     * nothing to say. A tab can be authorized for it, and then nobody works in that tab. That is
+     * said of its own tabs only: one that is open to any agent is listed here too, and an agent
+     * can take it.
+     */
+    String notUsed() {
+        int own = tabs - open;
+        if (!byHand || own <= 0) {
+            return "";
+        }
+        String which = own < tabs
+                ? (own == 1 ? "the tab that is authorized for this server" : "the tabs that are authorized for this server")
+                : own == 1 ? "this tab" : "these tabs";
+        return "No agent can use " + which + ": authorize " + (own == 1 ? "it" : "them")
+                + " for the agent, in the extension's popup";
+    }
+
+    /** What stands in place of the times while there are none to show. */
+    String noTimes() {
+        return byHand ? "No tool calls: no agent talks to this server" : "No tool call has ended yet";
+    }
+
+    /** What the metrics are of: time, and over how many calls it is counted. */
     String callsCount() {
-        return calls == 0 ? "" : calls == 1 ? "the last call" : "the last " + calls + " calls";
+        return calls == 0 ? "" : calls == 1 ? "time of the last call" : "time of the last " + calls + " calls";
     }
 }

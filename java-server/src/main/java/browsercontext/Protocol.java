@@ -8,7 +8,7 @@ import tools.jackson.databind.node.ObjectNode;
  * Typed messages of the Java-to-extension WebSocket protocol. Independent of MCP.
  *
  * <pre>
- * server: {"type":"challenge","nonce":"..","versions":[2]}
+ * server: {"type":"challenge","nonce":"..","versions":[2],"clientId":"c-1a2b3c4d"}
  * ext:    {"type":"auth","nonce":"..","proof":"..","version":2}
  * server: {"type":"auth_ok","proof":"..","version":2,"clientId":"c-1a2b3c4d","clientName":".."}
  * server: {"id":"17","action":"click","session":"s2","params":{..},"deadline":1700000000000}
@@ -85,15 +85,28 @@ final class Protocol {
         }
     }
 
-    /** A browser session as the extension reports it: one authorized tab bound to one agent. */
+    /**
+     * A browser session as the extension reports it: one authorized tab bound to one agent.
+     * {@code unclaimed} is a tab the user authorized for any agent, which none has used yet: the
+     * extension reports it to every server, and it is the agent's own from its first command on.
+     */
     record Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
-            String documentId, String mode, int generation, String state, String title, String url) {
+            String documentId, String mode, int generation, String state, String title, String url, boolean unclaimed) {
+
+        /** A session that is this agent's own. */
+        Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
+                String documentId, String mode, int generation, String state, String title, String url) {
+            this(sessionId, clientId, authorizationId, origin, tabId, frameId, documentId, mode, generation, state, title,
+                    url, false);
+        }
+
         static Session parse(JsonNode n) {
             return new Session(n.path("session").asString(""), n.path("clientId").asString(""),
                     n.path("authorizationId").asString(""), n.path("origin").asString(""), n.path("tabId").asInt(-1),
                     n.path("frameId").asInt(0), n.path("documentId").asString(""), n.path("mode").asString("read"),
                     n.path("generation").asInt(0), n.path("state").asString("active"),
-                    n.path("tab").path("title").asString(""), n.path("tab").path("url").asString(""));
+                    n.path("tab").path("title").asString(""), n.path("tab").path("url").asString(""),
+                    n.path("owner").asString("").equals("unclaimed"));
         }
     }
 

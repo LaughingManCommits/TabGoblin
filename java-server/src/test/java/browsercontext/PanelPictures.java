@@ -21,8 +21,9 @@ import javax.imageio.ImageIO;
  * <p>The panel is drawn by the server's own code from made-up states, without a window being
  * shown and without a server. It needs a display all the same: JavaFX does not start without one.
  * Nothing of the screen is read, so nothing else that is on it can get into a picture. The first
- * picture is the one the documentation shows ({@code docs/images/server-panel.png}); the last is
- * the panel as it fills a window with the system's frame, as on Linux and macOS.
+ * picture is the one the documentation shows ({@code docs/images/server-panel.png}); the sixth is
+ * the panel as it fills a window with the system's frame, as on Linux and macOS; the last two are
+ * a server that a person started in a terminal, which no agent talks to.
  */
 final class PanelPictures {
 
@@ -105,7 +106,15 @@ final class PanelPictures {
                 // The most there is to show, on a screen 768 pixels high with a taskbar: everything has to stay inside.
                 new State("8-low-screen", model("claude-code",
                         "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
-                        true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680));
+                        true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680),
+                // Started in a terminal: it says that no agent's work shows here, with no tab, and with one
+                // of its own beside one that is open to any agent.
+                new State("9-by-hand", model(McpMain.STARTED_BY_HAND, null, true, false, NOW - 498_000, 0, List.of(), none,
+                        log.subList(0, 3)).startedByHand(), false),
+                new State("10-by-hand-tab", model(McpMain.STARTED_BY_HAND, null, true, false, NOW - 498_000, 0,
+                        List.of(sessions.get(0), new Protocol.Session("s4", "", "a-s4", "https://docs.example.org", 9, 0, "d4",
+                                "read", 1, "active", "A page title that must not show", "https://docs.example.org/not/shown", true)),
+                        none, log.subList(0, 3)).startedByHand(), false));
     }
 
     private static PanelModel model(String agent, String problem, boolean connected, boolean off, long since, int closeCode,

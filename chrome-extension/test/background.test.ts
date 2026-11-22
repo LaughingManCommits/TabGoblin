@@ -115,6 +115,12 @@ class FakeServer {
   eagerAnswers: Promise<any>[] = [];
   /** A server that hangs: its connections stay open, and it says nothing, to old ones and to new ones. */
   silent = false;
+  /** Says who it is in its first message, as a server does now. One from before that says it only in its proven answer. */
+  announces = true;
+  /** Who it says it is there. Its own id, unless a test has it name another. */
+  announced: string;
+  /** How many times the extension proved to this server that it knows the token. */
+  proofs = 0;
   closeCodes: number[] = [];
   events: any[] = [];
   private nonce = 'a'.repeat(32);
@@ -126,6 +132,7 @@ class FakeServer {
 
   constructor(clientId: string, name: string, versions = [2]) {
     this.clientId = clientId;
+    this.announced = clientId;
     this.name = name;
     this.versions = versions;
   }
@@ -134,13 +141,17 @@ class FakeServer {
     this.socket = socket;
     this.paired = false;
     if (this.silent) return;
-    this.deliver({ type: 'challenge', nonce: this.nonce, versions: this.versions });
+    this.deliver(this.challenge());
+  }
+
+  private challenge(): object {
+    return { type: 'challenge', nonce: this.nonce, versions: this.versions, ...(this.announces ? { clientId: this.announced } : {}) };
   }
 
   /** The server runs again: a connection that was made meanwhile gets its answer now. */
   wake(): void {
     this.silent = false;
-    if (this.socket?.readyState === 1 && !this.paired) this.deliver({ type: 'challenge', nonce: this.nonce, versions: this.versions });
+    if (this.socket?.readyState === 1 && !this.paired) this.deliver(this.challenge());
   }
 
   async receive(msg: any): Promise<void> {
@@ -148,6 +159,7 @@ class FakeServer {
     if (msg.type === 'ping') {
       this.deliver({ type: 'pong' });
     } else if (msg.type === 'auth') {
+      this.proofs += 1;
       assert.equal(msg.proof, await clientProof(TOKEN, this.nonce, msg.nonce), 'the extension must prove it knows the token');
       this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: 2, clientId: this.clientId, clientName: this.name });
       this.paired = true;
@@ -836,6 +848,67 @@ test('what a server sends right behind the pairing is a message like any other, 
   assert.equal(s.connection, 'connected', 'no pairing has failed');
   assert.ok(!s.clients.some((c: any) => c.id === 'c-eager'));
   servers.delete(BASE_PORT + 4);
+});
+
+test('an agent the user disconnected is turned away before anything is proven to it, where its server says who it is', async () => {
+  /** Waits across scans: the popup asks for one whenever it is open, at most every 2.5 seconds. */
+  const eventually = async (condition: () => boolean | Promise<boolean>, what: string): Promise<void> => {
+    for (let i = 0; i < 160 && !(await condition()); i++) {
+      await state();
+      await sleep(50);
+    }
+    assert.ok(await condition(), `timed out waiting for ${what}`);
+  };
+  const turnedAway = (server: FakeServer): number => server.closeCodes.filter((c) => c === 4403).length;
+  const paired = async (id: string): Promise<boolean> => (await state()).clients.some((c: any) => c.id === id);
+  const back = new FakeServer('c-back', 'back-agent');
+  servers.set(BASE_PORT + 7, back);
+  await eventually(() => paired('c-back'), 'the new server to be found');
+  assert.equal(back.proofs, 1);
+
+  await popup({ type: 'disconnectClient', clientId: 'c-back' });
+  await until(() => turnedAway(back) === 1, 'the agent to be disconnected');
+  // The ports are looked at again and again while the popup is open. Its server is still there and
+  // is connected to each time, because only a connection says whose server holds a port. It says so
+  // at once, and that is where it ends: no proof goes to it, so it never counts the extension as
+  // connected and writes nothing about it. Before, each look paired with it and closed it again.
+  await eventually(() => turnedAway(back) >= 3, 'the server to be looked at again, and turned away');
+  assert.equal(back.proofs, 1, 'nothing was proven to it again');
+  assert.equal(back.paired, false);
+  assert.equal(await paired('c-back'), false);
+  assert.equal((await state()).connection, 'connected', 'and no pairing has failed');
+
+  // A server from before this says who it is only in its proven answer. It is turned away as it
+  // always was: after the pairing, and not let in.
+  back.announces = false;
+  const before = turnedAway(back);
+  await eventually(() => back.proofs >= 2 && turnedAway(back) > before, 'the older server to be paired with and turned away');
+  await sleep(50);
+  assert.equal(await paired('c-back'), false, 'a disconnected agent must not slip back in');
+  assert.equal((await state()).connection, 'connected');
+  back.announces = true;
+
+  // What a server says of itself before the proof turns it away and gives it nothing. One that
+  // names another agent there is paired with as itself, by the id in its proven answer.
+  const liar = new FakeServer('c-liar', 'liar-agent');
+  liar.announced = 'c-one';
+  servers.set(BASE_PORT + 5, liar);
+  await eventually(() => paired('c-liar'), 'the server to be paired with under its proven id');
+  const s = await state();
+  assert.equal(s.clients.filter((c: any) => c.id === 'c-one').length, 1, 'the agent it named is there once, as before');
+  assert.equal(s.clients.find((c: any) => c.id === 'c-liar').tabs, 0, 'and it has none of that agent\'s tabs');
+  // And one that names a disconnected agent is not paired with: it has turned itself away.
+  liar.announced = 'c-back';
+  await popup({ type: 'disconnectClient', clientId: 'c-liar' });
+  await until(() => turnedAway(liar) === 1, 'the server to be disconnected');
+  await popup({ type: 'allowClient', clientId: 'c-liar' });
+  const proofs = liar.proofs;
+  await eventually(() => turnedAway(liar) >= 3, 'the server to be looked at again');
+  assert.equal(liar.proofs, proofs);
+  assert.equal(await paired('c-liar'), false);
+
+  servers.delete(BASE_PORT + 5);
+  servers.delete(BASE_PORT + 7);
 });
 
 test('the panels of the popup fold on the user\'s word, and the prompt is not one of them', async () => {

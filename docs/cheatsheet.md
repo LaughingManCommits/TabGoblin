@@ -23,7 +23,7 @@ Your agent starts the server itself. These are for what you do yourself.
 |---|---|
 | Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in a server's panel, which puts it on the clipboard |
 | Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
-| Run a server with its panel | `java -jar java-server/target/browser-context-mcp.jar --panel` |
+| Run a server with its panel, to look at it | `java -jar java-server/target/browser-context-mcp.jar --panel`. No agent talks to this one: to watch your agent, add `--panel` to its own server ([Your agent](#your-agent)) |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
 | Stop a server you started | Ctrl+C in its terminal, or **Stop server** in its panel |
 

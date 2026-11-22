@@ -2,7 +2,7 @@
 
 ## Overview
 
-Seven packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Eight packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -11,7 +11,9 @@ start, and nothing connected on an old one. Of WP-14 the files and the check wer
 branch `server-panel` and waits for the owner's review; its entry says what is there and what
 is open. The other four are not started, and each waits for the owner's word on its points.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
-documentation. New work gets the next number, WP-19.
+documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
+in place of one for each; the owner said to build it as proposed. New work
+gets the next number, WP-20.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -697,7 +699,7 @@ panel's tests in CI, a name on the taskbar. What needs no decision:
   just started is taken once more when the extension is gone, also when it is the panel that
   keeps it out (`awaitExtension` in `BrowserService.java`).
 - **GitHub's zoom buttons lie over the bottom right corner of a diagram that spans the column.**
-  The picture in the two READMEs has an empty place there now. In the architecture page the
+  The picture in the two READMEs has two empty places there now. In the architecture page the
   buttons cover the lower "Content script" box of "A command, end to end"; the upper one is
   whole. The other four diagrams of that page were not all looked at.
 - **The six tests of the window do not run in CI.** A virtual display on the Linux runner
@@ -742,8 +744,55 @@ was run is in the validation log.
   and tells it so. It is the extension that says so, not the server: a tab's authorization is the user's grant and is
   kept there, and a server that could claim one would be a way around the user's click.
 
+- **A server started by hand says that no agent's work shows in it.** Seen with the owner on
+  2026-11-22, while a session walked through GitHub with the tools: a server started by hand
+  with its panel stood beside the agent's own server, which ran without a window. The owner
+  authorized a tab for the first, which no agent can use, and then watched its panel for the
+  agent's sessions and times: "claude is conencted to the mcp via the mcp yet it still showed
+  no session at the server", "still where the time went metrics is empty". Nothing was wrong,
+  and nothing on the screen said so. Then: "do the fixes please". On the branch
+  `by-hand-panel`. The panel of such a server now has a box under its status line that says no
+  agent talks to it and where an agent's tabs and tool calls are; its two cards say *for this
+  server* and *no agent talks to this server*, and under a tab that is authorized for it,
+  that no agent can use the tab. The user guide and the cheat sheet say that the command is
+  for looking at the panel, and how to have it on the agent's server.
+- **A disconnected agent's server is left alone.** Seen in the same panel: its log filled with
+  `extension connected` and `extension disconnected … code=4403`, a pair every few seconds,
+  and its status line changed for a moment each time. The extension cannot know whose server
+  holds a port before it connects, so it paired with the server each time it looked at the
+  ports, and closed it again. Now a server says who it is in its first message, and the
+  extension turns a disconnected one away on that, before it has proven anything: the server
+  never counts it as connected and logs nothing. What a server says there gives it nothing;
+  that still takes the id in its proven answer. It needs both parts: with an older extension
+  or an older server it is as it was.
+- **The picture in the two READMEs has more room at its right edge.** Read through TabGoblin on
+  GitHub: the one empty place did not keep the zoom buttons off "Every other tab". There are
+  two now. Not seen on GitHub yet: that needs a push.
+- **The card of the times is called Metrics.** The owner, of the panel: "where the time went"
+  "should be names metrics". Its line at the side says what the metrics are of: *time of the
+  last 12 calls*. The status tool's report keeps its heading.
+- **The panel's log has a line for every tool call.** The owner: "log also does not show any of
+  the actions take by the agent session". Two causes. The window looked at was the server
+  started by hand, as above. And in the agent's own window the log had the calls that failed
+  and none that worked: a call that went through is written at debug only. It is kept for the
+  panel now whatever the level, and standard error is as it was.
+- **A tab that is open to any agent is marked.** Found in the walk: the owner had authorized a
+  tab for any agent, every server lists such a tab, and the panel of the server started by
+  hand said under it that no agent can use it; the session then used it. The line speaks of
+  that server's own tabs only now, and an open tab carries *any agent* in every panel.
+
 Left open by this part:
 
+- **One server for all agents** is what the owner then asked for ("we should only allow one active
+  server"). It is filed as WP-19, and replaces the first of WP-13's decisions, whether one
+  panel should show every server. Until it is built, a server started by hand stays a server
+  of its own that no agent uses.
+- The popup still counts a server that was started by hand as an agent: *1 agent connected*,
+  and it offers the server when a tab is authorized. The extension knows a server by the name
+  it gives itself and no more.
+- The box of a server started by hand was read in the real window on Windows, not connected to
+  a browser: the owner's extension was connected to no server at the time. Connected, and
+  with a tab, it was drawn and tested, not seen in the real window.
 - The copy button was pressed in the real window on Windows only. The clipboard on Linux and
   macOS was not tried.
 - `OFF` is a new word on the toolbar, chosen by the session: it is the owner's to keep or to
@@ -751,3 +800,117 @@ Left open by this part:
 - While a server hangs, its agent's tool calls get no answer, as before: the extension notices,
   the agent's program does not.
 - A screen lower than the window was drawn, not seen: no machine with one was at hand.
+
+## WP-19: One server, and every agent connected to it
+
+Asked for by the owner on 2026-11-22, at the end of a session in which a server started by
+hand was taken, five times, for the server the agent uses: "we should only allow one active
+server"; before that, "when you start it up have it kill the prior session then this one will
+take over"; and, asked which rule is meant: "sessions says you can have multiple agents
+connected, and each agent can have access only to one own tab not same tab as others, only one
+agent may work on a given tab, only one instance of the server may be started". Goal: there is
+one TabGoblin server on the machine. Agents connect to it, each has its own tabs, and its one
+window shows what all of them do.
+
+### What happens today
+
+Read from the source and seen on 2026-11-22.
+
+- **A tab already has one agent.** A session is one tab, one website, one access level and one
+  owning agent, and every command is checked against the owner (`canUse` and `resolveSession`
+  in `policy.ts`). A tab that the user authorized for any agent is the first agent's that uses
+  it, and no other's after that. So three of the owner's four sentences say what is there.
+- **The fourth is not so: there is a server for each agent.** Each agent's program starts the
+  jar as a child of its own and talks to it through that child's input and output. Up to
+  eight run at once, each on a port of its own, and the extension connects to each. "2 agents
+  connected" in the popup is two server processes.
+- **A server that a person starts in a terminal is one more,** with no agent, which nothing can
+  use. Its window shows no agent's tabs, times or calls; since the third part of WP-18 it
+  says so.
+- **An agent cannot be handed to another server.** It talks through the pipes of the process
+  it started. When that process ends, the agent has no tools until its program starts the
+  server anew, which in Claude Code is the user's Reconnect under `/mcp`. Seen at 15:56: the
+  owner ended the session's server and started one by hand, and the session's tools were
+  gone. Seen at 15:59, after the Reconnect: the new server had its tab at once, by the
+  agent's name, and its window showed the tab, the times and the calls.
+
+### What the request runs into
+
+- **How a server is started is the agent's program's to say:** a command, run as a child, one
+  for each agent. So "one instance" cannot mean that a second start is refused, or that it
+  ends the first: either way an agent is left without its tools. The process an agent starts
+  has to stay, and pass its agent's messages on to the one server.
+- **The one server belongs to no agent.** Today a server ends when its agent closes it, so
+  that no process is left holding a port. One server for all ends when the last agent has
+  gone, or by the user's Stop, and an agent's program may end the process it started without
+  asking.
+- **Processes that talk to each other are a new way in.** Today the only connection is the
+  extension's, on the loopback address, with a proof of the pairing token in both directions.
+  A connector's has to be held to the same.
+
+### Proposal
+
+1. **The first process that starts is the server; every later one is a connector.** A process
+   looks for a running server before it becomes one. If it finds one, it proves that it knows
+   the pairing token, is given the same proof, and from then on only passes its agent's
+   messages back and forth. If it finds none, it is the server, and serves its own agent as
+   today.
+2. **Inside the one server an agent is what a server is today:** an id, a name, a port to the
+   extension, its sessions, its times. The extension and its protocol stay as they are; it
+   sees one connection for each agent, as now. An agent's tabs are its own as before, and no
+   tool tells an agent anything of another.
+3. **One window, for the user:** every agent with its tabs and its metrics, and one log that
+   names the agent in each line. Started by hand, the jar is the server if there is none; if
+   there is one, it brings that server's window up and ends.
+4. **When the server's process ends while agents are connected, a connector takes its place,**
+   which is the owner's "this one will take over". The agents' tabs come back to them by
+   their names, as after a restart today. A call that was running has an unknown outcome and
+   is reported so.
+
+### Decisions for the owner
+
+On 2026-11-22 the owner answered the first and said of the rest: "okay do your
+recommendations". So the proposals stand, the click on a tab among them, which is built first
+and in today's window.
+
+1. Whether an agent may have several tabs, as today, or one. Decided by the owner on
+   2026-11-22: several, as today ("a agent can own multiple tabs"). A tab has one agent, and
+   an agent reaches no tab of another.
+2. What the one window shows of several agents. Everything of each (proposal): it is the
+   user's window, and the popup shows every agent's tabs and activity already. The owner's
+   idea for it, of 2026-11-22: "make the session clickable if you click that then see metrics
+   and logs for that session, if dont click we see, the average metrics and logs all agents".
+   What that needs, read from the source: the times of a call are kept without its session
+   (`Timings.Call`), and a call that names no session is logged as `session=-`; both have to
+   carry the session the call ran in. With nothing chosen, the shares are those of all calls
+   together, not a mean of each agent's percents, which would count an agent with two calls
+   like one with two hundred. Lines that belong to no session, such as a connection made or
+   lost, show with nothing chosen. The list has to reach every tab then; today it lists
+   three. The first step does not wait for one server: in today's window, a click on one of
+   the agent's tabs.
+3. When the server ends. With its last agent, or by Stop (proposal). Or it stays until the
+   user stops it, which leaves a process behind when every agent has gone.
+4. What starting the jar by hand does while a server runs. It brings the window up and ends
+   (proposal). Or it is refused with a line that says which server runs.
+5. Ports. One for each agent inside the one server, as today (proposal: the extension does
+   not change). Or one port for all, which is a new version of the protocol.
+6. How it goes together with WP-17, a new secret at every start. With one server "the latest
+   token" has one meaning, and WP-17's first decision falls away; its others stay.
+
+### Tasks and acceptance
+
+A package of its own size: it changes what the architecture page calls a server. The server:
+finding a running server and becoming a connector (`McpMain.java`), the connection between
+them and its proof (`Pairing.java`, a counterpart to `WebSocketBridge.java`), several agents
+in one process (`BrowserService`, `WebSocketBridge`, `Timings` and `Log` are one for a process
+today), the ending and the taking over, and the window for several agents (`PanelModel`,
+`Panel`). The extension: nothing, if the ports stay. Tests: a second start is a connector and
+its agent's tools work; two agents through one server each reach their own tab and not the
+other's; a connector without the token is refused, and so is one from another machine's
+address; the server's process is ended and a connector takes over, with the tabs back by name
+and the running call reported as unknown; started by hand with a server running, the jar ends
+and the window is up. End to end: the suite's two agents through one server, and every step
+that ends or restarts a server. Then `docs/architecture.md` (processes, how a server ends),
+`docs/security.md` (the local connection, the panel's rules, what remains your risk), the user
+guide's sections on stopping and on the panel, the cheat sheet, the diagram in the two
+READMEs, and the conformance check, which starts the jar as an agent does.
