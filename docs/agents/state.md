@@ -4,17 +4,17 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `3aa4d5f`: the owner's merge of `ci-tab-address` on 2026-11-22, the
-  fix to three steps of the end-to-end suite. Earlier branches are merged.
-- Branch `server-panel`, made from it on 2026-11-22: WP-13, the server's panel. Not pushed and
-  not merged.
+- `main` = `origin/main` = `42eb02b`: the owner's merge of `server-panel` on 2026-11-22, which
+  is WP-13, the server's panel. Earlier branches are merged.
+- Branch `docs-pass`, made from it on 2026-11-22: one commit, made on the owner's word, with
+  the first part of WP-18, a pass over the documentation. Not pushed and not merged.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| WP-13, a panel for the server | Built on `server-panel`; waits for the owner's review and merge. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
-| WP-18, aftercare of the panel, and the documentation gone over | Filed on 2026-11-22 with the panel. Its first part, a pass over the documentation, is the next thing done; its second lists what the panel left behind that needs no decision | [TODO.md](../../TODO.md) |
+| WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
+| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is done and committed on `docs-pass`; it waits for the owner's push and merge. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
@@ -85,12 +85,17 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   a copy of the tree, with a jar built there. Build it (`mvn -B -f java-server/pom.xml
   package`) before the suites are run in the tree or the panel is asked for, and restart an
   agent to get the new server.
-- **CI passes on `main`:** run #14 (`3aa4d5f`, the merge of `ci-tab-address`) completed
-  successfully, read from the list of runs on GitHub on 2026-11-22; its jobs were not opened.
-  It is the first run with the fix to the suite's three steps. Before it, #13 (`2c26e0b`)
-  passed in all five jobs, #11 (`3071781`) passed, and #12 (`5274b04`, the merge of
-  `disconnect-revokes`) failed in one step end to end, 92 of 93. One passing run does not show
-  that a fault of timing is gone for good. `server-panel` has not been on GitHub.
+- **The panel's code has not run in CI.** Run #15 (`42eb02b`, the merge of `server-panel`)
+  failed, read on GitHub on 2026-11-22: all five jobs ended after two seconds. The owner says
+  the account's credit for Actions is used up; the jobs' logs were not opened. So nothing of
+  the run speaks about the code, and CI will say nothing until there is credit again. What
+  the Linux job will show when it runs is known from this machine only: six tests of the
+  panel's window skipped, the others passing.
+- **The last run that ran passed:** #14 (`3aa4d5f`, the merge of `ci-tab-address`), read from
+  the list of runs; its jobs were not opened. It is the first run with the fix to the suite's
+  three steps. Before it, #13 (`2c26e0b`) passed in all five jobs, #11 (`3071781`) passed, and
+  #12 (`5274b04`, the merge of `disconnect-revokes`) failed in one step end to end, 92 of 93.
+  One passing run does not show that a fault of timing is gone for good.
 - **Why run #12 failed is concluded, not shown.** The step asked the suite's driver where the
   tab was right after the agent's tools had said that it had left its site, and the driver
   still named the page before. The two tool results in front of it passed, so the extension
@@ -118,14 +123,13 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `server-panel`, in a copy of the tree with a jar built
-  there: the server's 84 tests and the 8 of the conformance check, and the suite end to end, 94
-  passed. By hand: the real window on Windows with every control pressed, the real extension
-  against the switch and Stop, and the window on Linux in the Linux subsystem. Not run: the
-  extension's own suite and the editor lab, of which no file changed. Details in the
-  [validation log](validation-log.md).
-- **Next action:** the owner's review of the panel (a server started with `--panel`, after the
-  jar is built), then the push and merge of `server-panel`; that run is the first of the
-  panel's code on GitHub, where the runner has no display. Then WP-13's open points, WP-14's
-  remainder (the address, the history), and the decisions on WP-12 and WP-15 to WP-17. Of
-  those WP-17, a new token at every start, was recommended as the next to build.
+- **Last verification:** 2026-11-22, on `docs-pass`: the documentation read whole and checked
+  against the source; the server's 84 tests and the extension's 151 in the tree; the link
+  check and the personal check. For the panel itself, earlier that day: the two suites of the
+  server and the suite end to end in a copy of the tree, and the real window by hand. Details
+  in the [validation log](validation-log.md).
+- **Next action:** the owner's push and merge of `docs-pass`. The first
+  CI run with credit is the first to run the panel's code on GitHub. Then the second part of
+  WP-18, WP-13's open points, WP-14's remainder (the address, the history), and the decisions
+  on WP-12 and WP-15 to WP-17. Of those WP-17, a new token at every start, was recommended as
+  the next to build.

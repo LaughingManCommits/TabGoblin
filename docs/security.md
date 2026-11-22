@@ -89,6 +89,9 @@ which content scripts cannot read. It is never logged.
 
 ## Submissions
 
+The rules. What you see and click in the popup is in the
+[user guide](user-guide.md#5-submissions).
+
 - Reading, filling and submitting are separate. Filling never submits, and never presses Enter:
   a line break in a text is entered as content, also when the text is typed key by key.
 - A submission must be declared by the agent, needs Write access, and by default your confirmation.
@@ -174,8 +177,10 @@ tool says about where the time went: tool names and durations.
 
 ## The server's panel
 
-A server that is started with `--panel` shows a window of its own
-([user guide](user-guide.md#9-the-servers-panel)). Without the option none of it is loaded.
+A server that is started with `--panel` shows a window of its own; without the option none of it
+is loaded. What it shows and how to use it is in the
+[user guide](user-guide.md#9-the-servers-panel), how it is built in the
+[architecture](architecture.md#the-servers-panel). The rules:
 
 | Property | Detail |
 |---|---|
@@ -183,7 +188,7 @@ A server that is started with `--panel` shows a window of its own
 | Nothing of a page | A session is shown by its site, its access level and its state. The title and the address of its page, which the status tool gives the agent, are not shown. The log is the server's log, with the limits above |
 | It only takes away | Stop, kill, and a switch that closes the connection to the extension and refuses it until switched on. It authorizes no tab and changes no access level |
 | Ending takes two clicks | Stop and Kill act on the second click, within four seconds of the first. No button has the keyboard when the window appears |
-| Memory only | The last 300 log lines are kept in memory for the window and nowhere else. JavaFX unpacks its own native files into `.openjfx` in the home folder; nothing of TabGoblin's is written |
+| Memory only | The last 300 log lines are kept in memory for the window and nowhere else. Nothing of TabGoblin's is written to disk for it |
 
 Where it stops:
 

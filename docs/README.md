@@ -48,3 +48,4 @@ flowchart LR
 | Access level | Read (look), Explore (also navigate and expand), Read / Write (also operate and submit). |
 | Ref | The number in front of an element in a snapshot, e.g. `[12]`. Tools act on refs. |
 | Suspended | The tab left the session's origins. Nothing is readable until you resume it on that tab. |
+| Panel | A small window a server shows when it is started with `--panel`: its sessions, its log, and a button to stop it. See the [user guide](user-guide.md#9-the-servers-panel). |
