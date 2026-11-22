@@ -69,6 +69,13 @@ starts, so an agent that is started again is connected again. It has no tab then
 only from you; a tab you authorize for *Any agent* goes to whichever agent uses it first, this
 one included.
 
+A server that ends without your Disconnect keeps its tabs for its next start: they come back to
+an agent of the same name, as soon as it is connected. That is what lets you restart an IDE, or
+its server, without authorizing every tab again. It rests on a name, which an agent gives
+itself: another program that can pair, which takes the pairing token, can give itself that
+name while the first is away. A server that a person starts in a terminal has one name for all
+such servers, *Started by hand*. An agent without a name is given nothing.
+
 ## The local connection
 
 | Protection | Detail |
@@ -223,6 +230,7 @@ Where it stops:
 | Another agent's session unreachable, forged session id refused | Rules, worker, end-to-end |
 | A disconnected agent's sessions end with it; allowed again, it has no tab and its old session id is refused | Rules, worker, end-to-end |
 | An agent of the same name inherits nothing from a disconnected one | Rules, worker |
+| A server that is started again is told its tabs by the extension, by its agent's name, before it calls a tool; an agent without a name is told of none, and another agent of none | Java, worker, end-to-end |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |
 | Hidden form fields not offered as editors; an editor input's value not returned | DOM |

@@ -131,6 +131,17 @@ uses an unclaimed one. Every command is checked against the owner. If the owner'
 and an agent with the same name connects, it inherits the session (an IDE restarting its server);
 no other agent ever does.
 
+**A server that is started again.** A server makes a new id each time it starts and remembers
+nothing, so its sessions come back to it by its agent's name alone, and it is the extension
+that says so: a session is the user's grant and is kept there, and a server cannot claim one.
+Three things make that happen at once. The server takes the agent's name from the message with
+which the agent opens its connection (`StdinTap`), not from its first tool call. A server that
+a person started in a terminal, which no agent names, calls itself *Started by hand*. And the
+extension makes what the server's former self left the new server's own the moment it pairs,
+or the moment its name arrives, and tells it so (`takeUp` in `background.ts`). So the server's
+panel lists the tabs, and the popup names the server that is there as their agent, before any
+tool is called. An agent that has given no name is given nothing.
+
 **Disconnect.** When the user disconnects an agent in the popup, the sessions that are that
 agent's end with it: those it owns, and those a former self of the same name left behind, which
 it could have taken up with its next command (`sessionsOfAgent` in `policy.ts`). A session no

@@ -730,6 +730,18 @@ was run is in the validation log.
   were never counted; now two in a row without an answer take the server for gone, within a
   minute, and it is found again when it answers.
 
+- **A server that is started again has its tabs at once.** "the server when stoped with
+  connection client session, and started again does not session as active in sever tab but the
+  tab goblin shows it it has active connection to server", and then: should the server say "i
+  have session" when the heartbeat is back? On the branch `restart-keeps-tabs`. A server makes
+  a new id at each start, and its tabs come back to it by its agent's name alone. It learned
+  that name only with the agent's first tool call, and a server started by hand never had one:
+  so the popup showed the tab, and the panel of the new server did not. Now the name is taken
+  from the agent's opening message, a server started by hand is called *Started by hand*, and
+  the extension makes the tabs the new server's own the moment it pairs, or its name arrives,
+  and tells it so. It is the extension that says so, not the server: a tab's authorization is the user's grant and is
+  kept there, and a server that could claim one would be a way around the user's click.
+
 Left open by this part:
 
 - The copy button was pressed in the real window on Windows only. The clipboard on Linux and

@@ -4,20 +4,18 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `efc0921`: the owner's merge of `docs-pass` on 2026-11-22, the first
-  part of WP-18, a pass over the documentation. Before it, `42eb02b`, the merge of
-  `server-panel`, which is WP-13. Earlier branches are merged.
-- Branch `aftercare`, made from it on 2026-11-22: the third part of WP-18. A page of commands
-  and the panel's command in the user guide; a button in the panel that copies the pairing
-  token; a panel that keeps its controls in view; a badge and a heartbeat in the extension that
-  show what is so. Two commits, made on the owner's word. Not pushed and not merged.
+- `main` = `origin/main` = `be70634`: the owner's merge of `aftercare` on 2026-11-22, the
+  third part of WP-18: a page of commands, the panel's copy button, a panel that keeps its
+  controls in view, a badge and a heartbeat that show what is so. Earlier branches are merged.
+- Branch `restart-keeps-tabs`, made from it on 2026-11-22: a server that is started again has
+  its tabs at once. One commit, made on the owner's word. Not pushed and not merged.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
-| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is committed on `aftercare` and waits for the owner's push and merge. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
+| WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last item: a server that is started again has its tabs at once, committed on `restart-keeps-tabs`, which waits for the owner's push and merge. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
@@ -25,6 +23,14 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Blockers and unknowns
 
+- **Tabs come back to a server that is started again by its agent's name, and at once.** Seen
+  with the suite's client and with a server started by hand, on Windows. Not tried: a real
+  IDE's agent. What follows from a name being all there is: of two agents with the same name,
+  the one that connects next takes up the tabs of the one that has gone, where before it took
+  them with its first use of them; and every server started by hand has one name, *Started by
+  hand*, so one such server takes up the tabs of the one before it. Each tab that is taken up
+  adds a line to the popup's activity list. WP-17, a new token at every start, has to say how
+  this goes together with it.
 - **The copy button of the panel was pressed on Windows only.** There the clipboard held the
   token, the window and the log had nothing of it, and it was gone from the clipboard a minute
   later. The clipboard on Linux and macOS was not tried. A history of the clipboard that the
@@ -142,15 +148,15 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `aftercare`, in a copy of the tree with a jar built
-  there: the server's 88 tests and the 8 of the conformance check, the extension's 154 with
-  type-check and build, and the suite end to end, 94 passed. By hand: the copy button in the
-  real window on Windows, and the real extension against a real server whose process was
-  stopped and let run again. Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `aftercare`. The jar in
-  the tree has to be built by the owner before the panel can be asked for there
-  (`mvn -f java-server/pom.xml package`), and the extension reloaded for the badge and the
-  heartbeat. The first
+- **Last verification:** 2026-11-22, on `restart-keeps-tabs`, in a copy of the tree with a jar
+  built there: the server's 89 tests and the 8 of the conformance check, the extension's 155
+  with type-check and build, and the suite end to end, 94 passed. By hand: the owner's case,
+  a server started by hand with its panel, stopped and started again, with the real extension,
+  on Java 21 and 26. Details in the [validation log](validation-log.md).
+- **Next action:** the owner's push and merge of `restart-keeps-tabs`.
+  Both parts have to be built by the owner before it shows in the tree: the server, after the
+  one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
+  extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first
   CI run with credit is the first to run the panel's code on GitHub. Then the second part of
   WP-18, WP-13's open points, WP-14's remainder (the address, the history), and the decisions
   on WP-12 and WP-15 to WP-17. Of those WP-17, a new token at every start, was recommended as

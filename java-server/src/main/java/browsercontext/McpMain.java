@@ -134,7 +134,8 @@ public final class McpMain {
         }
         // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
         Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
-        if (startedByHand()) {
+        boolean byHand = startedByHand();
+        if (byHand) {
             // Someone typed the command: without this the terminal just sits there, looking stuck.
             System.err.println("""
                     TabGoblin MCP server, running on 127.0.0.1:%d.
@@ -143,6 +144,11 @@ public final class McpMain {
                     Press Ctrl+C to stop it. Other uses: --show-token, --rotate-token, --help.""".formatted(bridge.getPort()));
         }
         BrowserService service = new BrowserService(bridge, startupProblem);
+        if (byHand) {
+            // No agent will say who this is. Without a name its tabs would stay with the server that
+            // was stopped: they come back to a server that is started again by its name alone.
+            service.noteClient(STARTED_BY_HAND);
+        }
         if (options.panel()) {
             showPanel(bridge, startupProblem, tokens, Panel::possible);
         }
@@ -150,7 +156,9 @@ public final class McpMain {
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
         // Exit when the MCP client closes stdin, so no orphan process keeps the WebSocket port,
         // and stop tool calls the client cancels.
-        StdinTap stdin = new StdinTap(System.in, McpMain::inputEnded);
+        // An agent's name is taken from its opening message: a server that was started again is
+        // given its tabs back by that name, and should not have to wait for a tool call to have it.
+        StdinTap stdin = new StdinTap(System.in, McpMain::inputEnded, service::noteClient);
 
         SERVING.set(McpServer.sync(new StdioServerTransportProvider(mapper, stdin, mcpOut))
                 .serverInfo(identity())
@@ -167,6 +175,9 @@ public final class McpMain {
      * its panel: without a display, or if the window cannot be made, it says so in the log and
      * runs as it does without the option. Returns whether the panel was opened.
      */
+    /** What a server calls its agent when a person started it in a terminal and no agent talks to it. */
+    static final String STARTED_BY_HAND = "Started by hand";
+
     static boolean showPanel(WebSocketBridge bridge, String startupProblem, Supplier<String> token,
             BooleanSupplier possible) {
         try {

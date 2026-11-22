@@ -1717,6 +1717,13 @@ try {
     one = new McpClient('java', serverArgs, 'agent-one');
     servers.push(one);
     await one.initialize();
+    // The agent said its name when it opened the connection. So the tabs are its own again as soon
+    // as the extension has found the new server, before the agent has called a single tool.
+    await popup.waitForFunction((sel) => {
+      const meta = document.querySelector(sel)?.textContent ?? '';
+      return meta.startsWith('agent-one') && !meta.includes('not connected');
+    }, {}, row(sA, '.meta'));
+    await until(async () => (await badge()) === 'ON', 'the badge to say ON once the restarted agent is back');
     await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the restarted agent to connect', 15000);
     has((await one.tool('browser_status')).text, `on port ${wsPort}`);
     has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');

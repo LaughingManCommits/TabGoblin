@@ -221,7 +221,10 @@ On a connection the server sends `auth_ok` before anything else, and may send a 
 step for the server's other threads (`WebSocketBridge.authenticate`): an extension that holds
 `auth_ok` is connected for every tool call from then on, and none is told `NOT_CONNECTED`. The
 agent's name is in `auth_ok` if the server knows it by then, and follows as `client` if it
-learns it later; an agent names itself with its first tool call.
+learns it later. An agent names itself when it opens its connection to the server
+(`initialize`), and a server started by hand calls itself *Started by hand*. When a name
+arrives, the extension tells every server its sessions anew: a name can make sessions an
+agent's own ([architecture](architecture.md#sessions)).
 
 The extension takes the messages of a connection in the order they came. One that arrives while
 it still checks the proof in `auth_ok` waits for that, and is then a message like any other.

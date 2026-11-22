@@ -265,7 +265,8 @@ kill <PID>
 
 Each line is one agent's server; the popup shows the same ports next to the agents. Stopping a
 server only disconnects its agent: sessions, the pairing and the token are kept, and the agent
-starts a new server the next time it needs one.
+starts a new server the next time it needs one. That server has the agent's tabs again as soon
+as the extension has found it: they come back to it by the agent's name.
 
 A server that shows its panel can be stopped from there; see the next section.
 
@@ -279,9 +280,10 @@ A server has no window unless you ask for one. With the option `--panel` it show
 java -jar java-server/target/browser-context-mcp.jar --panel
 ```
 
-That starts a server by hand, with its window. No agent talks to it, so the window calls it
-*Agent c-…*; your extension pairs with it and lists it in the popup. **Stop server** in the
-window ends it, and so does Ctrl+C in the terminal.
+That starts a server by hand, with its window. No agent talks to it, so the window and the
+popup call it *Started by hand*; your extension pairs with it and lists it. **Stop server** in
+the window ends it, and so does Ctrl+C in the terminal. Started again the same way, it has the
+tabs you authorized for it as before.
 
 **To have it on your agent's server,** add `--panel` after the jar's path where you told your
 agent about the server
@@ -316,8 +318,9 @@ elsewhere presses nothing.
 
 <img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, where the time went, the log, and the controls">
 
-- **Under the title:** the agent's name, the id it has in the popup, and its port. Until an agent
-  has made its first tool call it has no name, and goes by its id.
+- **Under the title:** the agent's name, the id it has in the popup, and its port. An agent
+  says its name when it starts the server; a server you started yourself is called *Started by
+  hand*.
 - **The line with the dot** says whether the extension is connected to this server and since
   when, or why it is not; the table below has each of its sentences. An amber box under it is
   a problem the server had when it started, such as that no port was free.

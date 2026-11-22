@@ -1013,3 +1013,78 @@ test('a server that stops answering is taken for gone, and the badge says ON onl
   await sleep(30);
   assert.equal(badges.at(-1), '', 'no tab is authorized: the badge says nothing');
 });
+
+test('a server that is started again is told its tabs at once, by its agent\'s name', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  const port = BASE_PORT + 6;
+  const has = async (id: string): Promise<boolean> => (await state()).clients.some((c: any) => c.id === id);
+  const arrive = async (server: FakeServer): Promise<void> => {
+    servers.set(port, server);
+    for (let i = 0; i < 120 && !(await has(server.clientId)); i++) await sleep(50);
+    assert.ok(await has(server.clientId), `${server.clientId} is found`);
+  };
+  const leave = async (server: FakeServer): Promise<void> => {
+    servers.delete(port);
+    server.socket?.close();
+    await until(async () => !(await has(server.clientId)), `${server.clientId} to be gone`);
+  };
+  /** Whether the extension has told this server, without being asked, that the tab is its own. */
+  const told = (server: FakeServer, session: string): boolean => server.events
+    .some((e) => e.event === 'sessions' && e.data.sessions.some((x: any) => x.session === session));
+  const row = async (session: string): Promise<any> => (await state()).sessions.find((x: any) => x.id === session);
+
+  // An agent's server, with a tab of its own.
+  const first = new FakeServer('c-first', 'restarting-agent');
+  await arrive(first);
+  tabs.set(9, { id: 9, url: 'https://restart.example/board', status: 'complete', active: false, windowId: 1, title: 'Board' });
+  const reply = await popup({ type: 'authorize', tabId: 9, mode: 'read', clientId: 'c-first' });
+  assert.equal(reply.ok, true);
+  const sid = reply.state.sessions.at(-1).id;
+  await until(() => told(first, sid), 'the first server to be told its tab');
+
+  // The server is stopped. The tab stays authorized, and nobody is there to act on it.
+  await leave(first);
+  assert.equal((await row(sid)).ownerConnected, false);
+  await sleep(30);
+  assert.equal(badges.at(-1), 'OFF');
+
+  // It is started again: a new id, the same name, known when it pairs. It is told its tab right
+  // behind the pairing, without asking for anything, and the popup and the badge say that the
+  // tab's agent is there. Before, the server heard of the tab only with its first command.
+  const again = new FakeServer('c-again', 'restarting-agent');
+  await arrive(again);
+  await until(() => told(again, sid), 'the restarted server to be told its tab');
+  assert.equal((await row(sid)).ownerConnected, true);
+  // It is the new server's own, and not one it may take up with a command some time: everything
+  // that names the tab's agent names the one that is there.
+  assert.equal((await row(sid)).clientId, 'c-again');
+  assert.equal((await again.command('status')).result.sessions[0].owner, 'you');
+  await sleep(30);
+  assert.equal(badges.at(-1), 'ON');
+  assert.equal(code(await again.command('snapshot', { session: sid })), 'ok');
+
+  // Started once more, by an agent that says its name only later: nothing is its own before it
+  // has said it, and all of it the moment it does.
+  await leave(again);
+  const late = new FakeServer('c-late', '');
+  await arrive(late);
+  await sleep(100);
+  assert.equal(told(late, sid), false, 'an agent without a name is given nothing');
+  assert.equal((await row(sid)).ownerConnected, false);
+  assert.equal((await row(sid)).clientId, 'c-again', 'the tab stays with the server that is gone');
+  assert.equal(code(await late.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
+  late.deliver({ type: 'client', name: 'restarting-agent' });
+  await until(() => told(late, sid), 'the server to be told its tab once it has said its name');
+  assert.equal((await row(sid)).ownerConnected, true);
+  assert.equal((await row(sid)).clientId, 'c-late');
+  await sleep(30);
+  assert.equal(badges.at(-1), 'ON');
+
+  // Another agent, with another name, is told nothing of it and cannot reach it.
+  assert.equal(told(one, sid), false);
+  assert.equal(code(await one.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
+
+  await popup({ type: 'revoke', session: sid });
+  tabs.delete(9);
+  await leave(late);
+});

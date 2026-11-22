@@ -52,6 +52,30 @@ class StdinTapTest {
     }
 
     @Test
+    void theClientsNameIsTakenFromItsOpeningMessage() throws Exception {
+        var names = new java.util.ArrayList<String>();
+        String opening = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\","
+                + "\"capabilities\":{},\"clientInfo\":{\"name\":\"claude-code\",\"version\":\"1.0\"}}}\n";
+        // What follows it is no opening message, though the word is in it.
+        String input = opening
+                + "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n"
+                + "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{\"note\":\"initialize\",\"clientInfo\":{\"name\":\"not this\"}}}\n"
+                + call(2, "browser_status", "{}");
+        StdinTap tap = new StdinTap(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)), () -> { }, names::add);
+        assertEquals(input, new String(tap.readAllBytes(), StandardCharsets.UTF_8), "bytes must pass through untouched");
+        // Known before any tool is called: a server that was started again gets its tabs back by this name.
+        assertEquals(java.util.List.of("claude-code"), names);
+
+        // A client that gives no name, or something that is not a message, names nobody.
+        names.clear();
+        String nameless = "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"clientInfo\":{\"name\":\"  \"}}}\n"
+                + "{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{}}\n"
+                + "this is not json but says \"initialize\"\n";
+        new StdinTap(new ByteArrayInputStream(nameless.getBytes(StandardCharsets.UTF_8)), () -> { }, names::add).readAllBytes();
+        assertEquals(java.util.List.of(), names);
+    }
+
+    @Test
     void matchesHandlersToCallsByToolAndArgumentsOldestFirst() throws Exception {
         StdinTap tap = tap(call(7, "browser_click", "{\"ref\":4}") + call(8, "browser_fill", "{\"ref\":4}")
                 + call("\"abc\"", "browser_click", "{\"ref\":9}") + call(10, "browser_click", "{\"ref\":4}"), () -> { });
