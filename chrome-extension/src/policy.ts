@@ -126,6 +126,19 @@ export function canUse(
     || (!connectedClientIds.has(session.clientId) && !!client.name && session.clientName === client.name);
 }
 
+/**
+ * The sessions that go with an agent when the user disconnects it: those it owns, and those its
+ * former self left, which it could take up with its next command. A session that no agent has
+ * taken up yet was given to none, and stays.
+ */
+export function sessionsOfAgent<T extends Pick<SessionAuth, 'clientId' | 'clientName'>>(
+  sessions: readonly T[],
+  client: ClientIdentity,
+  connectedClientIds: ReadonlySet<string>,
+): T[] {
+  return sessions.filter((session) => session.clientId !== null && canUse(session, client, connectedClientIds));
+}
+
 /** Throws unless the session's access level is at least `required`. */
 export function requireMode(mode: Mode, required: Mode): void {
   if (RANK[mode] < RANK[required]) throw needs(required);

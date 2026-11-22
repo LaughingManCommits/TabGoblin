@@ -4,7 +4,7 @@ import {
   ALLOW_LASTS_MS, CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNASKED_PER_MINUTE, UNWELCOME_AFTER, activityLabel, askModeOf,
   checkAsk, checkClick, checkGate, checkKey, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
-  judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession,
+  judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
 
@@ -150,6 +150,28 @@ test('a restarted agent takes its sessions back, but never those of an agent tha
   // A different agent never inherits, and a nameless one matches nobody.
   assert.equal(code(() => resolveSession([left], { id: 'c-x', name: 'Other' }, 's1', new Set(['c-x']))), 'SESSION_NOT_OWNED');
   assert.equal(code(() => resolveSession([session({ clientId: 'c-old', clientName: null })], { id: 'c-x', name: '' }, 's1', new Set(['c-x']))), 'SESSION_NOT_OWNED');
+});
+
+test('a disconnected agent takes its sessions with it: its own and its former self\'s, and no others', () => {
+  const mine = session({ id: 's1', clientId: 'c-me' });
+  const second = session({ id: 's2', clientId: 'c-me', origin: 'https://wiki.example' });
+  const theirs = session({ id: 's3', clientId: 'c-other', clientName: 'Other' });
+  const open = session({ id: 's4', clientId: null, clientName: null });
+  const left = session({ id: 's5', clientId: 'c-old', clientName: 'IDE' });
+  const leftByAnother = session({ id: 's6', clientId: 'c-gone', clientName: 'Other' });
+  const all = [mine, second, theirs, open, left, leftByAnother];
+  const me = { id: 'c-me', name: 'IDE' };
+  const connected = new Set(['c-me', 'c-other']);
+
+  // What it could use, less what was given to no agent: exactly the tabs it would have after "Allow again".
+  assert.deepEqual(sessionsOfAgent(all, me, connected), [mine, second, left]);
+  // While the agent that left them is still connected, they are that agent's.
+  assert.deepEqual(sessionsOfAgent(all, me, new Set(['c-me', 'c-other', 'c-old'])), [mine, second]);
+  // An agent that is not connected any more, so that its name is not known: what carries its id.
+  assert.deepEqual(sessionsOfAgent(all, { id: 'c-me', name: '' }, new Set(['c-other'])), [mine, second]);
+  // An agent without a name is nobody's former self.
+  assert.deepEqual(sessionsOfAgent([session({ clientId: 'c-old', clientName: null }), open], { id: 'c-x', name: '' }, new Set(['c-x'])), []);
+  assert.deepEqual(sessionsOfAgent(all, { id: 'c-none', name: 'Nobody' }, connected), []);
 });
 
 test('navigation resolves relative URLs and stays inside the origin', () => {

@@ -1551,21 +1551,47 @@ try {
   });
 
   console.log('\nDisconnecting and recovering');
-  await step('the user can disconnect one agent; the other keeps working', async () => {
+  await step('disconnecting an agent ends its sessions; allowed again, it is connected and has no tab', async () => {
     const popup = await openPopup();
-    await popup.$eval(`#agents li[data-client="${twoId}"] .disconnect`, (el) => el.click());
+    const agentRow = `#agents li[data-client="${twoId}"]`;
+    const oneId = /This agent: (\S+)/.exec((await one.tool('browser_status')).text)[1];
+    // Each agent's row says what a Disconnect would end, before the click.
+    await popup.waitForFunction((selector) => document.querySelector(`${selector} .tabs`)?.textContent === '1 tab', {}, agentRow);
+    has(await popup.$eval(agentRow, (el) => el.querySelector('.disconnect').title), 'ends its 1 tab');
+    has(await popup.$eval(`#agents li[data-client="${oneId}"] .tabs`, (el) => el.textContent), '2 tabs');
+    await popup.$eval(`${agentRow} .disconnect`, (el) => el.click());
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
+    // Its tab is gone from the popup, and the list says why. The other agent's tabs are still there.
+    await popup.waitForFunction((selector) => !document.querySelector(selector), {}, `.session[data-session="${sB}"]`);
+    const said = await popup.$eval('#activity', (el) => el.textContent);
+    has(said, 'Agent disconnected by you; 1 session ended');
+    has(said, 'Access revoked: you disconnected its agent');
+    assert(await popup.$(`.session[data-session="${sA}"]`) && await popup.$(`.session[data-session="${sC}"]`), 'the other agent keeps its tabs');
     const refused = await two.tool('browser_snapshot');
     fails(refused, 'NOT_CONNECTED');
     has(refused.text, 'user disconnected this agent');
     await sleep(2500); // it must not slip back in on the next scan
     fails(await two.tool('browser_snapshot'), 'NOT_CONNECTED');
     ok(await one.tool('browser_snapshot', { session: sA }));
+    lacks((await one.tool('browser_status')).text, demo.originB);
 
+    // Allowed again, the agent has its connection and nothing else: the old session is not there.
     await popup.waitForSelector('#agents .allow-agent');
     await popup.$eval('#agents .allow-agent', (el) => el.click());
-    await until(async () => !(await two.tool('browser_snapshot')).isError, 'the agent to be allowed back', 15000);
+    await until(async () => (await two.tool('browser_status')).text.includes('Extension: connected'), 'the agent to be allowed back', 15000);
+    has((await two.tool('browser_status')).text, 'Authorized origin: none');
+    fails(await two.tool('browser_snapshot'), 'NOT_AUTHORIZED');
+    fails(await two.tool('browser_snapshot', { session: sB }), 'UNKNOWN_SESSION');
+    await popup.waitForFunction((selector) => document.querySelector(`${selector} .tabs`)?.textContent === 'no tabs', {}, agentRow);
+
+    // The tab is the agent's again by the user's click on it, as a new session.
+    const again = await authorize(pageB, 'write', { agent: twoId });
+    assert(again !== sB, `the session that ended must not come back, got ${again}`);
     has(ok(await two.tool('browser_snapshot')).text, 'Page: Notes App');
+    fails(await two.tool('browser_snapshot', { session: sB }), 'UNKNOWN_SESSION');
+    sB = again;
+    // The open popup belongs to the second agent's tab now; the steps that follow start from the main tab.
+    await openPopup(page, { fresh: true });
   });
   await step('an agent whose server restarts gets its sessions back; another agent never inherits them', async () => {
     const exit = await one.close();

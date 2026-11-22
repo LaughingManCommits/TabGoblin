@@ -2,7 +2,7 @@
 // feed and submission confirmations. All decisions are made in the background worker; this page
 // only shows state and sends requests.
 
-import { agentsSummary, sessionsSummary, settingsSummary } from './panels.ts';
+import { agentsSummary, disconnectCost, sessionsSummary, settingsSummary } from './panels.ts';
 
 type Mode = 'read' | 'explore' | 'write';
 
@@ -51,6 +51,8 @@ interface ClientView {
   id: string;
   name: string;
   port: number;
+  /** The tabs a Disconnect would take from this agent. */
+  tabs: number;
 }
 
 interface State {
@@ -179,9 +181,13 @@ function renderAgents(s: State): void {
     for (const client of s.clients) {
       const li = el('li');
       li.dataset.client = client.id;
+      const cost = disconnectCost(client.tabs);
       const button = el('button', 'disconnect', 'Disconnect');
+      button.title = cost.hint;
       button.addEventListener('click', () => void request({ type: 'disconnectClient', clientId: client.id }));
-      li.append(el('span', 'name', agentLabel(client, s.clients)), el('span', 'muted', `:${client.port}`), button);
+      const name = el('span', 'name', agentLabel(client, s.clients));
+      name.title = name.textContent ?? '';
+      li.append(name, el('span', 'tabs', cost.beside), el('span', 'muted', `:${client.port}`), button);
       list.append(li);
     }
     for (const id of s.blockedClients) {
