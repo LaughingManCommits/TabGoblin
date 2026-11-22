@@ -51,6 +51,10 @@ Working rules for this repository:
   right before a commit, and never commit on `main`: make a branch first. A check in the same
   command line as the commit is printed, not read: twice a commit landed on `main` that way. Let
   the commit refuse instead: `test "$(git branch --show-current)" != main && git commit …`.
+- Nothing personal goes into a file or a commit message: no home directory, no mail address
+  outside the example domains, no link to your session (no `Claude-Session:` line; the
+  `Co-Authored-By:` line stays). Run the check in the runbook ("Check that nothing personal is in
+  the files") before a commit; it reads the files, not your commit message.
 - Open every generated screenshot and check it shows what you claim before using it.
 - Documentation is plain and factual: what was measured, what was not, where it stops.
 
@@ -111,8 +115,9 @@ At the end of a session that changed something:
    `development.md`), not into `state.md`.
 4. Check each claim you changed against its source: a command against `package.json`, `pom.xml` or
    `ci.yml`; a path against the tree; a count against a run.
-5. Check links with the command in the runbook ("Check the documentation links"). There is no
-   other freshness check and no changelog; git history is the record of changes.
+5. Check links with the command in the runbook ("Check the documentation links"), and the files
+   with the one under "Check that nothing personal is in the files". There is no other freshness
+   check and no changelog; git history is the record of changes.
 
 There is no index or search tooling. Use repository search; add tooling only for a retrieval
 problem that has actually occurred.

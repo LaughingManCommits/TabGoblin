@@ -90,7 +90,8 @@ so the goblin is always visible. You will click it on every tab you want an agen
 ## 5. Tell your agent about the server
 
 Your agent starts the server itself; you only tell it how. Use the **absolute path** of the jar,
-with forward slashes, also on Windows.
+with forward slashes, also on Windows. In the examples, `<folder>` stands for the folder you
+cloned the project into; write yours in its place (`D:/code`, for example).
 
 Most MCP clients take this JSON:
 
@@ -99,7 +100,7 @@ Most MCP clients take this JSON:
   "mcpServers": {
     "tabgoblin": {
       "command": "java",
-      "args": ["-jar", "C:/projects/TabGoblin/java-server/target/browser-context-mcp.jar"]
+      "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar"]
     }
   }
 }
@@ -108,7 +109,7 @@ Most MCP clients take this JSON:
 | Agent | Where it goes |
 |---|---|
 | IntelliJ IDEA, AI Assistant | *Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add*, paste the JSON. The menu names vary a little between versions. |
-| Claude Code | `claude mcp add tabgoblin -- java -jar C:/projects/TabGoblin/java-server/target/browser-context-mcp.jar` |
+| Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar` |
 | Anything else that speaks MCP over stdio | Command `java`, arguments `-jar` and the path |
 
 Restart the agent, or reload its MCP servers, so it picks the server up. You can connect several

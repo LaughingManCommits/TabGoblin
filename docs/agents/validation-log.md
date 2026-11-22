@@ -3,6 +3,42 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `nothing-personal`: WP-14, the files and the check
+
+No product code changed. What changed: four examples in the documentation, a check with its
+tests and its job in CI, and the pages that name them.
+
+| Command | Result |
+|---|---|
+| `node --test docs/agents/check-personal.test.mjs` | 5 tests, none failed |
+| `node docs/agents/check-personal.mjs` | 121 files read, 17 binary files not read, nothing personal found; exit 0 |
+| the same, with a home directory planted in a new file and at the end of a tracked one | 2 findings, each with its file and line and without the text; exit 1. With both taken out again: exit 0 |
+| `node docs/agents/check-links.mjs` | 73 links, all resolve |
+
+Looked at: all thirteen pictures in `docs/images`. Eleven show the popup, one the notice in a
+demo page beside a sign-in form with its password as dots, one Chrome's extensions page with
+TabGoblin alone. In them: loopback addresses, ports, the names the two test agents give
+themselves, the extension's id and version. No folder, account, name or other extension. A
+script that was not kept listed the chunks of the seventeen tracked PNG files: a header, picture
+data and an end in each, and no text.
+
+Searched again, with `git grep` and `git log`: the tracked files, the messages of the 61
+commits, and every line a commit ever added, for home directories, mail addresses, the user's
+and the machine's name, and links to sessions. Found: what `TODO.md` lists under WP-14, "What
+is still there", and nothing else.
+
+Failed on the way: nothing in the check. One command that planted the home directory broke on
+its quoting before it wrote anything; the script was then run from a file, as the runbook says.
+
+Not run: the server's suites, the extension's check, end to end and the editor lab; nothing
+they cover changed. The new job has not run on GitHub, and its commands not on Linux: Docker
+was not running and the Ubuntu in WSL has no Node. Not done, and the owner's: the history, and
+the address that commits carry.
+
+Also in this session, in a second commit: WP-16 and WP-17 filed in `TODO.md`, none started. For
+WP-16, what the documentation has today was read, and no other tool. For WP-17, how the token
+is made, kept, found and rotated was read from the source; nothing was run.
+
 ## 2026-11-21, on `ci-failures`: the CI failures of runs #7 and #8
 
 Read on GitHub by a session, through TabGoblin: five runs, of which #1, #3 and #4 passed.
@@ -278,32 +314,12 @@ Not tried: that an Allow ends when the tab leaves the site (the code path is the
 it on a pause, which was tried), and the limit of five a minute in a real browser (rule and
 worker tests only). CI on GitHub has still not been seen.
 
-## 2026-11-21, on `confirmations`, WP-4, WP-5 and WP-6
-
-All on the final build of the branch.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 54 tests; `McpConformanceIT` on the built jar: 8 tests |
-| `cd chrome-extension && npm run check` | type-check clean, 127 tests, build |
-| `cd e2e && npm test` | 90 passed, 0 failed |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node screenshots.mjs prompts` | 16 pictures of 8 cases; all looked at, twice, with two details changed in between |
-| `HEADED=1 node screenshots.mjs` | run twice; of the pictures that changed, all were looked at except `popup-full.png`, the dark twin of `popup-full-light.png` |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Found by the editor lab on the way: with Enter running as a submission, one code editor's Enter
-was judged a confirmed submission. Its keyboard input, emptied after every key, had been read as
-the field that was cleared. Fixed, with a test. No editor is excused from the question by
-accident: all fifteen are asked about.
-
-Not tried: the prompt of a session that spans two websites, with the tab on the second. The site
-shown is taken from the tab's address when the user is asked. CI on GitHub has still not been
-seen.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `confirmations`, WP-4, WP-5 and WP-6: server 54 tests and 8 conformance tests,
+  extension 127, end to end 90 of 90, editor lab 222 of 225 in front and 220 of 225 in the
+  background, no `SILENT`; 16 pictures of the prompt looked at. Found by the lab and fixed: one
+  code editor's Enter was judged a confirmed submission. CI on GitHub not seen.
 - 2026-11-21, on `mcp-standard`, WP-1 complete (a cancelled call is not answered, progress,
   structured results): server 54 tests and 8 conformance tests, end to end 87 of 87, editor lab
   222 of 225 in front and 220 of 225 in the background, no `SILENT`. The extension's tests were

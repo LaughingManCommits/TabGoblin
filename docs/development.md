@@ -77,6 +77,7 @@ reads the same texts, so wording cannot change unnoticed; how it looks, only eye
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
+| Nothing personal | Linux | Runs the tests of `docs/agents/check-personal.mjs` and then the check on the files |
 
 The end-to-end job runs on Windows because that is where the suite is developed.
 
@@ -139,6 +140,11 @@ Run them by hand with `node demo-site/server.mjs`.
 - **Only allowlisted information leaves the page.** New output fields need a reason and a test
   that hidden content and credentials stay out.
 - **Errors are for the agent.** Each has a stable code and says what to do next.
+- **Nothing personal in the repository.** No home directory, no mail address outside the example
+  domains, no link to an agent's session, in a file or in a commit message. A path in an example
+  is written with a placeholder (`<folder>`). A check keeps the files so
+  ([runbook](agents/runbook.md#check-that-nothing-personal-is-in-the-files)); pictures and commit
+  messages it does not read.
 
 ## Adding a tool
 

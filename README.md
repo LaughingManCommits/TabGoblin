@@ -43,14 +43,15 @@ cd chrome-extension && npm install && npm run build
 ```
 
 1. Load `chrome-extension/dist` as an unpacked extension at `chrome://extensions`.
-2. Add the server to your agent's MCP settings:
+2. Add the server to your agent's MCP settings, with the folder you cloned the project into in
+   place of `<folder>`:
 
    ```json
    {
      "mcpServers": {
        "tabgoblin": {
          "command": "java",
-         "args": ["-jar", "C:/projects/TabGoblin/java-server/target/browser-context-mcp.jar"]
+         "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar"]
        }
      }
    }

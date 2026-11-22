@@ -1,29 +1,37 @@
 # Current state and handoff
 
-Last updated: 2026-11-21. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-22. Claims here go stale; check the date, then `git status` and `git log`.
 
 ## Where the code is
 
-- `origin/main` = `9ea4734`: the merge of `ci-failures`, made and pushed by the owner on
-  2026-11-21. It holds five new packages in `TODO.md` and the fix for the CI failures of the two
-  pushes before it. Earlier branches are merged.
-- Local `main` is one commit ahead of it, not pushed: this page and one line of the validation
-  log, set right after that push. Committed on `main` on the owner's word of 2026-11-21, for
-  this change only; the working rule stands.
+- `main` = `origin/main` = `b676396`, pushed by the owner on 2026-11-21. Earlier branches are
+  merged.
+- Branch `nothing-personal`, made from it on 2026-11-22: two commits, each made on the owner's
+  word. The first has WP-14's files and check, and WP-15 as it was filed in `TODO.md` the day
+  before; the second has WP-16 and WP-17 as filed. Not pushed and not merged.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| WP-10 to WP-14 | Filed on 2026-11-21, none started. Each waits for the owner's decisions. The owner called WP-14, nothing personal in the repository, important | [TODO.md](../../TODO.md) |
+| WP-14, nothing personal in the repository | The files and the check are done, on `nothing-personal`. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
+| WP-10 to WP-13, WP-15 | Filed on 2026-11-21, none started. Each waits for the owner's decisions. WP-15, an easy install, has WP-14 as its first step | [TODO.md](../../TODO.md) |
+| WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
+| WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
-- **CI passes on `main`.** Run #9 (`9ea4734`) passed in all four jobs, read on GitHub on
-  2026-11-21. The two runs before it had failed: #7 (`5c9f4ab`) in the Java server job, #8
-  (`1b28c91`) in the Java server job and end to end; causes and fix are in the
+- **CI has a fifth job that has never run:** "Nothing personal". Its two commands passed on
+  Windows on 2026-11-22. They have not run on Linux, where the job runs (Docker was not running,
+  and the Ubuntu in WSL has no Node), nor on GitHub: a push to a branch runs nothing.
+- **Every commit still carries the owner's mail address**, a new one too: it comes from the
+  owner's git settings. See WP-14, "What remains".
+- **CI passes on `main`.** Run #9 (`9ea4734`) passed in all four jobs it had then, read on
+  GitHub on 2026-11-21. The two runs before it had failed: #7 (`5c9f4ab`) in the Java server
+  job, #8 (`1b28c91`) in the Java server job and end to end; causes and fix are in the
   [validation log](validation-log.md). One passing run does not show that a fault of timing is
-  gone for good: it had passed in run #7 end to end, too.
+  gone for good: it had passed in run #7 end to end, too. Whether CI ran for `b676396` has not
+  been looked at.
 - **Which of two causes failed the end-to-end job in run #8 is not known.** Both give the
   message in its log; both are fixed. See the validation log.
 - **One test of the server failed once for a reason that was not looked into further:**
@@ -34,22 +42,24 @@ Last updated: 2026-11-21. Claims here go stale; check the date, then `git status
 - **A session can read CI now**, through TabGoblin itself: a tab on `github.com` that the owner
   authorized with Explore, then the run's page and its jobs. `gh` is still not logged in on this
   machine.
-- **The jar in `java-server/target` is older than the sources.** The fix was built and tested
-  in a copy of the tree, because the session's own TabGoblin server was running from that jar.
-  Build it (`mvn -B -f java-server/pom.xml package`) before the suites are run in the tree, and
-  restart an agent to get the new server.
+- **The jar in `java-server/target` is older than the sources.** The fix for the CI failures
+  was built and tested in a copy of the tree, because the session's own TabGoblin server was
+  running from that jar. Build it (`mvn -B -f java-server/pom.xml package`) before the suites
+  are run in the tree, and restart an agent to get the new server.
 - **The browser suites have run only in Chrome on Windows.** The Mac shortcut path in
   `editor.ts` is untested. The two unit suites have also run on Linux, in a container, on
-  2026-11-21 (runbook: "Reproduce a CI job"), not with this fix: Docker was not running.
+  2026-11-21 (runbook: "Reproduce a CI job"), not with the fix for the CI failures: Docker was
+  not running.
 - **No hover.** CSS `:hover` cannot be set without the debugger, so a hover tool was decided
   against on 2026-11-21; the limit is recorded in the root `README.md`.
 - **Not tried:** real products built on the tested editor libraries, and IntelliJ's own agent.
 
 ## Handoff
 
-- **Last verification:** 2026-11-21. Locally, on what `ci-failures` held before it was
-  committed: the server's suites with `verify`, also held to one and to two cores, and the
-  end-to-end suite; not the extension's check (only built; nothing in it changed), the editor
-  lab or the Linux container. On GitHub: run #9, all four jobs. Details in the
+- **Last verification:** 2026-11-22, on `nothing-personal`: the new check and its tests, the
+  check against a planted home directory, and the link check. No product code changed and no
+  product suite was run; the last runs of those are of 2026-11-21. Details in the
   [validation log](validation-log.md).
-- **Next action:** the owner's decisions on WP-10 to WP-14, WP-14 first.
+- **Next action:** the owner's push and merge of `nothing-personal`, which runs the new job for
+  the first time. Then WP-14's remainder (the address, the history), and the decisions on WP-10
+  to WP-13 and WP-15 to WP-17.
