@@ -141,6 +141,15 @@ It rewrites `docs/images` and `docs/examples`. Run it headed: a headless Chrome 
 different size. Afterwards open every changed image and check it shows what the documentation says
 it shows.
 
+Take a picture of the popup without `fullPage`. The popup is a small window, and its content is
+longer than the window, so it scrolls. With `fullPage` Chrome returns one tall image, and only
+its upper part is right: the part that fits in the popup's window. Below that the image does
+not go on with the rest of the content. It starts again with the popup's header: the goblin,
+the name, the status line, the first panel. So the image has the header twice and the lower
+part of the popup not at all, while the popup itself has one header. For the popup at full
+length, do as `screenshots.mjs` does for the two full-length pictures: lay its content out in
+an ordinary tab and picture that.
+
 After a change to the confirmation prompt, picture all its cases and look at them:
 
 ```sh
