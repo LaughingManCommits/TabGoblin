@@ -12,9 +12,9 @@ branch `server-panel` and waits for the owner's review; its entry says what is t
 is open. The other four are not started, and each waits for the owner's word on its points.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
-in place of one for each; it is built and committed on the branch `one-server`. WP-20, filed on
+in place of one for each; it is built and merged. WP-20, filed on
 the same day, is a list of blocked sites in the server; the owner decided its points, and it is
-built and committed on the branch `blocked-sites`. New work gets the next number, WP-21.
+built and merged. New work gets the next number, WP-21.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -900,8 +900,8 @@ and in today's window.
 
 ### What was built
 
-On 2026-11-22, on the branch `one-server`, in the working tree. What was run is in the
-validation log. The proposals stand, with what building them showed:
+On 2026-11-22, on the branch `one-server`; merged by the owner the same day. What was run is
+in the validation log. The proposals stand, with what building them showed:
 
 - **The click on a tab came first,** in the window as it was: every tab is in the list, which
   scrolls, a click shows that tab's metrics and log lines, and the corner of the card says
@@ -1043,8 +1043,8 @@ fourth and the fifth were not asked and go by their proposals.
 
 ### What was built
 
-On 2026-11-22, on the branch `blocked-sites` (made from `one-server`), and committed there on
-the owner's word. What was run is in the validation log. The proposals stand, with what building them
+On 2026-11-22, on the branch `blocked-sites` (made from `one-server`); merged by the owner the
+same day. What was run is in the validation log. The proposals stand, with what building them
 showed:
 
 - **The file's default place is beside the token that is in use,** and not always in the home

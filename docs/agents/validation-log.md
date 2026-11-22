@@ -71,6 +71,19 @@ window was read and pressed through the accessibility interface.
   and in a box; it says it once now, above the rows. The file written whole again: the window
   showed the list at once, without anything restarted.
 - After the look no server and no editor from it was left running.
+- The first three pictures of the popup showed it twice, one above the other, and the owner
+  asked why. They had been taken as whole pages. Reproduced afterwards with the built extension
+  in Chrome: one masthead in the popup's page, counted before and after; pictured as the popup
+  shows it, one; pictured as a whole page, of 844 pixels with a window of 510, the image starts
+  again with the popup's header about 586 pixels down, in place of the rest of the content.
+  Scrolled as a person scrolls it, to the middle and to the bottom, the popup's window showed
+  Sessions, Activity and Settings and no header: it is not pinned and had scrolled out of view.
+  So the popup has one header, and the fault is in that kind of picture. Where in Chrome or
+  in the tool that drives it was not traced. The same popup laid out in an ordinary tab and
+  pictured whole, as `screenshots.mjs` does it, showed it once at its full length. The look's
+  later pictures are of the popup's own view. In the repository no script pictures the popup
+  as a whole page, and the two full-length pictures in `docs/images` were opened: one header
+  each. The runbook says how to picture the popup, and the development page points to it.
 
 Not run: the editor lab; nothing it covers changed. Not tried: **Edit** on Linux and macOS;
 this server with an extension from before this change; the owner's own Chrome and agent with

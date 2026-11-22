@@ -4,23 +4,14 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `38dfabb`: the owner's merge of `restart-keeps-tabs` on
-  2026-11-22, a server that is started again has its tabs at once. Earlier branches are merged.
-- Branch `by-hand-panel`, made from it on 2026-11-22: a server started by hand says that no
-  agent's work shows in it, a disconnected agent's server is left alone, the panel's card of
-  the times is called Metrics, its log has a line for every tool call, a tab that is open to
-  any agent is marked, and the picture in the two READMEs has more room at its right edge. One
-  commit (`1310c6d`), made on the owner's word. Not pushed and not merged.
-- Branch `one-server`, made from `by-hand-panel` on 2026-11-22: WP-19, built. One commit, made
-  on the owner's word. Not pushed and not merged. There is one server process for all
-  agents; the process an agent's program starts is a pipe to it and starts it if none runs.
-  The server's window shows every agent, and a click on a tab or on an agent shows that one's
-  metrics and log lines.
-- Branch `blocked-sites`, made from `one-server` on 2026-11-22: WP-20, built. One commit, made
-  on the owner's word. Not pushed and not merged. Sites that no agent may work on are named
-  in a settings file beside the pairing token; the server refuses every action there before it
-  reaches the browser, the extension refuses as well, and the popup and the server's window
-  say what is blocked.
+- `main` = `origin/main` = `8b08d2f`: the owner's merge of `blocked-sites` on 2026-11-22, and
+  pushed. That branch was built on `one-server`, and that on `by-hand-panel`, so the merge
+  brought all three: what a server without an agent says (`1310c6d`), one server for all
+  agents with a click on a tab (WP-19, `57c971e`), and blocked sites (WP-20, `3b1f133`). The
+  three branches are gone.
+- Branch `records-after-merge`, made from `main` on 2026-11-22: the records brought in line
+  with that merge, and how the popup is pictured (runbook, development page). Documentation
+  only. One commit, made on the owner's word. Not pushed and not merged.
 
 ## Active work
 
@@ -31,8 +22,8 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
-| WP-19, one server, and every agent connected to it | Built on 2026-11-22 on the owner's word ("okay do your recommendations"), on `one-server`, in the working tree. The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry. Committed; waits for the owner's push and merge |
-| WP-20, blocked sites | Built on 2026-11-22 on the owner's word, and committed on `blocked-sites`. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) | [TODO.md](../../TODO.md) |
+| WP-19, one server, and every agent connected to it | Merged on 2026-11-22. Built on the owner's word ("okay do your recommendations"). The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry |
+| WP-20, blocked sites | Merged on 2026-11-22. Built on the owner's word. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) |
 | WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
@@ -210,8 +201,9 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   a mistake in the file. By hand: the popup pictured in real Chrome in each state, and the
   server's real window read and its **Edit** pressed through the accessibility interface.
   Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `by-hand-panel`, of `one-server`, which is
-  built on it, and of `blocked-sites`, which is built on that.
+- **Next action:** the owner's push and merge of `records-after-merge`. And the owner's own
+  look at one server and at blocked sites, in their Chrome and with their agent: neither has
+  run there yet.
   Both parts have to be built by the owner before it shows in the tree: the server, after the
   one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
   extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first

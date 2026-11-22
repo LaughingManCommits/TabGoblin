@@ -57,7 +57,9 @@ The popup pictures are captures of the real popup window, taken through the brow
 interface. Run the script with `HEADED=1`: a visible Chrome gives the popup its real size
 (354 × 600), a headless one a different window. `popup-full.png` and `popup-full-light.png` are
 the exception: they lay the popup's live content out at full length in an ordinary tab, to show
-what is below the fold and what the light theme looks like.
+what is below the fold and what the light theme looks like. The popup itself cannot be captured
+at full length: such a picture shows its header twice. Why, and what to do instead, is in the
+[runbook](agents/runbook.md#regenerate-screenshots-and-examples).
 
 The confirmation prompt has more cases than the documentation shows. `node screenshots.mjs prompts`
 pictures all of them, in the dark and the light colour scheme, into `e2e/prompt-pictures/` (not in
@@ -69,7 +71,7 @@ panels folded to one line. Look at them after any change to the prompt. The end-
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 The picture of the server's panel, `docs/images/server-panel.png`, is not a capture: a class
-among the server's tests, `PanelPictures`, draws the panel in eight states with the server's own
+among the server's tests, `PanelPictures`, draws the panel in fifteen states with the server's own
 code, without a window. The command, and what to look at in the real window besides, is in the
 [runbook](agents/runbook.md#look-at-the-servers-panel).
 
