@@ -93,6 +93,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 | Chrome extension | `cd chrome-extension && npm ci && npm run check` |
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
+| Nothing personal | `node --test docs/agents/check-personal.test.mjs`; `node docs/agents/check-personal.mjs` |
 
 CI runs on pushes to `main`, on pull requests, and by hand. A push to another branch without a
 pull request runs nothing. `npm ci` deletes `node_modules` first; use `npm install` when you only
@@ -177,6 +178,25 @@ node docs/agents/check-links.mjs
 
 Success: `N links, all resolve`. It checks relative links and heading anchors in every Markdown
 file, outside code blocks.
+
+## Check that nothing personal is in the files
+
+```sh
+node docs/agents/check-personal.mjs
+```
+
+Success: `N files read, M binary files not read, nothing personal found`, and exit code 0. It
+reads the files git tracks and the new ones it would take, and fails on a home directory, on a
+mail address outside the example domains (`example.org`, `name.example`, `name.test`) and on a
+link to an agent's session. A finding is printed as `file:line` and its kind, without the text
+that was found. A placeholder passes: `<folder>/TabGoblin`, or a home directory with `<name>` for
+the name.
+
+What it does not do: read pictures, which have to be opened, or commit messages. It does not
+know the owner's name or account either; it finds forms, not persons.
+
+Its own tests: `node --test docs/agents/check-personal.test.mjs`. Success: `ℹ fail 0`. They
+build their planted values while they run, so the test file passes the check.
 
 ## Common problems
 

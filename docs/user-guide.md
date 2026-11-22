@@ -19,14 +19,15 @@ cd chrome-extension && npm install && npm run build   # builds chrome-extension/
 and choose the folder `chrome-extension/dist`. Pin the goblin to the toolbar.
 
 **Tell your agent about the server.** In your IDE's or CLI's MCP settings, add a stdio server that
-runs the jar. Use the absolute path:
+runs the jar. Use the absolute path, with the folder you cloned the project into in place of
+`<folder>`:
 
 ```json
 {
   "mcpServers": {
     "tabgoblin": {
       "command": "java",
-      "args": ["-jar", "C:/projects/TabGoblin/java-server/target/browser-context-mcp.jar"]
+      "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar"]
     }
   }
 }

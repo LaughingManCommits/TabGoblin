@@ -2,11 +2,12 @@
 
 ## Overview
 
-Five packages are open, all asked for by the owner on 2026-11-21 and none started: WP-10,
-disconnecting an agent ends its authorizations; WP-11, the notice in the page; WP-12, a goblin
-that acts out what the agent does; WP-13, a panel for the server; and WP-14, nothing personal
-in the repository, which the owner called important. Each waits for the owner's word on its
-points. New work gets the next number, WP-15.
+Six packages are open, all asked for by the owner on 2026-11-21: WP-10, disconnecting an agent
+ends its authorizations; WP-11, the notice in the page; WP-12, a goblin that acts out what the
+agent does; WP-13, a panel for the server; WP-14, nothing personal in the repository, which the
+owner called important; and WP-15, an easy install. Of WP-14 the files and the check were done
+on 2026-11-22; the history remains, and is the owner's. The other five are not started, and
+each waits for the owner's word on its points. New work gets the next number, WP-16.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -324,70 +325,153 @@ Asked for by the owner on 2026-11-21, as important: "do sanitation, make sure th
 repo that gives away personal info". Goal: whoever gets the repository learns nothing about its
 owner or the owner's machine that the owner did not mean to give.
 
-### What is there today
+### Done on 2026-11-22
 
-Searched on 2026-11-21 at `1b28c91`, in the tracked files and in the history, with `git grep`
-and `git log`. The values found are not repeated here.
+On the owner's "do wp-14", with the proposal taken for each point that had one. The values
+found are not repeated here.
 
-In the 136 tracked files:
+- **The examples.** The folder of the owner's checkout is out of the four configuration
+  examples (`README.md`, `docs/installation.md` twice, `docs/user-guide.md`). They say
+  `<folder>`, and a sentence beside them says what to write there.
+- **The pictures.** All thirteen in `docs/images` were opened. They show the popup, the notice
+  in a demo page and Chrome's extensions page with TabGoblin alone: loopback addresses, the
+  names of the two test agents, ports, and no folder, account or other extension. None of the
+  seventeen PNG files that are tracked holds anything besides its picture (no text chunk).
+- **The check.** `docs/agents/check-personal.mjs` fails on a home directory, on a mail address
+  outside the example domains and on a link to an agent's session, in the files git tracks or
+  would take. It says where and what kind, and not the text. It has tests, a job in CI
+  ("Nothing personal") and its command in the
+  [runbook](docs/agents/runbook.md#check-that-nothing-personal-is-in-the-files).
+- **The rule.** `AGENTS.md` and the conventions in `docs/development.md` say that nothing
+  personal goes into a file or a commit message, and that a commit message has no link to a
+  session.
+- **The searches of 2026-11-21 were run again**, with `git grep` on the tracked files and with
+  `git log` on the messages and on every line a commit ever added: nothing besides what is
+  listed below. Not found, as before: a home directory, a user name or a machine name, a
+  pairing token, a mail address other than test addresses on example domains. The long
+  hexadecimal strings are the shared test vector of the pairing and a test token.
+
+### What is still there
+
+In the files, left on purpose until the owner says otherwise:
 
 - **The name of the GitHub account**, twice: in the CI badge of `README.md` and in the clone
   address of `docs/installation.md`. Both are the repository's own address.
-- **The folder of the owner's checkout**, `C:/projects/TabGoblin/...`, in four configuration
-  examples (`README.md`, `docs/installation.md` twice, `docs/user-guide.md`). A drive and a
-  folder; no user name.
-- **A holder** in the copyright line of `LICENSE`.
+- **A holder** in the copyright line of `LICENSE`. A licence needs one.
 - **The extension's public key** (`key` in `chrome-extension/manifest.json`). It fixes the
   extension's id, which the end-to-end suite and the documentation use. Not personal; it is
   what makes every build the same extension.
-- **Not found:** a mail address other than test addresses on example domains; a home
-  directory; a user name or a machine name; a pairing token. The long hexadecimal strings are
-  the shared test vector of the pairing and a test token.
-- **Pictures.** `docs/images/install-extensions-page.png` was opened: it shows TabGoblin alone,
-  with its id and version, and no folder, account or other extension. The other twelve pictures
-  in `docs/images` were not opened for this.
+- **The owner's words and the owner's machine** in `TODO.md` and `docs/agents`. Requests are
+  quoted as they were written, and the state page and the validation log say what ran where:
+  Windows, and which tools were logged in or running. No name, address or folder is among it.
 
-In the history, 57 commits:
+In the history, 61 commits on 2026-11-22, none of them touched:
 
 - **Every commit carries its author's name and mail address**: one address, under two names.
 - **48 commit messages end with a link to the session that made them** (`Claude-Session:`),
   besides the `Co-Authored-By:` line.
-- **Not found:** a home directory or another mail address in a commit message, or in any line
-  a commit ever added, whether it is still in the files or not.
 
 Not searched: what GitHub keeps besides the repository (the account's profile, the logs of the
 CI runs), and the checkouts on the owner's machine outside the tracked files.
 
-### Proposal
+### What remains, and is the owner's
 
-1. **Files.** The checkout's folder in the examples becomes a placeholder
-   (`<folder>/TabGoblin/java-server/target/browser-context-mcp.jar`), with one sentence saying
-   what to put there. The twelve pictures are opened and looked at. The account's name and the
-   holder in `LICENSE` stay unless the owner says otherwise: an address needs the first, a
-   licence the second.
-2. **History.** A name and an address in a commit can be taken out only by writing the history
-   anew: every commit gets a new id, the branch is pushed by force, and every other checkout is
-   void. That is the owner's to do. Short of it: commits from now on carry an address that
-   gives nothing away (GitHub offers one for this), and no session link.
-3. **Keeping it so.** A check beside the link check, run in CI: it fails on a home directory, on
-   a mail address outside the example domains, and on a session link, in the tracked files.
+1. **The address of commits from now on.** A commit made today still carries the address the
+   history has: it comes from the owner's git settings (`user.email`), which a session does not
+   change. GitHub gives an account an address that gives nothing away, and can refuse a push
+   that carries another.
+2. **The history.** A name and an address in a commit, and a link in its message, can be taken
+   out only by writing the history anew: every commit gets a new id, the branch is pushed by
+   force, and every other checkout is void. Proposal: before the repository is made public,
+   and not sooner as long as it is private.
 
 ### Decisions for the owner
 
-1. What counts as personal here: the account's name, the holder in `LICENSE`, the author's
-   name and address in commits, the session links.
+1. The account's name and the holder in `LICENSE`: stay (as it is now), or go.
 2. The history: written anew now, written anew before the repository is made public
-   (proposal, as long as it is private), or left.
-3. Session links in commit messages from now on: left out (proposal), or kept. If left out, the
-   working rules in `AGENTS.md` say so.
-4. The check in CI (proposal: yes), and whether it also reads commit messages.
+   (proposal), or left.
+3. Whether the check also reads commit messages. Today it does not: the 48 messages in the
+   history would fail it until the history is written anew.
+4. The agents' pages (`TODO.md`, `docs/agents`): public with the rest (as it is now), or kept
+   out of a repository that is made public.
+
+### Acceptance for what remains
+
+If the history is written anew: the count of commits is the same, no commit carries the old
+address or a link to a session, and the owner has pushed. No tool's text changes.
+
+## WP-15: An easy install
+
+Asked for by the owner on 2026-11-21: "add wp 15 for easy install", and what easy means, in the
+owner's words: "we have simple way of installing it getting it running so user can use it".
+Goal: from nothing to a working TabGoblin in a few simple steps, without building anything.
+
+### What it takes today
+
+Read from [docs/installation.md](docs/installation.md), the runbook and the source on
+2026-11-21.
+
+- **Five things to have first:** a JDK 21, Maven, Node 24, Chrome 120 and Git. Then a clone, two
+  builds, and seven steps. The page says to allow about ten minutes; how long it takes a new
+  user was never measured.
+- **The extension is loaded unpacked**, with Chrome's developer mode on. A managed browser
+  forbids that.
+- **The extension's id is fixed** by the `key` in `chrome-extension/manifest.json`, and the
+  server accepts connections from that id only (`DEFAULT_EXTENSION_ORIGIN` in `McpMain.java`;
+  `--extension-origin` names another, or `any`).
+- **The agent is told an absolute path** to a jar inside the checkout, and needs `java` on its
+  path.
+- **Pairing** is a 64-character token, printed by `--show-token` in a terminal and pasted into
+  the popup. Once; it is kept in the user's home folder.
+- **Updating** is pulling and building both parts again. Server and extension must be of the
+  same protocol version, and the popup says so when they are not.
+- **Nothing is published.** The repository is private; CI builds and tests and keeps nothing;
+  the runbook says there is no release procedure and no published artifact.
+- The sample output on the installation page is from an earlier build (52 tests; today 64).
+
+### Proposal
+
+Three steps, none of which builds anything, and then it runs.
+
+1. **Add the extension to Chrome**, from the Chrome Web Store: one click, no developer mode. To
+   check before anything is built on it: the store gives an extension an id of its own and does
+   not take the `key` of the manifest. If so, the server accepts two ids, the store's and the
+   one of a build from source, and nothing else.
+2. **Add the server to the agent**: one line in the agent's MCP settings, or one command where
+   the agent has one, with no checkout and no path into it. For that the server is published,
+   as a release that CI builds. Three ways to get to the one line, to choose from: a download
+   with the Java runtime inside; a native program; a command that fetches the server and starts
+   it, the way most MCP servers are installed.
+3. **Pair**, once, and shorter than today: a short code in place of the 64 characters, or the
+   popup offering to pair with the server it has found, which the user confirms.
+
+Then the check the page has today: authorize a tab, and ask the agent for `browser_status`.
+
+Updating becomes as simple: the extension updates by itself from the store, the server by the
+same line. The installation page is written anew around these steps; the build from source
+stays as its second half, for those who work on TabGoblin.
+
+Order: WP-14, then the repository in the open, then a release procedure, then the store.
+
+### Decisions for the owner
+
+1. The repository in the open, and when. Everything else here follows it.
+2. The Web Store: a developer account, its fee, and the texts and pictures of the listing.
+3. How the server is delivered. Proposal: a download with the Java runtime inside first, since
+   it asks for nothing on the machine, and the one command on top of it.
+4. Pairing: a short code, a confirmation in the popup, or as it is.
+5. Versions. An extension from the store updates by itself; a server does not. Either the
+   server is told to update, or the two stay compatible over more than one version. Today they
+   must match exactly in the protocol version.
+6. What is promised to work. The browser suites have run in Chrome on Windows only.
 
 ### Tasks and acceptance
 
-The files named above, the pictures, a working rule in `AGENTS.md` for commit messages, and the
-check with its command in the runbook and its job in `.github/workflows/ci.yml`. Acceptance:
-the searches of this package, run again, find only what the owner decided may stay; every
-picture in `docs/images` has been opened and the validation log says so; the check fails on a
-planted home directory and passes without it. If the history is written anew: the count of
-commits is the same, no commit carries the old address, and the owner has pushed. No tool's
-text changes.
+Per the task map: "Change build wiring or CI" for the release, "Change sessions, pairing or the
+connection" for the second id and for pairing, the runbook for the release procedure, and
+`docs/installation.md` with the root `README.md`. Tests: the server accepts the two ids and
+refuses a third (`WebSocketBridgeTest`); the suites end to end keep running against the build
+from source. Acceptance, measured and written down: on a machine with Chrome and an agent, and
+no JDK, Maven, Node or Git, a person follows the page to a `browser_status` that says
+connected; the steps and the minutes are counted. A tool's text changes only where it names
+the way to pair.
