@@ -6,9 +6,9 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 - `main` = `origin/main` = `b676396`, pushed by the owner on 2026-11-21. Earlier branches are
   merged.
-- Branch `nothing-personal`, made from it on 2026-11-22: one commit, made on the owner's word,
-  with WP-14's files and check, and WP-15 as it was filed in `TODO.md` the day before. Not
-  pushed and not merged.
+- Branch `nothing-personal`, made from it on 2026-11-22: two commits, each made on the owner's
+  word. The first has WP-14's files and check, and WP-15 as it was filed in `TODO.md` the day
+  before; the second has WP-16 and WP-17 as filed. Not pushed and not merged.
 
 ## Active work
 
@@ -16,6 +16,8 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 |---|---|---|
 | WP-14, nothing personal in the repository | The files and the check are done, on `nothing-personal`. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-10 to WP-13, WP-15 | Filed on 2026-11-21, none started. Each waits for the owner's decisions. WP-15, an easy install, has WP-14 as its first step | [TODO.md](../../TODO.md) |
+| WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
+| WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
@@ -60,4 +62,4 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   [validation log](validation-log.md).
 - **Next action:** the owner's push and merge of `nothing-personal`, which runs the new job for
   the first time. Then WP-14's remainder (the address, the history), and the decisions on WP-10
-  to WP-13 and WP-15.
+  to WP-13 and WP-15 to WP-17.

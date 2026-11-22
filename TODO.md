@@ -2,12 +2,14 @@
 
 ## Overview
 
-Six packages are open, all asked for by the owner on 2026-11-21: WP-10, disconnecting an agent
-ends its authorizations; WP-11, the notice in the page; WP-12, a goblin that acts out what the
-agent does; WP-13, a panel for the server; WP-14, nothing personal in the repository, which the
-owner called important; and WP-15, an easy install. Of WP-14 the files and the check were done
-on 2026-11-22; the history remains, and is the owner's. The other five are not started, and
-each waits for the owner's word on its points. New work gets the next number, WP-16.
+Eight packages are open. Six were asked for by the owner on 2026-11-21: WP-10, disconnecting an
+agent ends its authorizations; WP-11, the notice in the page; WP-12, a goblin that acts out
+what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the repository,
+which the owner called important; and WP-15, an easy install. Two on 2026-11-22: WP-16, a page
+that shows how TabGoblin differs from other tools; and WP-17, a new token at every start, and
+nothing connected on an old one. Of WP-14 the files and the check were done on 2026-11-22; the
+history remains, and is the owner's. The other seven are not started, and each waits for the
+owner's word on its points. New work gets the next number, WP-18.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -475,3 +477,203 @@ from source. Acceptance, measured and written down: on a machine with Chrome and
 no JDK, Maven, Node or Git, a person follows the page to a `browser_status` that says
 connected; the steps and the minutes are counted. A tool's text changes only where it names
 the way to pair.
+
+## WP-16: A page that shows how TabGoblin differs from other tools
+
+Asked for by the owner on 2026-11-22: "we need to make doc showing how we differ from the
+competition and how they work vs us with nice diagrams". Goal: a reader who knows another way
+of putting an agent into a browser sees, in pictures, how that way works, how TabGoblin works,
+and what follows from the difference, for it and against it.
+
+### What is there today
+
+Read from the documentation on 2026-11-22.
+
+- **No page names another tool.** The one product of that kind in the documentation is the
+  driver of our own end-to-end suite.
+- **What sets TabGoblin apart is said in pieces, and never against anything:** the first
+  paragraph and "Limits worth knowing" of the root `README.md`, and "What is never exposed"
+  and "What remains your risk" in [docs/security.md](docs/security.md).
+- **Diagrams.** Seven, all in Mermaid: the idea in one picture in `docs/README.md`, and six in
+  `docs/architecture.md`. The root `README.md` has the idea as two lines of text. The thirteen
+  pictures in `docs/images` are captures of the popup and of Chrome; none is drawn.
+- **Nothing is known here about the other tools.** No session has read their documentation or
+  tried one of them for this. Where this package names a product, it is from memory.
+
+### Proposal
+
+1. **A page of its own, `docs/comparison.md`**, with a line in the table of `docs/README.md`
+   and of the root `README.md`.
+2. **Compared by the way of working, with products as examples.** What an agent can reach
+   follows from how a tool gets at the browser, and several products share each way. The ways,
+   as far as memory goes; which product belongs where is the package's first task:
+   - a browser of the tool's own, started for the agent and driven through an automation
+     protocol (Playwright MCP, tools built on Puppeteer, browser-use);
+   - the user's browser, entered through its debugger (Chrome DevTools MCP, extensions that
+     ask for the `debugger` permission);
+   - an agent that is part of the browser, or of an extension by the maker of the model
+     (Claude in Chrome, browsers with an agent built in);
+   - a browser in the cloud, to which the logins have to be brought;
+   - the whole screen: pictures of the desktop, and the mouse and the keyboard.
+3. **The same questions put to each way**, in one table: whose browser it is and where the
+   logins are; how access is given and how far it goes (a tab and its site, a site, the
+   browser, the machine); what the agent can get at (the page's text, script, cookies and
+   storage, the network, other tabs); what happens before something is sent; what the user
+   sees and can stop; which agents can use it; what it takes to install.
+4. **What the others can do and TabGoblin cannot**, in the same table and with the same
+   weight: hover, script, the network, frames from another site, editors drawn on a canvas,
+   running without a person at the browser. A tool that starts its own browser is the right
+   one for testing a site in CI; TabGoblin is not, and the page says so.
+5. **Pictures.** One per way of working, all drawn alike: the same shapes in the same places
+   for the agent, the tool, the browser, the logins and the user, so that the eye finds what
+   differs. One picture of reach alone: what lies around a page (its script, the cookies, the
+   other tabs, the network, the machine), and how far each way goes into it. And one
+   sequence: something is sent with TabGoblin, and with a tool that drives the debugger.
+6. **Each statement has its source.** About another product: a link to its documentation or
+   its source, and the date it was read. For an extension, the permissions in its manifest:
+   they can be read and are nobody's opinion. About TabGoblin: a link to the page that owns the
+   fact, and no second wording of it.
+7. **No verdict, and no adjectives.** The page says what each way reaches and what it is for.
+
+### Decisions for the owner
+
+1. Which products, and how many. Proposal: one or two per way of working, and the two or three
+   nearest to TabGoblin (an extension in the user's own browser, for any agent) in more depth.
+2. Products by name, or the ways of working without names. Proposal: by name. A page without
+   names cannot be checked and helps nobody choose; a page with names goes out of date, and
+   its makers may object to it.
+3. Read only, or also tried. Proposal: each product read, and the nearest two or three
+   installed and given one small task on the demo sites. The page says of each which it was.
+4. How the pictures are made. In Mermaid, as the rest of the documentation: text in the page,
+   drawn by GitHub, nothing to keep; but two diagrams cannot be held to one layout, and each
+   looks as the viewer draws it. Or drawn (SVG in `docs/images`, in the popup's colours, for
+   light and dark): they look as they are meant to, and each has to be made, opened and kept
+   by hand. Proposal: drawn for the ways of working and for the reach, since "nice" is the
+   owner's word and the comparison lives from pictures that are alike; Mermaid for the
+   sequence.
+5. How much of it goes into the root `README.md`. Proposal: the one picture that sets the ways
+   side by side, and a link.
+6. How it is kept true. The other tools change and do not tell us. Proposal: the page carries
+   the date of its last reading, and is read again before a release; the listing in the store
+   (WP-15) takes its words from it.
+
+### Tasks and acceptance
+
+Per the task map, "Edit documentation": the page, its lines in the two tables, and the
+pictures. No product code changes and no tool's text. Acceptance: every statement about
+another product has its source and its date, and the page says of each product whether it was
+tried or read; every statement about TabGoblin links to the page that owns it; what TabGoblin
+cannot do is in the table, the list of "Limits worth knowing" at least; each picture was
+opened and looked at, in both colour schemes if it is drawn, and the validation log says so;
+the link check and the check for what is personal pass.
+
+## WP-17: A new token at every start, and nothing connected on an old one
+
+Asked for by the owner on 2026-11-22: "our tokens should be random on start up, i started up
+the mcp and agent conencted automatically, any connected agent without the latest token should
+be killed". Goal: a server that starts is not connected to the browser on something that was
+agreed before. What is connected is what the user let in since it started.
+
+### What happens today
+
+Read from the source on 2026-11-22 (`Pairing.java`, `McpMain.java`, `WebSocketBridge.java`;
+`connectPort` and `scan` in `background.ts`; `canUse` and `resolveSession` in `policy.ts`).
+
+- **One token for the machine, made once.** The first start of a server makes 64 random
+  hexadecimal characters and writes them to the file `pairing-token`, in the folder
+  `.browser-context-mcp` of the user's home folder. Every later start of every server reads
+  that file. The token changes only with `--rotate-token`.
+- **The extension keeps the same token**, once the user has pasted it, and looks for servers
+  on eight ports: every 30 seconds, when the popup opens, and when the user changes tabs. It
+  pairs with each server it finds and asks nobody. That is what the owner saw, and what the
+  installation guide promises: "You pair once; it stays valid until you rotate it."
+- **So whatever starts the jar as this user is connected:** every agent the user set up, and
+  any other program that runs as the user, which can read the file as well. For the second,
+  see "What remains your risk" in [docs/security.md](docs/security.md).
+- **Connected is not authorized.** A connected agent has no tab until the user authorizes one.
+  Two things reach further: a tab authorized for "Any agent" goes to the first agent that uses
+  it, and the sessions of an agent that is gone go to an agent of the same name, which is a
+  name an agent gives itself.
+- **A rotation puts the extension out, not a server.** It writes a new token to the file. Each
+  running server reads the file again at its next heartbeat and before its next command, and
+  closes a connection that was paired with the old token (code 4401). All servers share the
+  file, so afterwards every server has the new token and the extension the old one: all its
+  agents are gone until the user pastes the new token. No server ends.
+- **Disconnect holds for one run of a server.** The popup refuses an agent by its id (code
+  4403), and a server makes its id when it starts. The server keeps running; started again, it
+  has another id and is connected again.
+
+### What the request runs into
+
+- **A server that an agent starts has nowhere to show a token.** Its output is the protocol,
+  and its log goes where the agent's program puts it. Today the user gets the token from a
+  second start of the jar, in a terminal (`--show-token`), which works because the token is in
+  a file. A token that is made at the start and kept nowhere cannot be fetched that way.
+- **A new token at every start is a new pairing at every start.** How often an agent's program
+  starts its server in a day's work was never counted: once for each session of a CLI and each
+  start of an IDE at least.
+- **"The latest token", with several agents.** Each agent has a server of its own, up to eight
+  run at once, and every suite runs two. If the newest start makes the one token that counts,
+  starting a second agent ends the first.
+
+### Proposal
+
+1. **A secret for each server, made when it starts, held in memory, written nowhere.** It ends
+   with the process. The token file goes, and with it what another program could read.
+2. **The user lets each server in, in the popup.** The extension finds a server that it has
+   not let in, and does not pair. The popup says that an agent wants to connect, with the name
+   the agent gives, its port and a short code. The agent has the same code: the tool's answer
+   says that the user has to let it in, and names the code. The user compares the two and
+   allows. How two sides that share nothing beforehand agree on a secret is the design work of
+   this package: an exchange of keys from which both derive the code is the usual way, and the
+   code then differs when another program sits in between.
+3. **Nothing is kept over a start.** A server that is started again asks again. Closing Chrome
+   ends it too: the extension holds the secret in memory only, in the storage Chrome empties
+   when it closes, since its worker is put to sleep and wakes without what it knew.
+4. **That is the owner's "killed", for all agents alike.** A connection whose server was not
+   let in since it started does not exist, and letting one agent in does not end another.
+
+What it does not do: defend against a program that runs as the user and does what the user can
+do, start a browser of its own for one. That line of `docs/security.md` stays. And it is no
+second authorization: a tab is still given by a click on it.
+
+### Decisions for the owner
+
+1. What "the latest token" means when several agents run. One token, and the newest start
+   wins: that is what the words say, and it leaves one agent at a time. Or a secret for each
+   server, and the user lets each in (proposal).
+2. How the user lets a server in. The popup, with a code that the agent shows too (proposal).
+   The popup without a code: one click, and a program that sits on one of the eight ports
+   under a familiar name is let in when the user clicks. Or a pasted token as today, which
+   needs a server with a terminal.
+3. How often the user is asked. At every start of a server (proposal, and the owner's words),
+   after it was counted how often that is. Anything gentler needs something kept, which is
+   what this package takes away.
+4. What "killed" does to a server. Its connection is closed and it is refused, with an error
+   that tells the agent what the user has to do (proposal). Or the process is ended as well:
+   most agents' programs start it again, or leave the agent without its tools and without a
+   reason. Ending a server is in WP-13.
+5. The sessions of an agent that starts again. Today they pass to an agent of the same name.
+   Proposal: they still do, once the user has let that agent in; otherwise every start costs a
+   click on each tab as well. WP-10 has the same question for Disconnect.
+6. What existing setups know: `--show-token`, `--rotate-token`, `--token-file`,
+   `BCMCP_TOKEN_FILE` and the folder in the home folder. The constraint in `AGENTS.md` keeps
+   legacy names. Proposal: the options stay as names and say that there is no token any more;
+   a server that starts removes the file. The protocol gets a new version, and an extension of
+   the old one is refused with the reason, as today.
+
+### Tasks and acceptance
+
+Per the task map, "Change sessions, pairing or the connection": `Pairing.java`,
+`WebSocketBridge.java`, `Protocol.java` and the options in `McpMain.java`; `pairing.ts`,
+`protocol.ts` and `background.ts`; the request in the popup, in place of the panel for the
+token; the test vector that `PairingTest` and `pairing.test.ts` share. The text an agent gets
+while it is not let in changes, so `docs/tools.md`, the server instructions and the suite end
+to end. Tests: a server started twice has two secrets, and an extension let in by the first is
+not connected to the second; the codes differ when a third party passes the messages on; a
+server that is not let in gets no command and no session, one for "Any agent" included; two
+agents that were let in work side by side; Disconnect holds as before. End to end: the suite
+lets its two agents in through the real popup, and a server that is ended and started again
+asks again. Then `docs/security.md` (the local connection, what remains your risk), step 6 of
+the installation guide, section 2 of the user guide, the protocol reference, and the pictures
+of the popup that show pairing. The third step of WP-15, pairing, is decided here.

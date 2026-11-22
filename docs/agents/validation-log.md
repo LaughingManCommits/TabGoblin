@@ -35,6 +35,10 @@ they cover changed. The new job has not run on GitHub, and its commands not on L
 was not running and the Ubuntu in WSL has no Node. Not done, and the owner's: the history, and
 the address that commits carry.
 
+Also in this session, in a second commit: WP-16 and WP-17 filed in `TODO.md`, none started. For
+WP-16, what the documentation has today was read, and no other tool. For WP-17, how the token
+is made, kept, found and rotated was read from the source; nothing was run.
+
 ## 2026-11-21, on `ci-failures`: the CI failures of runs #7 and #8
 
 Read on GitHub by a session, through TabGoblin: five runs, of which #1, #3 and #4 passed.
