@@ -3,6 +3,107 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `agent-skills`: WP-22, a skill for the tools for each of three agents
+
+The owner asked for a folder of skills for Claude Code, Codex and Copilot, "to standards", if it
+adds value; and, asked how, chose three separate skills over one for all. Committed on the
+owner's word; not pushed.
+
+No product code changed. What was added: `skills/` with three skills and a page on where each
+goes, one test, and the pages that point to them.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml test`, in the tree | 134 tests, 3 of them new (`SkillsTest`): the three are the same from "Start with the status" on; each names the server's eleven tools and no other; each names only codes the tool reference sets in code; the front matter has a name that is the folder's and a description within the format's limit |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+Read, not tried: the format (agentskills.io), and where Claude Code, Codex and Copilot look for
+skills and which fields of their own they take, from each one's documentation on 2026-11-22.
+Two of those pages had moved; one was read at its new address. How a local server is added to
+Codex and to Copilot could not be read that day, and the skills do not say it.
+
+Not run for the skills alone: the jar's build and the conformance check, the extension's check,
+the suite end to end and the editor lab; nothing they cover had changed. Not tried: any of the
+three skills in its agent.
+
+**Then, on the owner's word, the command that installs one.** The owner agreed that a skill
+helps only who has it, and chose to have the jar put it in place: `--install-skill claude-code`,
+`codex` or `copilot`. The build takes the three skills into the jar. Committed on the owner's
+word; not pushed.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify`, in a copy of the tree | 136 tests, 2 more of the skills: the jar's files are the repository's, file for file; a skill goes to its agent's place below the home folder, is not written twice, and one that is there and is not this one is left alone unless the user says to replace it. And the 8 of the conformance check on the built jar |
+| `cd chrome-extension && npm run check`, in the copy | type-check clean, 161 tests, build |
+| `cd e2e && npm test`, in the copy | 95 passed, 0 failed |
+| `mvn -B -f java-server/pom.xml test`, in the tree, after one word of a message was changed | 136 tests |
+
+With the jar built in the copy, against a home folder made for the purpose and removed again:
+each of the three skills was written to its place, and each was the repository's, compared
+file by file; run again, nothing was written; with the Claude Code skill's file changed by
+hand, the command left it as it was and ended with code 1; with `--replace` it was
+overwritten; an agent's name for which there is no skill ended with code 2 and the help.
+Mended by reading its own answer: the first line said "Put the skill in …", which reads as
+something the user is asked to do; it says "Installed" now. The owner's own home folder was
+not written to.
+
+Failed on the way: the build file, once. A comment in it named the option, and two dashes end
+a comment there; no test had run until it was reworded.
+
+## 2026-11-22, on `smoke-fixes`: WP-21, what the first test on the public repository showed
+
+The owner made the repository public and asked for a basic test through TabGoblin with Explore
+access; then showed a picture of the server's window and asked whether its metrics look good;
+then: "do the fixes please". Committed on the owner's word; not pushed.
+
+**The test, in the owner's Chrome, with the build of `main` as merged.** One session on the
+repository's pages, Explore. Worked: status with diagnostics, snapshot, extract (whole, outline,
+one section), navigation by address and back, a click on a link and on a tree item, scroll,
+wait, a navigation key, screenshot. Refused, as they must be: a fill, a click on a plain button
+and a typed character (`WRITE_NOT_AUTHORIZED`), a navigation to another site
+(`NAVIGATION_BLOCKED`), a ref from an earlier page (`STALE_REF`). Nothing was changed on GitHub.
+
+**Three faults, and how each was pinned down before it was mended.**
+
+- *The notice in a screenshot.* Six screenshots in the owner's Chrome: the two taken about ten
+  seconds after a page had loaded had the notice in the corner, three taken later did not, and
+  one was taken after the notice had gone by itself. Then on the build as it was, in the
+  suite's Chrome, with a script that puts the notice on the page and takes the picture at
+  once: on a quiet page the notice was in 0 of 12 pictures, with the page kept busy in 4 of 12.
+  The same script on the build with the fix: 0 of 20 busy and 0 of 20 quiet; and in a visible
+  Chrome 0 of 10 busy and 0 of 10 quiet. A visible Chrome was not measured before the fix.
+- *The log that stood still.* Read from the owner's real window: nine lines, ending before the
+  test, scrolled to the top. On the build as it was, in a real window on ports of its own, with
+  an agent whose calls each write a line: untouched, the log followed, also while the window
+  was put away and after it came back (37, 67, 97, 127 lines, at its end each time). So it
+  holds only when someone has scrolled up or marked text, as the user guide says. With the
+  fix, in a real window: text marked through the accessibility interface, thirty calls later
+  the log stood at 37 lines, its corner said *held while you read* and the button *30 newer
+  lines*; the button pressed, it had 67 lines and no button; thirty calls later 97.
+- *The metrics.* The window's four shares were the status tool's own, 98, 0, 2, 0 over 50
+  calls, with a longest pause of 346 seconds in them. With the fix the real window had, over 33
+  calls of a script, *share* and *per call* over the numbers and 70% with 124 ms for the agent.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 131 tests, 5 of them new, and the 8 of the conformance check on the built jar |
+| `cd chrome-extension && npm run check` | type-check clean, 161 tests, 1 of them new and one longer, build |
+| `cd e2e && npm test` | 95 passed, 0 failed. The step on the notice takes six pictures of a page kept busy now, each measured against the page without the notice |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+All of it in a copy of the tree with a jar built there, on the final sources, in one run.
+
+The picture tool drew sixteen states, one of them new: the log held. Opened and looked at: the
+first, the low screen, a tab chosen, and the new one. Mended by looking: the new button took
+the general button's look and height and left the log two lines; and the line over the
+metrics' numbers took the log's room, so the window is 24 pixels higher.
+`docs/images/server-panel.png` is the first drawing, byte for byte.
+
+Not run: the editor lab; nothing it covers changed. Not tried: a screenshot of a tab whose
+window is covered or minimized; the owner's own Chrome and window with these fixes; Linux and
+macOS. Read on GitHub and not acted on: CI's runs #15 to #20 did not start, with a message about
+the account's billing.
+
 ## 2026-11-22, on `blocked-sites`: WP-20, sites that no agent may work on
 
 The owner: "deny URL domain basically we can created blocked sites, this should be properties,
@@ -545,100 +646,21 @@ run #13 passed on GitHub with the step as it was. So the run above shows that th
 nothing, not that it mends the step. Not run: the unit suites and the editor lab; no product
 code and none of their files changed.
 
-## 2026-11-22, on `notice-box`: WP-11, the notice in the page: a bar, and pills of what ended
-
-On the final sources, which are the two-pane form with the goblin bare. The extension's check ran
-in the tree. What needs the jar ran in a copy of the tree, with a jar built there, because the
-session's own server runs from the tree's jar. The copy held the product sources and the suite
-of the tree, compared file by file, and was removed afterwards.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check`, in the tree | type-check clean, 151 tests, build. Twelve are new: ten of the notice (what it shows at a moment, the drawing under jsdom, the goblin), one of a line's words, one of what the worker tells a page |
-| `cd e2e && npm test`, in the copy | 94 passed, 0 failed. It is the fifth full run, and the third to pass: one on each form the look went through (see below). One step is new: two commands that ended have a pill each, the newer one last; one that failed says how; the pills stay while the next command runs; the notice fades and leaves the page; neither a snapshot nor the text has any of it; and the agent's screenshot is compared with two of the suite's own, one with the notice in it and one without. Two steps are extended: the bar says what runs, and a real click on Pause is answered in the notice |
-| `cd e2e && node notice-pictures.mjs` | 31 pictures, drawn by `notice.ts` in a plain page. Opened with the goblin bare: the bar with two pills (light), the user being asked (dark), paused (light), idle with one pill (dark). Opened in the two-pane form before that, with the goblin on its tile: three pills with a refused one (light), the longest pill (dark, and in the narrow window), a pill half way through fading (dark), the whole notice half way through fading (light). Opened in the one-box form only: Pause under the pointer, two frames of the arrival, and the fading pill with less motion asked for, where it was plain |
-| `HEADED=1 node screenshots.mjs`, in the copy | `indicator.png` made anew: a capture of the real notice in a real tab, at double size, opened, and copied into the tree. Four more came out different and none was copied. `popup-folded.png` was opened beside the tree's: it lists the two agents in the other order, which follows from which server got the first port in that run. `popup-authorize.png`, `popup-full.png` and `popup-full-light.png` show the agents with their ports; two of them were opened in an earlier run of the day and differed in the ports alone, and in this run they were not opened. The other eight, and the seven examples, were the same byte for byte |
-| `node docs/agents/check-links.mjs` | 81 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-What the look went through, each step judged from pictures:
-
-1. A plain box, built from the description alone. Its pictures showed the dot of the row out of
-   line with the marks above it, pills that did not read as pills, a mark for "Paused by you"
-   too small to see, a box that was hard to tell from a dark page, a width that jumped from 153
-   to 323 pixels, and a Pause that did not say whose it is.
-2. The owner's word then: "modern, fun and something that fits the theme of our app". The box
-   got the popup's colours and round marks, and the goblin beside the row. Its pictures showed a
-   text for the user being asked that broke over two lines; it was shortened to "Answer needed
-   in the popup".
-3. The owner's word on its size: "i wonder if we should split it 2 planes?". The two-pane form
-   was drawn from a copy of the source and set beside the box, same state, light and dark. With
-   three pills the box is 272 by 120 pixels; bar and pills together, measured in the pictures,
-   cover about a third less, and the bar stays 42 pixels high where the box grew. That is what
-   is built. The one-box form was never committed.
-4. The owner's word on the goblin: "the little goblin should be have no background and
-   border". It stood on a dark tile with a ring around it, and the ring pulsed for the state.
-   Now it stands bare on the bar, larger, and its own outline glows: green in pulses while the
-   agent works, amber when the user is asked.
-
-Failed on the way, end to end:
-
-- First run, 93 of 94. The new step found the session paused. The step before it resumed in the
-  popup while the popup still showed the old state, and so resumed nothing; the step after it
-  used to want the session paused, which hid that. The step now waits for the popup.
-- Second run, 83 of 94. The new step passed and eleven after it failed: it had opened a tab to
-  measure the pictures in, and a new tab takes the popup away. The first of them left the
-  session paused, and the others followed from that. The step measures in the page that is open
-  anyway.
-- In the picture script: a pill pictured 150 ms after it arrived was invisible instead of half
-  faded, because its arrival was still running. The script waits for the arrival, as a real pill
-  has long arrived when it fades. And the documentation's picture first held a pill left by the
-  step before; the script now waits until the notice is gone.
-
-Not run: the server's suites (no Java source changed, and the tree's jar was not rebuilt), the
-editor lab (nothing in `editor.ts` or `snapshot.ts` changed) and the Linux container. Not seen:
-the goblin's blink and its pulsing glow in motion, in a tab. Not tried: a screen reader, a
-zoomed page, a page written from right to left, the system's high-contrast colours, and a page
-with a button of its own under the bar. Read from the source as it was and not run on it: what
-the old pill did after a pause.
-
-## 2026-11-22, on `disconnect-revokes`: WP-10, Disconnect ends the agent's sessions
-
-On the final sources. The extension's check ran in the tree. What needs the jar ran in a copy of
-the tree, with a jar built there, because the session's own server runs from the tree's jar. The
-copy held the product sources and the suite of the tree, compared file by file, and was removed
-afterwards.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check`, in the tree | type-check clean, 139 tests, build |
-| `cd e2e && npm test`, in the copy | 93 passed, 0 failed. The step for Disconnect is a new one in place of the old: each agent's row says how many tabs it has, and the button's hint that it ends them; after Disconnect the agent's session is gone from the popup and the list says why, the other agent keeps its tabs and does not see that site; allowed again, the agent is connected, has no session, and its old session id is refused; the user's click on the tab gives it a new session. |
-| `FULL=1 node screenshots.mjs prompts`, in the copy | 64 pictures. Looked at: the whole popup with the setting on every time (dark) and with two things that pass (light), for the agent's row: name, "1 tab", port, button. |
-| `HEADED=1 node screenshots.mjs`, in the copy | Three pictures came out different from the tree's, the three that show the Agents panel. All three were opened and then copied into the tree: `popup-authorize.png` ("no tabs" beside each agent), `popup-full.png` and `popup-full-light.png` ("1 tab"). The other ten, and the seven examples, were the same byte for byte. |
-| `node docs/agents/check-links.mjs` | 79 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-Shown against the source as it was, with a copy of the worker tests that ends in one test which
-prints what it gets (run on both sources, not kept): an agent has a tab and is disconnected; a
-second server connects under the same name and asks for a snapshot in that session. Before: `ok`,
-with the page, and the session then carried the second agent's id. After: `UNKNOWN_SESSION`, and
-no session left.
-
-Failed on the way: one assertion of the new worker test. It took the last entry of the activity
-list for the newest; the list keeps what still runs behind what is finished. The test was
-corrected; the worker was not touched for it.
-
-On arrival the checkout was on `main`: the owner had merged `nothing-personal` and removed the
-branch. `git status -sb` showed it before the first change, and the branch was made first.
-
-Not run: the server's suites (no Java source changed, and the tree's jar was not rebuilt), the
-editor lab (nothing in `editor.ts` or `snapshot.ts` changed) and the Linux container. Not tried:
-an agent's name too long for its row beside the count (it is cut with an ellipsis, and the whole
-name is in its hint; no picture has one), the button's hint by eye (the suite reads its text),
-and a Disconnect while a real model is at work.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `notice-box` (WP-11, the notice in the page: a bar, and pills of what ended):
+  the extension's check passed with 151 tests, twelve of them new, and the suite end to end with
+  94, in the third of five full runs to pass. The notice was drawn in 31 states and looked at,
+  and went through three forms on the owner's word: a plain box, the popup's colours with the
+  goblin, then two panes, which cover about a third less. `indicator.png` was made anew from a
+  capture of the real notice in a real tab.
+- 2026-11-22, on `disconnect-revokes` (WP-10, Disconnect ends the agent's sessions): the
+  extension's check passed with 139 tests and the suite end to end with 93, in a copy of the
+  tree. Shown against the source as it was: an agent with a tab is disconnected and a second
+  server of the same name asks for a snapshot in that session; before, `ok` with the page;
+  after, `UNKNOWN_SESSION` and no session left. The popup was pictured in 64 states and the
+  three pictures of the Agents panel in `docs/images` were renewed. Not run: the server's
+  suites, since no Java source changed, and the editor lab.
 - 2026-11-22, on `nothing-personal` (WP-14, the files and the check): no product code changed;
   four examples in the documentation, and a check that reads the files for home directories,
   mail addresses outside the example domains and links to sessions, with 5 tests and a job in

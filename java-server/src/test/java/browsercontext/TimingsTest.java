@@ -185,4 +185,42 @@ class TimingsTest {
         timings.end(running, false);
         assertTrue(timings.report().contains("  browser_navigate 4 ms (first call): server 4 ms [failed]\n"), timings.report());
     }
+
+    @Test
+    void aPauseOfMoreThanAMinuteCountsAsAMinuteInTheSharesAndTheReportSaysSo() {
+        call("browser_snapshot", 40, 5, new Protocol.Timing(30, 0, 0));
+        pass(4_000);
+        call("browser_click", 50, 5, new Protocol.Timing(40, 0, 0));
+        // The agent is at something else for nearly six minutes. Counted in full, that pause would be
+        // nearly all the time there is, and the shares would say nothing of the calls.
+        pass(346_000);
+        call("browser_extract", 30, 5, new Protocol.Timing(20, 0, 0));
+
+        Timings.Shares shares = timings.shares();
+        assertEquals(4_000 + Timings.PAUSE_COUNTS_MS, shares.agent());
+        // Each call's own time is kept beside the sums, the pause at its real length: for what is
+        // typical of a call, and what was the longest.
+        assertEquals(java.util.List.of(-1L, 4_000L, 346_000L), shares.each().stream().map(Timings.Spent::agent).toList());
+        assertEquals(shares.server(), shares.each().stream().mapToLong(Timings.Spent::server).sum());
+        assertEquals(shares.browser(), shares.each().stream().mapToLong(Timings.Spent::browser).sum());
+        assertEquals(java.util.List.of(30L, 40L, 20L), shares.each().stream().map(Timings.Spent::browser).toList());
+
+        String report = timings.report();
+        // The report's share is of the same counted time; the pause's real length is its longest.
+        assertTrue(report.contains(" 100%  between calls, with the agent and its model (median 175.0 s, longest 346.0 s)"), report);
+        assertTrue(report.contains("Note: 1 pause between calls took more than a minute. In the shares each counts as one minute.\n"),
+                report);
+
+        // Without such a pause the report says nothing of it, and a pause counts in full.
+        Timings quick = new Timings(clock::get);
+        Timings.Running first = quick.begin("browser_snapshot");
+        pass(10);
+        quick.end(first, true);
+        pass(59_000);
+        Timings.Running second = quick.begin("browser_click");
+        pass(10);
+        quick.end(second, true);
+        assertEquals(59_000, quick.shares().agent());
+        assertFalse(quick.report().contains("more than a minute"), quick.report());
+    }
 }

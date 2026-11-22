@@ -90,6 +90,7 @@ The [installation guide](docs/installation.md) walks through each step with what
 | [User guide](docs/user-guide.md) | Authorize tabs, the popup, submissions, troubleshooting |
 | [Cheat sheet](docs/cheatsheet.md) | The commands at a glance: build, pair, run with the panel, stop, test |
 | [Tool reference](docs/tools.md) | Every tool with real outputs, completeness, every error code |
+| [Skills](skills/README.md) | A skill each for Claude Code, Codex and GitHub Copilot: how an agent works with the tools |
 | [Editors](docs/editors.md) | Which rich-text and code editors can be filled, how, and what was measured |
 | [Architecture](docs/architecture.md) | Processes, protocol, sessions, refs, navigation, submissions |
 | [Security model](docs/security.md) | What an agent can reach, how it is enforced, what remains your risk |

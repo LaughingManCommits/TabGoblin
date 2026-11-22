@@ -13,6 +13,14 @@ export const LINE_FADES_MS = 1000;
 export const MAX_LINES = 3;
 /** The element that holds the notice. Snapshots and extracts leave it out by this name. */
 export const NOTICE_TAG = 'bcmcp-indicator';
+/**
+ * How many frames a page has to begin before what was taken out of it is out of the picture too.
+ * A frame's callback runs before that frame is drawn: at the second, the first has been drawn,
+ * and at the third it has also reached the screen, which is where a capture takes it from.
+ */
+export const FRAMES_UNTIL_DRAWN = 3;
+/** How long a page is given to draw. One that is busy takes its time; one that hangs must not hold a command. */
+export const DRAWN_WITHIN_MS = 1500;
 
 /** What the agent is at in this tab. Only the first two keep the box in the page by themselves. */
 export type NoticeState = 'working' | 'asking' | 'paused' | 'idle';
@@ -60,6 +68,41 @@ export interface NoticeView {
 const STATES: readonly string[] = ['working', 'asking', 'paused', 'idle', 'off'];
 const MARKS: readonly string[] = ['ok', 'error', 'info'];
 const MAX_TEXT = 80;
+
+/** What of a window the wait for a drawn page needs. */
+export interface DrawingWindow {
+  requestAnimationFrame(callback: (time: number) => void): number;
+  setTimeout(handler: () => void, ms: number): unknown;
+  clearTimeout(id: never): void;
+  document: { visibilityState: string };
+}
+
+/**
+ * Resolves when the page has drawn itself as it is now, so that a picture taken then shows it so.
+ * Taking something out of the page does not take it out of the picture: the browser draws the
+ * page again a moment later, and later still while the page is busy, as one is that has just
+ * loaded. A capture takes what was drawn last.
+ *
+ * 'drawn': it has. 'hidden': the page is not shown (its window is minimized or covered), so it
+ * draws nothing and waiting would only hold the command. 'late': it did not draw in time.
+ */
+export function whenDrawn(win: DrawingWindow): Promise<'drawn' | 'hidden' | 'late'> {
+  if (win.document.visibilityState !== 'visible') return Promise.resolve('hidden');
+  return new Promise((resolve) => {
+    let left = FRAMES_UNTIL_DRAWN;
+    const limit = win.setTimeout(() => resolve('late'), DRAWN_WITHIN_MS);
+    const frame = (): void => {
+      left -= 1;
+      if (left > 0) {
+        win.requestAnimationFrame(frame);
+        return;
+      }
+      win.clearTimeout(limit as never);
+      resolve('drawn');
+    };
+    win.requestAnimationFrame(frame);
+  });
+}
 
 /** Reads what arrived as an update. Anything that is not one takes the notice away. */
 export function noticeUpdateOf(msg: Record<string, unknown>): NoticeUpdate {

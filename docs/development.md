@@ -71,7 +71,7 @@ panels folded to one line. Look at them after any change to the prompt. The end-
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 The picture of the server's panel, `docs/images/server-panel.png`, is not a capture: a class
-among the server's tests, `PanelPictures`, draws the panel in fifteen states with the server's own
+among the server's tests, `PanelPictures`, draws the panel in sixteen states with the server's own
 code, without a window. The command, and what to look at in the real window besides, is in the
 [runbook](agents/runbook.md#look-at-the-servers-panel).
 
@@ -173,6 +173,7 @@ page that owns it:
 | [Installation](installation.md) | Setting it up, and what goes wrong while doing that |
 | [User guide](user-guide.md) | What the user sees and does: the popup, sessions, submissions, stopping, the server's panel, and what the popup's messages mean |
 | [Tool reference](tools.md) | What each tool takes and returns: every text an agent reads, every error code |
+| [Skills](../skills/README.md) | What an agent is told beyond the server's own instructions, once for each of three agents, and where each agent wants it. They say in fewer words what the tool reference owns; `SkillsTest` holds them to the server's tools, to the tool reference's codes and to each other |
 | [Editors](editors.md) | Which editors can be filled, how, and what was measured |
 | [Security model](security.md) | The rules: what is enforced where, what is tested, what remains a risk |
 | [Architecture](architecture.md) | How it is built: processes, flows, where things are |

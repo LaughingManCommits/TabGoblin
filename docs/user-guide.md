@@ -338,9 +338,14 @@ then, so a key that was on its way elsewhere presses nothing.
   one is showing. A click on it again, or
   Escape, shows all tabs again. With no tab chosen you see everything. The click changes what
   the window shows and nothing else: the server and the agent are told nothing of it.
-- **Metrics** divides the time of the last tool calls into four shares: the agent and its
+- **Metrics** divides the time of the last tool calls into four heaps: the agent and its
   model between calls, this server, the extension and the page, and what you took to answer a
-  question. They are shares of all that time together. For one tab they are the shares of its
+  question. Each has two numbers. *share* is its part of all that time together; *per call* is
+  what a call typically takes in it, the middle one of the calls. The share says which heap is
+  the largest, the time whether that is much: the agent's share is nearly always the largest,
+  since a model takes seconds where the browser takes milliseconds. The pointer on a row shows
+  what the heap is and its longest. A pause of more than a minute between two calls counts as
+  one minute: the agent was then at something else. For one tab these are the numbers of its
   calls, with the time the agent took before each of them. The agent gets the whole in more
   detail ([tool reference](tools.md#where-the-time-went)).
 - **Log** has the server's last 300 lines, with the newest in view: when the extension
@@ -349,7 +354,9 @@ then, so a key that was on its way elsewhere presses nothing.
   is a warning. For one tab it has the lines of that tab's calls; lines that belong to no
   tab, such as a connection made or lost, show with no tab chosen. Lines can be marked and
   copied. While you read in it, with some of it marked or scrolled up, nothing new is
-  written; back at its last line, it goes on.
+  written, and the corner of the card says so: *held while you read*, with a button that says
+  how many lines have come since. Press it, or scroll to the last line, and the log shows its
+  newest line and goes on.
 - **Connection to the browser** is a switch. Off, the server closes its connection to the
   extension and lets it in no more until you switch it on. The agent's tools then answer that
   you switched it off, and where; the popup says *Disconnected*. Switched on, the extension

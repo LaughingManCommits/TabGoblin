@@ -7,7 +7,7 @@ import {
   clickElement, describeClickTarget, describeKeyTarget, fill, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
-import { applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice, type Notice, type NoticeMount } from './notice.ts';
+import { applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice, whenDrawn, type Notice, type NoticeMount } from './notice.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
 import {
   captureBaseline, contentDigest, observeSubmission, submissionPreview, submittedTexts, validationProblems, type SubmitBaseline,
@@ -258,11 +258,15 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
     case 'submit_done':
       submissions.delete(String(msg.submissionId));
       return {};
-    case 'indicator':
-      // `off` takes it away before this answer is sent: a screenshot waits for exactly that.
+    case 'indicator': {
+      const shown = noticeMount !== null;
       notice = applyUpdate(notice, noticeUpdateOf(msg), Date.now());
       showNotice();
+      // `off` answers when the notice is out of the picture, and not only out of the page: a
+      // screenshot waits for exactly this answer, and captures what the browser drew last.
+      if (shown && noticeMount === null) await whenDrawn(window as never);
       return {};
+    }
     default:
       throw new DomError('UNSUPPORTED_ACTION', `Unsupported page operation "${msg.op}".`);
   }

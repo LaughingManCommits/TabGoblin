@@ -26,6 +26,12 @@ final class Timings {
     static final int KEPT = 200;
     /** Calls the report lists one by one. */
     static final int LISTED = 10;
+    /**
+     * How much of a pause between two calls counts as the agent's time, in milliseconds. An agent
+     * that takes longer than a minute is at something else, or waits for its user: counted in
+     * full, one such pause would be nearly all the time there is, and the shares would say nothing.
+     */
+    static final long PAUSE_COUNTS_MS = 60_000;
 
     /**
      * One finished tool call, in milliseconds. A gap of -1 means that no call came before it.
@@ -35,6 +41,11 @@ final class Timings {
      */
     record Call(String tool, long gap, long total, long waited, long trip, long ran, long queued, long asked,
             boolean split, boolean ok, String session) {
+
+        /** The agent's time before this call, as far as it counts: a long pause counts as a minute. */
+        long pause() {
+            return Math.min(Math.max(0, gap), PAUSE_COUNTS_MS);
+        }
 
         /** This server's own work: what is left of the call after the waiting and the round trips. */
         long server() {
@@ -194,10 +205,24 @@ final class Timings {
      * the agent between its calls, this server with the way to the extension, the browser, and the
      * user. The panel draws them; the report below has every part on its own.
      */
-    record Shares(int calls, long agent, long server, long browser, long user) {
+    record Shares(int calls, long agent, long server, long browser, long user, List<Spent> each) {
+
+        /** The sums alone, where the single calls are not known. */
+        Shares(int calls, long agent, long server, long browser, long user) {
+            this(calls, agent, server, browser, user, List.of());
+        }
+
         long all() {
             return agent + server + browser + user;
         }
+    }
+
+    /**
+     * One call's time in the four heaps, for what is typical of a call and what was the longest.
+     * {@code agent} is the whole pause before the call, also a long one, or -1 where no call came
+     * before it.
+     */
+    record Spent(long agent, long server, long browser, long user) {
     }
 
     synchronized Shares shares() {
@@ -226,13 +251,17 @@ final class Timings {
         long server = 0;
         long browser = 0;
         long user = 0;
+        List<Spent> each = new ArrayList<>();
         for (Call call : calls) {
-            agent += Math.max(0, call.gap());
-            server += call.server() + call.waited() + call.way();
-            browser += call.queue() + call.browser();
-            user += call.user();
+            Spent spent = new Spent(call.gap(), call.server() + call.waited() + call.way(), call.queue() + call.browser(),
+                    call.user());
+            agent += call.pause();
+            server += spent.server();
+            browser += spent.browser();
+            user += spent.user();
+            each.add(spent);
         }
-        return new Shares(calls.size(), agent, server, browser, user);
+        return new Shares(calls.size(), agent, server, browser, user, List.copyOf(each));
     }
 
     /** The report for the status tool. Empty while no call has ended. */
@@ -245,7 +274,9 @@ final class Timings {
             return "";
         }
         long[] gaps = all.stream().mapToLong(Call::gap).filter(gap -> gap >= 0).toArray();
-        long everything = Arrays.stream(gaps).sum();
+        // In the shares a long pause counts as a minute; its real length is in "longest".
+        long pauses = all.stream().mapToLong(Call::pause).sum();
+        long everything = pauses;
         for (Part part : PARTS) {
             everything += all.stream().mapToLong(part.of()).sum();
         }
@@ -253,9 +284,10 @@ final class Timings {
         sb.append("Where the time went, over the last ").append(all.size())
                 .append(all.size() == 1 ? " tool call" : " tool calls")
                 .append(" (share of all the time; median and longest per call):\n");
-        summarize(sb, everything, "between calls, with the agent and its model", gaps);
+        summarize(sb, everything, "between calls, with the agent and its model", gaps, pauses);
         for (Part part : PARTS) {
-            summarize(sb, everything, part.name(), all.stream().mapToLong(part.of()).toArray());
+            long[] values = all.stream().mapToLong(part.of()).toArray();
+            summarize(sb, everything, part.name(), values, Arrays.stream(values).sum());
         }
         sb.append("Last calls, newest last (the whole call; what the agent took before it; the call's parts, ")
                 .append("largest first):\n");
@@ -270,10 +302,16 @@ final class Timings {
         }
         sb.append("Note: the time between calls is the agent's program as well as its model, and any approval ")
                 .append("the user gives there.\n");
+        long longPauses = Arrays.stream(gaps).filter(gap -> gap > PAUSE_COUNTS_MS).count();
+        if (longPauses > 0) {
+            sb.append("Note: ").append(longPauses).append(longPauses == 1 ? " pause" : " pauses")
+                    .append(" between calls took more than a minute. In the shares each counts as one minute.\n");
+        }
         return sb.toString();
     }
 
-    private static void summarize(StringBuilder sb, long everything, String name, long[] values) {
+    /** @param counted how much of the values counts towards the share: all of it, but for long pauses */
+    private static void summarize(StringBuilder sb, long everything, String name, long[] values, long counted) {
         if (values.length == 0) {
             sb.append("     -  ").append(name).append(" (not known: no call came before)\n");
             return;
@@ -282,7 +320,7 @@ final class Timings {
         Arrays.sort(sorted);
         int n = sorted.length;
         long median = n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
-        long share = everything == 0 ? 0 : Math.round(100.0 * Arrays.stream(sorted).sum() / everything);
+        long share = everything == 0 ? 0 : Math.round(100.0 * counted / everything);
         sb.append(String.format(Locale.ROOT, "  %3d%%  %s (median %s, longest %s)\n",
                 share, name, show(median), show(sorted[n - 1])));
     }

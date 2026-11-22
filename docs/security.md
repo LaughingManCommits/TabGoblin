@@ -316,7 +316,7 @@ Where it stops:
 | Replayed ids, stale deadlines, floods, malformed messages refused | Worker, end-to-end |
 | Popup requests from a web page or another extension ignored | Worker |
 | Page scripts can neither read nor operate the notice in the page | End-to-end |
-| The agent's snapshots, texts and screenshots have nothing of the notice | End-to-end |
+| The agent's snapshots, texts and screenshots have nothing of the notice; a screenshot also not while the page is busy and draws late | DOM, worker, end-to-end |
 | The notice is told a state and fixed words, and nothing of a page | Rules, DOM, worker |
 | Injected page text changes no session or permission | End-to-end |
 | The server's panel shows a session's site, access and state, and nothing of its page's title or address | Java |

@@ -49,6 +49,14 @@ class McpMainTest {
         assertTrue(parse(Map.of(), "-h").help());
         assertTrue(parse(Map.of(), "--show-token", "--port", "6000").showToken());
         assertTrue(parse(Map.of(), "--rotate-token").rotateToken());
+
+        // A skill is asked for by its agent's name; without the option none is installed.
+        assertEquals(null, defaults.installSkill());
+        assertEquals(Skills.Agent.CODEX, parse(Map.of(), "--install-skill", "codex").installSkill());
+        Options replacing = parse(Map.of(), "--install-skill", "claude-code", "--replace");
+        assertEquals(Skills.Agent.CLAUDE_CODE, replacing.installSkill());
+        assertTrue(replacing.replace());
+        assertFalse(parse(Map.of(), "--install-skill", "copilot").replace());
     }
 
     @Test
@@ -56,6 +64,12 @@ class McpMainTest {
         // A mistyped command used to start a server that waits for a client.
         assertEquals("Unknown option: --show-tokn",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--show-tokn")).getMessage());
+        assertEquals("There is no skill for \"cursor\". There is one for each of: claude-code, codex, copilot.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--install-skill", "cursor")).getMessage());
+        assertEquals("--install-skill needs a value.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--install-skill")).getMessage());
+        assertEquals("--replace goes with --install-skill.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--replace")).getMessage());
         assertEquals("Unknown option: status",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "status")).getMessage());
         assertEquals("--port needs a value.",

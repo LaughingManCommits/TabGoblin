@@ -108,8 +108,18 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         }
     }
 
-    /** One heap of the time of the last tool calls, as a share of all of it. {@code yours} marks the user's own. */
-    record Share(String name, int percent, boolean yours) {
+    /**
+     * One heap of the time of the last tool calls: its share of all of it, how long a call typically
+     * takes in it, and what rests under the pointer: what the heap is, the typical and the longest.
+     * {@code yours} marks the user's own. A share says which heap is the largest; the typical time
+     * says whether that is much.
+     */
+    record Share(String name, int percent, boolean yours, String typical, String about) {
+
+        /** A share alone, where the single calls are not known. */
+        Share(String name, int percent, boolean yours) {
+            this(name, percent, yours, "", "");
+        }
     }
 
     /**
@@ -250,8 +260,10 @@ record PanelModel(String agent, String identity, int port, String version, Strin
     }
 
     private static Timings.Shares plus(Timings.Shares a, Timings.Shares b) {
+        List<Timings.Spent> each = new ArrayList<>(a.each());
+        each.addAll(b.each());
         return new Timings.Shares(a.calls() + b.calls(), a.agent() + b.agent(), a.server() + b.server(),
-                a.browser() + b.browser(), a.user() + b.user());
+                a.browser() + b.browser(), a.user() + b.user(), List.copyOf(each));
     }
 
     /** A line of the log as the panel shows it: the time of day, a mark on a warning, and the line as it was logged. */
@@ -315,10 +327,50 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             return List.of();
         }
         return List.of(
-                new Share("Agent and its model", percent(time.agent(), all), false),
-                new Share("This server", percent(time.server(), all), false),
-                new Share("Extension and page", percent(time.browser(), all), false),
-                new Share("Waiting for you", percent(time.user(), all), true));
+                share("Agent and its model", time.agent(), all, false, time.each().stream().mapToLong(Timings.Spent::agent),
+                        "Between two calls: the agent's program and its model, and any approval you give there.",
+                        "before a call", "A pause of more than a minute counts as one minute."),
+                share("This server", time.server(), all, false, time.each().stream().mapToLong(Timings.Spent::server),
+                        "This server, and the way to the extension and back.", "of a call", ""),
+                share("Extension and page", time.browser(), all, false, time.each().stream().mapToLong(Timings.Spent::browser),
+                        "The extension and the page at work, and a call's wait for its turn in its tab.", "of a call", ""),
+                share("Waiting for you", time.user(), all, true, time.each().stream().mapToLong(Timings.Spent::user),
+                        "Your answers to what the popup asks you.", "of a call", ""));
+    }
+
+    /**
+     * One heap, with what is typical of a call in it: the middle one of the calls' times, since a
+     * mean would be one long call's. Values below zero are not known and left out.
+     */
+    private static Share share(String name, long part, long all, boolean yours, java.util.stream.LongStream each, String what,
+            String where, String more) {
+        long[] sorted = each.filter(value -> value >= 0).sorted().toArray();
+        if (sorted.length == 0) {
+            return new Share(name, percent(part, all), yours);
+        }
+        int n = sorted.length;
+        long median = n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+        String about = what + "\nTypically " + span(median) + " " + where + ", at the longest " + span(sorted[n - 1]) + "."
+                + (more.isEmpty() ? "" : "\n" + more);
+        return new Share(name, percent(part, all), yours, span(median), about);
+    }
+
+    /** A length of time as a person reads it: milliseconds, seconds with one decimal, or minutes. */
+    static String span(long ms) {
+        if (ms < 1000) {
+            return ms + " ms";
+        }
+        return ms < 60_000 ? String.format(java.util.Locale.ROOT, "%.1f s", ms / 1000.0)
+                : String.format(java.util.Locale.ROOT, "%.1f min", ms / 60_000.0);
+    }
+
+    /**
+     * How many lines have come since the last one the log shows: what a log that is held while the
+     * user reads in it has not taken yet. All of them, where the last line shown is kept no more.
+     */
+    static int newer(List<String> lines, String shown) {
+        int at = lines.lastIndexOf(shown.substring(shown.lastIndexOf('\n') + 1));
+        return at < 0 ? lines.size() : lines.size() - 1 - at;
     }
 
     private static int percent(long part, long all) {

@@ -52,7 +52,7 @@ final class PanelPictures {
                     if (state.chosen() >= 0) {
                         view.tabs().get(state.chosen()).fire();
                     }
-                    write(view.picture(2, !state.framed()), out.resolve(state.name() + ".png"));
+                    write(view.picture(2, !state.framed(), state.later()), out.resolve(state.name() + ".png"));
                     System.out.println(state.name() + ".png");
                 }
                 done.complete(null);
@@ -73,22 +73,28 @@ final class PanelPictures {
      * for the window's own height. {@code chosen}: the tab that was clicked, counted from 0 in the
      * list, or -1 for none.
      */
-    private record State(String name, PanelModel model, boolean armed, boolean framed, double height, int chosen) {
+    private record State(String name, PanelModel model, boolean armed, boolean framed, double height, int chosen,
+            PanelModel later) {
         State(String name, PanelModel model, boolean armed) {
-            this(name, model, armed, false, 0, -1);
+            this(name, model, armed, false, 0, -1, null);
         }
 
         State(String name, PanelModel model, boolean armed, boolean framed) {
-            this(name, model, armed, framed, 0, -1);
+            this(name, model, armed, framed, 0, -1, null);
         }
 
         State(String name, PanelModel model, boolean armed, boolean framed, double height) {
-            this(name, model, armed, framed, height, -1);
+            this(name, model, armed, framed, height, -1, null);
         }
 
         /** The same with one tab clicked. */
         State chosen(String as, int tab) {
-            return new State(as, model, armed, framed, height, tab);
+            return new State(as, model, armed, framed, height, tab, null);
+        }
+
+        /** The same with the log scrolled up to its first line, and what the server holds a moment later. */
+        State held(String as, PanelModel later) {
+            return new State(as, model, armed, framed, height, chosen, later);
         }
     }
 
@@ -112,9 +118,9 @@ final class PanelPictures {
                 new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0,
                         List.of(sessions.get(0), new Protocol.Session("s4", "", "a-s4", "https://wiki.example.net", 9, 0, "d4",
                                 "read", 1, "active", "A page title that must not show", "https://wiki.example.net/not/shown", true)),
-                        new Timings.Shares(3, 7_200, 60, 1_300, 0), java.util.Map.of("s1", new Timings.Shares(3, 7_200, 60, 1_300, 0))),
+                        tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}), java.util.Map.of("s1", tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}))),
                 new PanelModel.Facts("IntelliJ IDEA", "c-3b9a01c2", 47822, null, false, 0, Protocol.CLOSE_USER_DISCONNECTED,
-                        List.of(), new Timings.Shares(1, 14_000, 8, 52, 1_600), java.util.Map.of())),
+                        List.of(), tab(new long[][] {{14_000, 8, 52, 1_600}}), java.util.Map.of())),
                 47829, McpMain.version(), false, List.of(
                         line(-512, "info", "server listening for agents port=47829"),
                         new Log.Line(NOW - 510_000, "info", "listening port=47821 client=c-7240df8e", null, "c-7240df8e"),
@@ -153,14 +159,26 @@ final class PanelPictures {
                         new BlockedSites.Rule(List.of("docs.example.org", "intranet.example", "mail.example.com"), null)), false),
                 // A settings file with a mistake in it: every tab is blocked, and the window says what is wrong.
                 new State("15-settings-unreadable", blocked(sessions, times, log, new BlockedSites.Rule(List.of(),
-                        "\"exam_ple.org\" in blocked.sites is no domain")), false));
+                        "\"exam_ple.org\" in blocked.sites is no domain")), false),
+                // Someone reads in the log, scrolled up to its first line, and seven lines have come since:
+                // it stands still, and its corner says so, with the way to the newest line.
+                connected.held("16-log-held", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, later(log))));
+    }
+
+    /** The same lines, and seven calls more. */
+    private static List<Log.Line> later(List<Log.Line> log) {
+        var more = new java.util.ArrayList<>(log);
+        for (int i = 0; i < 7; i++) {
+            more.add(line(-8 + i, "debug", "command id=" + (28 + i) + " session=s1 action=extract ms=" + (6 + i) + " outcome=ok", "s1"));
+        }
+        return more;
     }
 
     private static PanelModel blocked(List<Protocol.Session> sessions, Timings.Shares times, List<Log.Line> log, BlockedSites.Rule rule) {
         var more = new java.util.ArrayList<>(log);
         more.add(line(-4, "info", "command id=28 session=s3 action=snapshot ms=0 outcome=error code=SITE_BLOCKED category=SCOPE scope_violation=true", "s3"));
         return PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0, sessions, times,
-                java.util.Map.of("s1", new Timings.Shares(3, 7_200, 60, 1_300, 0), "s2", new Timings.Shares(1, 14_000, 8, 52, 1_600)))),
+                java.util.Map.of("s1", tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}), "s2", tab(new long[][] {{14_000, 8, 52, 1_600}})))),
                 47821, McpMain.version(), false, more, ZONE, rule, "~/.browser-context-mcp/tabgoblin.properties");
     }
 
@@ -168,7 +186,7 @@ final class PanelPictures {
             List<Protocol.Session> sessions, Timings.Shares times, List<Log.Line> log) {
         // The tabs' own times, where there are any at all: most of the calls in the first tab, one in the second.
         java.util.Map<String, Timings.Shares> ofTab = times.calls() == 0 ? java.util.Map.of()
-                : java.util.Map.of("s1", new Timings.Shares(3, 7_200, 60, 1_300, 0), "s2", new Timings.Shares(1, 14_000, 8, 52, 1_600));
+                : java.util.Map.of("s1", tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}), "s2", tab(new long[][] {{14_000, 8, 52, 1_600}}));
         return PanelModel.of(agent, "c-7240df8e", 47821, McpMain.version(), problem, connected, off, since, closeCode, sessions, times,
                 ofTab, log, ZONE);
     }
@@ -196,6 +214,14 @@ final class PanelPictures {
     }
 
     /** Where the time went, from a few made-up calls. */
+    /** The times of some calls, each as the agent's pause before it, the server, the browser and the user: with their sums. */
+    private static Timings.Shares tab(long[][] calls) {
+        var each = java.util.Arrays.stream(calls).map(c -> new Timings.Spent(c[0], c[1], c[2], c[3])).toList();
+        return new Timings.Shares(calls.length, each.stream().mapToLong(Timings.Spent::agent).sum(),
+                each.stream().mapToLong(Timings.Spent::server).sum(), each.stream().mapToLong(Timings.Spent::browser).sum(),
+                each.stream().mapToLong(Timings.Spent::user).sum(), each);
+    }
+
     private static Timings.Shares timings() {
         var clock = new AtomicLong();
         var timings = new Timings(clock::get);

@@ -80,6 +80,15 @@
         <finalName>browser-context-mcp</finalName>
         <!-- The version is written into browsercontext/build.properties, where the server reads it. Nothing else is rewritten. -->
         <resources>
+            <!-- The skills for agents, from the repository's skills folder: the jar puts one in its place when it is asked to install a skill. -->
+            <resource>
+                <directory>${project.basedir}/../skills</directory>
+                <targetPath>skills</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>*/tabgoblin/**</include>
+                </includes>
+            </resource>
             <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>

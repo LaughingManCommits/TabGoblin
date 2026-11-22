@@ -4,14 +4,17 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `8b08d2f`: the owner's merge of `blocked-sites` on 2026-11-22, and
-  pushed. That branch was built on `one-server`, and that on `by-hand-panel`, so the merge
-  brought all three: what a server without an agent says (`1310c6d`), one server for all
-  agents with a click on a tab (WP-19, `57c971e`), and blocked sites (WP-20, `3b1f133`). The
-  three branches are gone.
-- Branch `records-after-merge`, made from `main` on 2026-11-22: the records brought in line
-  with that merge, and how the popup is pictured (runbook, development page). Documentation
-  only. One commit, made on the owner's word. Not pushed and not merged.
+- `main` = `origin/main` = `37366f6`: the owner's merge of `records-after-merge` on 2026-11-22,
+  and pushed. Before it, the same day, the merge of `blocked-sites`, which brought one server
+  for all agents (WP-19) and blocked sites (WP-20). Those branches are gone. The repository is
+  public since that day.
+- Branch `smoke-fixes`, made from `main` on 2026-11-22: WP-21, three faults that the first test
+  on the public repository showed, mended. One commit, made on the owner's word. Not pushed and
+  not merged.
+- Branch `agent-skills`, made from `smoke-fixes` on 2026-11-22: WP-22, a skill for the tools
+  for each of Claude Code, Codex and GitHub Copilot, in `skills/`, with a test that holds them
+  to the server and to each other; and the jar puts one in its place on `--install-skill`. Two
+  commits, made on the owner's word. Not pushed and not merged.
 
 ## Active work
 
@@ -23,11 +26,18 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
 | WP-19, one server, and every agent connected to it | Merged on 2026-11-22. Built on the owner's word ("okay do your recommendations"). The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry |
+| WP-22, skills for agents that use TabGoblin | Built on 2026-11-22 on the owner's word, and committed on `agent-skills`. Three skills, as the owner chose, the same from their second section on; where each agent wants its skill is in `skills/README.md`. None has been loaded in its agent yet | [TODO.md](../../TODO.md) |
+| WP-21, what the first test on the public repository showed | Built on 2026-11-22 on the owner's word ("do the fixes please"), and committed on `smoke-fixes`. The notice is out of the picture before a screenshot is taken, also on a busy page; the window's metrics have a typical time per call beside each share, and a long pause counts as a minute; a log that is held says so and has a button to its newest line. What is open is in its entry | [TODO.md](../../TODO.md) |
 | WP-20, blocked sites | Merged on 2026-11-22. Built on the owner's word. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) |
 | WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
+- **The three skills have not been loaded in an agent,** and none is in the owner's own home
+  folder: the command that installs one was tried against a folder made for the purpose. Their
+  places and fields are from each agent's documentation as read on 2026-11-22. How the server is added to Codex and to Copilot
+  could not be read that day, and is said nowhere beyond the general row of the installation
+  guide.
 - **Blocked sites have run on Windows only,** with Java 21 and the suite's Chrome. **Edit** in
   the server's window was pressed there in the real window: it opened Notepad on the settings
   file. On Linux it asks `xdg-open` and on macOS `open -t`; neither was tried. Not tried
@@ -37,8 +47,17 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 - **The settings file is beside the token that is in use.** A setup with `--token-file` has its
   own list there, and the owner's own list is `tabgoblin.properties` in `.browser-context-mcp`
   of the home folder. None exists until **Edit** is pressed or the file is written by hand.
-- **The server's window is 40 pixels higher** (800), for the row of blocked sites. On a screen
-  lower than that it is as high as fits, as before.
+- **The server's window is 824 pixels high,** 64 more than before the row of blocked sites and
+  the line over the metrics' numbers. On a screen lower than that it is as high as fits, as
+  before.
+- **A screenshot of a tab whose window is covered or minimized was not tried.** The page draws
+  nothing then, so it answers at once that its notice is gone, and the picture is what the
+  browser has. The same goes for a page that has not drawn after a second and a half.
+- **CI has not run since run #14.** Runs #15 to #20 failed in three seconds each: GitHub did not
+  start the jobs, with a message about the account's billing. Read on 2026-11-22 through
+  TabGoblin. Whether the repository being public cures it is not known; nothing was re-run.
+- **`main` on GitHub has no ruleset and no branch protection,** read the same way; the other
+  settings that were read are in WP-21. Changing them is the owner's.
 - **After a site is taken off the list, a command can still be refused for a moment** by an
   extension that has not been told yet. Since the server tells it ahead of the next command,
   the suite no longer shows it; a command that was already on its way can.
@@ -195,15 +214,19 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `blocked-sites`, in a copy of the tree with a jar built
-  there: the server's 126 tests and the 8 of the conformance check, the extension's 160 with
-  type-check and build, and the suite end to end, 95 passed, with a site blocked, unblocked and
-  a mistake in the file. By hand: the popup pictured in real Chrome in each state, and the
-  server's real window read and its **Edit** pressed through the accessibility interface.
+- **Last verification:** 2026-11-22, on `agent-skills`, in a copy of the tree with a jar built
+  there: the server's 136 tests and the 8 of the conformance check, the extension's 161 with
+  type-check and build, and the suite end to end, 95 passed; and the jar's command that
+  installs a skill, run against a home folder made for the purpose. Before that, on
+  `smoke-fixes`, the same suites with six pictures of a busy page among the checks. By hand: the agent's screenshots measured in the suite's Chrome and in a visible one,
+  before and after the fix, and the server's real window read and its new button pressed
+  through the accessibility interface. Before that, the same day, the owner's own Chrome and
+  agent with the merged build: every tool of Explore on the public repository.
   Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `records-after-merge`. And the owner's own
-  look at one server and at blocked sites, in their Chrome and with their agent: neither has
-  run there yet.
+- **Next action:** the owner's push and merge of `smoke-fixes` and of `agent-skills`, which is
+  built on it, and the rebuild of both parts to have the fixes in their own
+  Chrome and window. And a first try of a skill in its agent: the Claude Code one is the
+  nearest, with `--install-skill claude-code` and a new session.
   Both parts have to be built by the owner before it shows in the tree: the server, after the
   one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
   extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first

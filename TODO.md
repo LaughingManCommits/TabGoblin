@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nine packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Eleven packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -14,7 +14,10 @@ WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and merged. WP-20, filed on
 the same day, is a list of blocked sites in the server; the owner decided its points, and it is
-built and merged. New work gets the next number, WP-21.
+built and merged. WP-21, filed on the same day, is what the first test on the public repository
+showed: three faults, mended and committed on the branch `smoke-fixes`. WP-22, filed on the
+same day, is a skill for the tools for each of three agents; it is built and committed on the
+branch `agent-skills`. New work gets the next number, WP-23.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1097,3 +1100,124 @@ demo sites: one of them blocked in a settings file, the agent's calls there refu
 on that tab without Authorize, the other site working. Then `docs/security.md` (what an agent
 can reach, what is verified, what remains your risk), the user guide, the cheat sheet, the
 help text, and the protocol reference.
+
+## WP-21: What the first test on the public repository showed
+
+On 2026-11-22 the owner made the repository public and asked for "basic smoke test using mcp
+tabgoblin … for access explore only", in their own Chrome, on the repository's pages. Then they
+showed a picture of the server's window and asked whether its metrics look good, and said: "do
+the fixes please". The test went through: every tool of Explore worked, and what Explore must
+refuse was refused. It showed three faults, none of which a suite had found.
+
+### What was found
+
+- **TabGoblin's own notice was in a screenshot the agent took.** In the owner's Chrome, in two
+  of the two pictures taken about ten seconds after a page had loaded, and in none of three
+  taken later. The security page said that a screenshot has nothing of the notice, and the
+  suite checks it. Cause, shown on the build as it was: the page took the notice out and
+  answered at once, and the picture was taken at once; but a browser draws a changed page a
+  moment later, and later still while the page is busy, and a capture takes what was drawn
+  last. With a page kept busy, as one is that has just loaded, 4 of 12 pictures had the notice
+  in the suite's Chrome; on a quiet page none of 12, which is why the suite passed.
+- **The window's metrics said little.** "Agent and its model 98%": every pause between two
+  calls counted in full as the agent's time, also one of 346 seconds in which the agent was at
+  something else. A model takes seconds where the browser takes milliseconds, so that bar is
+  near 98% in any session, and a share does not say whether 2% is 20 milliseconds or 20
+  seconds.
+- **The window's log stood still and did not say so.** It had nine lines and ended before the
+  test, with fifty calls counted beside it in Metrics. It holds while someone reads in it, as
+  the user guide says; it had been scrolled up. Tried in a real window: untouched, it follows,
+  also while the window is put away. So the fault was the silence, not the holding.
+
+### What was built
+
+On the branch `smoke-fixes`, and committed there on the owner's word. What was run is in the
+validation log.
+
+- **The page answers that the notice is gone when it is out of the picture.** After it has begun
+  three frames (`whenDrawn` in `notice.ts`); a page that is not shown answers at once, and one
+  that has not drawn after a second and a half answers then. With that, none of 20 pictures of
+  a busy page had the notice. The suite takes six pictures of a busy page now.
+- **Each heap of the metrics has two numbers:** its share, and what a call typically takes in
+  it, under *share* and *per call*. What the heap is, and its longest, is under the pointer.
+  A pause of more than a minute counts as one minute, in the window and in the status tool's
+  report, which says so in a line of its own when there was one. The window is 24 pixels
+  higher for the line over the numbers.
+- **A log that is held says so in its card's corner:** *held while you read*, and a button with
+  the number of lines that have come since, which goes to the newest line.
+
+### What is open
+
+- **A screenshot of a tab whose window is covered or minimized** was not tried. The page draws
+  nothing then and answers at once, so the picture is what the browser has; whether the notice
+  can be in it is not known.
+- **"Waiting for you" can read 7% beside 0 ms:** one call in four waited for the user, and a
+  typical call does not. The longest is under the pointer. It is right and may puzzle.
+- **CI has not run since run #14.** Runs #15 to #20 failed in three seconds each, with
+  GitHub's message that the jobs were not started because of the account's billing. Whether the
+  repository being public cures that is not known; nothing was re-run.
+- **The repository's settings on GitHub,** read on 2026-11-22 through TabGoblin: public, no
+  collaborators, no ruleset and no branch protection on `main`, workflows read-only, fork pull
+  requests approved for first-time contributors only, secret scanning with push protection on,
+  Dependabot and private vulnerability reporting off. Changing them is the owner's.
+
+## WP-22: Skills for agents that use TabGoblin
+
+Asked for by the owner on 2026-11-22: "can we make skills folder where can put claude skill and
+codex and copilot skills to standards for using tabgoblin mcp making it easier for agents, if
+it will add value?"
+
+### What it adds, and what it costs
+
+- **The server tells every agent about fifteen lines** when it connects, and each tool has its
+  description. That is always there and has to stay short. What an agent then lacks is the
+  longer part: how to read a long page without reading all of it, which access level to ask
+  the user for, and what to do on each refusal. In the first test on the public repository the
+  agent asked a snapshot for fewer lines than it gives, and used a ref from an earlier page, and
+  read the answer off an error each time.
+- **A skill is loaded only when a task calls for it,** so it can be longer. Claude Code, Codex
+  and GitHub Copilot read the same open format, a folder with a `SKILL.md`
+  ([agentskills.io](https://agentskills.io/specification)), each from a place of its own.
+- **It is one more text that says what the tools do.** The tool reference owns that. A skill
+  that drifts from it misleads an agent with nobody noticing.
+
+### Decided
+
+Put to the owner with a recommendation of one skill for all three agents. The owner chose
+**three separate skills,** one for each agent, each with that agent's own extras, in the
+knowledge that they are three texts to keep the same by hand.
+
+### What was built
+
+On the branch `agent-skills` (made from `smoke-fixes`), and committed there on the owner's
+word.
+
+- **`skills/claude-code`, `skills/codex`, `skills/copilot`,** each with a `tabgoblin/SKILL.md`,
+  and `skills/README.md`, which says where each agent wants its skill. The head of each is its
+  agent's own: how the tools are named there and what to ask the user for when they are
+  missing; `when_to_use` for Claude Code; `agents/openai.yaml` for Codex; `argument-hint` for
+  Copilot. From "Start with the status" on, the three are word for word the same.
+- **A test, `SkillsTest`,** fails when one of the three has drifted from the others, when a
+  skill names a tool the server does not have or leaves one out, when it names a code that the
+  tool reference does not know, and when its front matter is not what the format asks for.
+- **The installation guide** points to them, and no longer says that each agent starts a server
+  of its own, which was so before WP-19.
+- **The jar installs one,** added on the owner's word the same day, as the step that makes a
+  user have the skill at all: `--install-skill claude-code`, `codex` or `copilot` puts that
+  skill into the agent's folder below the user's home. The build takes the three into the jar
+  (`Skills.java`). A skill that is there already and is not this one is left as it is and the
+  command says so; `--replace` overwrites it, and touches no file that the skill does not
+  have. A second commit on the branch, on the owner's word.
+
+### What is open
+
+- **None of the three has been loaded in its agent.** The places and the fields are from each
+  agent's documentation as read on 2026-11-22; what an agent does with a skill was not tried.
+- **How the server is added to Codex and to Copilot** could not be read from their
+  documentation that day: the pages had moved. The skills and the installation guide say only
+  what holds for any agent: a command, `java`, with `-jar` and the path.
+- **No skill declares the server it needs.** Codex can take such a declaration in
+  `agents/openai.yaml`; the one example that was read is for a server reached by address, not
+  for one that is started as a program.
+- **For one project nothing installs a skill.** The command puts it into the user's home, for
+  every project; into a project the user copies the folder.

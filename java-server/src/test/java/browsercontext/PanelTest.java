@@ -470,4 +470,110 @@ class PanelTest {
         });
         assertEquals(List.of("true", "false", "[EditSettings[]]", "true", "true", "true", "true"), seen);
     }
+
+    @Test
+    void theMetricsSayHowLongACallTypicallyTakesInEachHeapBesideItsShare() throws Exception {
+        var each = List.of(new Timings.Spent(-1, 2, 30, 0), new Timings.Spent(4_000, 1, 20, 0),
+                new Timings.Spent(6_000, 3, 1_200, 0), new Timings.Spent(346_000, 2, 26, 0));
+        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0, List.of(),
+                new Timings.Shares(4, 70_000, 8, 1_276, 0, each), java.util.Map.of()));
+        List<String> words = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC")));
+            return view.words();
+        });
+        // Over the numbers stands what they are; each heap has its share and its typical time.
+        int at = words.indexOf("share");
+        assertEquals(List.of("share", "per call",
+                "Agent and its model", "98%", "6.0 s",
+                "This server", "0%", "2 ms",
+                "Extension and page", "2%", "28 ms",
+                "Waiting for you", "0%", "0 ms"), words.subList(at, at + 14));
+
+        // Where only the sums are known there is the share alone, and no column without a number in it.
+        List<String> sums = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model(true, false));
+            return view.words();
+        });
+        assertTrue(sums.contains("share"), sums.toString());
+        assertFalse(sums.contains("per call"), sums.toString());
+    }
+
+    @Test
+    void aLogThatIsHeldSaysSoWithWhatHasComeSinceAndAButtonGoesToItsNewestLine() throws Exception {
+        var held = new Object() {
+            Panel.View view;
+            javafx.scene.Scene scene;
+        };
+        Runnable drawn = () -> {
+            held.scene.getRoot().resize(Panel.WIDTH, Panel.HEIGHT);
+            held.scene.getRoot().applyCss();
+            held.scene.getRoot().layout();
+        };
+        java.util.function.IntFunction<PanelModel> lines = count -> PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7",
+                null, true, false, 0, 0, List.of(), TIME,
+                java.util.stream.IntStream.rangeClosed(1, count).mapToObj(n -> new Log.Line(n * 1000L, "info", "line " + n)).toList(),
+                ZoneId.of("UTC"));
+        java.util.function.Supplier<String> corner = () -> held.view.logCorner() + " | "
+                + (held.view.follow().isVisible() ? "button '" + held.view.follow().getText() + "'" : "no button");
+        java.util.function.Supplier<String> last = () -> {
+            String text = held.view.log().getText();
+            return "last is '" + text.substring(text.lastIndexOf('\n') + 1) + "'";
+        };
+        var seen = new ArrayList<String>();
+        inTheWindow(sent -> {
+            held.view = new Panel.View(sent::add);
+            held.scene = new javafx.scene.Scene(held.view.frame(false));
+            held.view.show(lines.apply(60));
+            drawn.run();
+            return null;
+        });
+        inTheWindow(sent -> {
+            drawn.run();
+            seen.add("it follows: " + corner.get());
+            // The user scrolls up to read. Nothing has come since: there is nothing to say.
+            held.view.log().setScrollTop(0);
+            drawn.run();
+            held.view.show(lines.apply(60));
+            seen.add("scrolled up, nothing new: " + corner.get());
+            // Lines arrive while they read: the log stands still, and its corner says so and how many.
+            held.view.show(lines.apply(61));
+            seen.add("one line later: " + corner.get());
+            held.view.show(lines.apply(112));
+            seen.add("fifty-two later: " + corner.get() + ", " + last.get());
+            // The button goes to the newest line.
+            held.view.follow().fire();
+            drawn.run();
+            return null;
+        });
+        inTheWindow(sent -> {
+            drawn.run();
+            seen.add("pressed: " + corner.get() + ", " + last.get() + ", reading=" + held.view.readingLog());
+            held.view.show(lines.apply(113));
+            drawn.run();
+            return null;
+        });
+        inTheWindow(sent -> {
+            drawn.run();
+            seen.add("and it follows again: " + corner.get() + ", " + last.get());
+            // A mark holds it as well, and the button gives the mark up.
+            int length = held.view.log().getLength();
+            held.view.log().selectRange(length - 8, length);
+            held.view.show(lines.apply(115));
+            seen.add("some of it marked: " + corner.get());
+            held.view.follow().fire();
+            seen.add("pressed again: " + corner.get() + ", marked '" + held.view.log().getSelectedText() + "', " + last.get());
+            return null;
+        });
+        assertEquals(List.of(
+                "it follows: the last 300 lines | no button",
+                "scrolled up, nothing new: the last 300 lines | no button",
+                "one line later: held while you read | button '1 newer line  ↓'",
+                "fifty-two later: held while you read | button '52 newer lines  ↓', last is '00:01:00  line 60'",
+                "pressed: the last 300 lines | no button, last is '00:01:52  line 112', reading=false",
+                "and it follows again: the last 300 lines | no button, last is '00:01:53  line 113'",
+                "some of it marked: held while you read | button '2 newer lines  ↓'",
+                "pressed again: the last 300 lines | no button, marked '', last is '00:01:55  line 115'"), seen);
+    }
 }

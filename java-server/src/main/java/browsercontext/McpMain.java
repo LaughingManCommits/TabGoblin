@@ -92,6 +92,15 @@ public final class McpMain {
             mcpOut.println(USAGE);
             return;
         }
+        if (options.installSkill() != null) {
+            // Into the user's own home, on the user's own command, and nothing is started for it.
+            Skills.Result result = Skills.install(options.installSkill(), Path.of(System.getProperty("user.home")), options.replace());
+            mcpOut.println(result.says());
+            if (!result.ok()) {
+                System.exit(1);
+            }
+            return;
+        }
         if (options.rotateToken()) {
             // Printed only on explicit request, for pasting into the extension popup. Never logged.
             mcpOut.println("New pairing token: " + Pairing.rotateToken(tokenFile));
@@ -379,6 +388,9 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --panel          open the server's window (starts the server if it is not running)
               java -jar browser-context-mcp.jar --show-token     print the pairing token for the extension popup
               java -jar browser-context-mcp.jar --rotate-token   replace the pairing token (pair the extension again)
+              java -jar browser-context-mcp.jar --install-skill <agent>
+                                                                 put the skill that tells an agent how to use the tools where
+                                                                 that agent looks for skills: claude-code, codex or copilot
               java -jar browser-context-mcp.jar --help           this text
 
             What your agent runs (this goes into the agent's MCP settings, you do not run it):
@@ -393,7 +405,8 @@ public final class McpMain {
             Edit in the server's window opens it. A change is in force as soon as the file is saved.
 
             Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
-                      --settings <path of the settings file>""";
+                      --settings <path of the settings file>
+                      --replace  with --install-skill: overwrite a skill that is there and is not this one""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -720,7 +733,7 @@ public final class McpMain {
 
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
-            boolean panel, boolean hub, boolean standing, Path settings) {
+            boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -735,6 +748,8 @@ public final class McpMain {
             String tokenFile = null;
             String origin = null;
             String settings = null;
+            String skill = null;
+            boolean replace = false;
             boolean panel = false;
             boolean hub = false;
             boolean standing = false;
@@ -745,10 +760,11 @@ public final class McpMain {
                     case "--show-token" -> showToken = true;
                     case "--rotate-token" -> rotateToken = true;
                     case "--panel" -> panel = true;
+                    case "--replace" -> replace = true;
                     // The two that this program gives itself when it starts the one server: not for a command line.
                     case "--hub" -> hub = true;
                     case "--standing" -> standing = true;
-                    case "--port", "--token-file", "--extension-origin", "--settings" -> {
+                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
                         }
@@ -759,6 +775,8 @@ public final class McpMain {
                             tokenFile = value;
                         } else if (arg.equals("--settings")) {
                             settings = value;
+                        } else if (arg.equals("--install-skill")) {
+                            skill = value;
                         } else {
                             origin = value;
                         }
@@ -777,6 +795,13 @@ public final class McpMain {
             if (number < 1 || number > highest) {
                 throw new UsageException("The port must be between 1 and " + highest + ", not " + number + ".");
             }
+            Skills.Agent installSkill = skill == null ? null : Skills.Agent.named(skill);
+            if (skill != null && installSkill == null) {
+                throw new UsageException("There is no skill for \"" + skill + "\". There is one for each of: " + Skills.Agent.names() + ".");
+            }
+            if (replace && installSkill == null) {
+                throw new UsageException("--replace goes with --install-skill.");
+            }
             Path token = Path.of(firstSet(tokenFile, environment.apply("BCMCP_TOKEN_FILE"), Pairing.defaultTokenFile().toString()));
             // The settings are beside the token that is in use, unless they are named: a server with a token
             // of its own does not read the list of another.
@@ -784,7 +809,7 @@ public final class McpMain {
             return new Options(help, showToken, rotateToken, number, token,
                     firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
                     panel || switchedOn("BCMCP_PANEL", environment.apply("BCMCP_PANEL")), hub, standing,
-                    named.isEmpty() ? BlockedSites.beside(token) : Path.of(named));
+                    named.isEmpty() ? BlockedSites.beside(token) : Path.of(named), installSkill, replace);
         }
 
         /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */

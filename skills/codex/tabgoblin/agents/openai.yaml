@@ -1,0 +1,7 @@
+# How Codex shows this skill, and that it may be used without being named.
+interface:
+  display_name: "TabGoblin"
+  short_description: "Work in the browser tabs the user has authorized"
+  default_prompt: "Use TabGoblin to look at the tab I authorized and tell me what is on the page."
+policy:
+  allow_implicit_invocation: true
