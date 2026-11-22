@@ -106,8 +106,10 @@ The popup is ordered by how often you need it. From the top:
 **Activity** shows what is happening now and the six most recent operations, per session, with
 their outcome. It never shows page content or anything typed.
 
-**Agents** lists every connected agent and its port. *Disconnect* cuts one off; it stays out until
-you press *Allow again*.
+**Agents** lists every connected agent with the number of tabs it has and its port. *Disconnect*
+cuts one off and ends its sessions; the number beside the button is what that will end. The agent
+stays out until you press *Allow again*, and comes back without a tab: each one needs your click
+on it again.
 
 **Settings** and the **Connection…** link close the popup. Scrolled out in full it looks like
 this, in the dark and the light theme (TabGoblin follows your system setting):
@@ -227,7 +229,9 @@ can reach.
 
 **Stopping what an agent is doing.** In the popup: **Pause** on a session stops the agent in that
 tab at once, **Revoke** ends the session, and **Disconnect** next to an agent cuts that agent off
-from every tab until you allow it again. None of these stop the server; they do not need to.
+and ends every session it has. *Allow again* gives the agent its connection back and none of its
+tabs. To stop an agent for a while and keep what you gave it, pause its sessions instead. None of
+these stop the server; they do not need to.
 
 **Stopping a server.** A server belongs to the agent that started it and exits by itself when
 that agent closes or disconnects from it. Normally there is nothing to stop: close the IDE or end

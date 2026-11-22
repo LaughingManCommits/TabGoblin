@@ -21,6 +21,23 @@ export function withFolded(folded: readonly Panel[], panel: unknown, fold: boole
   return PANELS.filter((name) => (name === panel ? fold : folded.includes(name)));
 }
 
+/** A number of authorized tabs, in words: "no tabs", "1 tab", "3 tabs". */
+export function tabCount(count: number): string {
+  return count === 1 ? '1 tab' : `${count || 'no'} tabs`;
+}
+
+/**
+ * What stands beside an agent's Disconnect button, and what the button says when the pointer is
+ * on it: the tabs the agent would lose. Disconnect takes one click and asks nothing, so the user
+ * has to be able to read beforehand what it ends.
+ */
+export function disconnectCost(tabs: number): { beside: string; hint: string } {
+  const kept = 'It stays out until you allow it again.';
+  if (!tabs) return { beside: tabCount(0), hint: `Disconnects this agent. ${kept}` };
+  const lost = tabs === 1 ? 'ends its 1 tab, which then needs your click again' : `ends its ${tabs} tabs, which then need your click again`;
+  return { beside: tabCount(tabs), hint: `Disconnects this agent and ${lost}. ${kept}` };
+}
+
 /**
  * The folded Sessions panel in one line: how many tabs are authorized, whether the tab the popup
  * was opened on is one of them, and what needs the user (`state`): a suspended or a paused session.
@@ -32,7 +49,7 @@ export function sessionsSummary(
 ): { text: string; state: string | null } {
   if (!sessions.length) return { text: 'No tab is authorized', state: null };
   const mine = sessions.find((session) => session.tabId === thisTab);
-  const count = `${sessions.length} ${sessions.length === 1 ? 'tab' : 'tabs'}`;
+  const count = tabCount(sessions.length);
   const here = mine ? ` · this tab: ${mine.id}` : canAuthorize ? ' · not this tab' : '';
   const suspended = sessions.filter((session) => session.suspended).length;
   const paused = sessions.filter((session) => session.paused && !session.suspended).length;

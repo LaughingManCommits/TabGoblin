@@ -114,15 +114,22 @@ stateDiagram-v2
   Paused --> Active: Resume
   Active --> Suspended: tab leaves its origins
   Suspended --> Active: user resumes on that tab, or adds the site
-  Active --> [*]: revoked, tab closed, expired, browser closed
-  Paused --> [*]: revoked, tab closed, expired
-  Suspended --> [*]: revoked, tab closed, expired, re-authorized
+  Active --> [*]: revoked, agent disconnected by the user, tab closed, expired, browser closed
+  Paused --> [*]: revoked, agent disconnected by the user, tab closed, expired
+  Suspended --> [*]: revoked, agent disconnected by the user, tab closed, expired, re-authorized
 ```
 
 **Ownership.** A session belongs to the agent chosen at authorization, or to the first agent that
 uses an unclaimed one. Every command is checked against the owner. If the owner's server is gone
 and an agent with the same name connects, it inherits the session (an IDE restarting its server);
 no other agent ever does.
+
+**Disconnect.** When the user disconnects an agent in the popup, the sessions that are that
+agent's end with it: those it owns, and those a former self of the same name left behind, which
+it could have taken up with its next command (`sessionsOfAgent` in `policy.ts`). A session no
+agent has taken up yet stays. So nothing waits for *Allow again*, and nothing is left for an
+agent of the same name to inherit. An agent that goes away by itself keeps its sessions, as
+above.
 
 **Why "suspended" exists.** Chrome withdraws the `activeTab` grant whenever a tab changes origin,
 and only a user click on the extension's icon gives it back. So after any cross-origin move the
@@ -211,6 +218,7 @@ recorded as `UNCERTAIN`.
 | MCP client sends `notifications/cancelled` | `StdinTap` interrupts the tool call; the server sends `cancel` to the extension, and sends no answer for that call |
 | Server times out waiting | The server sends `cancel`, so the command cannot run later |
 | Agent's server disconnects | Its operations are cancelled |
+| User disconnects an agent | Its operations are cancelled, a question it has put to the user is withdrawn, and its sessions end |
 | Tab closes or leaves its site | The session ends or is suspended; its operations stop |
 
 A safe point is any moment before something is dispatched to the page. For a submission the last

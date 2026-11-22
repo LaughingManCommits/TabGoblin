@@ -55,7 +55,19 @@ Consequences:
 
 Each agent is a separate authenticated connection with its own id. A session has one owner, and
 every command is checked against it. Another agent cannot list, read or act on it, and a forged
-session id is refused. You can disconnect an agent in the popup; it stays out until allowed again.
+session id is refused.
+
+You can disconnect an agent in the popup. It stays out until allowed again, and its sessions end
+with it: what it was running is cancelled, and each of its tabs needs your click again. *Allow
+again* gives back the connection and nothing else. The sessions end because a session whose owner
+is gone passes to an agent of the same name, and a name is what an agent gives itself: a tab left
+behind by a disconnected agent would be there for the taking. The agent's row in the popup says
+how many tabs a Disconnect will end, before you click.
+
+Where it stops: the refusal is for the server that is running. A server makes its id when it
+starts, so an agent that is started again is connected again. It has no tab then and gets one
+only from you; a tab you authorize for *Any agent* goes to whichever agent uses it first, this
+one included.
 
 ## The local connection
 
@@ -170,6 +182,8 @@ tool says about where the time went: tool names and durations.
 | Cross-origin navigation, links, redirects blocked or suspended | Rules, end-to-end |
 | Cross-origin frame never read | DOM, end-to-end |
 | Another agent's session unreachable, forged session id refused | Rules, worker, end-to-end |
+| A disconnected agent's sessions end with it; allowed again, it has no tab and its old session id is refused | Rules, worker, end-to-end |
+| An agent of the same name inherits nothing from a disconnected one | Rules, worker |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |
 | Hidden form fields not offered as editors; an editor input's value not returned | DOM |

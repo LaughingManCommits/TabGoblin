@@ -3,6 +3,41 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `disconnect-revokes`: WP-10, Disconnect ends the agent's sessions
+
+On the final sources. The extension's check ran in the tree. What needs the jar ran in a copy of
+the tree, with a jar built there, because the session's own server runs from the tree's jar. The
+copy held the product sources and the suite of the tree, compared file by file, and was removed
+afterwards.
+
+| Command | Result |
+|---|---|
+| `cd chrome-extension && npm run check`, in the tree | type-check clean, 139 tests, build |
+| `cd e2e && npm test`, in the copy | 93 passed, 0 failed. The step for Disconnect is a new one in place of the old: each agent's row says how many tabs it has, and the button's hint that it ends them; after Disconnect the agent's session is gone from the popup and the list says why, the other agent keeps its tabs and does not see that site; allowed again, the agent is connected, has no session, and its old session id is refused; the user's click on the tab gives it a new session. |
+| `FULL=1 node screenshots.mjs prompts`, in the copy | 64 pictures. Looked at: the whole popup with the setting on every time (dark) and with two things that pass (light), for the agent's row: name, "1 tab", port, button. |
+| `HEADED=1 node screenshots.mjs`, in the copy | Three pictures came out different from the tree's, the three that show the Agents panel. All three were opened and then copied into the tree: `popup-authorize.png` ("no tabs" beside each agent), `popup-full.png` and `popup-full-light.png` ("1 tab"). The other ten, and the seven examples, were the same byte for byte. |
+| `node docs/agents/check-links.mjs` | 79 links, all resolve |
+| `node docs/agents/check-personal.mjs` | nothing personal found |
+
+Shown against the source as it was, with a copy of the worker tests that ends in one test which
+prints what it gets (run on both sources, not kept): an agent has a tab and is disconnected; a
+second server connects under the same name and asks for a snapshot in that session. Before: `ok`,
+with the page, and the session then carried the second agent's id. After: `UNKNOWN_SESSION`, and
+no session left.
+
+Failed on the way: one assertion of the new worker test. It took the last entry of the activity
+list for the newest; the list keeps what still runs behind what is finished. The test was
+corrected; the worker was not touched for it.
+
+On arrival the checkout was on `main`: the owner had merged `nothing-personal` and removed the
+branch. `git status -sb` showed it before the first change, and the branch was made first.
+
+Not run: the server's suites (no Java source changed, and the tree's jar was not rebuilt), the
+editor lab (nothing in `editor.ts` or `snapshot.ts` changed) and the Linux container. Not tried:
+an agent's name too long for its row beside the count (it is cut with an ellipsis, and the whole
+name is in its hint; no picture has one), the button's hint by eye (the suite reads its text),
+and a Disconnect while a real model is at work.
+
 ## 2026-11-22, on `nothing-personal`: WP-14, the files and the check
 
 No product code changed. What changed: four examples in the documentation, a check with its
@@ -292,30 +327,13 @@ Not run: the server's suites (nothing in the server changed since the entry belo
 Not tried: a control without a name in the automatic mode in a real browser (rule and worker
 tests only). CI on GitHub has still not been seen.
 
-## 2026-11-21, on `automatic-mode`, WP-7
-
-The automatic mode for confirmations. All on the final build of the branch.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 54 tests; `McpConformanceIT` on the built jar: 8 tests |
-| `cd chrome-extension && npm run check` | type-check clean, 129 tests, build |
-| `cd e2e && npm test` | 91 passed, 0 failed. In a real Chrome: asked the first time, not the second; another control asked about; ended by the popup, by a pause, and by a restart of the worker. |
-| `cd e2e/editors && npm test` (tab in front) | 222 of 225, no `SILENT`, exit 0 |
-| `cd e2e/editors && BACKGROUND=1 npm test` | 220 of 225, no `SILENT`, exit 0 |
-| `node screenshots.mjs prompts` | 24 pictures of 12 views. Looked at: the session in the automatic mode (dark), the setting on every time (dark) and on automatic (light). The other new ones were not opened. |
-| `HEADED=1 node screenshots.mjs` | the pictures that changed were looked at one by one, except `popup-full-light.png`, the twin of `popup-full.png` |
-| `node docs/agents/check-links.mjs` | all resolve |
-
-Failed on the way: one new worker test, for a reason of its own. It counted entries in the
-activity list, which keeps only its newest; it now looks at the newest of the kind.
-
-Not tried: that an Allow ends when the tab leaves the site (the code path is the one that ends
-it on a pause, which was tried), and the limit of five a minute in a real browser (rule and
-worker tests only). CI on GitHub has still not been seen.
-
 ## Earlier, in one line each
 
+- 2026-11-21, on `automatic-mode`, WP-7 (the automatic mode for confirmations): server 54 tests
+  and 8 conformance tests, extension 129, end to end 91 of 91, editor lab 222 of 225 in front and
+  220 of 225 in the background, no `SILENT`; 24 pictures of 12 views, not all of them opened. Not
+  tried then, and tried in the entry after it: an Allow that ends when the tab leaves the site,
+  and the limit of five a minute in a real browser. CI on GitHub not seen.
 - 2026-11-21, on `confirmations`, WP-4, WP-5 and WP-6: server 54 tests and 8 conformance tests,
   extension 127, end to end 90 of 90, editor lab 222 of 225 in front and 220 of 225 in the
   background, no `SILENT`; 16 pictures of the prompt looked at. Found by the lab and fixed: one

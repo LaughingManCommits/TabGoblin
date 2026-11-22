@@ -693,6 +693,86 @@ test('closing a tab ends its session, and a disconnected agent stays out until a
   await until(async () => (await state()).clients.some((c: any) => c.id === 'c-two'), 'the agent to be allowed back');
 });
 
+test('disconnecting an agent ends its sessions; allowing it again gives back the connection and no tab', async () => {
+  for (const [id, host] of [[2, 'docs'], [3, 'wiki'], [4, 'mail']] as const) {
+    tabs.set(id, { id, url: `https://${host}.example/start`, status: 'complete', active: false, windowId: 1, title: host });
+  }
+  await popup({ type: 'authorize', tabId: 1, mode: 'read', clientId: 'c-one' });
+  await popup({ type: 'authorize', tabId: 2, mode: 'write', clientId: 'c-two' });
+  await popup({ type: 'authorize', tabId: 3, mode: 'write', clientId: 'c-two' });
+  await popup({ type: 'authorize', tabId: 4, mode: 'read', clientId: null }); // for any agent, and taken up by none
+  let s = await state();
+  const [ofOne, first, second, open] = s.sessions.map((x: any) => x.id);
+  assert.deepEqual(s.sessions.map((x: any) => x.clientId), ['c-one', 'c-two', 'c-two', null]);
+  // The popup is told what a Disconnect would end, so that it can say so before the click.
+  const tabsOf = (view: any, id: string): number => view.clients.find((c: any) => c.id === id).tabs;
+  assert.deepEqual([tabsOf(s, 'c-one'), tabsOf(s, 'c-two')], [1, 2]);
+
+  // Something of the agent's is under way in a page.
+  void two.command('wait_for', { session: first, id: 'wd', params: { text: 'never', timeoutMs: 20000 } });
+  await until(() => waits.has(`${BASE_PORT + 2}:wd`), 'the wait to reach the page');
+  // And in its other tab it has put a question to the user.
+  const pageAnswers = ['key_describe', 'submit_prepare', 'submit_baseline'].map((op) => [op, pageResults.get(op)] as const);
+  pageResults.set('key_describe', { submit: 'text', click: null, label: 'Message' });
+  pageResults.set('submit_prepare', {
+    target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Message' }, by: 'enter', how: 'enter', label: 'Message', digest: null,
+    preview: [{ field: 'Message', text: 'Hello team' }],
+  });
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  await popup({ type: 'setAsk', session: second, value: 'always' });
+  const sentBefore = pageLog.filter((entry) => entry === '3:submit_fire').length;
+  void two.command('press_key', { session: second, params: { key: 'Enter', intent: 'submit' } });
+  await until(async () => (await state()).pendingConfirm?.session === second, 'the user to be asked');
+
+  await popup({ type: 'disconnectClient', clientId: 'c-two' });
+  await until(() => two.closeCodes.includes(4403), 'the agent to be disconnected');
+  await until(() => !waits.has(`${BASE_PORT + 2}:wd`), 'the wait in the page to be cancelled');
+  s = await state();
+  assert.equal(s.pendingConfirm, null, 'its question to the user is withdrawn');
+  await sleep(50);
+  assert.equal(pageLog.filter((entry) => entry === '3:submit_fire').length, sentBefore, 'and nothing was pressed');
+  for (const [op, answer] of pageAnswers) {
+    if (answer === undefined) pageResults.delete(op);
+    else pageResults.set(op, answer);
+  }
+  assert.deepEqual(s.sessions.map((x: any) => x.id), [ofOne, open], 'its two sessions ended; another agent\'s and nobody\'s stay');
+  // The list keeps what still runs behind what is finished, so the newest note is looked for by its words.
+  const disconnects = (view: any): string[] => view.activity.map((a: any) => a.label).filter((label: string) => label.startsWith('Agent disconnected'));
+  assert.equal(disconnects(s).at(-1), 'Agent disconnected by you; 2 sessions ended');
+  assert.equal(s.activity.filter((a: any) => a.label === 'Access revoked: you disconnected its agent').length, 2);
+  assert.equal(code(await one.command('snapshot', { session: ofOne })), 'ok', 'the other agent keeps working');
+
+  // An agent of the same name finds nothing to take up. Before, a session whose owner was not
+  // connected passed to it, and a name is what an agent gives itself.
+  const twin = new FakeServer('c-twin', 'agent-two');
+  servers.set(BASE_PORT + 5, twin);
+  for (let i = 0; i < 120 && !(await state()).clients.some((c: any) => c.id === 'c-twin'); i++) await sleep(50);
+  assert.equal(code(await twin.command('snapshot', { session: first })), 'UNKNOWN_SESSION');
+  assert.equal(code(await twin.command('snapshot', { session: second })), 'UNKNOWN_SESSION');
+  assert.equal(tabsOf(await state(), 'c-twin'), 0);
+  await popup({ type: 'disconnectClient', clientId: 'c-twin' });
+  servers.delete(BASE_PORT + 5);
+  assert.equal(disconnects(await state()).at(-1), 'Agent disconnected by you', 'an agent without a tab ends none');
+  assert.deepEqual((await state()).sessions.map((x: any) => x.id), [ofOne, open]);
+
+  // Allowed again, the agent is connected and has no tab: each one needs the user's click again.
+  await popup({ type: 'allowClient', clientId: 'c-two' });
+  await until(async () => (await state()).clients.some((c: any) => c.id === 'c-two'), 'the agent to be allowed back');
+  assert.equal(tabsOf(await state(), 'c-two'), 0);
+  assert.equal(code(await two.command('snapshot', { session: first })), 'UNKNOWN_SESSION');
+  const status = await two.command('status');
+  assert.deepEqual(status.result.sessions.map((x: any) => [x.session, x.owner]), [[open, 'unclaimed']], 'nothing of its own is left');
+  // A new click on the tab gives it a new session; the old id stays dead.
+  await popup({ type: 'authorize', tabId: 2, mode: 'read', clientId: 'c-two' });
+  const again = (await state()).sessions.at(-1);
+  assert.notEqual(again.id, first);
+  assert.equal(code(await two.command('snapshot', { session: again.id })), 'ok');
+
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  for (const id of [2, 3, 4]) tabs.delete(id);
+  assert.equal((await state()).sessions.length, 0);
+});
+
 test('what a server sends right behind the pairing is a message like any other, not a failed pairing', async () => {
   const within = <T>(promise: Promise<T>, ms: number, what: string): Promise<T> => Promise.race([
     promise, sleep(ms).then(() => { throw new Error(`timed out waiting for ${what}`); }),

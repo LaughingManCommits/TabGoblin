@@ -2,14 +2,14 @@
 
 ## Overview
 
-Eight packages are open. Six were asked for by the owner on 2026-11-21: WP-10, disconnecting an
-agent ends its authorizations; WP-11, the notice in the page; WP-12, a goblin that acts out
-what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the repository,
-which the owner called important; and WP-15, an easy install. Two on 2026-11-22: WP-16, a page
-that shows how TabGoblin differs from other tools; and WP-17, a new token at every start, and
-nothing connected on an old one. Of WP-14 the files and the check were done on 2026-11-22; the
-history remains, and is the owner's. The other seven are not started, and each waits for the
-owner's word on its points. New work gets the next number, WP-18.
+Seven packages are open. Five were asked for by the owner on 2026-11-21: WP-11, the notice in
+the page; WP-12, a goblin that acts out what the agent does; WP-13, a panel for the server;
+WP-14, nothing personal in the repository, which the owner called important; and WP-15, an easy
+install. Two on 2026-11-22: WP-16, a page that shows how TabGoblin differs from other tools;
+and WP-17, a new token at every start, and nothing connected on an old one. Of WP-14 the files
+and the check were done on 2026-11-22; the history remains, and is the owner's. The other six
+are not started, and each waits for the owner's word on its points. New work gets the next
+number, WP-18.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -17,7 +17,8 @@ key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6), WP-
 what is asked: issues B1 to B5 and D1 to D3), WP-5 (a no stands, and
 one request waits at a time: issues A3 and A4), WP-6 (Enter as a full submission, with tighter
 exceptions: issues C1, C2 and C3), WP-7 (an automatic mode for confirmations),
-WP-8 (small things left from that mode) and WP-9 (where the time goes). Numbers are not reused.
+WP-8 (small things left from that mode), WP-9 (where the time goes) and WP-10 (disconnecting an
+agent ends its sessions). Numbers are not reused.
 
 WP-5 was built differently from its proposal in one point. A limit on how often a session may ask
 would have stopped an agent the user is working with: in a chat every message is a request. What
@@ -55,59 +56,20 @@ the extension's part is not split into worker and page. What the report cannot t
 [docs/tools.md](docs/tools.md#where-the-time-went): the model from the agent's program, and the
 extension from the page.
 
-## WP-10: Disconnecting an agent ends its authorizations
-
-Asked for by the owner on 2026-11-21: "i can disconnect agent but then his authorization is still
-active, that should also be removed with disconnect". Goal: **Disconnect** next to an agent takes
-away what that agent was given, not only its connection.
-
-### What happens today
-
-Read from the source on 2026-11-21 (`disconnectClient` and `allowClient` in `background.ts`).
-
-- **Disconnect** puts the agent's id on the list of agents that are refused, closes its
-  connection with code 4403 and cancels what it was doing. Its sessions are not touched: they
-  stay in the popup, with their site, their access level and the agent as owner, marked "(not
-  connected)".
-- **Allow again** takes the id off that list and looks for servers at once. The agent connects
-  and has its sessions back as they were, without a click on any tab.
-- The end-to-end suite asserts exactly that: in "the user can disconnect one agent; the other
-  keeps working", the agent reads its tab again after it was allowed back.
-- The documentation says the same: "cuts that agent off from every tab until you allow it again"
-  ([user guide](docs/user-guide.md#8-stopping)), "it stays out until allowed again"
-  ([security](docs/security.md#agents)).
-
-So while an agent is disconnected nothing reaches its tabs. What the owner noticed is the other
-half: the authorizations stand, and one click on "Allow again" brings all of them back.
-
-### Proposal
-
-1. Disconnect ends every session the agent owns, the way **Revoke** ends one (`endSession`): what
-   runs is cancelled, the notice in the page goes, what was allowed in the automatic mode is
-   forgotten, and the activity list says so.
-2. The agent stays refused until allowed again, as today. Allowing gives back the connection and
-   nothing else: each tab is authorized again by a click on it.
-3. The activity line says how many sessions ended with the agent.
-
-### Decisions for the owner
-
-1. Sessions no agent has taken up yet ("not yet claimed"). Proposal: they stay; they were given
-   to no agent.
-2. An agent that goes away by itself, because its IDE was closed or its server restarted, gets
-   its sessions back today, and a step end to end asserts it. Proposal: unchanged. Only the
-   user's Disconnect ends sessions.
-3. Whether the button should say what it does when the agent has tabs ("Disconnect and revoke 2
-   tabs"), or stay "Disconnect" with the activity line telling it afterwards (proposal).
-
-### Tasks and acceptance
-
-Per the task map, "Change sessions, pairing or the connection": the flow in `background.ts`,
-`test/background.test.ts` for it, and the step end to end, which changes: after Disconnect the
-agent's sessions are gone from the popup and from the other agent's view, and after "Allow again"
-the agent is connected, `browser_status` lists no session, and a command on the old session id
-is refused. Then the user guide (section 8), the Agents section of `docs/security.md` and its
-table if the property is newly tested, and the pictures of the popup if one of them shows a
-disconnected agent. No tool's text changes.
+WP-10 was asked for by the owner on 2026-11-21 ("i can disconnect agent but then his
+authorization is still active, that should also be removed with disconnect") and built on
+2026-11-22, on the owner's "go with that build it", as proposed in its first two decisions:
+Disconnect ends the agent's sessions the way Revoke ends one, "Allow again" gives back the
+connection and no tab, a session that no agent has taken up stays, and an agent that goes away
+by itself keeps its sessions. Three things differ from what was filed. The agent's row says
+how many tabs it has, so that what a Disconnect ends can be read before the click; the filing
+had only the activity line afterwards. The sessions that end are those the agent owns and
+those a former self of the same name left behind, which it could have taken up with its next
+command. And a reason was found that the filing did not have: a session whose owner is not
+connected passes to an agent of the same name, so the tab of a disconnected agent could be
+taken by a second instance of the same program. That was run against the source as it was: the
+second agent got the page. What Disconnect still does not do is hold over a new start of the
+agent's server; that is in WP-17. The rule is in [docs/security.md](docs/security.md#agents).
 
 ## WP-11: The notice in the page
 
@@ -291,7 +253,7 @@ Read from the source on 2026-11-21 (`McpMain.java`, `Log.java`, `Timings.java`,
   or a channel between servers; neither exists. The popup stays the place for all agents.
 - Keep an agent out. A server that is stopped is usually started again by its agent's program,
   and a connection that is closed is found again by the extension's next scan. Only the popup's
-  **Disconnect** keeps an agent out (see WP-10).
+  **Disconnect** keeps an agent out, for as long as its server runs (see WP-17).
 - Widen anything. The panel reads and stops; it authorizes no tab and changes no access level.
   Those stay with the popup, where the user's click on the tab is.
 
@@ -655,7 +617,8 @@ second authorization: a tab is still given by a click on it.
    reason. Ending a server is in WP-13.
 5. The sessions of an agent that starts again. Today they pass to an agent of the same name.
    Proposal: they still do, once the user has let that agent in; otherwise every start costs a
-   click on each tab as well. WP-10 has the same question for Disconnect.
+   click on each tab as well. For Disconnect, WP-10 answered it the other way: there the
+   sessions end.
 6. What existing setups know: `--show-token`, `--rotate-token`, `--token-file`,
    `BCMCP_TOKEN_FILE` and the folder in the home folder. The constraint in `AGENTS.md` keeps
    legacy names. Proposal: the options stay as names and say that there is no token any more;

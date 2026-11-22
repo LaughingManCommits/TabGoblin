@@ -10,7 +10,7 @@ import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
   ALLOW_LASTS_MS, CommandError, RateLimiter, RecentIds, activityLabel, canUse, checkAsk, checkClick, checkGate, askModeOf, checkKey, failureNote, highImpactWord, inScope,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
-  judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession,
+  judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, sessionsOfAgent,
   type AllowMemory, type AskMemory, type AskMode, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
@@ -86,7 +86,7 @@ interface Persisted {
   sessionSeq: number;
   activity: ActivityEntry[];
   activitySeq: number;
-  /** Agents the user disconnected; they are refused until allowed again. */
+  /** Agents the user disconnected; they are refused until allowed again. Their sessions ended with the disconnect. */
   blockedClients: string[];
   /** Highest ref ever used in each block, so a number is never handed out twice in a browser run. */
   refRanges: number[];
@@ -1394,7 +1394,11 @@ function popupState(): object {
     ask: config.ask,
     indicator: config.indicator,
     folded: config.folded,
-    clients: [...clients.values()].filter((c) => c.authenticated).map((c) => ({ id: c.clientId, name: c.name, port: c.port })),
+    clients: [...clients.values()].filter((c) => c.authenticated).map((c) => ({
+      id: c.clientId, name: c.name, port: c.port,
+      // How many tabs a Disconnect would take from this agent, so that the popup can say it beforehand.
+      tabs: sessionsOfAgent(persisted.sessions, { id: c.clientId, name: c.name }, connected).length,
+    })),
     blockedClients: persisted.blockedClients,
     sessions: persisted.sessions.map((s) => ({
       id: s.id, tabId: s.tabId, origin: s.origin, mode: s.mode, paused: s.paused, expiresAt: s.expiresAt,
@@ -1508,10 +1512,16 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       return;
     }
     case 'disconnectClient': {
+      if (!msg.clientId) return;
       const client = [...clients.values()].find((c) => c.clientId === msg.clientId);
-      if (msg.clientId && !persisted.blockedClients.includes(msg.clientId)) persisted.blockedClients.push(msg.clientId);
+      // A no to an agent takes back what it was given. Its tabs do not wait for "Allow again", and
+      // are not there for an agent of the same name to take up: each needs the user's click again.
+      const taken = sessionsOfAgent(persisted.sessions, { id: msg.clientId, name: client?.name ?? '' }, connectedClientIds());
+      if (!persisted.blockedClients.includes(msg.clientId)) persisted.blockedClients.push(msg.clientId);
       if (client) dropClient(client, CLOSE_USER_DISCONNECTED, 'Disconnected by the user');
-      noteActivity(null, 'Agent disconnected by you');
+      for (const owned of taken) endSession(owned, 'Access revoked: you disconnected its agent');
+      const ended = taken.length === 1 ? '; 1 session ended' : taken.length ? `; ${taken.length} sessions ended` : '';
+      noteActivity(null, `Agent disconnected by you${ended}`);
       pushState();
       return;
     }

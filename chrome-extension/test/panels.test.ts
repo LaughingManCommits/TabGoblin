@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PANELS, agentsSummary, foldedOf, sessionsSummary, settingsSummary, withFolded } from '../src/panels.ts';
+import { PANELS, agentsSummary, disconnectCost, foldedOf, sessionsSummary, settingsSummary, tabCount, withFolded } from '../src/panels.ts';
 
 test('only the four panels fold; the prompt and the pairing form do not', () => {
   assert.deepEqual([...PANELS], ['sessions', 'activity', 'agents', 'settings']);
@@ -40,4 +40,19 @@ test('folded Agents and Settings panels say what is inside in one line', () => {
   assert.equal(agentsSummary([], 0), 'None connected');
   assert.equal(settingsSummary('Ask every time', true), 'Ask every time · indicator on');
   assert.equal(settingsSummary('Do not ask', false), 'Do not ask · indicator off');
+});
+
+test('an agent\'s row says what a Disconnect would end, before the click', () => {
+  assert.deepEqual([0, 1, 2, 11].map(tabCount), ['no tabs', '1 tab', '2 tabs', '11 tabs']);
+  assert.deepEqual(disconnectCost(0), {
+    beside: 'no tabs', hint: 'Disconnects this agent. It stays out until you allow it again.',
+  });
+  assert.deepEqual(disconnectCost(1), {
+    beside: '1 tab',
+    hint: 'Disconnects this agent and ends its 1 tab, which then needs your click again. It stays out until you allow it again.',
+  });
+  assert.deepEqual(disconnectCost(3), {
+    beside: '3 tabs',
+    hint: 'Disconnects this agent and ends its 3 tabs, which then need your click again. It stays out until you allow it again.',
+  });
 });
