@@ -256,6 +256,37 @@ Manifest V3 stops an idle background worker. TabGoblin is built for that:
 - After a restart, operations that were mid-flight are gone, and submissions that had been
   dispatched are marked `UNCERTAIN`.
 
+## The notice in the page
+
+In the bottom corner of an authorized tab a bar says what the agent does there, and above it a
+pill for each thing it just did. The worker tells the page two things and nothing else
+(`setNotice` in `background.ts`):
+
+| Sent | When | Carries |
+|---|---|---|
+| A state | A command starts (`working`), the user is asked (`asking`), a session is paused or resumed (`paused`, `idle`) | For `working`, what runs, in the words of the activity list |
+| A line | A command ends | The activity list's words for it, and for one that did not run through the short note for its error code (`endedLine` in `policy.ts`) |
+| `off` | The session ends or is suspended, a screenshot is about to be taken, or the setting is switched off | Nothing |
+
+The page keeps the time (`notice.ts`): a line stays four seconds and fades for one, three lines
+at most, and the notice leaves the page with its last line when nothing runs. The worker sets
+no timer for it, since it may be asleep by the time a line has to go. Sending is best effort:
+it never injects the content script and never holds up a command. The notice is drawn in a
+closed shadow root, and only its Pause button takes the pointer; a click on Pause counts only
+when the browser marks it as the user's.
+
+It is two panes. The bar holds the goblin, the words and Pause; it is one row high whatever
+happens, and it is what stays in the corner. The pills float above it, each as wide as its
+words, with nothing drawn around the two. So what stays is small, and what passes covers no
+more of the page than its own text.
+
+The look is the popup's: its colours, its round marks, and the goblin of its header, drawn from
+the shapes of `icons/goblin.svg` with nothing fetched. The goblin stands bare on the bar, with no
+tile and no edge of its own. It shows the state through one class alone (its outline glows green
+while working and amber when the user is asked, and its eyes are closed when paused); it learns
+nothing about what the agent does beyond that. What each action looks like is not shown; that
+is WP-12.
+
 ## Where things are
 
 ```text
@@ -273,7 +304,8 @@ chrome-extension/src/
   background.ts            connections, sessions, gate, navigation, submissions, activity
   policy.ts                every rule, as pure functions
   protocol.ts              typed messages and their validation
-  content.ts               fixed set of page operations, in-page indicator
+  content.ts               fixed set of page operations; holds the notice in the page
+  notice.ts                the notice in the page: what it shows at a moment, and how it is drawn
   snapshot.ts              rendered-DOM walk, roles, names, refs, hierarchy, completeness
   extract.ts               structured text, outline, sections
   interact.ts              click, fill, type, keys, scroll, wait

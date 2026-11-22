@@ -29,7 +29,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 |---|---|
 | `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
-| `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, and the background worker against a fake Chrome |
+| `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, the notice in the page, and the background worker against a fake Chrome |
 | `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
 | `cd e2e/editors && npm test` | Text entry into fourteen real editor libraries, checked against each editor's own model |
 
@@ -48,6 +48,7 @@ Other scripts in `e2e/`:
 | `node live.mjs <url> …` | Read-only smoke check on real websites |
 | `node agent.mjs` | Hands the tools to a real model (the `claude` CLI) with questions that need expanding, scrolling or loading more; prints the tool calls. Costs a few cents. |
 | `HEADED=1 node screenshots.mjs` | Regenerates `docs/images` and `docs/examples` |
+| `node notice-pictures.mjs` | Pictures the notice in the page in every state, drawn by `notice.ts` in a plain page, to look at |
 | `node make-icons.mjs` | Renders the icon PNGs from `chrome-extension/icons/goblin.svg` |
 
 ### About the screenshots
@@ -133,7 +134,7 @@ Run them by hand with `node demo-site/server.mjs`.
   The editor lab names libraries; the product does not, and a test (`agnostic.test.ts`) keeps it so.
 - **Rules are pure.** Anything that decides whether something is allowed goes into `policy.ts` as
   a function without `chrome.*` or DOM access, with a test.
-- **DOM code is pure too.** `snapshot`, `extract`, `interact` and `submit` take a document and run
+- **DOM code is pure too.** `snapshot`, `extract`, `interact`, `submit` and `notice` take a document and run
   under jsdom.
 - **Fail closed.** An unknown tab address, an unparseable message or a missing owner means no.
 - **Nothing is retried.** A command is sent once; unknown outcomes are reported as unknown.

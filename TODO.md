@@ -2,14 +2,13 @@
 
 ## Overview
 
-Seven packages are open. Five were asked for by the owner on 2026-11-21: WP-11, the notice in
-the page; WP-12, a goblin that acts out what the agent does; WP-13, a panel for the server;
-WP-14, nothing personal in the repository, which the owner called important; and WP-15, an easy
-install. Two on 2026-11-22: WP-16, a page that shows how TabGoblin differs from other tools;
-and WP-17, a new token at every start, and nothing connected on an old one. Of WP-14 the files
-and the check were done on 2026-11-22; the history remains, and is the owner's. The other six
-are not started, and each waits for the owner's word on its points. New work gets the next
-number, WP-18.
+Six packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
+repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
+WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
+start, and nothing connected on an old one. Of WP-14 the files and the check were done on
+2026-11-22; the history remains, and is the owner's. The other five are not started, and each
+waits for the owner's word on its points. New work gets the next number, WP-18.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -17,8 +16,9 @@ key), WP-3 (consent that cannot be given by accident: issues A1, A2 and B6), WP-
 what is asked: issues B1 to B5 and D1 to D3), WP-5 (a no stands, and
 one request waits at a time: issues A3 and A4), WP-6 (Enter as a full submission, with tighter
 exceptions: issues C1, C2 and C3), WP-7 (an automatic mode for confirmations),
-WP-8 (small things left from that mode), WP-9 (where the time goes) and WP-10 (disconnecting an
-agent ends its sessions). Numbers are not reused.
+WP-8 (small things left from that mode), WP-9 (where the time goes), WP-10 (disconnecting an
+agent ends its sessions) and WP-11 (the notice in the page: a bar, and pills of what ended).
+Numbers are not reused.
 
 WP-5 was built differently from its proposal in one point. A limit on how often a session may ask
 would have stopped an agent the user is working with: in a chat every message is a request. What
@@ -71,72 +71,42 @@ taken by a second instance of the same program. That was run against the source 
 second agent got the page. What Disconnect still does not do is hold over a new start of the
 agent's server; that is in WP-17. The rule is in [docs/security.md](docs/security.md#agents).
 
-## WP-11: The notice in the page
+WP-11 was asked for by the owner on 2026-11-21 ("the notification on the bottom disapears to
+quickly we shoul let it slowly fade and allow them to stack maybe we should think redesign for
+notification shown on the bottom of the page") and built on 2026-11-22. Its fourth decision, how
+far the redesign goes, was the owner's on that day: "maybe the pillbox should be infobox with
+pills in it?", and then "okay go with that build it". The other four went by their proposals: a
+line stays four seconds and fades for one, three lines at most, a line says how its command
+ended, and the one switch under Settings is for all of it.
 
-Asked for by the owner on 2026-11-21: "the notification on the bottom disapears to quickly we
-shoul let it slowly fade and allow them to stack maybe we should think redesign for notification
-shown on the bottom of the page". Goal: the user can follow in the page what the agent did, not
-only catch what it does at this moment.
+What is in the page now is two panes in the bottom corner. A bar says what the agent is at (what
+runs, idle, paused, or that the user's answer is needed in the popup) and has Pause; it is one
+row high and stays where it is. Above it float pills, one for each command that just ended, the
+newest at the bottom. It came to that in three steps, each on the owner's word:
 
-### What is there today
+- **The sketch** had the row with Pause on top of a box. Built, it went to the bottom: a box in
+  the bottom corner grows upwards, and Pause on top would have moved with every line.
+- **The look.** While the first form was being looked at: "we want modern, fun and something
+  that fits the theme of our app". So it has the popup's colours and round marks, and the
+  goblin of the popup's header in the bar, which shows the state: it glows green in pulses
+  while the agent works, amber when the user is asked, and has its eyes closed when paused.
+  That is the face of `icons/goblin.svg` and no new drawing. It uses part of what WP-12 lists
+  as its smallest form; acting out each action is still WP-12. It first stood on a dark tile
+  with a ring around it, as in the popup's header; on the owner's word, "the little goblin
+  should be have no background and border", it stands bare, and what lights up is its outline.
+- **Two panes.** On the size of it: "i wonder if we should split it 2 planes?", and "was hoping
+  you tell me if that is better?". It is: drawn both ways and set side by side, the bar stays
+  one size where the box grew, and with three pills about a third less of the page is covered.
+  So nothing is drawn around bar and pills, and it is not the "infobox with pills in it" of
+  the first word any more. The limit of three pills, which the owner asked after ("like 5
+  maybe, we dont want it be oversized"), stayed at three.
 
-Read from the source on 2026-11-21 (`showIndicator` in `content.ts`; `setIndicator` and
-`hideIndicatorSoon` in `background.ts`; the wording from `activityLabel` in `policy.ts`).
-
-- One pill, fixed at the bottom right of the page, in a closed shadow root: a green dot, one
-  line of text and a **Pause** button.
-- It holds one line: "Agent: " and what runs ("Agent: Reading page"). A new command replaces the
-  text. What a command ended with is not shown; the popup's activity list has that.
-- It is taken away 2.5 seconds after a command ended, at once and without a transition. A
-  command that starts within those 2.5 seconds keeps it.
-- After a pause with its own button it reads "Agent paused", and stays until the next command or
-  until the session ends or is suspended.
-- It is removed before a screenshot is taken, so that it is never in the picture, and is not part
-  of what a snapshot or an extract returns. It can be switched off under *Settings*.
-
-Not measured: how long a line is readable in practice. The owner's word is that it is too short.
-
-### Proposal
-
-1. **Fade.** A line stays for a few seconds after its command ended and then fades out, instead
-   of being cut off. Without motion where the system asks for less (`prefers-reduced-motion`).
-2. **Stack.** The last few lines are shown one above the other, the newest at the bottom, each
-   fading by itself. The line of what runs now keeps the dot and **Pause**; a line of what ended
-   says so in the wording the activity list uses ("Read page", or "Clicking element (needs Write
-   access)" for one that was refused).
-3. **Redesign.** Open; see the decisions. The smallest form of it is points 1 and 2 with the
-   pill's look kept.
-
-What a change must keep, whatever it looks like:
-
-- Only the generic wording leaves the worker for the page: nothing of the page's content and no
-  entered text, as in the activity list.
-- The closed shadow root, and Pause only on a click the user really made. A page script must
-  stay unable to read the notice or to operate it; a step end to end asserts that.
-- Not in a screenshot, a snapshot or an extract. With a fade, a line that is still fading is
-  removed at once before a capture.
-- Best effort: the notice never injects anything and never holds up a command.
-
-### Decisions for the owner
-
-1. How long a line stays and how long it fades. Proposal: 4 seconds, then 1 second of fading.
-2. How many lines stack. Proposal: three.
-3. Whether a line of what ended also says how it ended: done, refused, failed. Proposal: yes,
-   with the mark and the short note the activity list gives it, and never the error's own text.
-4. How far the redesign goes: the same pill stacked (proposal), or a new look and place. One
-   thing a redesign could add: saying in the page that the agent waits for the user's answer in
-   the popup. Today only the toolbar badge (`?`) says that.
-5. Whether the Settings switch stays one switch for the whole notice (proposal).
-
-### Tasks and acceptance
-
-Per the task map: `content.ts` for the notice, a pure function for which lines show and when
-each goes, with its test under jsdom, `background.ts` for when a line is sent (start, and end
-with the outcome), and `policy.ts` only if the wording changes. End to end: the two existing
-indicator steps keep passing, and a new one shows that a line outlasts its command, that two
-commands in a row give two lines, and that a screenshot taken meanwhile has none of them. Then
-`docs/images/indicator.png` regenerated and looked at, and the user guide (section 4). No
-tool's text changes.
+Three more things changed, read from the source as it was and not run on it. The page keeps the
+time of a line, not the worker, which may be asleep by then. A pause is said in the notice
+however it was made; before, only the page's own button said "Agent paused", and that stayed
+after the session was resumed in the popup. And a session that is only paused has no notice;
+before, the pill stayed after a pause by its own button. How it works is in
+[docs/architecture.md](docs/architecture.md#the-notice-in-the-page).
 
 ## WP-12: A goblin that acts out what the agent does
 
@@ -147,20 +117,25 @@ only said in a line of text.
 
 ### What is there today
 
-Read from the source on 2026-11-21.
+Read from the source on 2026-11-21, and brought up to WP-11 on 2026-11-22.
 
-- The only thing TabGoblin draws in a page is the pill of WP-11: one line of text, no picture
-  and no motion (`showIndicator` in `content.ts`).
-- The worker tells the page the text of that line and nothing else. The page part does not learn
-  which action runs, in which direction a scroll goes, or which element is clicked; it gets the
-  command itself separately, in `content.ts`, and answers it.
+- The only thing TabGoblin draws in a page is the notice of WP-11: a bar with the goblin's face
+  and a row of text, and pills of text above it (`notice.ts`).
+- The face shows the state and nothing of the action: a glow that pulses and a blink now and
+  then while anything runs, an amber glow and a look upwards when the user is asked, closed
+  eyes when paused. It is the same whether the agent reads, clicks or scrolls.
+- The worker tells the page a state, the words for what runs and a line for what ended, and
+  nothing else (`setNotice` in `background.ts`). The page part does not learn which action
+  runs, in which direction a scroll goes, or which element is clicked; it gets the command
+  itself separately, in `content.ts`, and answers it.
 - The goblin exists as one drawing, `chrome-extension/icons/goblin.svg`: a face of ten shapes
-  with ears, eyes, a mouth and a tooth. The toolbar icons are rendered from it, and the popup
-  shows the same face. It has no body, arms or legs, and nothing in it moves.
+  with ears, eyes, a mouth and a tooth. The toolbar icons are rendered from it, the popup shows
+  the same face, and the notice draws it from the same shapes with a name on each part that
+  moves. It has no body, arms or legs.
 
 ### Proposal
 
-1. A small goblin beside the notice of WP-11, in the same closed shadow root. It plays one short
+1. The goblin in the notice's bar, in the same closed shadow root. It plays one short
    animation per kind of action, a second or two long: pulling the page up or down for a scroll,
    pointing for a click, writing for entered text, reading for a snapshot or an extract,
    running for a navigation, waiting for a wait.
@@ -171,20 +146,19 @@ Read from the source on 2026-11-21.
 4. Still where the system asks for less motion (`prefers-reduced-motion`): the goblin then shows
    a pose and does not move.
 
-What a change must keep is what WP-11 lists for the notice: only generic facts reach the page,
-the closed shadow root, nothing of it in a screenshot, a snapshot or an extract, and never a
+What a change must keep is what holds for the notice: only generic facts reach the page, the
+closed shadow root, nothing of it in a screenshot, a snapshot or an extract, and never a
 command held up by an animation. One more for this package: the goblin takes no click and no
 key, so it cannot be in the user's or the agent's way.
 
 ### Decisions for the owner
 
-1. Where the goblin is. Beside the notice, at the bottom of the page (proposal), or at the place
-   of the action: next to the element that is clicked, at the edge the page scrolls towards.
+1. Where the goblin is. In the notice's bar, where it is now (proposal), or at the place of
+   the action: next to the element that is clicked, at the edge the page scrolls towards.
    The second is more fun, and more work: it needs the element's position, it must not cover
    what the user reads, and it shows a page script where and when the agent acts. A page script
    sees the click itself anyway, but not today an element that we add beside it.
-2. Whether it comes with WP-11 or after it. Proposal: after; it sits in the notice that WP-11
-   reshapes.
+2. Settled: it comes after WP-11, which is built. The bar it sits in is there.
 3. A switch of its own under *Settings*, or the indicator's switch for both (proposal: its own,
    since some will want the line and not the figure).
 4. Who draws the goblin, and how much of it. The face that exists can act by itself: look
@@ -194,9 +168,9 @@ key, so it cannot be in the user's or the agent's way.
 
 ### Tasks and acceptance
 
-Per the task map, as for WP-11: `content.ts` for the figure and its animations, a pure function
-from an action to its animation with a test, `background.ts` for sending the kind of action with
-the line. A check in `test/agnostic.test.ts` terms: no library name comes in. End to end: a
+Per the task map, "Change the notice in the page": `notice.ts` for the figure and its
+animations, a pure function from an action to its animation with a test, `background.ts` for
+sending the kind of action with the state. A check in `test/agnostic.test.ts` terms: no library name comes in. End to end: a
 scroll shows the goblin with the scroll's animation and a click another; it is gone from a
 screenshot taken meanwhile; a page script can neither read nor operate it; switched off, it
 does not appear. Then pictures for the user guide, each one opened and looked at. No tool's

@@ -28,6 +28,8 @@ const pageLog: string[] = [];
 const waits = new Map<string, (reply: object) => void>();
 /** What a fake page answers to an operation, where a test needs more than an echo. */
 const pageResults = new Map<string, object>();
+/** What the pages were told for their notice, in order: the tab, the state, and what else came with it. */
+const notices: { tab: number; state: unknown; text?: unknown; ended?: unknown }[] = [];
 
 function pageAnswer(tabId: number, msg: any): Promise<object> | object {
   const tab = tabs.get(tabId);
@@ -42,6 +44,11 @@ function pageAnswer(tabId: number, msg: any): Promise<object> | object {
   const meta = { docId: `doc-${tabId}`, highestRef: 0, generation: 0, url: tab.url };
   if (!Array.isArray(msg.origins) || !msg.origins.includes(origin)) return { ok: false, code: 'ORIGIN_MISMATCH', message: 'wrong origin', ...meta };
   if (msg.op !== 'ping' && msg.op !== 'indicator') pageLog.push(`${tabId}:${msg.op}`);
+  if (msg.op === 'indicator') {
+    // Everything that came with it, so that a test sees if more than the notice's own fields went out.
+    const { bcmcp: _, op: __, origins: ___, ...told } = msg;
+    notices.push({ tab: tabId, ...told });
+  }
   if (msg.op === 'wait') {
     return new Promise((resolve) => waits.set(msg.opId, (reply) => resolve({ ...reply, ...meta })));
   }
@@ -821,4 +828,99 @@ test('the panels of the popup fold on the user\'s word, and the prompt is not on
   assert.deepEqual((await state()).folded, ['activity']);
   await popup({ type: 'setFolded', panel: 'activity', value: false });
   assert.deepEqual((await state()).folded, []);
+});
+
+test('the page is told what runs and how it ended, in the list\'s fixed words and nothing of the page', async () => {
+  await popup({ type: 'authorize', tabId: 1, mode: 'read', clientId: 'c-one' });
+  const sid = (await state()).sessions.at(-1).id;
+  const start = notices.length;
+  /** What tab 1 was told since the last look. */
+  let seen = start;
+  const next = async (count: number, what: string): Promise<object[]> => {
+    await until(() => notices.length >= seen + count, what);
+    await sleep(30); // and nothing more than that
+    const told = notices.slice(seen);
+    seen = notices.length;
+    assert.ok(told.every((n) => n.tab === 1), 'no other tab is told anything');
+    return told.map(({ tab: _, ...rest }) => rest);
+  };
+
+  // A command that runs through: what runs, then that it ended, with a line for it.
+  assert.equal(code(await one.command('snapshot', { session: sid })), 'ok');
+  assert.deepEqual(await next(2, 'the snapshot to be said'), [
+    { state: 'working', text: 'Reading page' },
+    { state: 'idle', ended: { text: 'Read page', mark: 'ok' } },
+  ]);
+  // A command that is refused: the line says so, with the short note.
+  assert.equal(code(await one.command('fill', { session: sid, params: { ref: 3, text: 'the secret text' } })), 'WRITE_NOT_AUTHORIZED');
+  assert.deepEqual(await next(2, 'the refused fill to be said'), [
+    { state: 'working', text: 'Entering text' },
+    { state: 'idle', ended: { text: 'Entering text (needs Write access)', mark: 'error' } },
+  ]);
+  // A screenshot: the notice is taken away before the capture and not announced. Its line comes after.
+  assert.equal(code(await one.command('screenshot', { session: sid })), 'ok');
+  assert.deepEqual(await next(2, 'the screenshot to be said'), [
+    { state: 'off' },
+    { state: 'idle', ended: { text: 'Captured screenshot', mark: 'ok' } },
+  ]);
+
+  // A submission the user is asked about: the page says that the agent waits for them.
+  await popup({ type: 'setMode', session: sid, mode: 'write' });
+  await popup({ type: 'setAsk', session: sid, value: 'always' });
+  const answers = ['key_describe', 'submit_prepare', 'submit_baseline'].map((op) => [op, pageResults.get(op)] as const);
+  pageResults.set('key_describe', { submit: 'text', click: null, label: 'Message' });
+  pageResults.set('submit_prepare', {
+    target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Message' }, by: 'enter', how: 'enter', label: 'Message', digest: null,
+    preview: [{ field: 'Message', text: 'Hello team' }],
+  });
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  const asked = one.command('press_key', { session: sid, params: { key: 'Enter', intent: 'submit' } });
+  await until(async () => (await state()).pendingConfirm?.session === sid, 'the user to be asked');
+  assert.deepEqual(await next(2, 'the question to be said'), [{ state: 'working', text: 'Submitting' }, { state: 'asking' }]);
+  await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: false });
+  assert.equal(code(await asked), 'SUBMIT_DENIED');
+  assert.deepEqual(await next(2, 'the answer to be said'), [
+    { state: 'working', text: 'Submitting' },
+    { state: 'idle', ended: { text: 'Submitting (you declined)', mark: 'error' } },
+  ]);
+  for (const [op, answer] of answers) {
+    if (answer === undefined) pageResults.delete(op);
+    else pageResults.set(op, answer);
+  }
+
+  // Pause in the page itself: the click is answered there. Only the page of the session's tab can.
+  await popup({ bcmcp: 'indicator-pause' }, { id: EXTENSION_ID, url: 'https://docs.example/guide', tab: { id: 2 } });
+  await popup({ bcmcp: 'indicator-pause' }, { id: EXTENSION_ID, url: 'https://app.example/issues', tab: { id: 1 } });
+  assert.deepEqual(await next(1, 'the pause to be said'), [{ state: 'paused', ended: { text: 'Paused by you', mark: 'info' } }]);
+  assert.equal((await state()).sessions.at(-1).paused, true);
+  // A paused session runs nothing, and the page is not told that it does.
+  assert.equal(code(await one.command('snapshot', { session: sid })), 'PAUSED');
+  assert.deepEqual(await next(1, 'the refusal to be said'), [{ state: 'paused', ended: { text: 'Reading page (paused)', mark: 'error' } }]);
+  await popup({ type: 'resume', session: sid });
+  assert.deepEqual(await next(1, 'the resume to be said'), [{ state: 'idle' }]);
+  await popup({ type: 'pause', session: sid });
+  assert.deepEqual(await next(1, 'the pause from the popup to be said'), [{ state: 'paused' }]);
+  await popup({ type: 'resume', session: sid });
+  await next(1, 'the second resume to be said');
+
+  // Switched off: it is taken away, and a command says nothing in the page.
+  await popup({ type: 'setIndicator', value: false });
+  assert.deepEqual(await next(1, 'the notice to be taken away'), [{ state: 'off' }]);
+  assert.equal(code(await one.command('snapshot', { session: sid })), 'ok');
+  await sleep(50);
+  assert.equal(notices.length, seen, 'nothing is said while the notice is switched off');
+  await popup({ type: 'setIndicator', value: true });
+  // A session that ends takes its notice with it.
+  await popup({ type: 'revoke', session: sid });
+  assert.deepEqual(await next(1, 'the end of the session to be said'), [{ state: 'off' }]);
+
+  // All of it, read once more: a state, and the fixed words. Nothing of a page, of what was typed,
+  // of a control's name, of a site or of an agent.
+  const all = JSON.stringify(notices.slice(start));
+  for (const secret of ['snapshot of tab', 'the secret text', 'Hello team', 'Message', 'app.example', 'agent-one', 'c-one']) {
+    assert.ok(!all.includes(secret), `the page was told "${secret}"`);
+  }
+  for (const notice of notices.slice(start)) {
+    assert.deepEqual(Object.keys(notice).filter((key) => !['tab', 'state', 'text', 'ended'].includes(key)), []);
+  }
 });

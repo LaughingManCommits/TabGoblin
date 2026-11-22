@@ -333,22 +333,30 @@ try {
   await popup.select('.session[data-session="s1"] .ask', 'always');
   await sleep(900);
 
-  // 5. The in-page indicator while an operation runs.
+  // 5. The notice in the page: two commands have just ended, and a third runs.
   await a.bringToFront();
+  // What the steps before left in it goes first, so that the picture is the same every time.
+  await a.waitForFunction(() => !document.querySelector('bcmcp-indicator'), { timeout: 10000 });
+  await one.tool('browser_snapshot');
+  await one.tool('browser_extract');
   const waiting = one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 3000 });
   // Wait until it is really there, and frame the picture around where it actually is.
   const pill = await a.waitForSelector('bcmcp-indicator', { timeout: 5000 });
+  await sleep(500);
+  // At double size, in the window as it is: the box is small, and the documentation shows it large.
+  const [width, height, scrollX, scrollY] = await a.evaluate(() => [innerWidth, innerHeight, scrollX, scrollY]);
+  await a.setViewport({ width, height, deviceScaleFactor: 2 });
   await sleep(300);
   const box = await pill.boundingBox();
-  const [width, height, scrollX, scrollY] = await a.evaluate(() => [innerWidth, innerHeight, scrollX, scrollY]);
-  const left = Math.max(0, box.x - 300);
-  const top = Math.max(0, box.y - 170);
+  const left = Math.max(0, box.x - 150);
+  const top = Math.max(0, box.y - 80);
   // The indicator is fixed to the viewport, while a clip is measured from the top of the document:
   // capture the viewport itself and shift the clip by how far the page is scrolled.
   await a.screenshot({
     path: join(IMAGES, 'indicator.png'), captureBeyondViewport: false,
     clip: { x: left + scrollX, y: top + scrollY, width: Math.min(width, box.x + box.width + 14) - left, height: Math.min(height, box.y + box.height + 14) - top },
   });
+  await a.setViewport(null);
   await waiting;
 
   // 6. The tab left its site: the session is suspended and can be resumed, or the new site added.

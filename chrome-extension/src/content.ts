@@ -7,6 +7,7 @@ import {
   clickElement, describeClickTarget, describeKeyTarget, fill, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
+import { applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice, type Notice, type NoticeMount } from './notice.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
 import {
   captureBaseline, contentDigest, observeSubmission, submissionPreview, submittedTexts, validationProblems, type SubmitBaseline,
@@ -24,7 +25,6 @@ interface Request {
 }
 
 const LOADED = '__browserContextMcpLoaded';
-const INDICATOR_TAG = 'bcmcp-indicator';
 const scope = globalThis as unknown as Record<string, unknown>;
 
 /** Operations that can be told to stop waiting. */
@@ -74,46 +74,34 @@ function historyGo(direction: 'back' | 'forward'): { started: true } {
   return { started: true };
 }
 
-let indicator: { host: HTMLElement; label: HTMLElement } | null = null;
+/** The notice in this page: what it holds, where it is drawn, and when it changes next by itself. */
+let notice: Notice | null = null;
+let noticeMount: NoticeMount | null = null;
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** Small, non-interactive-by-default marker that an agent is operating this tab. */
-function showIndicator(text: string | null): void {
-  if (!text) {
-    indicator?.host.remove();
-    indicator = null;
+/**
+ * Draws the notice as it is at this moment, and comes back when a line starts to fade or is gone.
+ * The page keeps the time: the worker says what runs and what ended, and may be asleep by the
+ * time a line has to go.
+ */
+function showNotice(): void {
+  clearTimeout(noticeTimer);
+  const view = noticeView(notice, Date.now());
+  if (!view) {
+    noticeMount?.host.remove();
+    noticeMount = null;
+    notice = null;
     return;
   }
-  if (!indicator || !indicator.host.isConnected) {
-    const host = document.createElement(INDICATOR_TAG);
-    // Closed shadow root: page scripts cannot read or restyle what is inside.
-    const root = host.attachShadow({ mode: 'closed' });
-    const style = document.createElement('style');
-    style.textContent = ':host{all:initial;position:fixed;right:12px;bottom:12px;z-index:2147483647;pointer-events:none}'
-      // TabGoblin theme: dark cave pill, goblin-green dot.
-      + '.pill{display:flex;align-items:center;gap:8px;padding:5px 6px 5px 11px;border-radius:999px;background:#12201a;'
-      + 'color:#e6f0e9;border:1px solid #2a3a31;font:600 12px/1.3 system-ui,"Segoe UI",sans-serif;'
-      + 'box-shadow:0 4px 14px rgba(0,0,0,.35)}'
-      + '.dot{width:8px;height:8px;border-radius:50%;background:#63d68f;box-shadow:0 0 0 3px rgba(99,214,143,.22)}'
-      + 'button{pointer-events:auto;font:inherit;color:#e6f0e9;background:#1e2a23;border:1px solid #2a3a31;'
-      + 'border-radius:999px;padding:2px 10px;cursor:pointer}'
-      + 'button:hover{background:#273830}';
-    const pill = document.createElement('div');
-    pill.className = 'pill';
-    const dot = document.createElement('span');
-    dot.className = 'dot';
-    const label = document.createElement('span');
-    const pause = document.createElement('button');
-    pause.textContent = 'Pause';
-    pause.addEventListener('click', (event) => {
+  if (!noticeMount || !noticeMount.host.isConnected) {
+    noticeMount = mountNotice(document, (event) => {
       // Only a real user click counts; a page cannot produce a trusted event.
       if (event.isTrusted) void chrome.runtime.sendMessage({ bcmcp: 'indicator-pause' });
     });
-    pill.append(dot, label, pause);
-    root.append(style, pill);
-    document.documentElement.append(host);
-    indicator = { host, label };
   }
-  indicator.label.textContent = text;
+  paintNotice(noticeMount, view);
+  // A little late rather than early: a timer that fires before the moment would find nothing changed.
+  if (view.next !== null) noticeTimer = setTimeout(showNotice, view.next + 20);
 }
 
 /** The element and key that the rules were last applied to, until that key is pressed. */
@@ -271,7 +259,9 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
       submissions.delete(String(msg.submissionId));
       return {};
     case 'indicator':
-      showIndicator(typeof msg.text === 'string' ? msg.text : null);
+      // `off` takes it away before this answer is sent: a screenshot waits for exactly that.
+      notice = applyUpdate(notice, noticeUpdateOf(msg), Date.now());
+      showNotice();
       return {};
     default:
       throw new DomError('UNSUPPORTED_ACTION', `Unsupported page operation "${msg.op}".`);

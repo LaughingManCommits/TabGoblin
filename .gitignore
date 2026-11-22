@@ -45,5 +45,6 @@ chrome-extension/dist/
 ### Editor lab ###
 e2e/editors/build/
 
-### Pictures of the prompt, to look at ###
+### Pictures of the prompt and of the notice in the page, to look at ###
 e2e/prompt-pictures/
+e2e/notice-pictures/

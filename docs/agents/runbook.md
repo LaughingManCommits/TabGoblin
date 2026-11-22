@@ -151,6 +151,22 @@ three values, and the panels folded, two of them and all four. It leaves `docs/`
 also written at its whole length and double size (`<view>-full-<scheme>.png`): that is the
 picture to look at for spacing and alignment, since the popup's window shows only its top.
 
+After a change to the notice in the page, picture all its states and look at them:
+
+```sh
+cd e2e && node notice-pictures.mjs               # into e2e/notice-pictures/, not in git
+```
+
+Success: thirty-one pictures and a printed list of the notice's size in each state. Every state
+is drawn at double size over a light and over a dark page: the bar alone, with one, two and three
+pills, the longest pill, the user being asked, paused, a pill fading, the whole notice fading,
+Pause under the pointer, and four frames of it arriving; the two widest once more in a narrow
+window, and
+the fading pill once where the system asks for less motion, where it must look plain. It
+draws with the extension's own `notice.ts` in a plain page, starts no server and no extension,
+and takes seconds. What it does not show is the notice at work in a tab: `screenshots.mjs` takes
+that picture (`indicator.png`), and the end-to-end suite reads the real one.
+
 ## Change the version
 
 The version is written in seven places. Change all of them in one commit:

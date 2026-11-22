@@ -285,6 +285,54 @@ try {
   }
   const badge = async () => (await worker()).evaluate(() => chrome.action.getBadgeText({}));
   const json = (result) => JSON.parse(ok(result).text);
+  /**
+   * What the notice in a page says, or null when there is none. It is read through the browser's
+   * debugging interface, which sees into a closed shadow root. A script of the page does not.
+   */
+  async function noticeOf(target) {
+    const client = await target.createCDPSession();
+    try {
+      const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
+      const kids = (node) => [...(node.children ?? []), ...(node.shadowRoots ?? [])];
+      const find = (node, test) => (test(node) ? node : kids(node).map((kid) => find(kid, test)).find(Boolean));
+      const attribute = (node, name) => {
+        const list = node.attributes ?? [];
+        for (let i = 0; i < list.length; i += 2) if (list[i] === name) return list[i + 1];
+        return null;
+      };
+      const classes = (node) => (attribute(node, 'class') ?? '').split(' ');
+      const text = (node) => (node.nodeType === 3 ? node.nodeValue : kids(node).map(text).join(''));
+      const host = find(root, (node) => node.localName === 'bcmcp-indicator');
+      if (!host) return null;
+      const box = find(host, (node) => classes(node).includes('box'));
+      const part = (name) => find(box, (node) => classes(node).includes(name));
+      return {
+        box: classes(box),
+        status: text(part('label')),
+        pause: attribute(find(box, (node) => node.localName === 'button'), 'hidden') === null,
+        lines: kids(part('lines')).map((line) => text(line)),
+      };
+    } finally {
+      await client.detach().catch(() => undefined);
+    }
+  }
+  /** How much of a JPEG's bottom right corner is as dark as the notice's box: a share between 0 and 1. */
+  const darkCorner = (probe, base64) => probe.evaluate(async (data) => {
+    const image = new Image();
+    image.src = `data:image/jpeg;base64,${data}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0);
+    const width = Math.round(image.naturalWidth * 0.3);
+    const height = Math.round(image.naturalHeight * 0.25);
+    const pixels = context.getImageData(image.naturalWidth - width, image.naturalHeight - height, width, height).data;
+    let dark = 0;
+    for (let i = 0; i < pixels.length; i += 4) if (pixels[i] < 70 && pixels[i + 1] < 80 && pixels[i + 2] < 70) dark += 1;
+    return dark / (width * height);
+  }, base64);
 
   await step('extension id is the pinned one and it asks for no forbidden permission', async () => {
     assert(extensionId === EXTENSION_ID, `extension id is ${extensionId}`);
@@ -833,10 +881,14 @@ try {
     await sleep(500);
     assert(await page.$('bcmcp-indicator'), 'indicator should be shown during an operation');
     assert(await badge() === 'RUN', `badge during an operation was ${await badge()}`);
+    const running = await noticeOf(page);
+    assert(running.status === 'Agent: Waiting for content' && running.pause, JSON.stringify(running));
     await pending;
+    // The wait has ended, and its line is still in the page. A snapshot has neither the row nor the line.
     const during = ok(await one.tool('browser_snapshot')).text;
     lacks(during, 'Agent:');
     lacks(during, 'Pause');
+    lacks(during, 'Waiting for content');
     const popup = await openPopup();
     await popup.click('#indicator');
     await until(async () => !(await page.$('bcmcp-indicator')), 'the indicator to disappear');
@@ -853,17 +905,70 @@ try {
       const host = document.querySelector('bcmcp-indicator');
       host.click();
       host.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      return host.shadowRoot !== null;
+      // Nor a look at what it says: the row, and the lines of what ended.
+      return host.shadowRoot !== null || host.textContent !== '' || host.children.length > 0;
     });
     assert(!reachable, 'the indicator internals must not be reachable from the page');
     await sleep(300);
     has((await one.tool('browser_status')).text, 'Paused: no');
-    // The user's real click on its Pause button.
+    // The user's real click on its Pause button, which is in the bottom row of the box.
     const box = await (await page.$('bcmcp-indicator')).boundingBox();
-    await page.mouse.click(box.x + box.width - 28, box.y + box.height / 2);
+    await page.mouse.click(box.x + box.width - 28, box.y + box.height - 18);
     fails(await pending, 'CANCELLED');
     await until(async () => (await one.tool('browser_status')).text.includes('Paused: yes'), 'the session to pause');
+    // The click is answered where it was made: the row says paused, and offers no Pause any more.
+    const paused = await noticeOf(page);
+    assert(paused.status === 'Agent paused' && !paused.pause && paused.lines.includes('•Paused by you'), JSON.stringify(paused));
+    // The popup learns of the pause with its next refresh. Resuming before that would find a
+    // button that still reads Pause, and leave the session paused.
+    await (await openPopup()).waitForFunction((selector) => document.querySelector(selector)?.textContent === 'Resume', {}, row(sA, '.pause'));
     await togglePause(sA, 'Pause');
+    await until(async () => (await one.tool('browser_status')).text.includes('Paused: no'), 'the session to be resumed');
+  });
+  await step('what ended stays in the page for a few seconds, the newest last, then fades; no picture has it', async () => {
+    await page.bringToFront();
+    await until(async () => !(await page.$('bcmcp-indicator')), 'the notice of the steps before to go', 12000);
+    /** Waits until the notice has exactly these lines, and says what it has if it does not come to that. */
+    const lines = async (wanted, what) => {
+      await until(async () => (await noticeOf(page))?.lines.join('|') === wanted, what, 3000).catch(async (e) => {
+        throw new Error(`${e.message}; the notice says ${JSON.stringify(await noticeOf(page))}`);
+      });
+      return noticeOf(page);
+    };
+    ok(await one.tool('browser_snapshot'));
+    ok(await one.tool('browser_extract', { links: 'none' }));
+    // Both have ended, and the page still says so: a line each, the newer one next to the status row.
+    const said = await lines('✓Read page|✓Extracted text', 'a line for each of two commands that ended');
+    assert(said.status === 'Agent idle' && said.pause, JSON.stringify(said));
+    // One that did not run through says how it ended, in the words of the activity list.
+    fails(await one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 300 }), 'WAIT_TIMEOUT');
+    await lines('✓Read page|✓Extracted text|✗Waiting for content (timed out)', 'a third line, for a command that failed');
+    // While the next command runs, the row says what runs and the lines stay above it.
+    const pending = one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 1200 });
+    await until(async () => (await noticeOf(page))?.status === 'Agent: Waiting for content', 'the row to say what runs');
+    assert((await noticeOf(page)).lines.length === 3, 'the lines of what ended stay while the next command runs');
+    await pending;
+    // Neither a snapshot nor the page's text has any of it.
+    const read = ok(await one.tool('browser_snapshot')).text + ok(await one.tool('browser_extract', { links: 'none' })).text;
+    for (const words of ['Agent idle', 'Agent:', 'Waiting for content', 'Read page', 'Extracted text', 'Pause']) lacks(read, words);
+
+    // Nor a picture the agent takes. The same view is captured three times: by this suite with the
+    // notice in it, by the tool, and by this suite when the notice has gone by itself.
+    // Three lines at most: the two of the reading, and the newest of the waits before them.
+    await lines('✗Waiting for content (timed out)|✓Read page|✓Extracted text', 'three lines, the oldest gone');
+    const withNotice = await page.screenshot({ type: 'jpeg', quality: 70, encoding: 'base64', captureBeyondViewport: false });
+    const shot = await one.tool('browser_screenshot');
+    assert(shot.image, `no image: ${shot.text}`);
+    // The lines were taken away for the capture. The screenshot's own line comes after it.
+    await lines('✓Captured screenshot', 'the line of the screenshot alone');
+    // Nothing runs, so the box fades with its last line and then is out of the page.
+    await until(async () => (await noticeOf(page))?.box.includes('fading'), 'the notice to fade', 6000);
+    await until(async () => !(await page.$('bcmcp-indicator')), 'the notice to go', 4000);
+    const without = await page.screenshot({ type: 'jpeg', quality: 70, encoding: 'base64', captureBeyondViewport: false });
+    // Measured in the page that is open anyway: another tab would take the popup away from the steps that follow.
+    const dark = [await darkCorner(page, withNotice), await darkCorner(page, shot.image.data), await darkCorner(page, without)];
+    assert(dark[0] - dark[2] > 0.05, `the measure should see the notice: ${dark[0]} with it, ${dark[2]} without`);
+    assert(Math.abs(dark[1] - dark[2]) < 0.02, `the agent's picture should be the page without the notice: ${dark[1]} against ${dark[2]}`);
   });
   await step('pause blocks every command of that session until resumed', async () => {
     await togglePause(sA, 'Resume');
