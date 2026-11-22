@@ -22,9 +22,33 @@ skills and which fields of their own they take, from each one's documentation on
 Two of those pages had moved; one was read at its new address. How a local server is added to
 Codex and to Copilot could not be read that day, and the skills do not say it.
 
-Not run: the jar's build and the conformance check, the extension's check, the suite end to end
-and the editor lab; nothing they cover changed. Not tried: any of the three skills in its
-agent.
+Not run for the skills alone: the jar's build and the conformance check, the extension's check,
+the suite end to end and the editor lab; nothing they cover had changed. Not tried: any of the
+three skills in its agent.
+
+**Then, on the owner's word, the command that installs one.** The owner agreed that a skill
+helps only who has it, and chose to have the jar put it in place: `--install-skill claude-code`,
+`codex` or `copilot`. The build takes the three skills into the jar. Committed on the owner's
+word; not pushed.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify`, in a copy of the tree | 136 tests, 2 more of the skills: the jar's files are the repository's, file for file; a skill goes to its agent's place below the home folder, is not written twice, and one that is there and is not this one is left alone unless the user says to replace it. And the 8 of the conformance check on the built jar |
+| `cd chrome-extension && npm run check`, in the copy | type-check clean, 161 tests, build |
+| `cd e2e && npm test`, in the copy | 95 passed, 0 failed |
+| `mvn -B -f java-server/pom.xml test`, in the tree, after one word of a message was changed | 136 tests |
+
+With the jar built in the copy, against a home folder made for the purpose and removed again:
+each of the three skills was written to its place, and each was the repository's, compared
+file by file; run again, nothing was written; with the Claude Code skill's file changed by
+hand, the command left it as it was and ended with code 1; with `--replace` it was
+overwritten; an agent's name for which there is no skill ended with code 2 and the help.
+Mended by reading its own answer: the first line said "Put the skill in …", which reads as
+something the user is asked to do; it says "Installed" now. The owner's own home folder was
+not written to.
+
+Failed on the way: the build file, once. A comment in it named the option, and two dashes end
+a comment there; no test had run until it was reworded.
 
 ## 2026-11-22, on `smoke-fixes`: WP-21, what the first test on the public repository showed
 

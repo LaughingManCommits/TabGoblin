@@ -16,13 +16,28 @@ place of its own:
 | Codex | `codex/tabgoblin/` | `~/.agents/skills/tabgoblin/` | `.agents/skills/tabgoblin/` |
 | GitHub Copilot | `copilot/tabgoblin/` | `~/.copilot/skills/tabgoblin/` | `.github/skills/tabgoblin/` |
 
-`~` is your home folder. To install one, copy its folder to one of the two places, with its
-name kept: the folder has to be called `tabgoblin`, as the skill is. For Claude Code, from the
-folder you cloned TabGoblin into:
+`~` is your home folder.
+
+## Install one
+
+The server's jar carries the three skills and puts one in its place for you, in every project:
 
 ```sh
-mkdir -p ~/.claude/skills
-cp -r skills/claude-code/tabgoblin ~/.claude/skills/
+java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code
+```
+
+with `claude-code`, `codex` or `copilot`. It says where it put the skill. Run again when the
+skill is there already, it writes nothing. If a skill of that name is there and is not this one,
+yours perhaps, it is left as it is and the command says so; `--replace` after the agent's name
+overwrites it. Files in that folder that the skill does not have are not touched.
+
+For one project, copy the skill's folder into that project yourself, with its name kept: the
+folder has to be called `tabgoblin`, as the skill is. For Claude Code, from the folder you
+cloned TabGoblin into:
+
+```sh
+mkdir -p <your project>/.claude/skills
+cp -r skills/claude-code/tabgoblin <your project>/.claude/skills/
 ```
 
 Start the agent again if it does not show the skill. A skill does not add the server: the
@@ -47,8 +62,10 @@ not know. What differs is each one's head:
 
 ## What was checked, and what was not
 
-The places and the fields are from each agent's own documentation, read on 2026-11-22. None of
-the three skills has been loaded in its agent yet. What an agent then does with it was not
+The places and the fields are from each agent's own documentation, read on 2026-11-22. The
+command was run with the built jar on Windows, against a home folder made for the purpose:
+each of the three skills went to its place, file for file. None of the three skills has been
+loaded in its agent yet. What an agent then does with it was not
 tried either. How the server is added to Codex and to Copilot could not be read from their
 documentation that day; the installation guide's general row applies: a command, `java`, with
 the arguments `-jar` and the path of the jar.

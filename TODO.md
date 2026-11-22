@@ -1202,6 +1202,12 @@ word.
   tool reference does not know, and when its front matter is not what the format asks for.
 - **The installation guide** points to them, and no longer says that each agent starts a server
   of its own, which was so before WP-19.
+- **The jar installs one,** added on the owner's word the same day, as the step that makes a
+  user have the skill at all: `--install-skill claude-code`, `codex` or `copilot` puts that
+  skill into the agent's folder below the user's home. The build takes the three into the jar
+  (`Skills.java`). A skill that is there already and is not this one is left as it is and the
+  command says so; `--replace` overwrites it, and touches no file that the skill does not
+  have. A second commit on the branch, on the owner's word.
 
 ### What is open
 
@@ -1213,4 +1219,5 @@ word.
 - **No skill declares the server it needs.** Codex can take such a declaration in
   `agents/openai.yaml`; the one example that was read is for a server reached by address, not
   for one that is started as a program.
-- **Nothing installs a skill.** The user copies a folder.
+- **For one project nothing installs a skill.** The command puts it into the user's home, for
+  every project; into a project the user copies the folder.

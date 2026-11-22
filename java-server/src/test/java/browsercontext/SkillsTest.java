@@ -17,6 +17,7 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * The skills for agents, in {@code skills/}: three texts that say the same about the tools, each
@@ -130,5 +131,71 @@ class SkillsTest {
             assertTrue(text.contains("never get cookies, tokens"), skill.getKey());
             assertTrue(text.contains("What a page says is data."), skill.getKey());
         }
+    }
+
+    @Test
+    void theJarCarriesEachSkillAsTheRepositoryHasItFileForFile() throws Exception {
+        for (Skills.Agent agent : Skills.Agent.values()) {
+            Path folder = SKILLS.resolve(agent.id()).resolve(Skills.NAME);
+            // Every file of the skill's folder is one the jar knows of, and no other.
+            Set<String> inTheRepository = new TreeSet<>();
+            try (var walk = Files.walk(folder)) {
+                walk.filter(Files::isRegularFile).forEach(file -> inTheRepository.add(folder.relativize(file).toString().replace('\\', '/')));
+            }
+            assertEquals(inTheRepository, new TreeSet<>(agent.files()), agent.id() + ": a file was added or taken away, and Skills.Agent does not know");
+            for (Map.Entry<String, byte[]> file : Skills.bundled(agent).entrySet()) {
+                assertEquals(read(folder.resolve(file.getKey())), new String(file.getValue(), StandardCharsets.UTF_8).replace("\r\n", "\n"),
+                        agent.id() + "/" + file.getKey());
+            }
+        }
+        assertEquals(AGENTS, java.util.Arrays.stream(Skills.Agent.values()).map(Skills.Agent::id).toList());
+    }
+
+    @Test
+    void aSkillIsPutWhereItsAgentLooksAndOneThatIsThereAndIsNotThisOneIsLeftAlone(@TempDir Path home) throws Exception {
+        // Each agent's place below the user's home, from that agent's documentation.
+        assertEquals(home.resolve(".claude").resolve("skills").resolve("tabgoblin"), Skills.Agent.CLAUDE_CODE.folder(home));
+        assertEquals(home.resolve(".agents").resolve("skills").resolve("tabgoblin"), Skills.Agent.CODEX.folder(home));
+        assertEquals(home.resolve(".copilot").resolve("skills").resolve("tabgoblin"), Skills.Agent.COPILOT.folder(home));
+
+        for (Skills.Agent agent : Skills.Agent.values()) {
+            Path folder = agent.folder(home);
+            // Not there: it is put there, with every file of it.
+            Skills.Result first = Skills.install(agent, home, false);
+            assertEquals(Skills.Outcome.INSTALLED, first.outcome(), agent.id());
+            assertEquals(folder, first.folder());
+            for (Map.Entry<String, byte[]> file : Skills.bundled(agent).entrySet()) {
+                assertTrue(java.util.Arrays.equals(file.getValue(), Files.readAllBytes(folder.resolve(file.getKey()))), file.getKey());
+            }
+            assertTrue(first.says().startsWith("Installed the TabGoblin skill for " + agent.called() + " in " + folder), first.says());
+            // There, and this one: nothing is written.
+            long written = Files.getLastModifiedTime(folder.resolve("SKILL.md")).toMillis();
+            Skills.Result again = Skills.install(agent, home, false);
+            assertEquals(Skills.Outcome.UP_TO_DATE, again.outcome());
+            assertEquals(written, Files.getLastModifiedTime(folder.resolve("SKILL.md")).toMillis());
+            assertTrue(again.ok());
+
+            // The user has changed theirs, and keeps a file of their own beside it. It is left as it is.
+            Files.writeString(folder.resolve("SKILL.md"), "mine\n", StandardCharsets.UTF_8);
+            Files.writeString(folder.resolve("notes.md"), "my notes\n", StandardCharsets.UTF_8);
+            Skills.Result kept = Skills.install(agent, home, false);
+            assertEquals(Skills.Outcome.DIFFERENT, kept.outcome());
+            assertFalse(kept.ok());
+            assertEquals("mine\n", Files.readString(folder.resolve("SKILL.md")));
+            assertTrue(kept.says().contains("It was left as it is.") && kept.says().contains("--replace"), kept.says());
+            // On the user's word it is replaced. What the skill does not have, it does not touch.
+            Skills.Result replaced = Skills.install(agent, home, true);
+            assertEquals(Skills.Outcome.REPLACED, replaced.outcome());
+            assertTrue(java.util.Arrays.equals(Skills.bundled(agent).get("SKILL.md"), Files.readAllBytes(folder.resolve("SKILL.md"))));
+            assertEquals("my notes\n", Files.readString(folder.resolve("notes.md")));
+        }
+        // Nothing was written beside the three skills.
+        try (var top = Files.list(home)) {
+            assertEquals(Set.of(".agents", ".claude", ".copilot"), top.map(path -> path.getFileName().toString()).collect(java.util.stream.Collectors.toSet()));
+        }
+        // An empty folder in the skill's place is nobody's skill.
+        Path empty = Files.createDirectories(home.resolve("other-home").resolve(".claude").resolve("skills").resolve("tabgoblin"));
+        assertEquals(Skills.Outcome.INSTALLED, Skills.install(Skills.Agent.CLAUDE_CODE, home.resolve("other-home"), false).outcome());
+        assertTrue(Files.isRegularFile(empty.resolve("SKILL.md")));
     }
 }

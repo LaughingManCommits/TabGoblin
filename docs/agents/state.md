@@ -13,8 +13,8 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   not merged.
 - Branch `agent-skills`, made from `smoke-fixes` on 2026-11-22: WP-22, a skill for the tools
   for each of Claude Code, Codex and GitHub Copilot, in `skills/`, with a test that holds them
-  to the server and to each other. One commit, made on the owner's word. Not pushed and not
-  merged.
+  to the server and to each other; and the jar puts one in its place on `--install-skill`. Two
+  commits, made on the owner's word. Not pushed and not merged.
 
 ## Active work
 
@@ -33,8 +33,9 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Blockers and unknowns
 
-- **The three skills have not been loaded in an agent.** Their places and fields are from each
-  agent's documentation as read on 2026-11-22. How the server is added to Codex and to Copilot
+- **The three skills have not been loaded in an agent,** and none is in the owner's own home
+  folder: the command that installs one was tried against a folder made for the purpose. Their
+  places and fields are from each agent's documentation as read on 2026-11-22. How the server is added to Codex and to Copilot
   could not be read that day, and is said nowhere beyond the general row of the installation
   guide.
 - **Blocked sites have run on Windows only,** with Java 21 and the suite's Chrome. **Edit** in
@@ -213,10 +214,11 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `smoke-fixes`, in a copy of the tree with a jar built
-  there: the server's 131 tests and the 8 of the conformance check, the extension's 161 with
-  type-check and build, and the suite end to end, 95 passed, six pictures of a busy page among
-  its checks. By hand: the agent's screenshots measured in the suite's Chrome and in a visible one,
+- **Last verification:** 2026-11-22, on `agent-skills`, in a copy of the tree with a jar built
+  there: the server's 136 tests and the 8 of the conformance check, the extension's 161 with
+  type-check and build, and the suite end to end, 95 passed; and the jar's command that
+  installs a skill, run against a home folder made for the purpose. Before that, on
+  `smoke-fixes`, the same suites with six pictures of a busy page among the checks. By hand: the agent's screenshots measured in the suite's Chrome and in a visible one,
   before and after the fix, and the server's real window read and its new button pressed
   through the accessibility interface. Before that, the same day, the owner's own Chrome and
   agent with the merged build: every tool of Explore on the public repository.
@@ -224,7 +226,7 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 - **Next action:** the owner's push and merge of `smoke-fixes` and of `agent-skills`, which is
   built on it, and the rebuild of both parts to have the fixes in their own
   Chrome and window. And a first try of a skill in its agent: the Claude Code one is the
-  nearest, by copying its folder into `~/.claude/skills/`.
+  nearest, with `--install-skill claude-code` and a new session.
   Both parts have to be built by the owner before it shows in the tree: the server, after the
   one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
   extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first

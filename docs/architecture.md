@@ -476,6 +476,7 @@ java-server/src/main/java/browsercontext/
   Panel.java               the panel's window (JavaFX); panel.css in the resources is its look
   BrowserService.java      tool arguments → commands → results, submission ids
   BlockedSites.java        the user's list of blocked sites: the settings file, what an entry blocks
+  Skills.java              the skills for agents that the jar carries, and putting one in its place
   WebSocketBridge.java     localhost endpoint, origin check, pairing, lockout, limits
   ExtensionConnection.java correlation, deadlines, cancellation, per-session ordering
   Protocol.java            typed messages, error categories

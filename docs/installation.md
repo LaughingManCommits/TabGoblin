@@ -112,8 +112,14 @@ server, and the others connect to it.
 
 The server tells an agent in a few lines how to use its tools. For Claude Code, Codex and GitHub
 Copilot there is more, as a skill to put where the agent looks for skills: how to read a long
-page, what to ask you for, what to do when a tool refuses. It is optional; see
-[skills](../skills/README.md).
+page, what to ask you for, what to do when a tool refuses. It is optional, and one command puts
+it in place, with `claude-code`, `codex` or `copilot`:
+
+```sh
+java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --install-skill claude-code
+```
+
+What the skills say, and where each agent keeps them, is in [skills](../skills/README.md).
 
 A server has no window. With `--panel` as a further argument it shows a small one, with its
 sessions, its log and a button to stop it: see
