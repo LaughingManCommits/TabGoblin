@@ -13,8 +13,8 @@ is open. The other four are not started, and each waits for the owner's word on 
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and committed on the branch `one-server`. WP-20, filed on
-the same day, is a list of blocked sites in the server; the owner decided its points and said
-to build it after WP-19 is committed. New work gets the next number, WP-21.
+the same day, is a list of blocked sites in the server; the owner decided its points, and it is
+built and committed on the branch `blocked-sites`. New work gets the next number, WP-21.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1040,6 +1040,44 @@ fourth and the fifth were not asked and go by their proposals.
 5. Whether a second file for the whole machine, which the user's own file cannot loosen, is
    wanted now: for a machine that someone else sets up. Proposal: not now; the two lists
    would add up, so it can come later without changing this one.
+
+### What was built
+
+On 2026-11-22, on the branch `blocked-sites` (made from `one-server`), and committed there on
+the owner's word. What was run is in the validation log. The proposals stand, with what building them
+showed:
+
+- **The file's default place is beside the token that is in use,** and not always in the home
+  folder: a server started with a token file of its own, as every test and every look script
+  starts one, does not read another setup's list.
+- **The window names the sites, and has a button.** The proposal had it show how many sites are
+  blocked and the file's path, and edit nothing. Built, the line names the first two and counts
+  the rest; all of them, and the path, are under the pointer; and **Edit** opens the file in
+  the system's text editor, making it first, with the key explained in comments, if there is
+  none. The window still edits nothing itself. Reason: a path alone leaves the user to find
+  the file and to know the key. It is more than was first decided; asked on 2026-11-22, the
+  owner kept it. The window is 40 pixels higher for the row, so that the log keeps its lines.
+- **The popup names the host and the entry.** On a tab of a subdomain it says that this host
+  is blocked because its domain is on the list. As first built it named the tab's address with
+  scheme and port, which is in no list.
+- **The list goes to the extension after its first word as a paired one,** and not right
+  behind the pairing answer. An extension from before this message, still checking the
+  server's proof, closes the connection on a message it does not know: sent at once, the list
+  would have kept a new server from ever pairing with an old extension. Found by reading the
+  worker, not by a run.
+- **A session the server has not heard of is asked for** before a command for it goes out. The
+  server's picture of the sessions is the extension's last report; without this, what the
+  server refuses would have hung, for a moment, on an extension that refuses as well.
+- **A changed list reaches the extension ahead of the next command.** The first end-to-end run
+  showed the extension refusing for up to a second after a site was taken off the list: the
+  server had read the file and the extension had not been told yet.
+- **The server reads an address as the browser does** where the two could differ: a backslash
+  for a slash, a scheme without slashes, more slashes than two.
+- **A mistake in the file names itself** in the window: the entry that is no domain, in a
+  sentence of two lines. An agent is told only that the file cannot be read.
+
+Not built, as proposed: a second file for the whole machine. Not tried: **Edit** on Linux and
+on macOS; this server with an extension from before this change, with real parts.
 
 ### Tasks and acceptance
 

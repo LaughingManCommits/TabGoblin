@@ -26,6 +26,7 @@ the commands for you.
 | Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
 | See the server's window, with every agent in it | `java -jar java-server/target/browser-context-mcp.jar --panel`. It brings the window up and returns; if no server runs, it starts one, which stays until you stop it |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
+| Block a site for every agent | **Edit** next to *Blocked sites* in the server's window opens the settings file. Write `blocked.sites = example.org, intranet.example` and save: it is in force at once |
 | Stop the server | **Stop server** in its window. Without that it ends by itself after its last agent |
 
 *Unknown option: --panel* means that the jar is from before the panel: build the server, then
@@ -33,7 +34,8 @@ run the command again.
 
 Explained in the installation guide, under
 [pairing](installation.md#6-pair-the-extension-with-the-server), and in the user guide, under
-[the server's panel](user-guide.md#9-the-servers-panel) and [stopping](user-guide.md#8-stopping).
+[the server's panel](user-guide.md#9-the-servers-panel), [stopping](user-guide.md#8-stopping) and
+[blocked sites](user-guide.md#blocked-sites).
 
 ## Your agent
 
@@ -72,6 +74,7 @@ started in, and the option wins.
 | `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
 | `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
 | `--panel` | `BCMCP_PANEL=1` | off | Whether the server shows its panel |
+| `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is: it names the [blocked sites](user-guide.md#blocked-sites) |
 | none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
 
 Explained in the user guide, under [settings](user-guide.md#10-settings).

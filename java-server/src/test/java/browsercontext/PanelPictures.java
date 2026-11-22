@@ -147,7 +147,21 @@ final class PanelPictures {
                 twoAgents.chosen("13-agent-chosen", 3),
                 // The first tab clicked: its metrics and its calls alone. And the second, which has one call.
                 connected.chosen("11-tab-chosen", 0),
-                connected.chosen("12-other-tab-chosen", 1));
+                connected.chosen("12-other-tab-chosen", 1),
+                // Sites the user has blocked: named in the controls, and the tab on one of them says so.
+                new State("14-blocked", blocked(sessions, times, log,
+                        new BlockedSites.Rule(List.of("docs.example.org", "intranet.example", "mail.example.com"), null)), false),
+                // A settings file with a mistake in it: every tab is blocked, and the window says what is wrong.
+                new State("15-settings-unreadable", blocked(sessions, times, log, new BlockedSites.Rule(List.of(),
+                        "\"exam_ple.org\" in blocked.sites is no domain")), false));
+    }
+
+    private static PanelModel blocked(List<Protocol.Session> sessions, Timings.Shares times, List<Log.Line> log, BlockedSites.Rule rule) {
+        var more = new java.util.ArrayList<>(log);
+        more.add(line(-4, "info", "command id=28 session=s3 action=snapshot ms=0 outcome=error code=SITE_BLOCKED category=SCOPE scope_violation=true", "s3"));
+        return PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0, sessions, times,
+                java.util.Map.of("s1", new Timings.Shares(3, 7_200, 60, 1_300, 0), "s2", new Timings.Shares(1, 14_000, 8, 52, 1_600)))),
+                47821, McpMain.version(), false, more, ZONE, rule, "~/.browser-context-mcp/tabgoblin.properties");
     }
 
     private static PanelModel model(String agent, String problem, boolean connected, boolean off, long since, int closeCode,

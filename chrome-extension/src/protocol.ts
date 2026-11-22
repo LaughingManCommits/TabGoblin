@@ -26,6 +26,8 @@ export type ServerMessage =
   | { type: 'pong' }
   | { type: 'cancel'; id: string }
   | { type: 'client'; name: string }
+  /** The sites no agent may work on, as the server's settings have them; `unreadable` when they cannot be read and everything is refused. */
+  | { type: 'policy'; blocked: string[]; unreadable: boolean }
   | { type: 'command'; command: CommandMessage };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -61,6 +63,13 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     }
     case 'client':
       return typeof raw.name === 'string' ? { type: 'client', name: raw.name.slice(0, 60) } : null;
+    case 'policy': {
+      if (!Array.isArray(raw.blocked) || raw.blocked.length > 5000) return null;
+      // A list with an entry that is no host is not taken in part: it is not a list.
+      const blocked = raw.blocked.map((v) => str(v, 253));
+      if (blocked.some((v) => v === null || !/^[a-z0-9.\-:[\]]+$/.test(v))) return null;
+      return { type: 'policy', blocked: blocked as string[], unreadable: raw.unreadable === true };
+    }
     case undefined: {
       const id = str(raw.id, 64);
       const action = str(raw.action, 40);

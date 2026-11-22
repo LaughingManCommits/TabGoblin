@@ -77,6 +77,10 @@ final class Panel {
         /** Puts the pairing token on the clipboard, for the extension's popup. The panel itself never holds it. */
         record CopyToken() implements Command {
         }
+
+        /** Opens the settings file, where the blocked sites are named, in the system's editor for text. */
+        record EditSettings() implements Command {
+        }
     }
 
     /**
@@ -165,7 +169,7 @@ final class Panel {
 
     static final double WIDTH = 400;
     /** As high as the window is where the screen has room for it; on a lower screen it is as high as fits. */
-    static final double HEIGHT = 760;
+    static final double HEIGHT = 800;
     /** Room around the window's body for its shadow, where the window floats. */
     private static final double SHADOW = 22;
     /** The ground of the panel, as the stylesheet has it: what a window in the system's frame is filled with. */
@@ -402,6 +406,9 @@ final class Panel {
         private final Button copy = new Button("Copy");
         private final Region knob = new Region();
         private final Label browserHint = label("", "hint");
+        private final Label blockedHint = label("", "hint");
+        private final Button edit = new Button("Edit");
+        private final Tooltip blockedTip = new Tooltip();
         private final Label version = label("", "foot");
         private final EndButton stop;
         private final EndButton kill;
@@ -513,11 +520,25 @@ final class Panel {
                     new VBox(label("Pairing token", "strong"), label("Paste it into the extension's popup.", "hint")), grow(), copy);
             pairing.getStyleClass().add("row");
 
+            // The sites no agent may work on: what is in force now, and the way to the file they are named in.
+            edit.setMinWidth(76);
+            edit.setAccessibleText("Edit the blocked sites: opens the settings file in a text editor");
+            edit.setTooltip(blockedTip);
+            edit.setOnAction(click -> commands.accept(new Command.EditSettings()));
+            blockedHint.setTooltip(blockedTip);
+            blockedHint.setMaxWidth(Double.MAX_VALUE);
+            var blockedWords = new VBox(label("Blocked sites", "strong"), blockedHint);
+            // The names give way to the button: a long list ends in dots, and is whole where the mouse rests.
+            blockedWords.setMinWidth(0);
+            HBox.setHgrow(blockedWords, Priority.ALWAYS);
+            var blockedSites = new HBox(blockedWords, edit);
+            blockedSites.getStyleClass().add("row");
+
             var ending = label("Stop ends the server for every agent. Kill is for a server that hangs: "
                     + "agents that are still running start it again.", "hint");
             ending.setWrapText(true);
             ending.setMinHeight(Region.USE_PREF_SIZE);
-            var control = card("Control", null, connect, pairing, ends, ending);
+            var control = card("Control", null, connect, pairing, blockedSites, ends, ending);
 
             var foot = new HBox(grow(), version);
 
@@ -636,6 +657,9 @@ final class Panel {
             showChosen(false);
             browser.setSelected(!model.switchedOff());
             browserHint.setText(model.switchedOff() ? "Off: the extension is not let in." : "On: the extension may connect.");
+            blockedHint.setText(model.blocked().summary());
+            blockedHint.getStyleClass().setAll("label", "hint", model.blocked().unreadable() != null ? "bad" : "fine");
+            blockedTip.setText(model.blocked().explained());
         }
 
         /**
@@ -877,6 +901,16 @@ final class Panel {
         /** The button that copies the pairing token, for a test. */
         Button copy() {
             return copy;
+        }
+
+        /** The button that opens the settings file. */
+        Button edit() {
+            return edit;
+        }
+
+        /** What rests under the mouse on the blocked sites. */
+        String blockedExplained() {
+            return blockedTip.getText();
         }
 
         /** The rows of the tabs in the list's order, for a test: each is a button that chooses its tab. */

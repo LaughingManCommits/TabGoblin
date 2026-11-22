@@ -3,6 +3,7 @@
 // only shows state and sends requests.
 
 import { agentsSummary, disconnectCost, sessionsSummary, settingsSummary } from './panels.ts';
+import { blockedBy, hostOf } from './policy.ts';
 
 type Mode = 'read' | 'explore' | 'write';
 
@@ -33,6 +34,8 @@ interface SessionView {
   origin: string;
   origins: string[];
   suspended: boolean;
+  /** One of its sites is on the list of blocked sites: nothing an agent does in it goes through. */
+  blocked: boolean;
   mode: Mode;
   paused: boolean;
   expiresAt: number | null;
@@ -66,6 +69,8 @@ interface State {
   folded: string[];
   clients: ClientView[];
   blockedClients: string[];
+  /** The sites no agent may work on, from the server's settings; `everything` when those cannot be read. */
+  blocked: { sites: string[]; everything: boolean };
   sessions: SessionView[];
   activity: ActivityEntry[];
   pendingConfirm: {
@@ -218,6 +223,11 @@ function renderSessions(s: State): void {
       // address is what tells one session from another.
       const chips = el('span', 'chips');
       if (session.tabId === currentTab?.id) chips.append(el('span', 'chip', 'this tab'));
+      if (session.blocked) {
+        const blocked = el('span', 'chip state', 'blocked');
+        blocked.title = 'On your list of blocked sites, in the TabGoblin server\'s settings file. Nothing an agent does in this tab goes through.';
+        chips.append(blocked);
+      }
       if (session.suspended) chips.append(el('span', 'chip state', 'suspended'));
       else if (session.paused) chips.append(el('span', 'chip state', 'paused'));
       if (chips.childElementCount) line.append(chips);
@@ -245,7 +255,13 @@ function renderSessions(s: State): void {
       revoke.addEventListener('click', () => void request({ type: 'revoke', session: session.id }));
       controls.append(mode, pause, revoke);
 
-      row.append(line, el('div', 'meta', parts.join(' · ')), controls);
+      row.append(line, el('div', 'meta', parts.join(' · ')));
+      // Said in the row, not only in a mark: why nothing the agent does here goes through.
+      // Where every site is refused, that is said once above the rows, and the row has its mark.
+      if (session.blocked && !s.blocked.everything) {
+        row.append(el('div', 'meta blocked-note', 'Blocked: this site is on your list of blocked sites.'));
+      }
+      row.append(controls);
       // Asking is a matter of submitting, which only a session with write access can do.
       if (session.mode === 'write') {
         const asking = el('div', 'row asking');
@@ -293,34 +309,50 @@ function renderSessions(s: State): void {
   });
 
   const here = currentTab?.origin ?? null;
+  // A site on the user's list of blocked sites is not offered: the server would refuse everything on it.
+  const hostHere = hostOf(here);
+  const entryHere = blockedBy(hostHere, s.blocked.sites);
+  const blockedHere = s.blocked.everything || entryHere !== null;
+  // A settings file that cannot be read is said once, above the sessions: nothing is offered below.
+  $('blockedAll').hidden = !s.blocked.everything;
+  // The host as the list has it, and the entry that blocks it where that is a domain above it.
+  const whyBlocked = entryHere === null ? ''
+      : `${entryHere === hostHere ? hostHere : `${hostHere} is blocked: ${entryHere}`} is on your list of blocked sites. No agent can work in this tab. `
+        + "To change the list, press Edit in the TabGoblin server's window.";
   const sessionHere = s.sessions.find((x) => x.tabId === currentTab?.id);
   const authorizedHere = !!sessionHere && !sessionHere.suspended && !!here && sessionHere.origins.includes(here);
-  $('authorizeBox').hidden = authorizedHere;
+  $('authorizeBox').hidden = authorizedHere || s.blocked.everything;
 
   // A suspended session on this tab can be taken up again here, with this site added if it is new.
   const resumable = !!sessionHere && sessionHere.suspended && !!here;
-  $('resumeBox').hidden = !resumable;
+  $('resumeBox').hidden = !resumable || s.blocked.everything;
   if (resumable && sessionHere && here) {
     const known = sessionHere.origins.includes(here);
-    $('resume').hidden = !known;
-    $('addOrigin').hidden = known;
+    // On a blocked site there is nothing to press: the box says why.
+    $('resume').hidden = !known || blockedHere;
+    $('addOrigin').hidden = known || blockedHere;
+    $('resumeBox').classList.toggle('blocked', blockedHere);
     $('resume').textContent = `Resume ${sessionHere.id} on this tab`;
     $('addOrigin').textContent = `Add ${displayOrigin(here)} to ${sessionHere.id}`;
-    $('resumeHint').textContent = known
+    $('resumeHint').textContent = blockedHere ? whyBlocked : known
       ? `Session ${sessionHere.id} was suspended when this tab left its site. It is back now.`
       : `Session ${sessionHere.id} is suspended: this tab is on a site that is not part of it.`;
   }
-  if (authorizedHere) return;
+  if (authorizedHere || s.blocked.everything) return;
   const button = $<HTMLButtonElement>('authorize');
   button.disabled = !here;
-  $('authorizeHint').textContent = here
-    ? 'Let an agent work in this tab, on this site only.'
-    : 'This tab cannot be authorized (only http and https websites).';
+  // On a blocked site the choices and the button are not shown: none of them could do anything.
+  button.hidden = blockedHere;
+  $('authorizeChoices').hidden = blockedHere;
+  $('authorizeBox').classList.toggle('blocked', blockedHere);
+  $('authorizeHint').textContent = !here
+    ? 'This tab cannot be authorized (only http and https websites).'
+    : blockedHere ? whyBlocked : 'Let an agent work in this tab, on this site only.';
   button.textContent = here ? `Authorize ${displayOrigin(here)}` : 'Authorize';
 
   // With one agent connected it gets the tab; with several the user chooses.
   const agent = $<HTMLSelectElement>('newAgent');
-  agent.hidden = s.clients.length < 2;
+  agent.hidden = s.clients.length < 2 || blockedHere;
   rebuild('newAgent', s.clients, () => {
     agent.replaceChildren();
     const any = el('option', '', 'Any agent');

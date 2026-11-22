@@ -2,10 +2,12 @@ package browsercontext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /** What the server's panel shows, and what it leaves out. No window is needed for any of it. */
@@ -308,5 +310,53 @@ class PanelModelTest {
         } finally {
             bridge.stop(500);
         }
+    }
+
+    @Test
+    void theWindowSaysWhichSitesAreBlockedMarksATabOnOneAndNamesAFileItCannotRead() {
+        var sessions = List.of(session("s1", "https://docs.example.net", "write", "active"),
+                session("s2", "https://mail.example.org:8443", "read", "paused"),
+                new Protocol.Session("s3", "c-1a2b3c4d", "a3", "https://wiki.example.net", 9, 0, "d3", "read", 1, "active",
+                        "Wiki", "https://wiki.example.net/", false, List.of("https://wiki.example.net", "https://intranet.example")));
+        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0, sessions, NO_CALLS, Map.of()));
+        String file = "~/.browser-context-mcp/tabgoblin.properties";
+
+        // Nothing blocked: the rows are as they were, and the line says so.
+        PanelModel open = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        assertEquals(List.of("active", "paused", "active"), open.sessions().stream().map(PanelModel.Row::state).toList());
+        assertEquals("No site is blocked", open.blocked().summary());
+        assertTrue(open.blocked().explained().endsWith(file), open.blocked().explained());
+        assertNull(open.problem());
+        // Where nothing is said of blocked sites, nothing is blocked.
+        assertEquals(PanelModel.Blocked.NONE, model(true, false, 1_000, 0, sessions).blocked());
+
+        // Some: a tab on a blocked site says "blocked" in place of its state, and so does one that
+        // spans a blocked site. The line names what fits and counts the rest; under the mouse is all of it.
+        var rule = new BlockedSites.Rule(List.of("bank.example", "example.org", "intranet.example"), null);
+        PanelModel some = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, rule, file);
+        assertEquals(List.of("active", "blocked", "blocked"), some.sessions().stream().map(PanelModel.Row::state).toList());
+        // The entries that block a tab come first: the line names what is in the user's way.
+        assertEquals("example.org, intranet.example and 1 more", some.blocked().summary());
+        assertTrue(some.blocked().explained().contains("Blocked now:\n  example.org\n  intranet.example\n  bank.example\n\n" + file),
+                some.blocked().explained());
+        assertEquals("example.org", PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+                new BlockedSites.Rule(List.of("example.org"), null), file).blocked().summary());
+        assertNull(some.problem());
+
+        // A file that cannot be read: every tab is blocked, and the window's problem says why, in the file's own words.
+        var slip = new BlockedSites.Rule(List.of(), "\"exam_ple.org\" in blocked.sites is no domain");
+        PanelModel mistaken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, slip, file);
+        assertEquals(List.of("blocked", "blocked", "blocked"), mistaken.sessions().stream().map(PanelModel.Row::state).toList());
+        assertEquals("Every site is refused until the settings file is mended: \"exam_ple.org\" in blocked.sites is no domain.",
+                mistaken.problem());
+        assertTrue(mistaken.blocked().explained().contains(mistaken.problem()), "under the mouse it is said in full as well");
+        assertEquals("Every site is refused: the file has a mistake", mistaken.blocked().summary());
+        // A server that could not start says that first: it is the greater trouble.
+        var broken = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, "Could not listen.", false, 0, 0, List.of(),
+                NO_CALLS, Map.of()));
+        assertEquals("Could not listen.", PanelModel.of(broken, 47821, "9.8.7", false, List.of(), UTC, slip, file).problem());
+        // Nothing of a page is in it.
+        assertFalse(some.toString().contains("Inbox"), "the page's title stays out");
+        assertFalse(some.toString().contains("?q=from"), "the page's address stays out");
     }
 }

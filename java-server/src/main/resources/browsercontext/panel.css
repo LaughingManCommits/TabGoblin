@@ -353,6 +353,10 @@
     -fx-text-fill: -tg-muted;
     -fx-font-size: 11.5px;
 }
+/* A hint that says something is wrong: the settings file cannot be read. */
+.hint.bad {
+    -fx-text-fill: -tg-warn;
+}
 .row {
     -fx-alignment: center-left;
     -fx-spacing: 8;

@@ -27,7 +27,57 @@ import java.util.Map;
  */
 record PanelModel(String agent, String identity, int port, String version, String problem,
         boolean connected, boolean switchedOff, String connection, List<Member> agents, List<Row> sessions, int tabs,
-        int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries) {
+        int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries, Blocked blocked) {
+
+    /**
+     * The sites no agent may work on, as the window says them. They are the user's own list, shown
+     * in the user's own window; no agent is told it.
+     *
+     * @param sites      the blocked domains: first those that block a tab the server has, then the others
+     * @param unreadable why the settings file could not be taken as a list, or null; while it is so, every site is refused
+     * @param file       where the settings file is
+     */
+    record Blocked(List<String> sites, String unreadable, String file) {
+
+        static final Blocked NONE = new Blocked(List.of(), null, "");
+
+        /** How many names the line under "Blocked sites" has room for; the rest are counted. */
+        static final int NAMED = 2;
+
+        /** The whole sentence on a file that cannot be read: what follows from it, and what is wrong with it. */
+        String mistake() {
+            return "Every site is refused until the settings file is mended: " + unreadable + ".";
+        }
+
+        /** One line: what is in force now. */
+        String summary() {
+            if (unreadable != null) {
+                return "Every site is refused: the file has a mistake";
+            }
+            if (sites.isEmpty()) {
+                return "No site is blocked";
+            }
+            String names = String.join(", ", sites.subList(0, Math.min(sites.size(), NAMED)));
+            return sites.size() > NAMED ? names + " and " + (sites.size() - NAMED) + " more" : names;
+        }
+
+        /** What rests under the mouse: what blocking is, every site that is blocked, and where the file is. */
+        String explained() {
+            StringBuilder text = new StringBuilder("Sites no agent may work on, whatever a tab is authorized for.\n"
+                    + "A domain blocks itself and its subdomains.\n"
+                    + "Edit opens the settings file. A change is in force as soon as the file is saved.");
+            if (unreadable != null) {
+                text.append("\n\n").append(mistake());
+            } else if (!sites.isEmpty()) {
+                text.append("\n\nBlocked now:");
+                sites.forEach(site -> text.append("\n  ").append(site));
+            }
+            if (!file.isEmpty()) {
+                text.append("\n\n").append(file);
+            }
+            return text.toString();
+        }
+    }
 
     /** One agent as the server holds it: what the model is made from. */
     record Facts(String name, String id, int port, String problem, boolean connected, long connectedSince,
@@ -95,8 +145,17 @@ record PanelModel(String agent, String identity, int port, String version, Strin
 
     /** Reads everything from a running server that has one agent: a process that serves its agent alone. */
     static PanelModel of(WebSocketBridge bridge, String startupProblem) {
+        return of(bridge, startupProblem, "");
+    }
+
+    /**
+     * The same, with where the settings file is.
+     *
+     * @param settingsFile the path of the settings file, as the window shows it
+     */
+    static PanelModel of(WebSocketBridge bridge, String startupProblem, String settingsFile) {
         return of(List.of(facts(bridge, startupProblem)), bridge.getPort(), McpMain.version(), bridge.isHeld(), Log.recent(),
-                ZoneId.systemDefault());
+                ZoneId.systemDefault(), bridge.blocked(), settingsFile);
     }
 
     /** One agent, without times of single tabs: where only the whole is known, or looked at. */
@@ -121,12 +180,26 @@ record PanelModel(String agent, String identity, int port, String version, Strin
      * @param port the port to place the window by: the first agent's, or the server's own
      */
     static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
+        return of(agents, port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
+    }
+
+    /**
+     * Every agent of a server, and the sites the user has blocked: a tab on one of them says so in
+     * its row, and a settings file that cannot be read is the window's problem.
+     *
+     * @param rule         the blocked sites as they are in force
+     * @param settingsFile the path of the settings file, as the window shows it
+     */
+    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
+            BlockedSites.Rule rule, String settingsFile) {
         List<Member> members = new ArrayList<>();
         List<Row> rows = new ArrayList<>();
         Map<String, Metrics> metricsOf = new LinkedHashMap<>();
         Timings.Shares all = NO_TIME;
         String problem = null;
         int open = 0;
+        // The entries that block a tab the server has, in the tabs' order: the line names these first.
+        java.util.Set<String> inTheWay = new java.util.LinkedHashSet<>();
         for (Facts facts : agents) {
             // An agent says its name when it opens its connection. Until then it goes by its id, as in the popup.
             boolean named = facts.name() != null && !facts.name().isBlank();
@@ -134,8 +207,16 @@ record PanelModel(String agent, String identity, int port, String version, Strin
                     connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
                     facts.sessions().size()));
             for (Protocol.Session session : facts.sessions()) {
-                rows.add(new Row(session.sessionId(), site(session.origin()), access(session.mode()), session.state(),
-                        session.unclaimed(), facts.id()));
+                // A tab on a blocked site is that before it is anything else: nothing an agent does in it goes through.
+                List<String> its = new ArrayList<>(session.origins());
+                its.add(session.url());
+                String host = rule.among(its);
+                boolean blocked = rule.everything() || host != null;
+                if (host != null) {
+                    inTheWay.add(rule.blocking(host));
+                }
+                rows.add(new Row(session.sessionId(), site(session.origin()), access(session.mode()),
+                        blocked ? "blocked" : session.state(), session.unclaimed(), facts.id()));
                 open += session.unclaimed() ? 1 : 0;
             }
             all = plus(all, facts.time());
@@ -144,6 +225,12 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             if (problem == null) {
                 problem = facts.problem();
             }
+        }
+        List<String> sites = new ArrayList<>(inTheWay);
+        rule.domains().stream().filter(site -> !inTheWay.contains(site)).forEach(sites::add);
+        Blocked blocked = new Blocked(List.copyOf(sites), rule.unreadable(), settingsFile);
+        if (problem == null && rule.everything()) {
+            problem = blocked.mistake();
         }
         Member only = members.size() == 1 ? members.get(0) : null;
         boolean named = only != null && !only.name().equals("Agent " + only.id());
@@ -158,7 +245,8 @@ record PanelModel(String agent, String identity, int port, String version, Strin
                 only != null ? only.connection() : connection(members, switchedOff),
                 List.copyOf(members), List.copyOf(rows), rows.size(), open,
                 new Metrics(all.calls(), shares(all)), Map.copyOf(metricsOf),
-                log.stream().map(line -> new Entry(logLine(line, zone), line.session(), line.agent())).toList());
+                log.stream().map(line -> new Entry(logLine(line, zone), line.session(), line.agent())).toList(),
+                blocked);
     }
 
     private static Timings.Shares plus(Timings.Shares a, Timings.Shares b) {

@@ -16,6 +16,11 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   agents; the process an agent's program starts is a pipe to it and starts it if none runs.
   The server's window shows every agent, and a click on a tab or on an agent shows that one's
   metrics and log lines.
+- Branch `blocked-sites`, made from `one-server` on 2026-11-22: WP-20, built. One commit, made
+  on the owner's word. Not pushed and not merged. Sites that no agent may work on are named
+  in a settings file beside the pairing token; the server refuses every action there before it
+  reaches the browser, the extension refuses as well, and the popup and the server's window
+  say what is blocked.
 
 ## Active work
 
@@ -27,11 +32,25 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 | WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
 | WP-19, one server, and every agent connected to it | Built on 2026-11-22 on the owner's word ("okay do your recommendations"), on `one-server`, in the working tree. The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry. Committed; waits for the owner's push and merge |
-| WP-20, blocked sites | Filed on 2026-11-22 on the owner's word: sites that no agent may work on, in a properties file, refused by the server and shown in the popup and the window. The owner decided its points the same day. To be built on a branch of its own, on top of `one-server` | [TODO.md](../../TODO.md) | [TODO.md](../../TODO.md) |
+| WP-20, blocked sites | Built on 2026-11-22 on the owner's word, and committed on `blocked-sites`. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) | [TODO.md](../../TODO.md) |
 | WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
+- **Blocked sites have run on Windows only,** with Java 21 and the suite's Chrome. **Edit** in
+  the server's window was pressed there in the real window: it opened Notepad on the settings
+  file. On Linux it asks `xdg-open` and on macOS `open -t`; neither was tried. Not tried
+  either: this server with an extension from before this change, with real parts. The server
+  is built not to send such an extension the list while it checks the pairing, which it would
+  take for a failed pairing; that is covered by a test of the server alone.
+- **The settings file is beside the token that is in use.** A setup with `--token-file` has its
+  own list there, and the owner's own list is `tabgoblin.properties` in `.browser-context-mcp`
+  of the home folder. None exists until **Edit** is pressed or the file is written by hand.
+- **The server's window is 40 pixels higher** (800), for the row of blocked sites. On a screen
+  lower than that it is as high as fits, as before.
+- **After a site is taken off the list, a command can still be refused for a moment** by an
+  extension that has not been told yet. Since the server tells it ahead of the next command,
+  the suite no longer shows it; a command that was already on its way can.
 - **One server for all agents has run on Windows with Java 21 only.** Not tried: Linux and
   macOS, where a process of its own is started in another way; and an IDE's program that ends
   every process below it when it closes, which would end the server with that agent and leave
@@ -185,13 +204,14 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `one-server`, in a copy of the tree with a jar built
-  there: the server's 109 tests and the 8 of the conformance check, the extension's 156 with
-  type-check and build, and the suite end to end, 94 passed, with two agents through one
-  server. By hand: real processes and the real window, read and pressed through the
-  accessibility interface. Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `by-hand-panel` and of `one-server`, which is
-  built on it. Then WP-20, blocked sites, which the owner said to build next.
+- **Last verification:** 2026-11-22, on `blocked-sites`, in a copy of the tree with a jar built
+  there: the server's 126 tests and the 8 of the conformance check, the extension's 160 with
+  type-check and build, and the suite end to end, 95 passed, with a site blocked, unblocked and
+  a mistake in the file. By hand: the popup pictured in real Chrome in each state, and the
+  server's real window read and its **Edit** pressed through the accessibility interface.
+  Details in the [validation log](validation-log.md).
+- **Next action:** the owner's push and merge of `by-hand-panel`, of `one-server`, which is
+  built on it, and of `blocked-sites`, which is built on that.
   Both parts have to be built by the owner before it shows in the tree: the server, after the
   one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
   extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first

@@ -21,7 +21,11 @@ import java.util.function.Supplier;
 final class Agent {
 
     /** What every agent of a server has in common: where the ports begin, the pairing token, and whose extension may connect. */
-    record Settings(int port, Supplier<String> token, String extensionOrigin) {
+    record Settings(int port, Supplier<String> token, String extensionOrigin, Supplier<BlockedSites.Rule> blocked) {
+        /** With no site blocked. */
+        Settings(int port, Supplier<String> token, String extensionOrigin) {
+            this(port, token, extensionOrigin, () -> BlockedSites.Rule.NONE);
+        }
     }
 
     private final WebSocketBridge bridge;
@@ -67,6 +71,7 @@ final class Agent {
         if (held) {
             bridge.setHeld(true);
         }
+        bridge.blockedSites(settings.blocked());
         BrowserService service = new BrowserService(bridge, startupProblem);
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
         // An agent's name is taken from its opening message: a server that was started again is

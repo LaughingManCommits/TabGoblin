@@ -439,4 +439,35 @@ class PanelTest {
         assertEquals(seen.all(), seen.again());
         assertEquals(0, seen.sentToTheServer());
     }
+
+    @Test
+    void theBlockedSitesAreSaidInTheControlsAndEditAsksForTheSettingsFile() throws Exception {
+        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0,
+                List.of(new Protocol.Session("s1", "c-1a2b3c4d", "a1", "https://mail.example.org", 7, 0, "d1", "write", 2, "active",
+                        "Inbox (3) - private mail", "https://mail.example.org/mail/u/0/#inbox")), TIME, java.util.Map.of()));
+        String file = "~/.browser-context-mcp/tabgoblin.properties";
+        List<String> seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            var steps = new ArrayList<String>();
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"), BlockedSites.Rule.NONE, file));
+            steps.add(String.valueOf(view.words().containsAll(List.of("Blocked sites", "No site is blocked"))));
+            steps.add(String.valueOf(view.words().contains("blocked")));
+            // The user's click asks for the file; bringing the view up to date asks for nothing.
+            view.edit().fire();
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+                    new BlockedSites.Rule(List.of("example.org"), null), file));
+            steps.add(sent.toString());
+            // The site that is blocked now is named, and the tab on it is marked.
+            steps.add(String.valueOf(view.words().containsAll(List.of("example.org", "blocked"))));
+            steps.add(String.valueOf(view.blockedExplained().contains("Blocked now:\n  example.org") && view.blockedExplained().endsWith(file)));
+            // The path is under the mouse, and in no line of the window.
+            steps.add(String.valueOf(view.words().stream().noneMatch(word -> word.contains("tabgoblin.properties"))));
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+                    new BlockedSites.Rule(List.of(), "it cannot be read (AccessDeniedException)"), file));
+            steps.add(String.valueOf(view.words().containsAll(List.of("Every site is refused: the file has a mistake",
+                    "Every site is refused until the settings file is mended: it cannot be read (AccessDeniedException)."))));
+            return steps;
+        });
+        assertEquals(List.of("true", "false", "[EditSettings[]]", "true", "true", "true", "true"), seen);
+    }
 }

@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import {
   ALLOW_LASTS_MS, CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNASKED_PER_MINUTE, UNWELCOME_AFTER, activityLabel, askModeOf,
   checkAsk, checkClick, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent,
   HEARTBEATS_UNANSWERED, badgeFor, serverGone,
+  NOTHING_BLOCKED, blockedAmong, blockedBy, checkBlocked, hostOf,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
 } from '../src/policy.ts';
 
@@ -522,4 +524,47 @@ test('a server that leaves two heartbeats in a row unanswered is taken for gone'
   assert.equal(serverGone(1), false, 'one may be late');
   assert.equal(serverGone(2), true);
   assert.equal(serverGone(3), true);
+});
+
+// ---------------------------------------------------------------- blocked sites
+
+/** The cases the server's rule is held to as well (BlockedSitesTest.java). */
+const BLOCKED_CASES = JSON.parse(readFileSync(
+  new URL('../../java-server/src/test/resources/browsercontext/blocked-sites-cases.json', import.meta.url), 'utf8'));
+
+test('a blocked domain blocks itself and its subdomains, and the server and the extension agree on every case', () => {
+  for (const c of BLOCKED_CASES.hosts) {
+    // What the server takes from an address is what the browser takes from it. The server also
+    // reads what a browser does not take for an address at all; those cases are its own.
+    let browsers: string | null;
+    try { browsers = new URL(c.address.trim()).hostname.replace(/\.$/, ''); } catch { browsers = null; }
+    if (browsers !== null) assert.equal(browsers, c.host, c.address);
+  }
+  assert.equal(hostOf('https://Example.ORG:8443/path?q=1#x'), 'example.org');
+  assert.equal(hostOf('http://[::1]:8080/a'), '[::1]');
+  assert.equal(hostOf('not an address'), null);
+  assert.equal(hostOf(null), null);
+  for (const c of BLOCKED_CASES.matches) {
+    assert.equal(blockedBy(c.host, c.blocked), c.by, `${c.host} against ${JSON.stringify(c.blocked)}`);
+  }
+  assert.equal(blockedBy(null, ['example.org']), null);
+});
+
+test('a command is refused when the tab, or any site of its session, is blocked; and all of them when the settings cannot be read', () => {
+  const list = { sites: ['example.org'], everything: false };
+  assert.equal(blockedAmong(NOTHING_BLOCKED, ['https://mail.example.org/inbox']), null);
+  assert.equal(blockedAmong(list, ['https://docs.example.net/guide', 'https://docs.example.net']), null);
+  assert.equal(blockedAmong(list, ['https://docs.example.net/guide', 'https://mail.example.org:8443']), 'mail.example.org');
+  assert.equal(blockedAmong(list, [undefined, null, 'about:blank']), null);
+  assert.doesNotThrow(() => checkBlocked(list, ['https://docs.example.net/guide']));
+  assert.throws(() => checkBlocked(list, ['https://docs.example.net/guide', 'https://sso.example.org']),
+    (e: unknown) => e instanceof CommandError && e.code === 'SITE_BLOCKED'
+      && e.message === "sso.example.org is on the user's list of blocked sites: no agent may work there. Only the user can change that, in the settings of the TabGoblin server.");
+  // The agent is told the one site it ran into, never the list.
+  assert.throws(() => checkBlocked({ sites: ['bank.example', 'example.org'], everything: false }, ['https://example.org/']),
+    (e: unknown) => e instanceof CommandError && !e.message.includes('bank.example'));
+  assert.throws(() => checkBlocked({ sites: [], everything: true }, ['https://docs.example.net/guide']),
+    (e: unknown) => e instanceof CommandError && e.code === 'SETTINGS_UNREADABLE');
+  assert.equal(failureNote('SITE_BLOCKED'), 'site blocked');
+  assert.equal(failureNote('SETTINGS_UNREADABLE'), 'settings unreadable');
 });

@@ -1173,3 +1173,119 @@ test('a server that is started again is told its tabs at once, by its agent\'s n
   tabs.delete(9);
   await leave(late);
 });
+
+test('a site on the user\'s list of blocked sites: no command runs there, no tab is authorized there, and the popup is told', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  const port = BASE_PORT + 6;
+  const has = async (id: string): Promise<boolean> => (await state()).clients.some((c: any) => c.id === id);
+  const guard = new FakeServer('c-guard', 'guarded-agent');
+  servers.set(port, guard);
+  for (let i = 0; i < 120 && !(await has('c-guard')); i++) await sleep(50);
+  assert.ok(await has('c-guard'), 'the server is found');
+  const say = async (blocked: string[], unreadable = false): Promise<void> => {
+    guard.deliver({ type: 'policy', blocked, unreadable });
+    await until(async () => {
+      const now = (await state()).blocked;
+      return now.everything === unreadable && blocked.every((site) => now.sites.includes(site)) && (blocked.length > 0 || now.sites.length === 0);
+    }, 'the list to be known');
+  };
+  const row = async (session: string): Promise<any> => (await state()).sessions.find((x: any) => x.id === session);
+  const authorize = (tabId: number): Promise<any> => popup({ type: 'authorize', tabId, mode: 'write', clientId: 'c-guard' });
+
+  tabs.set(10, { id: 10, url: 'https://mail.example.org:8443/inbox', status: 'complete', active: false, windowId: 1, title: 'Inbox' });
+  tabs.set(11, { id: 11, url: 'https://docs.example.net/guide', status: 'complete', active: false, windowId: 1, title: 'Guide' });
+  tabs.set(12, { id: 12, url: 'https://shop.example.org/cart', status: 'complete', active: false, windowId: 1, title: 'Cart' });
+  tabs.set(13, { id: 13, url: 'https://notexample.org/', status: 'complete', active: false, windowId: 1, title: 'Another' });
+
+  // Nothing is blocked yet: both tabs are authorized, and work.
+  assert.deepEqual((await state()).blocked, { sites: [], everything: false });
+  const mail = (await authorize(10)).state.sessions.at(-1).id;
+  const docs = (await authorize(11)).state.sessions.at(-1).id;
+  assert.equal(code(await guard.command('snapshot', { session: mail })), 'ok');
+  assert.equal((await row(mail)).blocked, false);
+
+  // The server says what its settings block. From then on nothing runs in the tab on that site:
+  // whatever the tool, and whatever the access the user gave.
+  await say(['example.org']);
+  const before = pageLog.length;
+  const tried: [string, object][] = [
+    ['snapshot', {}], ['extract', {}], ['screenshot', {}], ['scroll', { direction: 'down' }], ['wait_for', { text: 'x', timeoutMs: 100 }],
+    ['click', { ref: 1 }], ['press_key', { key: 'Tab' }], ['navigate', { url: '/next' }], ['navigate', { history: 'back' }],
+    ['fill', { ref: 1, text: 'x' }], ['submit', { ref: 1 }],
+  ];
+  for (const [action, params] of tried) {
+    const refused = await guard.command(action, { session: mail, params });
+    assert.equal(code(refused), 'SITE_BLOCKED', action);
+    assert.equal(refused.error.message, "mail.example.org is on the user's list of blocked sites: no agent may work there. "
+      + 'Only the user can change that, in the settings of the TabGoblin server.');
+  }
+  assert.equal(pageLog.length, before, 'nothing reached the page');
+  // The session is not ended: it is there, marked, and the user sees why its commands fail.
+  assert.equal((await row(mail)).blocked, true);
+  assert.equal((await row(mail)).suspended, false);
+  assert.equal((await row(docs)).blocked, false);
+  const failed = (await state()).activity.filter((a: any) => a.session === mail && a.status === 'error');
+  assert.ok(failed.length > 0 && failed.every((a: any) => a.note === 'site blocked'), JSON.stringify(failed.slice(-2)));
+  // The tab beside it is none of the list's business.
+  assert.equal(code(await guard.command('snapshot', { session: docs })), 'ok');
+  // The agent can still ask where it stands.
+  assert.equal(code(await guard.command('status')), 'ok');
+
+  // No tab on a blocked site is authorized: not the domain's own, and not a subdomain's on another port.
+  const refused = await authorize(12);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.error, 'shop.example.org is on your list of blocked sites. No agent can work there.');
+  assert.equal(refused.state.sessions.some((x: any) => x.tabId === 12), false);
+  // A name that only looks like it is another site.
+  const other = await authorize(13);
+  assert.equal(other.ok, true);
+  await popup({ type: 'revoke', session: other.state.sessions.at(-1).id });
+
+  // A session that spans a blocked site is blocked wherever its tab is. The user adds the site
+  // while it is open, and it is blocked afterwards.
+  await say([]);
+  assert.equal(code(await guard.command('snapshot', { session: mail })), 'ok', 'taken off the list, the tab works again');
+  tabs.get(11)!.url = 'https://sso.example.org/login';
+  assert.equal(code(await guard.command('snapshot', { session: docs })), 'ORIGIN_MISMATCH');
+  assert.equal((await popup({ type: 'addOrigin', session: docs, tabId: 11 })).ok, true);
+  tabs.get(11)!.url = 'https://docs.example.net/guide';
+  assert.equal(code(await guard.command('snapshot', { session: docs })), 'ok');
+  await say(['example.org']);
+  assert.equal(code(await guard.command('snapshot', { session: docs })), 'SITE_BLOCKED');
+  assert.equal((await row(docs)).blocked, true);
+  // And a suspended session is not taken up again on a blocked site, nor is one added to it.
+  tabs.get(11)!.url = 'https://sso.example.org/login';
+  await popup({ type: 'revoke', session: docs });
+  const again = (await authorize(11));
+  assert.equal(again.ok, false, 'the tab is on a blocked site now');
+  tabs.get(11)!.url = 'https://docs.example.net/guide';
+  const fresh = (await authorize(11)).state.sessions.at(-1).id;
+  tabs.get(11)!.url = 'https://sso.example.org/login';
+  assert.equal(code(await guard.command('snapshot', { session: fresh })), 'ORIGIN_MISMATCH');
+  const added = await popup({ type: 'addOrigin', session: fresh, tabId: 11 });
+  assert.equal(added.ok, false);
+  assert.match(added.error, /^sso\.example\.org is on your list of blocked sites/);
+  assert.deepEqual((await row(fresh)).origins, ['https://docs.example.net']);
+
+  // A server whose settings cannot be read refuses everything, and says so; the status still answers.
+  tabs.get(11)!.url = 'https://docs.example.net/guide';
+  assert.equal((await popup({ type: 'resumeSession', session: fresh, tabId: 11 })).ok, true);
+  await say([], true);
+  assert.equal(code(await guard.command('snapshot', { session: fresh })), 'SETTINGS_UNREADABLE');
+  assert.equal(code(await guard.command('status')), 'ok');
+  assert.equal((await row(fresh)).blocked, true);
+  const none = await authorize(13);
+  assert.equal(none.ok, false);
+  assert.match(none.error, /cannot read its settings file/);
+
+  // Mended: everything is as it was. And a server that leaves takes its list with it.
+  await say([]);
+  assert.equal(code(await guard.command('snapshot', { session: fresh })), 'ok');
+  await say(['example.org']);
+  servers.delete(port);
+  guard.socket?.close();
+  await until(async () => !(await has('c-guard')), 'the server to be gone');
+  assert.deepEqual((await state()).blocked, { sites: [], everything: false });
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  for (const id of [10, 11, 12, 13]) tabs.delete(id);
+});

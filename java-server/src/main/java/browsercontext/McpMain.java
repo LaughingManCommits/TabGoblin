@@ -39,7 +39,9 @@ public final class McpMain {
             Generic tools for the user's own Chrome tabs. The user authorizes a tab and its website origin in the \
             TabGoblin extension popup; each authorized tab is a session (s1, s2, ...) that belongs to \
             one agent. You can only act on your sessions and only on their origin. browser_status lists them; \
-            pass session=<id> to every tool when you have more than one.
+            pass session=<id> to every tool when you have more than one. The user can block sites for all \
+            agents: a tool then answers SITE_BLOCKED. There is no other way to such a site through these tools; \
+            tell the user.
             Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
             browser_fill / browser_press_key / browser_scroll / browser_navigate -> take a new snapshot to see \
             the result. Refs go stale when the page changes; take a new snapshot when told so.
@@ -104,7 +106,8 @@ public final class McpMain {
         }
 
         Supplier<String> tokens = Pairing.tokenSource(tokenFile, token);
-        Agent.Settings settings = new Agent.Settings(port, tokens, extensionOrigin);
+        // One list of blocked sites for the server, read again when its file changes.
+        Agent.Settings settings = new Agent.Settings(port, tokens, extensionOrigin, BlockedSites.source(options.settings()));
         // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
         Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
 
@@ -161,8 +164,10 @@ public final class McpMain {
             if (shown.compareAndSet(false, true)) {
                 showPanel(() -> PanelModel.of(
                         hub.agents().stream().map(agent -> PanelModel.facts(agent.bridge(), agent.startupProblem())).toList(),
-                        hub.port(), version(), hub.held(), Log.recent(), java.time.ZoneId.systemDefault()),
-                        command -> carryOut(command, hub::setHeld, settings.token(), Panel::copySecret), Panel::possible);
+                        hub.port(), version(), hub.held(), Log.recent(), java.time.ZoneId.systemDefault(),
+                        settings.blocked().get(), options.settings().toAbsolutePath().toString()),
+                        command -> carryOut(command, hub::setHeld, settings.token(), Panel::copySecret,
+                                () -> BlockedSites.edit(options.settings())), Panel::possible);
             } else {
                 Panel.raise();
             }
@@ -187,8 +192,9 @@ public final class McpMain {
         agent.announce();
         RUNNING.add(agent::close);
         if (options.panel()) {
-            showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem()),
-                    command -> carryOut(command, agent.bridge()::setHeld, settings.token(), Panel::copySecret), Panel::possible);
+            showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem(), options.settings().toAbsolutePath().toString()),
+                    command -> carryOut(command, agent.bridge()::setHeld, settings.token(), Panel::copySecret,
+                            () -> BlockedSites.edit(options.settings())), Panel::possible);
         }
         Thread.currentThread().join();
     }
@@ -263,6 +269,8 @@ public final class McpMain {
         command.add(options.tokenFile().toAbsolutePath().toString());
         command.add("--extension-origin");
         command.add(options.extensionOrigin());
+        command.add("--settings");
+        command.add(options.settings().toAbsolutePath().toString());
         // Nothing of it goes to this process's input or output: those are the agent's.
         new ProcessBuilder(command)
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD)
@@ -307,13 +315,23 @@ public final class McpMain {
      * @param token     the pairing token as it is now; asked only when the user wants it copied
      * @param clipboard where a copied token goes. The token goes nowhere else: not into the log,
      *                  and not into what the panel shows
+     * @param edit      opens the settings file in an editor, and says whether one was started
      */
-    static void carryOut(Panel.Command command, Consumer<Boolean> hold, Supplier<String> token, Consumer<String> clipboard) {
+    static void carryOut(Panel.Command command, Consumer<Boolean> hold, Supplier<String> token, Consumer<String> clipboard,
+            BooleanSupplier edit) {
         switch (command) {
             case Panel.Command.Connection connection -> hold.accept(!connection.on());
             case Panel.Command.CopyToken copy -> {
                 clipboard.accept(token.get());
                 Log.info("pairing token copied to the clipboard in the panel");
+            }
+            case Panel.Command.EditSettings settings -> {
+                // The file's place is not written into the log: it is under the mouse on the button.
+                if (edit.getAsBoolean()) {
+                    Log.info("settings file opened in an editor on the user's word in the panel");
+                } else {
+                    Log.warn("settings file not opened: no editor could be started. Its place shows when the mouse rests on Edit");
+                }
             }
             case Panel.Command.Stop stop -> {
                 // A token that is still on the clipboard does not outlive the server it was copied from.
@@ -369,7 +387,13 @@ public final class McpMain {
             There is one server for all your agents. The first agent that needs it starts it, and it ends
             by itself when the last agent has gone. To stop it yourself, press Stop server in its window.
 
-            Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>""";
+            Blocked sites: sites that no agent may work on are named in the settings file, one line:
+              blocked.sites = example.org, intranet.example
+            A domain blocks itself and its subdomains. The file is tabgoblin.properties, beside the pairing token;
+            Edit in the server's window opens it. A change is in force as soon as the file is saved.
+
+            Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
+                      --settings <path of the settings file>""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -696,7 +720,7 @@ public final class McpMain {
 
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
-            boolean panel, boolean hub, boolean standing) {
+            boolean panel, boolean hub, boolean standing, Path settings) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -710,6 +734,7 @@ public final class McpMain {
             String port = null;
             String tokenFile = null;
             String origin = null;
+            String settings = null;
             boolean panel = false;
             boolean hub = false;
             boolean standing = false;
@@ -723,7 +748,7 @@ public final class McpMain {
                     // The two that this program gives itself when it starts the one server: not for a command line.
                     case "--hub" -> hub = true;
                     case "--standing" -> standing = true;
-                    case "--port", "--token-file", "--extension-origin" -> {
+                    case "--port", "--token-file", "--extension-origin", "--settings" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
                         }
@@ -732,6 +757,8 @@ public final class McpMain {
                             port = value;
                         } else if (arg.equals("--token-file")) {
                             tokenFile = value;
+                        } else if (arg.equals("--settings")) {
+                            settings = value;
                         } else {
                             origin = value;
                         }
@@ -750,10 +777,14 @@ public final class McpMain {
             if (number < 1 || number > highest) {
                 throw new UsageException("The port must be between 1 and " + highest + ", not " + number + ".");
             }
-            return new Options(help, showToken, rotateToken, number,
-                    Path.of(firstSet(tokenFile, environment.apply("BCMCP_TOKEN_FILE"), Pairing.defaultTokenFile().toString())),
+            Path token = Path.of(firstSet(tokenFile, environment.apply("BCMCP_TOKEN_FILE"), Pairing.defaultTokenFile().toString()));
+            // The settings are beside the token that is in use, unless they are named: a server with a token
+            // of its own does not read the list of another.
+            String named = firstSet(settings, environment.apply("BCMCP_SETTINGS"), "");
+            return new Options(help, showToken, rotateToken, number, token,
                     firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
-                    panel || switchedOn("BCMCP_PANEL", environment.apply("BCMCP_PANEL")), hub, standing);
+                    panel || switchedOn("BCMCP_PANEL", environment.apply("BCMCP_PANEL")), hub, standing,
+                    named.isEmpty() ? BlockedSites.beside(token) : Path.of(named));
         }
 
         /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */

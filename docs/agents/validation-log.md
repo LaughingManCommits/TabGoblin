@@ -3,6 +3,79 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `blocked-sites`: WP-20, sites that no agent may work on
+
+The owner: "deny URL domain basically we can created blocked sites, this should be properties,
+any action tried on site is blocked by the mcp server", and, from options: an entry is a domain
+with its subdomains; the block shows in the server's answer, the popup and the window; a file
+that cannot be read refuses everything. Built on a branch made from `one-server`, and
+committed there on the owner's word; not pushed.
+
+All of the following on the final sources, in a copy of the tree with a jar built there.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 126 tests, 17 of them new, and the 8 of the conformance check on the built jar |
+| `cd chrome-extension && npm run check` | type-check clean, 160 tests, 4 of them new, build |
+| `cd e2e && npm test` | 95 passed, 0 failed. The new step: a second tab on the demo site under `localhost`, which is another host than `127.0.0.1`; the site written into the settings file while the server runs; nine tools refused there with `SITE_BLOCKED`, the tab not moved; the other tab working, and a navigation from it to the blocked host refused; the status naming the blocked session; the popup marking it, and offering nothing on a new tab of that site, checked as drawn and not as marked; the site taken off the list and the same session working; a mistake in the file refusing both sessions, the popup saying so once; the file mended |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The suite was run four times. What the earlier runs showed:
+
+- **Run 1, 94 and the new step failed:** the popup's sentence named the tab's address with its
+  scheme and port, and the step expected the host. The sentence was the fault: no list has an
+  address in it. It names the host now, and the entry that blocks it where that is a domain
+  above it.
+- **Run 2, the new step passed and the step behind it failed:** the diagnostics step looks for
+  one old operation among the recent ones, and the new step's many snapshots had pushed it out.
+  No fault of the product; the new step stands behind that one now. The same run's list showed
+  the extension refusing for up to a second after a site was taken off the list, because the
+  server had read the file and not told it yet. The server tells it ahead of the next command
+  now.
+- **Run 3, 95 of 95.** Then the look below found three things in the popup and the window, and
+  they were mended.
+- **Run 4, 95 of 95,** on what is in the tree.
+
+Found by reading, by no run: a list sent right behind the pairing answer would have made an
+extension from before this change close the connection, every time, since it takes a message it
+does not know for a failed pairing while it still checks the server's proof. The list is sent
+after the extension's first word as a paired one. A test of the server alone holds that; an
+older extension was not run against it.
+
+The picture tool drew fifteen states, two of them new: sites blocked with a tab on one, and a
+settings file with a mistake. Opened and looked at: those two, the first, and the low screen.
+Mended by looking: the new row had left the log two lines, so the window is 40 pixels higher;
+and the sentence on a mistake took three lines, and takes two. `docs/images/server-panel.png`
+is the first drawing, byte for byte.
+
+By hand, with real parts on Windows and Java 21: the jar from the copy as an agent's program
+starts it, with `--panel`, on ports of its own; the suite's Chrome with the built extension;
+the demo site. The popup was pictured in five states and each picture opened. The server's real
+window was read and pressed through the accessibility interface.
+
+- A tab authorized on `localhost`, then `localhost` written into the settings file: the agent's
+  next snapshot there answered `SITE_BLOCKED` with that host and nothing else of the list. The
+  popup marked the session and said why in its row. The window marked the tab *blocked*.
+- A tab on the blocked site without a session, and one on `app.localhost`: the popup had a
+  statement and nothing to press. **The first pictures showed the two selects for access and
+  duration still drawn** under the statement, though the code hid them: the row's own layout
+  beat the hidden mark. Mended, and the suite's step now checks what is drawn.
+- The window's line read "bank.example, intranet.example and 1 more", and the one more was the
+  entry that blocked the tab in view. Entries that block a tab come first now; the real window
+  then read "localhost, bank.example and 1 more".
+- **Edit**, pressed in the real window: a text editor started on the settings file of that
+  server. It was Notepad; its window was closed again by its own close command.
+- A mistake written into the file (`local_host`): the agent's calls answered
+  `SETTINGS_UNREADABLE`, the status began with it, the window said in its amber box which
+  entry is no domain, and both tabs were marked. The popup said it three times, in each row
+  and in a box; it says it once now, above the rows. The file written whole again: the window
+  showed the list at once, without anything restarted.
+- After the look no server and no editor from it was left running.
+
+Not run: the editor lab; nothing it covers changed. Not tried: **Edit** on Linux and macOS;
+this server with an extension from before this change; the owner's own Chrome and agent with
+this build; a list of hundreds of entries.
+
 ## 2026-11-22, on `one-server`: WP-19, one server for all agents, and a click on a tab
 
 The owner, after a server started by hand had been taken five times for the server the agent
@@ -551,44 +624,16 @@ an agent's name too long for its row beside the count (it is cut with an ellipsi
 name is in its hint; no picture has one), the button's hint by eye (the suite reads its text),
 and a Disconnect while a real model is at work.
 
-## 2026-11-22, on `nothing-personal`: WP-14, the files and the check
-
-No product code changed. What changed: four examples in the documentation, a check with its
-tests and its job in CI, and the pages that name them.
-
-| Command | Result |
-|---|---|
-| `node --test docs/agents/check-personal.test.mjs` | 5 tests, none failed |
-| `node docs/agents/check-personal.mjs` | 121 files read, 17 binary files not read, nothing personal found; exit 0 |
-| the same, with a home directory planted in a new file and at the end of a tracked one | 2 findings, each with its file and line and without the text; exit 1. With both taken out again: exit 0 |
-| `node docs/agents/check-links.mjs` | 73 links, all resolve |
-
-Looked at: all thirteen pictures in `docs/images`. Eleven show the popup, one the notice in a
-demo page beside a sign-in form with its password as dots, one Chrome's extensions page with
-TabGoblin alone. In them: loopback addresses, ports, the names the two test agents give
-themselves, the extension's id and version. No folder, account, name or other extension. A
-script that was not kept listed the chunks of the seventeen tracked PNG files: a header, picture
-data and an end in each, and no text.
-
-Searched again, with `git grep` and `git log`: the tracked files, the messages of the 61
-commits, and every line a commit ever added, for home directories, mail addresses, the user's
-and the machine's name, and links to sessions. Found: what `TODO.md` lists under WP-14, "What
-is still there", and nothing else.
-
-Failed on the way: nothing in the check. One command that planted the home directory broke on
-its quoting before it wrote anything; the script was then run from a file, as the runbook says.
-
-Not run: the server's suites, the extension's check, end to end and the editor lab; nothing
-they cover changed. The new job has not run on GitHub, and its commands not on Linux: Docker
-was not running and the Ubuntu in WSL has no Node. Not done, and the owner's: the history, and
-the address that commits carry.
-
-Also in this session, in a second commit: WP-16 and WP-17 filed in `TODO.md`, none started. For
-WP-16, what the documentation has today was read, and no other tool. For WP-17, how the token
-is made, kept, found and rotated was read from the source; nothing was run.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `nothing-personal` (WP-14, the files and the check): no product code changed;
+  four examples in the documentation, and a check that reads the files for home directories,
+  mail addresses outside the example domains and links to sessions, with 5 tests and a job in
+  CI. It read 121 files and found nothing; with a home directory planted in two places it gave
+  2 findings, each with file and line and without the text. All thirteen pictures in
+  `docs/images` were opened and held nothing personal. The history and the address of commits
+  were left to the owner. Not run: the suites, since nothing they cover changed; the new job on
+  GitHub.
 - 2026-11-21, on `ci-failures` (the CI failures of runs #7 and #8, read on GitHub through
   TabGoblin): the server sent `auth_ok` before it took the connection for its paired one, so a
   tool call right behind the pairing could be refused; an agent's name given during a pairing

@@ -64,3 +64,16 @@ test('an answer says how long the command ran, waited for its turn, and waited f
   assert.deepEqual(commandTiming(1000, 1000, Number.NaN, Number.NaN), { ran: 0, queued: 0, asked: 0 });
   assert.deepEqual(Object.keys(commandTiming(1, 2, 3, 0)).sort(), ['asked', 'queued', 'ran']);
 });
+
+test('the list of blocked sites is taken whole or not at all', () => {
+  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: ['example.org', 'xn--bcher-kva.example', '127.0.0.1', '[::1]'], unreadable: false }),
+    { type: 'policy', blocked: ['example.org', 'xn--bcher-kva.example', '127.0.0.1', '[::1]'], unreadable: false });
+  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: true }), { type: 'policy', blocked: [], unreadable: true });
+  // Only a plain yes is a yes.
+  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: 'yes' }), { type: 'policy', blocked: [], unreadable: false });
+  // A list with an entry that is no host is no list: a part of it would leave a site open without a word.
+  for (const blocked of [undefined, 'example.org', [7], ['example.org', null], ['Example.org'], ['exa mple.org'], ['https://example.org'],
+    ['x'.repeat(254)], Array.from({ length: 5001 }, () => 'example.org')]) {
+    assert.equal(parseServerMessage({ type: 'policy', blocked, unreadable: false }), null, JSON.stringify(blocked)?.slice(0, 60));
+  }
+});

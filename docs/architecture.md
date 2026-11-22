@@ -126,6 +126,7 @@ sequenceDiagram
   participant P as Content script
   A->>S: tools/call browser_click { ref: 12, session: "s1" }
   S->>S: validate arguments, take the session's turn
+  S->>S: is the session's site, or the address to go to, on the user's list of blocked sites?
   S->>B: { id, action: "click", session, params, deadline }
   B->>B: id seen before? rate limit? deadline passed?
   B->>B: resolve session and owner
@@ -466,6 +467,7 @@ java-server/src/main/java/browsercontext/
   PanelModel.java          what the server's panel shows at a moment, without a window
   Panel.java               the panel's window (JavaFX); panel.css in the resources is its look
   BrowserService.java      tool arguments → commands → results, submission ids
+  BlockedSites.java        the user's list of blocked sites: the settings file, what an entry blocks
   WebSocketBridge.java     localhost endpoint, origin check, pairing, lockout, limits
   ExtensionConnection.java correlation, deadlines, cancellation, per-session ordering
   Protocol.java            typed messages, error categories

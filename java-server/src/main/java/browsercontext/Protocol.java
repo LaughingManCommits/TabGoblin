@@ -85,6 +85,18 @@ final class Protocol {
         }
     }
 
+    /** Every site a session spans: the one it was authorized for, and those the user added to it. */
+    private static java.util.List<String> originsOf(JsonNode session) {
+        java.util.List<String> all = new java.util.ArrayList<>();
+        all.add(session.path("origin").asString(""));
+        for (JsonNode origin : session.path("origins")) {
+            if (origin.isString() && !all.contains(origin.asString())) {
+                all.add(origin.asString());
+            }
+        }
+        return java.util.List.copyOf(all);
+    }
+
     /**
      * The session a command ran in, as the extension says with its answer, or null when it does
      * not say: an older extension, or a command that was refused before a session was found.
@@ -99,7 +111,15 @@ final class Protocol {
      * extension reports it to every server, and it is the agent's own from its first command on.
      */
     record Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
-            String documentId, String mode, int generation, String state, String title, String url, boolean unclaimed) {
+            String documentId, String mode, int generation, String state, String title, String url, boolean unclaimed,
+            java.util.List<String> origins) {
+
+        /** A session with the one site it was authorized for. */
+        Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
+                String documentId, String mode, int generation, String state, String title, String url, boolean unclaimed) {
+            this(sessionId, clientId, authorizationId, origin, tabId, frameId, documentId, mode, generation, state, title,
+                    url, unclaimed, java.util.List.of(origin));
+        }
 
         /** A session that is this agent's own. */
         Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
@@ -114,7 +134,7 @@ final class Protocol {
                     n.path("frameId").asInt(0), n.path("documentId").asString(""), n.path("mode").asString("read"),
                     n.path("generation").asInt(0), n.path("state").asString("active"),
                     n.path("tab").path("title").asString(""), n.path("tab").path("url").asString(""),
-                    n.path("owner").asString("").equals("unclaimed"));
+                    n.path("owner").asString("").equals("unclaimed"), originsOf(n));
         }
     }
 
@@ -123,8 +143,8 @@ final class Protocol {
         return switch (code) {
             case "NOT_AUTHORIZED", "PAUSED", "WRITE_NOT_AUTHORIZED", "EXPLORE_NOT_AUTHORIZED", "SESSION_NOT_OWNED",
                     "SESSION_REQUIRED", "UNKNOWN_SESSION", "AUTHORIZATION_EXPIRED", "SESSION_SUSPENDED", "SUBMIT_INTENT_REQUIRED",
-                    "SUBMIT_DENIED", "SUBMIT_NOT_CONFIRMED" -> "AUTHORIZATION";
-            case "ORIGIN_MISMATCH", "NAVIGATION_BLOCKED" -> "SCOPE";
+                    "SUBMIT_DENIED", "SUBMIT_NOT_CONFIRMED", "SETTINGS_UNREADABLE" -> "AUTHORIZATION";
+            case "ORIGIN_MISMATCH", "NAVIGATION_BLOCKED", "SITE_BLOCKED" -> "SCOPE";
             case "STALE_REF", "STALE_COMMAND", "DUPLICATE_COMMAND", "DUPLICATE_SUBMISSION" -> "STALE";
             case "INVALID_ARGUMENT", "INVALID_URL", "UNKNOWN_TOOL", "UNSUPPORTED_ACTION", "UNSUPPORTED_ELEMENT",
                     "OPTION_NOT_FOUND", "SENSITIVE_FIELD", "ELEMENT_DISABLED" -> "INPUT";

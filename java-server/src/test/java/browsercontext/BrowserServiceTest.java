@@ -436,4 +436,199 @@ class BrowserServiceTest {
             }
         }
     }
+
+    /** Two sessions as the extension reports them: one on a site of the user's, one on a site that is blocked. */
+    private void twoSessions() throws Exception {
+        ext.send("""
+                {"type":"event","event":"sessions","data":{"sessions":[
+                  {"session":"s1","origin":"https://docs.example.net","mode":"write","state":"active",
+                   "tab":{"title":"Docs","url":"https://docs.example.net/guide"}},
+                  {"session":"s2","origin":"https://mail.example.org:8443","mode":"write","state":"active",
+                   "tab":{"title":"Inbox","url":"https://mail.example.org:8443/inbox"}}]}}""");
+        for (int i = 0; i < 100 && bridge.sessions().size() < 2; i++) {
+            Thread.sleep(20);
+        }
+        assertEquals(2, bridge.sessions().size());
+    }
+
+    @Test
+    void anActionOnABlockedSiteIsRefusedBeforeItReachesTheBrowser() throws Exception {
+        twoSessions();
+        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
+        Log.keep(20);
+        try {
+            // Every kind of action in the session on the blocked site: none of them is sent.
+            for (String tool : java.util.List.of("browser_snapshot", "browser_extract", "browser_screenshot", "browser_scroll")) {
+                BrowserService.ToolResult refused = service.call(tool, args().put("session", "s2"));
+                assertTrue(refused.isError(), tool);
+                assertEquals("Error [SITE_BLOCKED]: mail.example.org is on the user's list of blocked sites: no agent may "
+                        + "work there. Only the user can change that, in the settings of the TabGoblin server.", refused.text(), tool);
+            }
+            assertTrue(service.call("browser_click", args().put("session", "s2").put("ref", 3)).text().startsWith("Error [SITE_BLOCKED]"));
+            assertTrue(service.call("browser_fill", args().put("session", "s2").put("ref", 3).put("text", "x")).text()
+                    .startsWith("Error [SITE_BLOCKED]"));
+            assertEquals(0, ext.commands.size(), "nothing reached the browser");
+
+            // The other session works as before, and its answer has nothing of the blocked site.
+            ext.responder = cmd -> FakeExtension.ok(cmd, args().put("text", "the guide"));
+            BrowserService.ToolResult read = service.call("browser_snapshot", args().put("session", "s1"));
+            assertFalse(read.isError(), read.text());
+            assertEquals(1, ext.commands.size());
+
+            // A navigation to a blocked address is refused before it is sent, whatever session it is in:
+            // the site itself, a subdomain, another port, and an address without a scheme of its own.
+            for (String url : java.util.List.of("https://example.org/", "https://shop.example.org/cart",
+                    "http://EXAMPLE.org:8080/x", "//example.org/y", "\\\\example.org/y", " https:\\\\example.org")) {
+                BrowserService.ToolResult refused = service.call("browser_navigate", args().put("session", "s1").put("url", url));
+                assertTrue(refused.text().startsWith("Error [SITE_BLOCKED]: "), url + ": " + refused.text());
+                assertTrue(refused.text().contains("example.org is on the user's list"), refused.text());
+            }
+            assertEquals(1, ext.commands.size(), "no navigation was sent");
+            // A look-alike is not the blocked site, and an address within the tab's own site names no site.
+            service.call("browser_navigate", args().put("session", "s1").put("url", "https://notexample.org/"));
+            service.call("browser_navigate", args().put("session", "s1").put("url", "/guide/next"));
+            service.call("browser_navigate", args().put("session", "s1").put("history", "back"));
+            assertEquals(4, ext.commands.size());
+
+            // What was refused here is in the log as a scope violation, with its session and without an address.
+            var refusals = Log.recent().stream().map(Log.Line::text).filter(line -> line.contains("SITE_BLOCKED")).toList();
+            assertEquals(12, refusals.size());
+            assertEquals("command id=- session=s2 action=snapshot ms=0 outcome=error code=SITE_BLOCKED category=SCOPE "
+                    + "scope_violation=true", refusals.get(0));
+            assertTrue(refusals.stream().noneMatch(line -> line.contains("example")), refusals.toString());
+        } finally {
+            Log.keep(0);
+        }
+    }
+
+    @Test
+    void theStatusSaysWhichSessionIsBlockedAndNeverTheList() throws Exception {
+        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("bank.example", "example.org", "intranet.example"), null));
+        ext.responder = cmd -> FakeExtension.ok(cmd, FakeExtension.JSON.readTree("""
+                {"sessions":[
+                  {"session":"s1","origin":"https://docs.example.net","mode":"write","paused":false,
+                   "tab":{"title":"Docs","url":"https://docs.example.net/guide"}},
+                  {"session":"s2","origin":"https://mail.example.org","mode":"read","paused":false,
+                   "tab":{"title":"Inbox","url":"https://mail.example.org/inbox"}},
+                  {"session":"s3","origin":"https://wiki.example.net","origins":["https://wiki.example.net","https://intranet.example"],
+                   "mode":"read","paused":false,"tab":{"title":"Wiki","url":"https://wiki.example.net/"}}]}"""));
+        String status = service.call("browser_status", args()).text();
+        assertTrue(status.contains("Session s2"), status);
+        // The session on a blocked site, and the one that spans a blocked site, each say so with the one site.
+        assertTrue(status.contains("  Blocked: mail.example.org is on the user's list of blocked sites"), status);
+        assertTrue(status.contains("  Blocked: intranet.example is on the user's list of blocked sites"), status);
+        assertEquals(2, status.split("  Blocked: ", -1).length - 1, status);
+        // What the agent did not run into, it is not told.
+        assertFalse(status.contains("bank.example"), status);
+    }
+
+    @Test
+    void aSessionThatSpansABlockedSiteIsBlockedWhereverItsTabIs() throws Exception {
+        // The user added a second site to the session. The tab may be on either, and the server knows
+        // its place from a report: so the session counts as blocked.
+        ext.send("""
+                {"type":"event","event":"sessions","data":{"sessions":[
+                  {"session":"s1","origin":"https://docs.example.net","origins":["https://docs.example.net","https://sso.example.org"],
+                   "mode":"write","state":"active","tab":{"title":"Docs","url":"https://docs.example.net/guide"}}]}}""");
+        for (int i = 0; i < 100 && bridge.sessions().isEmpty(); i++) {
+            Thread.sleep(20);
+        }
+        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
+        // The session is the agent's only one: a command that names none is meant for it.
+        BrowserService.ToolResult refused = service.call("browser_snapshot", args());
+        assertTrue(refused.text().startsWith("Error [SITE_BLOCKED]: sso.example.org is on the user's list"), refused.text());
+        assertEquals(0, ext.commands.size());
+    }
+
+    @Test
+    void aSessionTheServerHasNotHeardOfYetIsAskedForBeforeAnythingIsSentToIt() throws Exception {
+        // The server's picture of the sessions is the extension's last report, and here there is none
+        // yet. What the server refuses must not hang on that, nor on an extension that refuses as well.
+        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
+        ext.responder = cmd -> cmd.path("action").asString().equals("status")
+                ? FakeExtension.ok(cmd, FakeExtension.JSON.readTree("""
+                        {"sessions":[
+                          {"session":"s8","origin":"https://docs.example.net","mode":"write","paused":false,
+                           "tab":{"title":"Docs","url":"https://docs.example.net/guide"}},
+                          {"session":"s9","origin":"https://mail.example.org","mode":"write","paused":false,
+                           "tab":{"title":"Inbox","url":"https://mail.example.org/inbox"}}]}"""))
+                : FakeExtension.ok(cmd, args().put("text", "read"));
+        assertTrue(bridge.sessions().isEmpty());
+
+        BrowserService.ToolResult refused = service.call("browser_snapshot", args().put("session", "s9"));
+        assertTrue(refused.text().startsWith("Error [SITE_BLOCKED]: mail.example.org is on the user's list"), refused.text());
+        assertEquals(java.util.List.of("status"), ext.commands.stream().map(c -> c.path("action").asString()).toList(),
+                "the session was asked for, and nothing was sent to it");
+
+        // The session beside it is found to be on no blocked site, and its command goes out.
+        assertFalse(service.call("browser_snapshot", args().put("session", "s8")).isError());
+        assertEquals(java.util.List.of("status", "status", "snapshot"),
+                ext.commands.stream().map(c -> c.path("action").asString()).toList());
+
+        // Where the answer does not come, the call ends there: the command is not sent on a guess.
+        ext.responder = cmd -> null;
+        BrowserService.ToolResult unanswered = service.call("browser_click", args().put("session", "s9").put("ref", 3));
+        assertTrue(unanswered.isError(), unanswered.text());
+        assertTrue(ext.commands.stream().noneMatch(c -> c.path("action").asString().equals("click")), "no click was sent");
+    }
+
+    @Test
+    void aSettingsFileThatCannotBeReadRefusesEveryActionAndTheStatusSaysWhy() throws Exception {
+        twoSessions();
+        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of(), "\"exam_ple.org\" in blocked.sites is no domain"));
+        for (String session : java.util.List.of("s1", "s2")) {
+            BrowserService.ToolResult refused = service.call("browser_snapshot", args().put("session", session));
+            assertEquals("Error [SETTINGS_UNREADABLE]: " + BrowserService.SETTINGS_UNREADABLE, refused.text());
+        }
+        assertTrue(service.call("browser_navigate", args().put("session", "s1").put("url", "/next")).text()
+                .startsWith("Error [SETTINGS_UNREADABLE]"));
+        assertEquals(0, ext.commands.size(), "nothing reached the browser");
+        // The status still answers, and says it first. What the user wrote in the file is not passed on.
+        ext.responder = cmd -> FakeExtension.ok(cmd, args());
+        String status = service.call("browser_status", args()).text();
+        assertTrue(status.startsWith("Blocked sites: " + BrowserService.SETTINGS_UNREADABLE), status);
+        assertFalse(status.contains("exam_ple"), status);
+    }
+
+    @Test
+    void theExtensionIsToldTheBlockedSitesWhenItPairsAndWhenTheyChange() throws Exception {
+        // Nothing is sent behind the pairing answer: an extension from before this message would take it,
+        // while it still checks the server's proof, for a failed pairing.
+        bridge.blockedSites(() -> BlockedSites.Rule.NONE);
+        Thread.sleep(1300);
+        assertEquals(0, ext.policies.size());
+        // It is told with its first word as a paired extension, which the real one says at once.
+        ext.send("{\"type\":\"ping\"}");
+        for (int i = 0; i < 100 && ext.policies.isEmpty(); i++) {
+            Thread.sleep(20);
+        }
+        assertEquals(0, ext.policies.get(0).path("blocked").size());
+        assertFalse(ext.policies.get(0).path("unreadable").asBoolean());
+        assertTrue(ext.early.isEmpty(), "nothing was sent ahead of the pairing answer: " + ext.early);
+
+        java.util.concurrent.atomic.AtomicReference<BlockedSites.Rule> rule =
+                new java.util.concurrent.atomic.AtomicReference<>(new BlockedSites.Rule(java.util.List.of("example.org"), null));
+        bridge.blockedSites(rule::get);
+        for (int i = 0; i < 200 && ext.policies.size() < 2; i++) {
+            Thread.sleep(20);
+        }
+        assertEquals("example.org", ext.policies.get(1).path("blocked").get(0).asString());
+        // Unchanged, it is not told again; changed to a file that cannot be read, it is told that.
+        Thread.sleep(1500);
+        assertEquals(2, ext.policies.size());
+        rule.set(new BlockedSites.Rule(java.util.List.of(), "it cannot be read (AccessDeniedException)"));
+        for (int i = 0; i < 200 && ext.policies.size() < 3; i++) {
+            Thread.sleep(20);
+        }
+        assertTrue(ext.policies.get(2).path("unreadable").asBoolean());
+        assertFalse(ext.policies.get(2).toString().contains("AccessDenied"), "the reason stays with the server");
+        // An extension that pairs later is told what is in force then.
+        FakeExtension later = FakeExtension.paired(bridge.getPort(), WebSocketBridgeTest.TOKEN);
+        later.send("{\"type\":\"event\",\"event\":\"sessions\",\"data\":{\"sessions\":[]}}");
+        for (int i = 0; i < 100 && later.policies.isEmpty(); i++) {
+            Thread.sleep(20);
+        }
+        assertTrue(later.policies.get(0).path("unreadable").asBoolean());
+        later.closeBlocking();
+    }
 }

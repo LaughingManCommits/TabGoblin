@@ -213,6 +213,8 @@ can reach.
 | Agent says "not connected" right after starting | It asked before the extension found its server | It waits up to 10 seconds by itself; opening the popup connects at once |
 | Agent says a ref is stale | The page changed since its snapshot | Nothing; the agent takes a new snapshot |
 | Agent says the session is suspended | The tab left its website | Click the goblin on that tab and resume |
+| Agent says a site is blocked; the popup says *… is on your list of blocked sites* | The site is named in the server's settings file | If you want the agent there, take it off the list ([Blocked sites](#blocked-sites)) |
+| Agent says the settings file cannot be read; the popup says *No agent can work in any tab* | The settings file has a mistake, and until it is mended every site is refused | The amber box in the [server's panel](#9-the-servers-panel) names the mistake. Press **Edit** there and mend the line, or empty it |
 | "This tab cannot be authorized" | Browser pages and the Web Store are off limits | Use a normal `http(s)` page |
 | Screenshot refused | The tab is not the visible one in its window | Bring the tab to the front |
 | The page stopped responding | A native `alert` or `confirm` dialog is open | Dismiss the dialog |
@@ -325,8 +327,8 @@ then, so a key that was on its way elsewhere presses nothing.
   its sentences. An amber box under it is a problem an agent had when it connected, such as
   that no port was free. A plain box there, while no agent is connected, says what to do:
   start your agent, and it connects by itself.
-- **Sessions** are the tabs the agents have: the site, the access level, and *paused* or
-  *suspended* where that applies. The page's title and address are not shown. Every tab is in
+- **Sessions** are the tabs the agents have: the site, the access level, and *paused*,
+  *suspended* or *blocked* where that applies. The page's title and address are not shown. Every tab is in
   the list; three show at a time, and the list scrolls where there are more. With several
   agents each has a heading over its tabs, with its id and its port, or *not connected*. A tab
   marked *any agent* is one you authorized for any agent and none has used yet: it is listed
@@ -356,6 +358,11 @@ then, so a key that was on its way elsewhere presses nothing.
   *Pairing token* field of the extension's popup, without showing it. The token leaves the
   clipboard again after a minute, and when you stop the server from the panel, unless you have
   copied something else since. A clipboard history that your system keeps is not emptied.
+- **Blocked sites** names the sites no agent may work on, as many as fit in the line, those
+  that block a tab of yours first; the pointer on it shows all of them and where the settings
+  file is. **Edit** opens that file in
+  your system's text editor ([Blocked sites](#blocked-sites)). *Every site is refused: the file
+  has a mistake* means that: the amber box under the line with the dot names the mistake.
 - **Stop server** ends the server in order, for every agent: each then has no TabGoblin tools
   until its program connects again. **Kill** ends the process at once, for a server that
   hangs; what it was doing in the browser then has an unknown outcome, and agents that are
@@ -405,4 +412,39 @@ panel is built is in the [architecture](architecture.md#the-servers-panel).
 | The server's panel | `--panel` / `BCMCP_PANEL` = `1` on the server | off |
 | First port | *Connection…* in the popup; `--port` on the server | 47821 |
 | Token file | `--token-file` / `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` |
+| Blocked sites | `blocked.sites` in the settings file; **Edit** in the server's panel opens it | none |
+| Settings file | `--settings` / `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file |
 | Log level | `BCMCP_LOG` = `debug`, `info`, `warn`, `off` | `info` |
+
+### Blocked sites
+
+Sites that no agent may work on, whatever you authorize. They are one line in the server's
+settings file, `tabgoblin.properties`, which lies beside the pairing token:
+
+```properties
+blocked.sites = example.org, intranet.example
+```
+
+- **To change the list,** press **Edit** next to *Blocked sites* in the
+  [server's panel](#9-the-servers-panel). It opens the file in your system's text editor; if
+  there is no file yet, it makes one with this line in it as a comment. You can also open the
+  file yourself. A change is in force as soon as the file is saved: nothing is restarted. The
+  panel shows what is blocked now.
+- **An entry is a domain.** It blocks that domain with all its subdomains, on every port:
+  `example.org` also blocks `mail.example.org`. Entries are separated by commas. An address you
+  paste is taken down to its domain.
+- **On a blocked site** the popup offers no authorization and says that the site is on your
+  list. A tab you authorized before stays in the list of sessions, marked *blocked*: the
+  agent's tools answer there that the site is blocked, and work again when you take it off the
+  list.
+- **A mistake in the file blocks every site,** so that a slip does not leave open the site you
+  meant. The panel then names the mistake in an amber box, and the popup says that no agent
+  can work in any tab. Mend the line, or empty it.
+
+The list is for every agent of the server. An agent is told that the site it tried is blocked,
+and never what else is on the list. What the list holds back and what it does not is in the
+[security model](security.md#blocked-sites).
+
+**Edit** was tried on Windows, where it opens Notepad. On Linux it asks `xdg-open` for an
+editor and on macOS `open -t`; neither was tried. Where no editor starts, the panel's log says
+so, and the pointer on **Edit** shows where the file is.

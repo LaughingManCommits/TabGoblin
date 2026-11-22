@@ -48,6 +48,9 @@ flowchart LR
   its website the session is suspended until you resume it. Started with `--panel`, a server
   shows a small window with its sessions, its log and a button to stop it
   ([user guide](docs/user-guide.md#9-the-servers-panel)).
+- **Blocked sites.** Name the sites no agent may work on, in one line of a settings file. The
+  server refuses every action there, whatever a tab is authorized for
+  ([user guide](docs/user-guide.md#blocked-sites)).
 - **Website-agnostic.** No site-specific code anywhere; the agent supplies the understanding.
 
 ## Quick start

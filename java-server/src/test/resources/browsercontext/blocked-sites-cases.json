@@ -1,0 +1,48 @@
+{
+  "about": "Cases for the rule of blocked sites. Read by BlockedSitesTest and by chrome-extension/test/policy.test.ts: the server and the extension have to give the same answers.",
+  "hosts": [
+    { "address": "https://Example.ORG:8443/path?q=1#x", "host": "example.org" },
+    { "address": "http://127.0.0.1:8931", "host": "127.0.0.1" },
+    { "address": "http://localhost:8931/", "host": "localhost" },
+    { "address": "https://bücher.example/", "host": "xn--bcher-kva.example" },
+    { "address": "http://[::1]:8080/a", "host": "[::1]" },
+    { "address": "https://user:secret@mail.example.org/inbox", "host": "mail.example.org" },
+    { "address": "https:\\\\example.org\\x", "host": "example.org" },
+    { "address": "https:example.org/y", "host": "example.org" },
+    { "address": "https:///example.org/z", "host": "example.org" },
+    { "address": " HTTP://Example.org./ ", "host": "example.org" }
+  ],
+  "entries": [
+    { "entry": "example.org", "domain": "example.org" },
+    { "entry": " *.Example.org ", "domain": "example.org" },
+    { "entry": ".example.org.", "domain": "example.org" },
+    { "entry": "https://www.example.org/login", "domain": "www.example.org" },
+    { "entry": "example.org:443", "domain": "example.org" },
+    { "entry": "bücher.example", "domain": "xn--bcher-kva.example" },
+    { "entry": "localhost", "domain": "localhost" },
+    { "entry": "exa mple.org", "domain": null },
+    { "entry": "exam_ple.org", "domain": null },
+    { "entry": "*", "domain": null },
+    { "entry": "-example.org", "domain": null },
+    { "entry": "", "domain": null }
+  ],
+  "matches": [
+    { "blocked": ["example.org"], "host": "example.org", "by": "example.org" },
+    { "blocked": ["example.org"], "host": "mail.example.org", "by": "example.org" },
+    { "blocked": ["example.org"], "host": "a.b.example.org", "by": "example.org" },
+    { "blocked": ["example.org"], "host": "notexample.org", "by": null },
+    { "blocked": ["example.org"], "host": "example.org.evil.example", "by": null },
+    { "blocked": ["example.org"], "host": "example.com", "by": null },
+    { "blocked": ["mail.example.org"], "host": "example.org", "by": null },
+    { "blocked": ["mail.example.org"], "host": "mail.example.org", "by": "mail.example.org" },
+    { "blocked": ["org"], "host": "example.org", "by": "org" },
+    { "blocked": ["127.0.0.1"], "host": "127.0.0.1", "by": "127.0.0.1" },
+    { "blocked": ["0.1"], "host": "127.0.0.1", "by": null },
+    { "blocked": ["localhost"], "host": "localhost", "by": "localhost" },
+    { "blocked": ["localhost"], "host": "127.0.0.1", "by": null },
+    { "blocked": ["[::1]"], "host": "[::1]", "by": "[::1]" },
+    { "blocked": ["xn--bcher-kva.example"], "host": "xn--bcher-kva.example", "by": "xn--bcher-kva.example" },
+    { "blocked": ["docs.example", "example.org"], "host": "wiki.example.org", "by": "example.org" },
+    { "blocked": [], "host": "example.org", "by": null }
+  ]
+}

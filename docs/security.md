@@ -51,6 +51,53 @@ Consequences:
   never widens a session; adding a site to a session is a separate, explicit button.
 - Frames from another origin are never read, whatever you are logged into there.
 
+## Blocked sites
+
+You can name sites that no agent may work on, whatever a tab is authorized for
+([user guide](user-guide.md#blocked-sites)). The list is one line in the server's settings file.
+The product ships no entry: the list is yours.
+
+- **An entry is a domain.** It blocks that domain and every subdomain, on every port, for `http`
+  and `https`: `example.org` blocks `mail.example.org:8443` and does not block `notexample.org`.
+  An address that is a number is blocked only by itself. There are no patterns and no paths.
+- **The server refuses first.** Before a command is sent to the browser the server looks at the
+  session it is for: the site it was authorized for, every site you added to it, and the address
+  its tab was last reported at. If one of them is blocked, nothing is sent. A session that is in
+  none of the extension's reports yet is asked for first, and if no answer comes the command is
+  not sent. `browser_navigate` to an address on a blocked site is refused the same way.
+  `browser_status` still answers.
+- **The extension refuses as well.** The server tells it the list. Before every command it checks
+  where the tab is at that moment, which the server knows only from the extension's last report,
+  and every site of the session. It offers no authorization on a blocked site, resumes no session
+  there and adds no such site to one.
+- **A list that cannot be read blocks everything.** If the file is there and cannot be read, or an
+  entry in it is no domain, every command is refused (`SETTINGS_UNREADABLE`), and the server's
+  panel says what is wrong. A slip in the file must not leave open the site it was meant for. A
+  file that is not there, or has no entry, blocks nothing.
+- **An agent is told the one site it ran into,** and, when it asks for its status, which of its
+  own sessions is blocked. It is never given the list. The list is shown to you, in the server's
+  panel.
+- **A blocked session is not ended.** It stays authorized and answers `SITE_BLOCKED` until you
+  take the site off the list; then it works as before. The file is read again when it changes,
+  about twice a second at most. The extension is told ahead of the server's next command, and
+  within about a second where none comes.
+- **Refusals are logged** as scope violations, with the session and without the site.
+
+Where it stops:
+
+- The list governs what TabGoblin does. An agent that has other tools of its own, such as one
+  that fetches web pages, is not held back by it.
+- A session that spans a blocked site and another one is blocked as a whole, also while its tab
+  is on the other one.
+- A page on a site that is not blocked may embed a frame from one that is. Its text is not
+  read, as no frame of another site is; what it shows is in a screenshot of the tab, as with
+  every frame. The list does not filter what a page links to or embeds.
+- The settings file has the protection of your home folder and no other. A program that can
+  write there can change the list, as it can read the pairing token.
+- An extension from before this list is not told it and does not check it; the server's own
+  check holds there too. Such an extension still offers to authorize a blocked site, and the
+  tab then answers `SITE_BLOCKED`.
+
 ## Agents
 
 All agents are served by one process, and each is a separate authenticated connection to the
@@ -234,6 +281,13 @@ Where it stops:
 | Nothing readable before authorization | End-to-end |
 | Cross-origin navigation, links, redirects blocked or suspended | Rules, end-to-end |
 | Cross-origin frame never read | DOM, end-to-end |
+| An action on a blocked site is refused by the server before anything reaches the browser, and by the extension: for the site itself, a subdomain, another port, a session that spans it, and a navigation to it. A name that only looks like it is not blocked | Java, rules, worker, end-to-end |
+| The server and the extension give the same answer on what an entry blocks: both are held to one list of cases | Java, rules |
+| A session the server has not heard of yet is asked for before anything is sent to it; without an answer nothing is sent | Java |
+| A settings file that cannot be read, or has an entry that is no domain, refuses every site and says so; mended, everything works as before | Java, worker, end-to-end |
+| No tab on a blocked site is authorized, resumed, or added to a session; a session that is blocked later is marked and not ended, and works again when the site is taken off the list | Worker, end-to-end |
+| An agent is told the one blocked site it ran into and never the list; the refusal is logged with its session and without the site | Java, rules, end-to-end |
+| The list is not sent to an extension while it still checks the pairing, which an older extension would take for a failed pairing | Java |
 | Another agent's session unreachable, forged session id refused | Rules, worker, end-to-end |
 | A disconnected agent's sessions end with it; allowed again, it has no tab and its old session id is refused | Rules, worker, end-to-end |
 | An agent of the same name inherits nothing from a disconnected one | Rules, worker |
@@ -283,6 +337,9 @@ Chrome.
   authorized tab go to your agent and its model provider.
 - **Explore loads pages.** A site that changes state on a plain link (some logout or vote links)
   can be affected. Read does not navigate at all.
+- **Blocked sites guard against a wrong click and a wandering agent, not against an agent with
+  a shell.** The list is a file you can edit, so an agent that runs commands as you can edit it
+  too; and it holds back TabGoblin's tools, not other tools the agent has.
 - **A misled agent.** See prompt injection above. Keep "Ask me every time" where a wrong
   submission would hurt.
 - **"Confirmed by reaction"** means the page behaved as if it accepted, not that the server stored

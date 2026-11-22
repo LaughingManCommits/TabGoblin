@@ -180,12 +180,14 @@ cd java-server
 java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
 ```
 
-On Linux and macOS the separator in the class path is `:`. Success: thirteen pictures at
+On Linux and macOS the separator in the class path is `:`. Success: fifteen pictures at
 double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
-screen, the server without an agent, with two agents, the first and the second tab clicked, and
-an agent clicked. In every one the header and the whole Control card must be inside the window:
+screen, the server without an agent, with two agents, the first and the second tab clicked, an
+agent clicked, sites blocked with a tab on one of them, and a settings file with a mistake in
+it. In the last two the Control card names what is blocked, or says that every site is refused,
+and the tab says *blocked*; with the mistake an amber box under the status names it. In every one the header and the whole Control card must be inside the window:
 look at the seventh and the eighth for that; there the list of tabs shows three rows and has a
 scroll bar of its own. With two agents each has a heading over its tabs. Where a tab or an
 agent is clicked, it is marked, the corner of the Sessions card says which it is, and Metrics

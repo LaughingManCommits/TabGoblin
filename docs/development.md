@@ -211,6 +211,7 @@ Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 
 { "type": "cancel", "id": "17" }
 { "type": "client", "name": "IntelliJ IDEA" }
+{ "type": "policy", "blocked": ["example.org"], "unreadable": false }
 { "type": "event", "event": "sessions", "data": { "sessions": [] } }
 { "type": "event", "event": "activity", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
 { "type": "ping" }   { "type": "pong" }
@@ -224,6 +225,16 @@ agent's name is in `auth_ok` if the server knows it by then, and follows as `cli
 learns it later. An agent names itself when it opens its connection to the server
 (`initialize`). When a name arrives, the extension tells every agent its sessions anew: a name
 can make sessions an agent's own ([architecture](architecture.md#sessions)).
+
+`policy` is the user's list of [blocked sites](security.md#blocked-sites), as the server's settings
+have it: the domains, in lower case and in their encoded form; `unreadable` is true while the
+settings file cannot be read and every site is refused. The extension takes the list whole or not
+at all. The server sends it when the extension has said its first word as a paired one, which it
+does at once with its sessions, and again when the list has changed. It is not sent right behind
+`auth_ok`: an extension from before this message, still checking the server's proof, would take a
+message it does not know for a failed pairing. Once paired, such an extension ignores it. What an
+entry blocks is decided in two places, `BlockedSites.java` and `blockedBy` in `policy.ts`; both are
+held to one list of cases, `java-server/src/test/resources/browsercontext/blocked-sites-cases.json`.
 
 `clientId` in `challenge` is who the server says it is before anything is proven. The
 extension uses it for one thing: the server of an agent the user disconnected is closed there
