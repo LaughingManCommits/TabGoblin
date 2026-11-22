@@ -2,7 +2,7 @@
 
 ## Overview
 
-Ten packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Eleven packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -15,8 +15,9 @@ documentation. WP-19, filed on the same day on the owner's word, is one server f
 in place of one for each; it is built and merged. WP-20, filed on
 the same day, is a list of blocked sites in the server; the owner decided its points, and it is
 built and merged. WP-21, filed on the same day, is what the first test on the public repository
-showed: three faults, mended and committed on the branch `smoke-fixes`. New work gets the next
-number, WP-22.
+showed: three faults, mended and committed on the branch `smoke-fixes`. WP-22, filed on the
+same day, is a skill for the tools for each of three agents; it is built and committed on the
+branch `agent-skills`. New work gets the next number, WP-23.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1159,3 +1160,57 @@ validation log.
   collaborators, no ruleset and no branch protection on `main`, workflows read-only, fork pull
   requests approved for first-time contributors only, secret scanning with push protection on,
   Dependabot and private vulnerability reporting off. Changing them is the owner's.
+
+## WP-22: Skills for agents that use TabGoblin
+
+Asked for by the owner on 2026-11-22: "can we make skills folder where can put claude skill and
+codex and copilot skills to standards for using tabgoblin mcp making it easier for agents, if
+it will add value?"
+
+### What it adds, and what it costs
+
+- **The server tells every agent about fifteen lines** when it connects, and each tool has its
+  description. That is always there and has to stay short. What an agent then lacks is the
+  longer part: how to read a long page without reading all of it, which access level to ask
+  the user for, and what to do on each refusal. In the first test on the public repository the
+  agent asked a snapshot for fewer lines than it gives, and used a ref from an earlier page, and
+  read the answer off an error each time.
+- **A skill is loaded only when a task calls for it,** so it can be longer. Claude Code, Codex
+  and GitHub Copilot read the same open format, a folder with a `SKILL.md`
+  ([agentskills.io](https://agentskills.io/specification)), each from a place of its own.
+- **It is one more text that says what the tools do.** The tool reference owns that. A skill
+  that drifts from it misleads an agent with nobody noticing.
+
+### Decided
+
+Put to the owner with a recommendation of one skill for all three agents. The owner chose
+**three separate skills,** one for each agent, each with that agent's own extras, in the
+knowledge that they are three texts to keep the same by hand.
+
+### What was built
+
+On the branch `agent-skills` (made from `smoke-fixes`), and committed there on the owner's
+word.
+
+- **`skills/claude-code`, `skills/codex`, `skills/copilot`,** each with a `tabgoblin/SKILL.md`,
+  and `skills/README.md`, which says where each agent wants its skill. The head of each is its
+  agent's own: how the tools are named there and what to ask the user for when they are
+  missing; `when_to_use` for Claude Code; `agents/openai.yaml` for Codex; `argument-hint` for
+  Copilot. From "Start with the status" on, the three are word for word the same.
+- **A test, `SkillsTest`,** fails when one of the three has drifted from the others, when a
+  skill names a tool the server does not have or leaves one out, when it names a code that the
+  tool reference does not know, and when its front matter is not what the format asks for.
+- **The installation guide** points to them, and no longer says that each agent starts a server
+  of its own, which was so before WP-19.
+
+### What is open
+
+- **None of the three has been loaded in its agent.** The places and the fields are from each
+  agent's documentation as read on 2026-11-22; what an agent does with a skill was not tried.
+- **How the server is added to Codex and to Copilot** could not be read from their
+  documentation that day: the pages had moved. The skills and the installation guide say only
+  what holds for any agent: a command, `java`, with `-jar` and the path.
+- **No skill declares the server it needs.** Codex can take such a declaration in
+  `agents/openai.yaml`; the one example that was read is for a server reached by address, not
+  for one that is started as a program.
+- **Nothing installs a skill.** The user copies a folder.

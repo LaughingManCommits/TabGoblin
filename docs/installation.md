@@ -107,7 +107,13 @@ Most MCP clients take this JSON:
 | Anything else that speaks MCP over stdio | Command `java`, arguments `-jar` and the path |
 
 Restart the agent, or reload its MCP servers, so it picks the server up. You can connect several
-agents this way; each starts its own copy of the server, up to eight at once.
+agents this way, up to eight at once: each starts the jar, the first of them starts the one
+server, and the others connect to it.
+
+The server tells an agent in a few lines how to use its tools. For Claude Code, Codex and GitHub
+Copilot there is more, as a skill to put where the agent looks for skills: how to read a long
+page, what to ask you for, what to do when a tool refuses. It is optional; see
+[skills](../skills/README.md).
 
 A server has no window. With `--panel` as a further argument it shows a small one, with its
 sessions, its log and a button to stop it: see

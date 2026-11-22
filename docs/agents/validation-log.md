@@ -3,6 +3,29 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `agent-skills`: WP-22, a skill for the tools for each of three agents
+
+The owner asked for a folder of skills for Claude Code, Codex and Copilot, "to standards", if it
+adds value; and, asked how, chose three separate skills over one for all. Committed on the
+owner's word; not pushed.
+
+No product code changed. What was added: `skills/` with three skills and a page on where each
+goes, one test, and the pages that point to them.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml test`, in the tree | 134 tests, 3 of them new (`SkillsTest`): the three are the same from "Start with the status" on; each names the server's eleven tools and no other; each names only codes the tool reference sets in code; the front matter has a name that is the folder's and a description within the format's limit |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+Read, not tried: the format (agentskills.io), and where Claude Code, Codex and Copilot look for
+skills and which fields of their own they take, from each one's documentation on 2026-11-22.
+Two of those pages had moved; one was read at its new address. How a local server is added to
+Codex and to Copilot could not be read that day, and the skills do not say it.
+
+Not run: the jar's build and the conformance check, the extension's check, the suite end to end
+and the editor lab; nothing they cover changed. Not tried: any of the three skills in its
+agent.
+
 ## 2026-11-22, on `smoke-fixes`: WP-21, what the first test on the public repository showed
 
 The owner made the repository public and asked for a basic test through TabGoblin with Explore
@@ -599,65 +622,14 @@ run #13 passed on GitHub with the step as it was. So the run above shows that th
 nothing, not that it mends the step. Not run: the unit suites and the editor lab; no product
 code and none of their files changed.
 
-## 2026-11-22, on `notice-box`: WP-11, the notice in the page: a bar, and pills of what ended
-
-On the final sources, which are the two-pane form with the goblin bare. The extension's check ran
-in the tree. What needs the jar ran in a copy of the tree, with a jar built there, because the
-session's own server runs from the tree's jar. The copy held the product sources and the suite
-of the tree, compared file by file, and was removed afterwards.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check`, in the tree | type-check clean, 151 tests, build. Twelve are new: ten of the notice (what it shows at a moment, the drawing under jsdom, the goblin), one of a line's words, one of what the worker tells a page |
-| `cd e2e && npm test`, in the copy | 94 passed, 0 failed. It is the fifth full run, and the third to pass: one on each form the look went through (see below). One step is new: two commands that ended have a pill each, the newer one last; one that failed says how; the pills stay while the next command runs; the notice fades and leaves the page; neither a snapshot nor the text has any of it; and the agent's screenshot is compared with two of the suite's own, one with the notice in it and one without. Two steps are extended: the bar says what runs, and a real click on Pause is answered in the notice |
-| `cd e2e && node notice-pictures.mjs` | 31 pictures, drawn by `notice.ts` in a plain page. Opened with the goblin bare: the bar with two pills (light), the user being asked (dark), paused (light), idle with one pill (dark). Opened in the two-pane form before that, with the goblin on its tile: three pills with a refused one (light), the longest pill (dark, and in the narrow window), a pill half way through fading (dark), the whole notice half way through fading (light). Opened in the one-box form only: Pause under the pointer, two frames of the arrival, and the fading pill with less motion asked for, where it was plain |
-| `HEADED=1 node screenshots.mjs`, in the copy | `indicator.png` made anew: a capture of the real notice in a real tab, at double size, opened, and copied into the tree. Four more came out different and none was copied. `popup-folded.png` was opened beside the tree's: it lists the two agents in the other order, which follows from which server got the first port in that run. `popup-authorize.png`, `popup-full.png` and `popup-full-light.png` show the agents with their ports; two of them were opened in an earlier run of the day and differed in the ports alone, and in this run they were not opened. The other eight, and the seven examples, were the same byte for byte |
-| `node docs/agents/check-links.mjs` | 81 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-What the look went through, each step judged from pictures:
-
-1. A plain box, built from the description alone. Its pictures showed the dot of the row out of
-   line with the marks above it, pills that did not read as pills, a mark for "Paused by you"
-   too small to see, a box that was hard to tell from a dark page, a width that jumped from 153
-   to 323 pixels, and a Pause that did not say whose it is.
-2. The owner's word then: "modern, fun and something that fits the theme of our app". The box
-   got the popup's colours and round marks, and the goblin beside the row. Its pictures showed a
-   text for the user being asked that broke over two lines; it was shortened to "Answer needed
-   in the popup".
-3. The owner's word on its size: "i wonder if we should split it 2 planes?". The two-pane form
-   was drawn from a copy of the source and set beside the box, same state, light and dark. With
-   three pills the box is 272 by 120 pixels; bar and pills together, measured in the pictures,
-   cover about a third less, and the bar stays 42 pixels high where the box grew. That is what
-   is built. The one-box form was never committed.
-4. The owner's word on the goblin: "the little goblin should be have no background and
-   border". It stood on a dark tile with a ring around it, and the ring pulsed for the state.
-   Now it stands bare on the bar, larger, and its own outline glows: green in pulses while the
-   agent works, amber when the user is asked.
-
-Failed on the way, end to end:
-
-- First run, 93 of 94. The new step found the session paused. The step before it resumed in the
-  popup while the popup still showed the old state, and so resumed nothing; the step after it
-  used to want the session paused, which hid that. The step now waits for the popup.
-- Second run, 83 of 94. The new step passed and eleven after it failed: it had opened a tab to
-  measure the pictures in, and a new tab takes the popup away. The first of them left the
-  session paused, and the others followed from that. The step measures in the page that is open
-  anyway.
-- In the picture script: a pill pictured 150 ms after it arrived was invisible instead of half
-  faded, because its arrival was still running. The script waits for the arrival, as a real pill
-  has long arrived when it fades. And the documentation's picture first held a pill left by the
-  step before; the script now waits until the notice is gone.
-
-Not run: the server's suites (no Java source changed, and the tree's jar was not rebuilt), the
-editor lab (nothing in `editor.ts` or `snapshot.ts` changed) and the Linux container. Not seen:
-the goblin's blink and its pulsing glow in motion, in a tab. Not tried: a screen reader, a
-zoomed page, a page written from right to left, the system's high-contrast colours, and a page
-with a button of its own under the bar. Read from the source as it was and not run on it: what
-the old pill did after a pause.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `notice-box` (WP-11, the notice in the page: a bar, and pills of what ended):
+  the extension's check passed with 151 tests, twelve of them new, and the suite end to end with
+  94, in the third of five full runs to pass. The notice was drawn in 31 states and looked at,
+  and went through three forms on the owner's word: a plain box, the popup's colours with the
+  goblin, then two panes, which cover about a third less. `indicator.png` was made anew from a
+  capture of the real notice in a real tab.
 - 2026-11-22, on `disconnect-revokes` (WP-10, Disconnect ends the agent's sessions): the
   extension's check passed with 139 tests and the suite end to end with 93, in a copy of the
   tree. Shown against the source as it was: an agent with a tab is disconnected and a second
