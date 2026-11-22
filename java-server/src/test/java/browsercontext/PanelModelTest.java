@@ -359,4 +359,55 @@ class PanelModelTest {
         assertFalse(some.toString().contains("Inbox"), "the page's title stays out");
         assertFalse(some.toString().contains("?q=from"), "the page's address stays out");
     }
+
+    @Test
+    void besideAShareStandsWhatACallTypicallyTakesAndWhatWasTheLongest() {
+        // Four calls. No call came before the first; before the last the agent was away for minutes.
+        var each = List.of(new Timings.Spent(-1, 2, 30, 0), new Timings.Spent(4_000, 1, 20, 0),
+                new Timings.Spent(6_000, 3, 1_200, 0), new Timings.Spent(346_000, 2, 26, 0));
+        var time = new Timings.Shares(4, 70_000, 8, 1_276, 0, each);
+        assertEquals(List.of(
+                new PanelModel.Share("Agent and its model", 98, false, "6.0 s",
+                        "Between two calls: the agent's program and its model, and any approval you give there.\n"
+                                + "Typically 6.0 s before a call, at the longest 5.8 min.\n"
+                                + "A pause of more than a minute counts as one minute."),
+                new PanelModel.Share("This server", 0, false, "2 ms",
+                        "This server, and the way to the extension and back.\nTypically 2 ms of a call, at the longest 3 ms."),
+                new PanelModel.Share("Extension and page", 2, false, "28 ms",
+                        "The extension and the page at work, and a call's wait for its turn in its tab.\n"
+                                + "Typically 28 ms of a call, at the longest 1.2 s."),
+                new PanelModel.Share("Waiting for you", 0, true, "0 ms",
+                        "Your answers to what the popup asks you.\nTypically 0 ms of a call, at the longest 0 ms.")),
+                PanelModel.shares(time));
+        // A length of time as a person reads it.
+        assertEquals(List.of("0 ms", "999 ms", "1.0 s", "4.2 s", "1.0 min", "5.8 min"),
+                java.util.stream.LongStream.of(0, 999, 1_000, 4_200, 60_000, 346_000).mapToObj(PanelModel::span).toList());
+
+        // With several agents, what is typical is typical of all their calls together, not of one agent's.
+        var other = new Timings.Shares(3, 3_000, 3, 3_000, 0, List.of(new Timings.Spent(-1, 1, 1_000, 0),
+                new Timings.Spent(1_000, 1, 1_000, 0), new Timings.Spent(2_000, 1, 1_000, 0)));
+        var both = PanelModel.of(List.of(
+                new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0, List.of(), time, Map.of()),
+                new PanelModel.Facts("IntelliJ IDEA", "c-5e6f7a8b", 47822, null, true, 1_000, 0, List.of(), other, Map.of())),
+                47829, "9.8.7", false, List.of(), UTC);
+        // The browser's seven times: 20, 26, 30, 1000, 1000, 1000, 1200.
+        assertEquals("1.0 s", both.metrics().shares().get(2).typical());
+        assertEquals("28 ms", both.metrics("c-1a2b3c4d").shares().get(2).typical());
+        assertEquals("1.0 s", both.metrics("c-5e6f7a8b").shares().get(2).typical());
+        // Sums alone, as an older picture of the times has them: the share, and no typical time.
+        assertEquals(new PanelModel.Share("This server", 0, false),
+                PanelModel.shares(new Timings.Shares(4, 70_000, 8, 1_276, 0)).get(1));
+    }
+
+    @Test
+    void aLogThatIsHeldKnowsHowManyLinesHaveComeSinceTheLastOneItShows() {
+        var lines = List.of("00:00:01  one", "00:00:02  two", "00:00:03  three", "00:00:04  four");
+        assertEquals(0, PanelModel.newer(lines, String.join("\n", lines)));
+        assertEquals(2, PanelModel.newer(lines, "00:00:01  one\n00:00:02  two"));
+        assertEquals(3, PanelModel.newer(lines, "00:00:01  one"));
+        // The last line it shows is kept no more: everything that is kept is newer.
+        assertEquals(4, PanelModel.newer(lines, "23:59:58  long ago\n23:59:59  gone"));
+        // It showed that nothing was logged yet.
+        assertEquals(4, PanelModel.newer(lines, "Nothing logged yet."));
+    }
 }

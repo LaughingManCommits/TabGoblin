@@ -103,6 +103,12 @@ Last calls, newest last (the whole call; what the agent took before it; the call
 Note: the time between calls is the agent's program as well as its model, and any approval the user gives there.
 ```
 
+A pause of more than a minute between two calls counts as one minute in the shares: an agent
+that takes longer is at something else, or waits for its user, and counted in full one such
+pause would be nearly all the time there is. Its real length is still the *longest*. Where there
+was such a pause, a last line says how many: `Note: 1 pause between calls took more than a minute.
+In the shares each counts as one minute.`
+
 | Part | What it is |
 |---|---|
 | Between calls | From the server's answer to the next call: the model, the agent's program, and any approval the user gives there. A call that begins while another runs counts as none. |
@@ -262,7 +268,9 @@ document itself does not scroll, the largest inner scrolling area is used (`targ
 
 Returns a JPEG of the viewport plus a note such as *"This image shows only the visible viewport:
 0-900px of a 6901px tall page (about 13%). Not in the image: 0px above and 6001px below."* The tab
-must be the visible tab of its window.
+must be the visible tab of its window. TabGoblin's own notice in the page is not in the picture: it
+is taken out first, and the picture is taken when the page has drawn itself again, which on a
+busy page takes a moment.
 
 ## browser_wait_for
 

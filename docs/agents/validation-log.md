@@ -3,6 +3,60 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-22, on `smoke-fixes`: WP-21, what the first test on the public repository showed
+
+The owner made the repository public and asked for a basic test through TabGoblin with Explore
+access; then showed a picture of the server's window and asked whether its metrics look good;
+then: "do the fixes please". Committed on the owner's word; not pushed.
+
+**The test, in the owner's Chrome, with the build of `main` as merged.** One session on the
+repository's pages, Explore. Worked: status with diagnostics, snapshot, extract (whole, outline,
+one section), navigation by address and back, a click on a link and on a tree item, scroll,
+wait, a navigation key, screenshot. Refused, as they must be: a fill, a click on a plain button
+and a typed character (`WRITE_NOT_AUTHORIZED`), a navigation to another site
+(`NAVIGATION_BLOCKED`), a ref from an earlier page (`STALE_REF`). Nothing was changed on GitHub.
+
+**Three faults, and how each was pinned down before it was mended.**
+
+- *The notice in a screenshot.* Six screenshots in the owner's Chrome: the two taken about ten
+  seconds after a page had loaded had the notice in the corner, three taken later did not, and
+  one was taken after the notice had gone by itself. Then on the build as it was, in the
+  suite's Chrome, with a script that puts the notice on the page and takes the picture at
+  once: on a quiet page the notice was in 0 of 12 pictures, with the page kept busy in 4 of 12.
+  The same script on the build with the fix: 0 of 20 busy and 0 of 20 quiet; and in a visible
+  Chrome 0 of 10 busy and 0 of 10 quiet. A visible Chrome was not measured before the fix.
+- *The log that stood still.* Read from the owner's real window: nine lines, ending before the
+  test, scrolled to the top. On the build as it was, in a real window on ports of its own, with
+  an agent whose calls each write a line: untouched, the log followed, also while the window
+  was put away and after it came back (37, 67, 97, 127 lines, at its end each time). So it
+  holds only when someone has scrolled up or marked text, as the user guide says. With the
+  fix, in a real window: text marked through the accessibility interface, thirty calls later
+  the log stood at 37 lines, its corner said *held while you read* and the button *30 newer
+  lines*; the button pressed, it had 67 lines and no button; thirty calls later 97.
+- *The metrics.* The window's four shares were the status tool's own, 98, 0, 2, 0 over 50
+  calls, with a longest pause of 346 seconds in them. With the fix the real window had, over 33
+  calls of a script, *share* and *per call* over the numbers and 70% with 124 ms for the agent.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 131 tests, 5 of them new, and the 8 of the conformance check on the built jar |
+| `cd chrome-extension && npm run check` | type-check clean, 161 tests, 1 of them new and one longer, build |
+| `cd e2e && npm test` | 95 passed, 0 failed. The step on the notice takes six pictures of a page kept busy now, each measured against the page without the notice |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+All of it in a copy of the tree with a jar built there, on the final sources, in one run.
+
+The picture tool drew sixteen states, one of them new: the log held. Opened and looked at: the
+first, the low screen, a tab chosen, and the new one. Mended by looking: the new button took
+the general button's look and height and left the log two lines; and the line over the
+metrics' numbers took the log's room, so the window is 24 pixels higher.
+`docs/images/server-panel.png` is the first drawing, byte for byte.
+
+Not run: the editor lab; nothing it covers changed. Not tried: a screenshot of a tab whose
+window is covered or minimized; the owner's own Chrome and window with these fixes; Linux and
+macOS. Read on GitHub and not acted on: CI's runs #15 to #20 did not start, with a message about
+the account's billing.
+
 ## 2026-11-22, on `blocked-sites`: WP-20, sites that no agent may work on
 
 The owner: "deny URL domain basically we can created blocked sites, this should be properties,
@@ -602,43 +656,15 @@ zoomed page, a page written from right to left, the system's high-contrast colou
 with a button of its own under the bar. Read from the source as it was and not run on it: what
 the old pill did after a pause.
 
-## 2026-11-22, on `disconnect-revokes`: WP-10, Disconnect ends the agent's sessions
-
-On the final sources. The extension's check ran in the tree. What needs the jar ran in a copy of
-the tree, with a jar built there, because the session's own server runs from the tree's jar. The
-copy held the product sources and the suite of the tree, compared file by file, and was removed
-afterwards.
-
-| Command | Result |
-|---|---|
-| `cd chrome-extension && npm run check`, in the tree | type-check clean, 139 tests, build |
-| `cd e2e && npm test`, in the copy | 93 passed, 0 failed. The step for Disconnect is a new one in place of the old: each agent's row says how many tabs it has, and the button's hint that it ends them; after Disconnect the agent's session is gone from the popup and the list says why, the other agent keeps its tabs and does not see that site; allowed again, the agent is connected, has no session, and its old session id is refused; the user's click on the tab gives it a new session. |
-| `FULL=1 node screenshots.mjs prompts`, in the copy | 64 pictures. Looked at: the whole popup with the setting on every time (dark) and with two things that pass (light), for the agent's row: name, "1 tab", port, button. |
-| `HEADED=1 node screenshots.mjs`, in the copy | Three pictures came out different from the tree's, the three that show the Agents panel. All three were opened and then copied into the tree: `popup-authorize.png` ("no tabs" beside each agent), `popup-full.png` and `popup-full-light.png` ("1 tab"). The other ten, and the seven examples, were the same byte for byte. |
-| `node docs/agents/check-links.mjs` | 79 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-Shown against the source as it was, with a copy of the worker tests that ends in one test which
-prints what it gets (run on both sources, not kept): an agent has a tab and is disconnected; a
-second server connects under the same name and asks for a snapshot in that session. Before: `ok`,
-with the page, and the session then carried the second agent's id. After: `UNKNOWN_SESSION`, and
-no session left.
-
-Failed on the way: one assertion of the new worker test. It took the last entry of the activity
-list for the newest; the list keeps what still runs behind what is finished. The test was
-corrected; the worker was not touched for it.
-
-On arrival the checkout was on `main`: the owner had merged `nothing-personal` and removed the
-branch. `git status -sb` showed it before the first change, and the branch was made first.
-
-Not run: the server's suites (no Java source changed, and the tree's jar was not rebuilt), the
-editor lab (nothing in `editor.ts` or `snapshot.ts` changed) and the Linux container. Not tried:
-an agent's name too long for its row beside the count (it is cut with an ellipsis, and the whole
-name is in its hint; no picture has one), the button's hint by eye (the suite reads its text),
-and a Disconnect while a real model is at work.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `disconnect-revokes` (WP-10, Disconnect ends the agent's sessions): the
+  extension's check passed with 139 tests and the suite end to end with 93, in a copy of the
+  tree. Shown against the source as it was: an agent with a tab is disconnected and a second
+  server of the same name asks for a snapshot in that session; before, `ok` with the page;
+  after, `UNKNOWN_SESSION` and no session left. The popup was pictured in 64 states and the
+  three pictures of the Agents panel in `docs/images` were renewed. Not run: the server's
+  suites, since no Java source changed, and the editor lab.
 - 2026-11-22, on `nothing-personal` (WP-14, the files and the check): no product code changed;
   four examples in the documentation, and a check that reads the files for home directories,
   mail addresses outside the example domains and links to sessions, with 5 tests and a job in

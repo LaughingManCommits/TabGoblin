@@ -34,6 +34,12 @@ const badges: string[] = [];
 const intervals: { fn: () => void; ms: number }[] = [];
 /** What the pages were told for their notice, in order: the tab, the state, and what else came with it. */
 const notices: { tab: number; state: unknown; text?: unknown; ended?: unknown }[] = [];
+/** When each picture of a tab was taken. */
+const captures: number[] = [];
+/** How long a fake page takes to answer that its notice is gone: a real one answers when it has drawn again. */
+let drawsAfterMs = 0;
+/** When a fake page last answered that. */
+let noticeGoneAt = 0;
 
 function pageAnswer(tabId: number, msg: any): Promise<object> | object {
   const tab = tabs.get(tabId);
@@ -52,6 +58,12 @@ function pageAnswer(tabId: number, msg: any): Promise<object> | object {
     // Everything that came with it, so that a test sees if more than the notice's own fields went out.
     const { bcmcp: _, op: __, origins: ___, ...told } = msg;
     notices.push({ tab: tabId, ...told });
+    if (msg.state === 'off' && drawsAfterMs > 0) {
+      return new Promise((resolve) => setTimeout(() => {
+        noticeGoneAt = Date.now();
+        resolve({ ok: true, result: {}, ...meta });
+      }, drawsAfterMs));
+    }
   }
   if (msg.op === 'wait') {
     return new Promise((resolve) => waits.set(msg.opId, (reply) => resolve({ ...reply, ...meta })));
@@ -93,7 +105,7 @@ const fakeChrome = {
     },
     sendMessage: async (id: number, msg: object) => pageAnswer(id, msg),
     update: async () => undefined, reload: async () => undefined,
-    captureVisibleTab: async () => 'data:image/jpeg;base64,QUJD',
+    captureVisibleTab: async () => { captures.push(Date.now()); return 'data:image/jpeg;base64,QUJD'; },
     onUpdated: new FakeEvent(), onRemoved: new FakeEvent(), onCreated: new FakeEvent(), onActivated: new FakeEvent(),
   },
   scripting: { executeScript: async () => [{}] },
@@ -970,6 +982,17 @@ test('the page is told what runs and how it ended, in the list\'s fixed words an
     { state: 'off' },
     { state: 'idle', ended: { text: 'Captured screenshot', mark: 'ok' } },
   ]);
+  // The picture is taken when the page has answered that the notice is gone, and the page answers
+  // when it has drawn again: a busy page takes its time, and the capture waits for it.
+  drawsAfterMs = 120;
+  const taken = captures.length;
+  const askedAt = Date.now();
+  assert.equal(code(await one.command('screenshot', { session: sid })), 'ok');
+  drawsAfterMs = 0;
+  assert.equal(captures.length, taken + 1);
+  assert.ok(noticeGoneAt - askedAt >= 100, 'the page took its time');
+  assert.ok(captures.at(-1)! >= noticeGoneAt, `captured ${noticeGoneAt - captures.at(-1)!} ms before the page had drawn`);
+  await next(2, 'the second screenshot to be said');
 
   // A submission the user is asked about: the page says that the agent waits for them.
   await popup({ type: 'setMode', session: sid, mode: 'write' });

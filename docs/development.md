@@ -71,7 +71,7 @@ panels folded to one line. Look at them after any change to the prompt. The end-
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 The picture of the server's panel, `docs/images/server-panel.png`, is not a capture: a class
-among the server's tests, `PanelPictures`, draws the panel in fifteen states with the server's own
+among the server's tests, `PanelPictures`, draws the panel in sixteen states with the server's own
 code, without a window. The command, and what to look at in the real window besides, is in the
 [runbook](agents/runbook.md#look-at-the-servers-panel).
 

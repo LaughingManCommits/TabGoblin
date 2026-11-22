@@ -252,6 +252,35 @@
     -fx-font-size: 12px;
     -fx-alignment: center-right;
 }
+/* What the two numbers of a heap are: small, over their columns. */
+.time-head {
+    -fx-text-fill: -tg-muted;
+    -fx-font-size: 10.5px;
+    -fx-alignment: center-right;
+}
+.time-head-row {
+    -fx-padding: 0 0 1 0;
+}
+/* A log that is held while the user reads: how many lines have come since, and the way to them. */
+/* Small, as a chip is: it stands in the corner of a card, beside the words that say why it is there. */
+.button.follow {
+    -fx-background-color: -tg-warn-line, -tg-warn-soft;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 999, 998;
+    -fx-text-fill: -tg-warn;
+    -fx-font-size: 11px;
+    -fx-font-weight: normal;
+    -fx-padding: 1 9 1 9;
+    -fx-min-height: 0;
+    -fx-pref-height: 19;
+    -fx-cursor: hand;
+}
+.button.follow:hover {
+    -fx-text-fill: -tg-fg;
+}
+.button.follow:focused {
+    -fx-background-color: -tg-warn, -tg-warn-soft;
+}
 .bar-track {
     -fx-min-height: 8;
     -fx-max-height: 8;

@@ -437,6 +437,14 @@ pill for each thing it just did. The worker tells the page two things and nothin
 | A line | A command ends | The activity list's words for it, and for one that did not run through the short note for its error code (`endedLine` in `policy.ts`) |
 | `off` | The session ends or is suspended, a screenshot is about to be taken, or the setting is switched off | Nothing |
 
+A screenshot waits for the page's answer to `off`, and the page gives it when the notice is out
+of the picture and not only out of the page (`whenDrawn` in `notice.ts`): after it has begun
+three frames, since the browser draws a changed page a moment later, later still while the page
+is busy, and a capture takes what was drawn last. A page that is not shown draws nothing and
+answers at once; one that has not drawn after a second and a half answers then. In both the
+picture is taken as the browser has it, and neither was tried: a window that is covered or
+minimized, and a page that hangs.
+
 The page keeps the time (`notice.ts`): a line stays four seconds and fades for one, three lines
 at most, and the notice leaves the page with its last line when nothing runs. The worker sets
 no timer for it, since it may be asleep by the time a line has to go. Sending is best effort:

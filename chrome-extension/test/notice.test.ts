@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';
 import {
-  LINE_FADES_MS, LINE_STAYS_MS, MAX_LINES, NOTICE_TAG, applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice,
+  DRAWN_WITHIN_MS, FRAMES_UNTIL_DRAWN, LINE_FADES_MS, LINE_STAYS_MS, MAX_LINES, NOTICE_TAG, applyUpdate, mountNotice, noticeUpdateOf, noticeView,
+  paintNotice, whenDrawn,
   type Notice, type NoticeUpdate,
 } from '../src/notice.ts';
 
@@ -229,4 +230,55 @@ test('the goblin is a picture in the box: its parts can move, and it says nothin
   // Pause says whose it is: a page may have a Pause of its own.
   assert.deepEqual([mount.pause.textContent, mount.pause.title, mount.pause.getAttribute('aria-label')],
     ['Pause', 'Pause the agent in this tab', 'Pause the agent in this tab']);
+});
+
+test('what was taken out of the page counts as out of the picture only when the page has drawn again', async () => {
+  /** A window whose frames and timers come when the test says so. */
+  const fake = (visibility = 'visible') => {
+    const frames: (() => void)[] = [];
+    const timers = new Map<number, { run: () => void; ms: number }>();
+    let ids = 0;
+    return {
+      frames, timers,
+      window: {
+        requestAnimationFrame: (callback: (time: number) => void) => { frames.push(() => callback(0)); return frames.length; },
+        setTimeout: (handler: () => void, ms: number) => { timers.set(++ids, { run: handler, ms }); return ids; },
+        clearTimeout: (id: never) => { timers.delete(id as number); },
+        document: { visibilityState: visibility },
+      },
+      /** The browser begins a frame: every callback asked for until now runs. */
+      frame() { frames.splice(0).forEach((run) => run()); },
+    };
+  };
+  const settled = async (promise: Promise<string>): Promise<string> => Promise.race([promise, new Promise<string>((r) => setTimeout(() => r('waiting'), 5))]);
+
+  // A page that draws: not at the first frame, which is not drawn yet when its callback runs, and
+  // not at the one after it. At the last of them the first has reached the screen.
+  const drawing = fake();
+  const drawn = whenDrawn(drawing.window);
+  for (let i = 1; i < FRAMES_UNTIL_DRAWN; i++) {
+    drawing.frame();
+    assert.equal(await settled(drawn), 'waiting', `after frame ${i} the answer is still held`);
+  }
+  drawing.frame();
+  assert.equal(await drawn, 'drawn');
+  assert.equal(drawing.timers.size, 0, 'the limit is taken back');
+  assert.ok(FRAMES_UNTIL_DRAWN >= 2, 'one frame is never enough: its callback runs before it is drawn');
+
+  // A page that is busy draws late, and is waited for; one that does not draw at all is given up
+  // on, so that a command is not held by it for good.
+  const stuck = fake();
+  const late = whenDrawn(stuck.window);
+  assert.equal(await settled(late), 'waiting');
+  const [limit] = [...stuck.timers.values()];
+  assert.equal(limit.ms, DRAWN_WITHIN_MS);
+  limit.run();
+  assert.equal(await late, 'late');
+
+  // A page that is not shown draws nothing: there is nothing to wait for, and nothing is asked of it.
+  for (const visibility of ['hidden', 'prerender']) {
+    const away = fake(visibility);
+    assert.equal(await whenDrawn(away.window), 'hidden');
+    assert.equal(away.frames.length + away.timers.size, 0);
+  }
 });

@@ -164,12 +164,15 @@ final class Panel {
     static final int ROWS_IN_VIEW_OF_SEVERAL = 4;
     /** How high a line of words in the list is: what stands in the place of an agent's tabs while it has none. */
     private static final double WORDS_ROW = 18;
+    /** How wide the two numbers of a heap of the time are: its share, and what a call typically takes in it. */
+    private static final double SHARE_WIDE = 36;
+    private static final double TYPICAL_WIDE = 58;
     /** How long a button that ends the server stays armed after its first click. */
     static final Duration ARMED_FOR = Duration.seconds(4);
 
     static final double WIDTH = 400;
     /** As high as the window is where the screen has room for it; on a lower screen it is as high as fits. */
-    static final double HEIGHT = 800;
+    static final double HEIGHT = 824;
     /** Room around the window's body for its shadow, where the window floats. */
     private static final double SHADOW = 22;
     /** The ground of the panel, as the stylesheet has it: what a window in the system's frame is filled with. */
@@ -389,6 +392,8 @@ final class Panel {
         private final VBox sessionRows = new VBox();
         private final Label callsCount = label("", "aside");
         private final Label logCount = label("", "aside");
+        /** Shown while the log is held: how many lines have come since, and the way to the newest of them. */
+        private final Button follow = new Button();
         private final ScrollPane sessionList = new ScrollPane(sessionRows);
         /** One row that can be chosen: a tab, or an agent where there are several, with its id and its button. */
         private record Choice(String id, ToggleButton button) {
@@ -463,6 +468,17 @@ final class Panel {
             sessionList.setFocusTraversable(false);
             var sessions = card("Sessions", sessionCount, sessionList);
             var time = card("Metrics", callsCount, timeRows);
+            // While the user reads in the log it holds still, and says so here, with the way back.
+            follow.getStyleClass().add("follow");
+            follow.setVisible(false);
+            follow.setManaged(false);
+            follow.setTooltip(new Tooltip("The log holds still while you read in it: scrolled up, or with some of it marked.\n"
+                    + "Press to go to its newest line. It follows again from there."));
+            follow.setOnAction(press -> toNewest());
+            logCount.setGraphic(follow);
+            // The words first, then the button: "held while you read", and the way out of it.
+            logCount.setContentDisplay(javafx.scene.control.ContentDisplay.RIGHT);
+            logCount.setGraphicTextGap(8);
             var logCard = card("Log", logCount, log);
             // Escape gives up the tab that is chosen, wherever in the window the keyboard is.
             root.addEventHandler(javafx.scene.input.KeyEvent.KEY_PRESSED, key -> {
@@ -688,32 +704,42 @@ final class Panel {
             if (!times.equals(shownTimes) || !noTimes.equals(shownNoTimes)) {
                 shownTimes = times;
                 shownNoTimes = noTimes;
-                timeRows.getChildren().setAll(times.isEmpty()
-                        ? List.of(label(noTimes, "empty"))
-                        : times.stream().map(View::timeRow).toList());
+                List<Node> rows = new ArrayList<>();
+                if (times.isEmpty()) {
+                    rows.add(label(noTimes, "empty"));
+                } else {
+                    rows.add(timeHead(times));
+                    times.forEach(share -> rows.add(timeRow(share)));
+                }
+                timeRows.getChildren().setAll(rows);
             }
-            logCount.setText(shown.logCount(chosen, LOG_LINES));
             var lines = shown.log(chosen);
             String text = lines.isEmpty() ? shown.noLog(chosen) : String.join("\n", lines);
-            if (now && !text.equals(log.getText())) {
-                log.deselect();
+            boolean changed = !text.equals(log.getText());
+            // It holds still while the user reads in it: nothing is written under a mark or under a
+            // place they have scrolled up to. What the user has just chosen is shown at once.
+            boolean held = changed && !now && readingLog();
+            if (changed && !held) {
+                if (now) {
+                    log.deselect();
+                }
                 log.setText(text);
                 logToEnd();
-            } else {
-                writeLog(text);
             }
+            // Held, the corner says so: beside metrics that count on, a log that stands still looks
+            // broken. With how many lines have come since, and a button that goes to the newest.
+            int newer = held ? PanelModel.newer(lines, log.getText()) : 0;
+            follow.setText(newer == 1 ? "1 newer line  ↓" : newer + " newer lines  ↓");
+            follow.setAccessibleText(newer + " newer lines. Go to the newest line of the log.");
+            follow.setVisible(held);
+            follow.setManaged(held);
+            logCount.setText(held ? "held while you read" : shown.logCount(chosen, LOG_LINES));
         }
 
-        /**
-         * The log's lines as they are now, with the newest in view. It holds still while the user
-         * reads in it: nothing is written under a mark or under a place they have scrolled up to.
-         */
-        private void writeLog(String text) {
-            if (text.equals(log.getText()) || readingLog()) {
-                return;
-            }
-            log.setText(text);
-            logToEnd();
+        /** Gives up the place in the log the user was reading at: its newest line shows, and it follows again. */
+        void toNewest() {
+            log.deselect();
+            showChosen(true);
         }
 
         /** Whether the user is reading in the log: has marked some of it, or has scrolled up from its last line. */
@@ -746,7 +772,24 @@ final class Panel {
             });
         }
 
-        /** One heap of the time: its name, a bar as long as its share, and the share in numbers. */
+        /** What the two numbers of a heap are, over their columns. Without typical times there is the share alone. */
+        private static Node timeHead(List<PanelModel.Share> shares) {
+            var share = label("share", "time-head");
+            share.setMinWidth(SHARE_WIDE);
+            var row = new HBox(grow(), share);
+            if (shares.stream().anyMatch(each -> !each.typical().isEmpty())) {
+                var typical = label("per call", "time-head");
+                typical.setMinWidth(TYPICAL_WIDE);
+                row.getChildren().add(typical);
+            }
+            row.getStyleClass().addAll("row", "time-head-row");
+            return row;
+        }
+
+        /**
+         * One heap of the time: its name, a bar as long as its share, the share in numbers, and how
+         * long a call typically takes in it. What the heap is, and its longest, rest under the pointer.
+         */
         private static Node timeRow(PanelModel.Share share) {
             var name = label(share.name(), "time-name");
             name.setMinWidth(132);
@@ -759,9 +802,18 @@ final class Panel {
             fill.prefWidthProperty().bind(track.widthProperty().multiply(share.percent() / 100.0));
             fill.setMinWidth(share.percent() > 0 ? 3 : 0);
             var percent = label(share.percent() + "%", "time-share");
-            percent.setMinWidth(36);
+            percent.setMinWidth(SHARE_WIDE);
             var row = new HBox(name, track, percent);
+            if (!share.typical().isEmpty()) {
+                var typical = label(share.typical(), "time-share", "time-typical");
+                typical.setMinWidth(TYPICAL_WIDE);
+                row.getChildren().add(typical);
+            }
             row.getStyleClass().add("row");
+            if (!share.about().isEmpty()) {
+                Tooltip.install(row, new Tooltip(share.about()));
+                row.setAccessibleText(share.name() + ": " + share.percent() + " percent. " + share.about().replace('\n', ' '));
+            }
             return row;
         }
 
@@ -908,6 +960,16 @@ final class Panel {
             return edit;
         }
 
+        /** The button that goes to the log's newest line, shown while the log is held. */
+        Button follow() {
+            return follow;
+        }
+
+        /** What the corner of the log's card says. */
+        String logCorner() {
+            return logCount.getText();
+        }
+
         /** What rests under the mouse on the blocked sites. */
         String blockedExplained() {
             return blockedTip.getText();
@@ -960,12 +1022,27 @@ final class Panel {
          * its shadow, or as it fills a window that has the system's frame.
          */
         Image picture(double scale, boolean floating) {
+            return picture(scale, floating, null);
+        }
+
+        /**
+         * The same, with the log held if {@code later} is given: scrolled up to its first line, as by
+         * someone who reads in it, and then brought up to what the server holds a moment later.
+         */
+        Image picture(double scale, boolean floating, PanelModel later) {
             var scene = new Scene(frame(floating), floating ? Color.TRANSPARENT : GROUND);
             scene.getStylesheets().add(STYLESHEET);
             scene.getRoot().applyCss();
             scene.getRoot().layout();
-            // As a window does it a moment after it has laid the lines out: down to the last of them.
-            logToEnd();
+            if (later == null) {
+                // As a window does it a moment after it has laid the lines out: down to the last of them.
+                logToEnd();
+            } else {
+                log.setScrollTop(0);
+                scene.getRoot().layout();
+                show(later);
+                scene.getRoot().applyCss();
+            }
             scene.getRoot().layout();
             var shot = new SnapshotParameters();
             shot.setFill(Color.TRANSPARENT);

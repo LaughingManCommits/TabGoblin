@@ -986,6 +986,28 @@ try {
     const dark = [await darkCorner(page, withNotice), await darkCorner(page, shot.image.data), await darkCorner(page, without)];
     assert(dark[0] - dark[2] > 0.05, `the measure should see the notice: ${dark[0]} with it, ${dark[2]} without`);
     assert(Math.abs(dark[1] - dark[2]) < 0.02, `the agent's picture should be the page without the notice: ${dark[1]} against ${dark[2]}`);
+    // The same while the page is busy, as one is that has just loaded. Such a page draws late: taken
+    // out of the page, the notice is still in what the browser drew last, and a picture taken at once
+    // has it. Seen in the owner's Chrome on a page ten seconds old; with the page kept busy as here,
+    // one picture in three had the notice before the page was made to answer only when it has drawn.
+    for (let i = 0; i < 6; i++) {
+      ok(await one.tool('browser_snapshot'));
+      await until(async () => (await noticeOf(page)) !== null, 'the notice, before a picture of a busy page');
+      await page.evaluate(() => {
+        const end = performance.now() + 1500;
+        const burn = () => {
+          const stop = performance.now() + 45;
+          while (performance.now() < stop) { /* working */ }
+          if (performance.now() < end) setTimeout(burn, 5);
+        };
+        burn();
+      });
+      await sleep(100);
+      const busy = await one.tool('browser_screenshot');
+      assert(busy.image, `no image of the busy page: ${busy.text}`);
+      const share = await darkCorner(page, busy.image.data);
+      assert(Math.abs(share - dark[2]) < 0.02, `picture ${i + 1} of a busy page should be without the notice: ${share} against ${dark[2]}`);
+    }
   });
   await step('pause blocks every command of that session until resumed', async () => {
     await togglePause(sA, 'Resume');

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nine packages are open. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Ten packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -14,7 +14,9 @@ WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and merged. WP-20, filed on
 the same day, is a list of blocked sites in the server; the owner decided its points, and it is
-built and merged. New work gets the next number, WP-21.
+built and merged. WP-21, filed on the same day, is what the first test on the public repository
+showed: three faults, mended and committed on the branch `smoke-fixes`. New work gets the next
+number, WP-22.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1097,3 +1099,63 @@ demo sites: one of them blocked in a settings file, the agent's calls there refu
 on that tab without Authorize, the other site working. Then `docs/security.md` (what an agent
 can reach, what is verified, what remains your risk), the user guide, the cheat sheet, the
 help text, and the protocol reference.
+
+## WP-21: What the first test on the public repository showed
+
+On 2026-11-22 the owner made the repository public and asked for "basic smoke test using mcp
+tabgoblin … for access explore only", in their own Chrome, on the repository's pages. Then they
+showed a picture of the server's window and asked whether its metrics look good, and said: "do
+the fixes please". The test went through: every tool of Explore worked, and what Explore must
+refuse was refused. It showed three faults, none of which a suite had found.
+
+### What was found
+
+- **TabGoblin's own notice was in a screenshot the agent took.** In the owner's Chrome, in two
+  of the two pictures taken about ten seconds after a page had loaded, and in none of three
+  taken later. The security page said that a screenshot has nothing of the notice, and the
+  suite checks it. Cause, shown on the build as it was: the page took the notice out and
+  answered at once, and the picture was taken at once; but a browser draws a changed page a
+  moment later, and later still while the page is busy, and a capture takes what was drawn
+  last. With a page kept busy, as one is that has just loaded, 4 of 12 pictures had the notice
+  in the suite's Chrome; on a quiet page none of 12, which is why the suite passed.
+- **The window's metrics said little.** "Agent and its model 98%": every pause between two
+  calls counted in full as the agent's time, also one of 346 seconds in which the agent was at
+  something else. A model takes seconds where the browser takes milliseconds, so that bar is
+  near 98% in any session, and a share does not say whether 2% is 20 milliseconds or 20
+  seconds.
+- **The window's log stood still and did not say so.** It had nine lines and ended before the
+  test, with fifty calls counted beside it in Metrics. It holds while someone reads in it, as
+  the user guide says; it had been scrolled up. Tried in a real window: untouched, it follows,
+  also while the window is put away. So the fault was the silence, not the holding.
+
+### What was built
+
+On the branch `smoke-fixes`, and committed there on the owner's word. What was run is in the
+validation log.
+
+- **The page answers that the notice is gone when it is out of the picture.** After it has begun
+  three frames (`whenDrawn` in `notice.ts`); a page that is not shown answers at once, and one
+  that has not drawn after a second and a half answers then. With that, none of 20 pictures of
+  a busy page had the notice. The suite takes six pictures of a busy page now.
+- **Each heap of the metrics has two numbers:** its share, and what a call typically takes in
+  it, under *share* and *per call*. What the heap is, and its longest, is under the pointer.
+  A pause of more than a minute counts as one minute, in the window and in the status tool's
+  report, which says so in a line of its own when there was one. The window is 24 pixels
+  higher for the line over the numbers.
+- **A log that is held says so in its card's corner:** *held while you read*, and a button with
+  the number of lines that have come since, which goes to the newest line.
+
+### What is open
+
+- **A screenshot of a tab whose window is covered or minimized** was not tried. The page draws
+  nothing then and answers at once, so the picture is what the browser has; whether the notice
+  can be in it is not known.
+- **"Waiting for you" can read 7% beside 0 ms:** one call in four waited for the user, and a
+  typical call does not. The longest is under the pointer. It is right and may puzzle.
+- **CI has not run since run #14.** Runs #15 to #20 failed in three seconds each, with
+  GitHub's message that the jobs were not started because of the account's billing. Whether the
+  repository being public cures that is not known; nothing was re-run.
+- **The repository's settings on GitHub,** read on 2026-11-22 through TabGoblin: public, no
+  collaborators, no ruleset and no branch protection on `main`, workflows read-only, fork pull
+  requests approved for first-time contributors only, secret scanning with push protection on,
+  Dependabot and private vulnerability reporting off. Changing them is the owner's.
