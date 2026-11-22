@@ -4,16 +4,17 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `5274b04`: the owner's merge of `disconnect-revokes` on 2026-11-22,
-  which is WP-10. Earlier branches are merged.
-- Branch `notice-box`, made from it on 2026-11-22: one commit, made on the owner's word, with
-  WP-11. Not pushed and not merged.
+- `main` = `origin/main` = `2c26e0b`: the owner's merge of `notice-box` on 2026-11-22, which is
+  WP-11. Earlier branches are merged.
+- Branch `ci-tab-address`, made from it on 2026-11-22: one commit, made on the owner's word,
+  with a fix to three steps of the end-to-end suite, for the one step that failed in CI run
+  #12. Not pushed and not merged.
 
 ## Active work
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| WP-11, the notice in the page: a bar, and pills of what ended | Built and committed on `notice-box`; not merged | [TODO.md](../../TODO.md) for how it differs from its filing; how it works in [architecture.md](../architecture.md#the-notice-in-the-page) |
+| The suite asks where a tab is before its driver knows | Fixed and committed on `ci-tab-address`; not merged, and not yet run on GitHub. It failed one step in CI run #12 | [validation log](validation-log.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
 | WP-12, WP-13, WP-15 | Filed on 2026-11-21, none started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
@@ -27,11 +28,11 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   is under bar and pills is not seen. As two panes it covers less than as one box, about a
   third less with three pills. Not solved: it cannot be moved or put aside, short of switching
   it off under Settings.
-- **The new step end to end has run on this machine only.** It has two places where another
-  machine could differ: it must catch the notice while it fades, a window of one second, and it
-  compares pictures by the share of dark pixels in the corner, with limits (0.05 and 0.02)
-  whose measured values were not written down. Whether it passes on GitHub's runner is not
-  known until a merge runs it.
+- **The new step for the notice has passed once on GitHub's runner**, in run #13. It has two
+  places where a slow machine could differ: it must catch the notice while it fades, a window
+  of one second, and it compares pictures by the share of dark pixels in the corner, with
+  limits (0.05 and 0.02) whose measured values were not written down. One pass does not show
+  that it always will.
 - **One thing has three names.** The popup's setting reads "Indicator in the page", the
   documentation says notice, and the code says indicator (`bcmcp-indicator`, `indicator.png`,
   the `indicator` setting). The setting's line in the popup, "Shows the agent at work. Has a
@@ -57,13 +58,17 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   server runs from that jar, so the suites that need a jar were run in a copy of the tree, with
   a jar built there. Build it (`mvn -B -f java-server/pom.xml package`) before the suites are
   run in the tree, and restart an agent to get the new server.
-- **Whether CI passed for `3071781` and for `5274b04` has not been looked at.** The first was
-  the first push to run the fifth job, "Nothing personal". Its two commands passed on Windows on
-  2026-11-22; they had not run on Linux, where the job runs (Docker was not running, and the
-  Ubuntu in WSL has no Node). The last run a session saw is #9 (`9ea4734`), which passed in the
-  four jobs it had; the two before that had failed, and causes and fix are in the
-  [validation log](validation-log.md). One passing run does not show that a fault of timing is
-  gone for good.
+- **CI passes on `main`:** run #13 (`2c26e0b`, the merge of `notice-box`) passed in all five
+  jobs, read on GitHub on 2026-11-22. Of the day's other runs, #11 (`3071781`) passed, and with
+  it the fifth job, "Nothing personal", on Linux for the first time; #12 (`5274b04`, the merge
+  of `disconnect-revokes`) failed in one step end to end, 92 of 93. That step is not one WP-10
+  touched: see the next point. One passing run does not show that a fault of timing is gone
+  for good.
+- **Why run #12 failed is concluded, not shown.** The step asked the suite's driver where the
+  tab was right after the agent's tools had said that it had left its site, and the driver
+  still named the page before. The two tool results in front of it passed, so the extension
+  had seen the move. It never failed on this machine, and it passed in run #13 without the
+  fix. The fix on `ci-tab-address` waits for the address in the three places that ask this way.
 - **Every commit still carries the owner's mail address**, a new one too: it comes from the
   owner's git settings. See WP-14, "What remains".
 - **Which of two causes failed the end-to-end job in run #8 is not known.** Both give the
@@ -85,11 +90,10 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 
 ## Handoff
 
-- **Last verification:** 2026-11-22, on `notice-box`: the extension's check in the tree (151
-  tests), the suite end to end in a copy of the tree (94 passed), the notice pictured in every
-  state and looked at, and the documentation's picture of it made anew and opened. Not run: the
-  server's suites and the editor lab; nothing they cover changed. Details in the
-  [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `notice-box`, which runs the new step on
-  GitHub for the first time. To try it: reload the extension in `chrome://extensions`. Then WP-14's remainder (the address, the history), and the decisions
+- **Last verification:** 2026-11-22. On GitHub: run #13, all five jobs, for `main` as it is. On
+  `ci-tab-address`: the suite end to end in a copy of the tree, 94 passed, with the fix to its
+  three steps. Nothing else was run for the fix, which changes the suite and no product code.
+  Details in the [validation log](validation-log.md).
+- **Next action:** the owner's push and merge of `ci-tab-address`; that run is the first to
+  have the fix on GitHub. Then WP-14's remainder (the address, the history), and the decisions
   on WP-12, WP-13 and WP-15 to WP-17.
