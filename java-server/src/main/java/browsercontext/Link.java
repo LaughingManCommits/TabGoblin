@@ -179,23 +179,6 @@ final class Link {
     }
 
     /**
-     * Whether the one server answers on its port: something there greets as the server does.
-     * Nothing is proven by it and nothing is asked of the server, which takes the connection for
-     * one that went away at once.
-     */
-    static boolean answers(int port) {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), port), 1000);
-            socket.setSoTimeout(2000);
-            String line = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8)).readLine();
-            JsonNode hello = line == null ? null : new ObjectMapper().readTree(line);
-            return hello != null && hello.path("type").asString("").equals("hello") && hello.path("nonce").asString("").length() >= 16;
-        } catch (IOException | RuntimeException e) {
-            return false;
-        }
-    }
-
-    /**
      * Asks the server that is running to show its window, without becoming an agent of it. Says
      * false if no server is running.
      */

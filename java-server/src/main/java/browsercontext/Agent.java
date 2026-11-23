@@ -51,12 +51,12 @@ final class Agent {
      * @param held       the user has the connection to the browser switched off in the server's window
      */
     static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held) {
-        return serve(settings, in, out, onInputEnd, held, () -> BrowserService.Unpaired.COMMAND);
+        return serve(settings, in, out, onInputEnd, held, () -> BrowserService.Unpaired.NOTHING_KNOWN);
     }
 
     /**
-     * @param unpaired asked when a tool finds no browser on this agent's connection: where the user
-     *                 finds the token to pair with. Whoever answers may bring the server's window up.
+     * @param unpaired asked when a tool finds no browser on this agent's connection: what is known of
+     *                 the browser. Whoever answers may bring the server's window up.
      */
     static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
             Supplier<BrowserService.Unpaired> unpaired) {

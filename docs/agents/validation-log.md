@@ -3,76 +3,70 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
-## 2026-11-23, on `new-token-each-start`: WP-17, a new pairing token at every start of a server
+## 2026-11-23, on `new-token-each-start`: WP-17, built, and cut back to what helps with a pairing
 
-The owner chose WP-17 as the next package, and decided its three points: the new token is
-pasted, the server's window comes up by itself when an agent needs the browser and none is
-paired, and the tabs come back once the browser is paired again. Committed on the owner's
-word; not pushed.
+Three things happened on this day, and the entry says what stands at its end.
 
-Earlier that day: WP-23, the documentation's pictures as SVG, was built and committed on a
-branch, and the owner pushed it and looked from the network it was for. The proxy there holds
-back SVG as well, by the owner's report; the owner deleted the branch. Nothing of it is in
-`main`. What the block page names was not read.
+1. WP-23, the documentation's pictures as SVG, was built and committed on a branch. The owner
+   pushed it and looked from the network it was for: the proxy there holds back SVG as well,
+   by the owner's report. The owner deleted the branch. Nothing of it is in `main`. What the
+   block page names was not read.
+2. WP-17 was built as the owner decided it: a new pairing token at every start of a server.
+   Committed on the owner's word. All suites passed on it: the server's 148 tests and the 8 of
+   the conformance check, the extension's 161, 97 steps end to end, the editor lab with 222 of
+   225; and the real window was read by hand.
+3. Asked whether it had been a necessary feature, the session said no: the token has to stay
+   in its file for the agents' processes, so a new one at every start keeps out no program
+   that runs as the user, and it costs a pairing at every start. The owner had it taken out
+   and kept the rest. Committed on the owner's word, as a second commit; not pushed.
 
-All of it in a copy of the tree, with a jar and an extension built there; the session's own
-server runs from the tree's jar, which was not rebuilt.
+What follows is of the third, the tree as it is. All of it in a copy of the tree, with a jar
+and an extension built there; the session's own server runs from the tree's jar, which was not
+rebuilt.
 
 | Command | Result |
 |---|---|
-| `mvn -B -f java-server/pom.xml verify` | 148 tests, and the 8 of the conformance check on the built jar. Thirteen of the 148 are new for this |
+| `mvn -B -f java-server/pom.xml verify` | 146 tests, and the 8 of the conformance check on the built jar. Ten of the 146 are new against `main` |
 | `npm run check` in `chrome-extension` | 161 tests, with the type-check and the build |
-| `cd e2e && node run.mjs` | 97 passed, 0 failed: the 95 there were, two of them changed, and two new ones. No server of the copy left running |
-| `cd e2e/editors && node run.mjs` | 222 of 225 checks, tab in front, no `SILENT`: as before. Its script reads the token after the server's start now |
+| `cd e2e && node run.mjs` | 95 passed, 0 failed: the steps there were, three of them with more in them. No server of the copy left running |
 | `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
 
-What the new steps of the suite show, with the real jar, real Chrome and the real popup:
+What the changed steps of the suite show, with the real jar, real Chrome and the real popup:
 
-- A token written to the file before the server's start is not the server's after it; the
-  file holds what `--show-token` prints, and that says whose it is.
-- Pasted into the popup, the earlier token is not taken. The popup says *Paste the server's
-  current token to connect*; the status tells the agent that the browser holds another token,
-  what the user has to do and where the token is, and names no token.
-- After the last agent has gone and the server has ended, an agent starts a new one: its token
-  is another, the extension that holds the last one is not let in, and with the new token
-  pasted the agent of the same name has its tab again.
+- With no browser, the status says that a paired extension finds the server within half a
+  minute and what to do if it is not paired, names `--show-token`, and says nothing of a token
+  that is held.
+- A wrong token pasted into the popup is not taken. The popup says *Paste the server's current
+  token to connect*, and its dot is amber and not red. The status then says that the browser
+  holds a token that is not the server's and what the user has to do, and names no token.
+- After a rotation the agent is told the same, and not that the browser is paired by way of
+  the other agent, whose pairing on the old token is still open at that moment.
 
 By hand, with the built jar started as an agent's program does, on ports and a token file of
 its own, and the window read through UI Automation, with no part of the screen captured:
 
-- No window before a tool is called. After `browser_status` with no browser paired, the window
-  is there, with *Not paired yet: waiting for the browser*, *Pair the browser with this server*
-  and the button *Copy token*; the status says that the window is open and where the button
-  is. The token is in no word of the window and not in the status.
+- A token written to the file before the start is the server's after it: it is kept.
+- With no browser, `browser_status` brings no window up.
+- A program that connects as an extension and answers the challenge with a proof that is none
+  is closed with 4401. The next `browser_status` says that the browser holds another token and
+  that the window is open; the window is there, with *Not paired: the browser has another
+  token*, *Pair the browser with this server* and the button *Copy token*. The token is in no
+  word of the window and not in the status.
 - With `--no-panel` no window comes, and the status names `--show-token`.
 - When the agent's process ended, the server and its window were gone.
-- `--show-token` with no token and no server prints no token, says that a server makes one
-  when it starts, and writes no file.
-- With another program on the port where the one server listens for agents' processes, the
-  process served its agent alone, after the five seconds it waits for an answer there. It had
-  made a new token, and its log said so without the token.
 
 The buttons that copy the token were not pressed: they write to the clipboard of the machine.
 
-What the first run of the suite showed, and was mended: after the token had been rotated, an
-agent was told that the browser was paired with the server and would find it shortly. Another
-agent's pairing on the old token was still open, until its next heartbeat. A pairing counts
-only on the token as it is now (`WebSocketBridge.pairedOnCurrentToken`); a test holds it. Four
-more steps failed in that run because that one had stopped before pairing again, and one
-because the suite looked for the session's id at the start of a line, where the status has
-`Session s2`.
+Looked at, each opened: the window's states as its picture tool draws them, seventeen now. The
+pairing box is in the new one, where a browser came with another token, and in no other: not
+where no browser has come, not where the server has no port, not where it is switched off. The
+picture of the first state is byte for byte `docs/images/server-panel.png` as it is on `main`.
+The popup before pairing and after a refused token, captured from the real popup: the text
+fits. `docs/images/popup-pairing.png` is new; the other pictures show nothing that changed.
 
-Looked at, each opened: the window's sixteen states as its picture tool draws them. The
-pairing box is in the one without a browser and in no other; at first it also stood where the
-server has no port, which pairing does not mend, and the token's hint ran out of its row. The
-popup before pairing and after a refused token, captured from the real popup: the text fits,
-and the dot is amber where it was red. `docs/images/popup-pairing.png` and
-`docs/images/server-panel.png` are new; the other pictures show nothing that changed.
-
-Not run: the script with a real agent and the two against live sites, which were changed to
-read the token after the server's start. Not tried: Linux and macOS; a home folder that cannot
-be written; an extension from before this change against this server, with real parts. Not
-counted: how often a user has to pair in a day's work.
+Not run on the tree as it is: the editor lab; its files are as on `main`. Not tried: Linux and
+macOS; the owner's own extension after a real rotation; an extension from before this change
+against this server, with real parts.
 
 ## 2026-11-22, on `agent-skills`: WP-22, a skill for the tools for each of three agents
 

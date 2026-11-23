@@ -172,8 +172,8 @@ function connectionText(s: State): string {
   switch (s.connection) {
     case 'unpaired': return 'Not paired';
     case 'connected': return s.clients.length === 1 ? '1 agent connected' : `${s.clients.length} agents connected`;
-    // A server is there and did not take the token this extension holds: after every start of a
-    // server that is so, and the same after a token that was mistyped.
+    // A server is there and did not take the token this extension holds: it was mistyped, or the
+    // server's was rotated. What to do is said, and not that something failed.
     case 'pairing_failed': return "Paste the server's current token to connect";
     case 'version_mismatch': return 'Server and extension versions differ: update both';
     default: return 'Disconnected: is the MCP server running?';
@@ -453,8 +453,8 @@ function holdAnswers(id: string): void {
 function render(): void {
   if (!state) return;
   const s = state;
-  // Green when connected, red for a fault. A token that a server did not take is neither: it is the
-  // user's step after every start of a server, and amber as what waits for the user is.
+  // Green when connected, red for a fault. A token that a server did not take is neither: it is
+  // the user's step, and amber as what waits for the user is.
   $('dot').className = `dot ${s.connection === 'connected' ? 'connected' : s.connection === 'pairing_failed' ? 'wanted' : s.connection === 'version_mismatch' ? 'failed' : ''}`;
   $('connection').textContent = connectionText(s);
 

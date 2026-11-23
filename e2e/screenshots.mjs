@@ -12,6 +12,7 @@
 // gives the popup its real size (354 x 600), a headless one a different window (374 x 510).
 // popup-full*.png are the exception: the popup's content laid out at full length, without scrolling.
 
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -19,7 +20,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { startDemo } from '../demo-site/server.mjs';
-import { McpClient, pairingToken } from './mcp-client.mjs';
+import { McpClient } from './mcp-client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -34,13 +35,12 @@ if (PROMPTS) mkdirSync(PROMPTS, { recursive: true });
 // Fixed ports so the addresses in the pictures are stable between runs.
 const demo = await startDemo(8931, 8932, 8933);
 const port = await new Promise((done) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => done(p)); }); });
-const args = ['-jar', resolve(HERE, '../java-server/target/browser-context-mcp.jar'), '--port', String(port), '--token-file', join(work, 'token'), '--no-panel'];
+const args = ['-jar', resolve(HERE, '../java-server/target/browser-context-mcp.jar'), '--port', String(port), '--token-file', join(work, 'token')];
+const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...args, '--show-token'], { encoding: 'utf8' }))[1];
 const one = new McpClient('java', args, 'IntelliJ IDEA');
 const two = new McpClient('java', args, 'claude-code');
 await one.initialize();
 await two.initialize();
-// The server makes its token when it starts: it is read now, not before.
-const token = pairingToken(args);
 
 const browser = await puppeteer.launch({
   ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),

@@ -14,24 +14,6 @@ import org.junit.jupiter.api.Test;
 
 class McpMainTest {
 
-    @Test
-    void theTokenIsShownWithWhoseItIsAndNoneIsMadeForTheAsking() {
-        String token = "0123456789abcdef".repeat(4);
-        // A server runs: this is its token.
-        assertEquals("Pairing token: " + token + "\nPort:          47821\n"
-                + "It is the token of the server that is running now. A server makes a new one every time it starts.",
-                McpMain.tokenShown(token, 47821, true));
-        // None answers: the token in the file is from an earlier start, and the next start replaces it.
-        String stale = McpMain.tokenShown(token, 47821, false);
-        assertTrue(stale.startsWith("Pairing token: " + token + "\nPort:          47821\n"), stale);
-        assertTrue(stale.contains("No TabGoblin server answers on port 47829."), stale);
-        assertTrue(stale.contains("this token is of no use"), stale);
-        // No token yet: nothing is printed that could be pasted.
-        String none = McpMain.tokenShown("", 47821, false);
-        assertTrue(none.startsWith("There is no pairing token yet: a server makes one when it starts."), none);
-        assertFalse(none.contains("Pairing token:"), none);
-    }
-
     private static Options parse(Map<String, String> environment, String... args) throws UsageException {
         return Options.parse(args, environment::get);
     }
@@ -119,7 +101,7 @@ class McpMainTest {
         assertEquals("Unknown option: --panel=1",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--panel=1")).getMessage());
 
-        // Whether the window may come up by itself when the browser has to be paired: it may, unless it is said not to.
+        // Whether the window may come up by itself when the browser holds another token: it may, unless it is said not to.
         assertFalse(parse(Map.of()).quiet());
         assertFalse(parse(Map.of(), "--panel").quiet());
         assertFalse(parse(Map.of("BCMCP_PANEL", "1")).quiet());

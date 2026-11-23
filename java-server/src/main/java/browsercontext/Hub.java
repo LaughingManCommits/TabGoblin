@@ -187,10 +187,11 @@ final class Hub {
     }
 
     /**
-     * Asked when a tool of one agent finds no browser on that agent's connection. If the browser
-     * is paired with no agent of this server, the user has to paste the token, which is new since
-     * the server started: the window, where it is copied, comes up by itself, once until
-     * something is paired. Says where the user finds the token.
+     * Asked when a tool of one agent finds no browser on that agent's connection: what the server
+     * knows of it. If a browser came to one of its agents with a token that is not the server's,
+     * the user has to paste the token: the window, where it is copied, comes up by itself, once
+     * until something is paired. Where no browser has come at all, none does: a paired extension
+     * is on its way as a rule.
      *
      * @param quiet the agent's process was started with --no-panel: no window comes up for it
      */
@@ -198,13 +199,14 @@ final class Hub {
         // Paired on the token as it is now: after a new token an agent's old pairing is still open for a moment.
         if (agents().stream().anyMatch(agent -> agent.bridge().pairedOnCurrentToken())) {
             cameUp.set(false);
-            return BrowserService.Unpaired.PAIRED_ELSEWHERE;
+            return new BrowserService.Unpaired(true, false, windowUp.getAsBoolean());
         }
-        if (!quiet && !held && cameUp.compareAndSet(false, true)) {
-            Log.info("window asked for reason=browser_not_paired");
+        boolean refused = agents().stream().anyMatch(agent -> agent.bridge().lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED);
+        if (refused && !quiet && !held && cameUp.compareAndSet(false, true)) {
+            Log.info("window asked for reason=browser_has_another_token");
             window.run();
         }
-        return windowUp.getAsBoolean() ? BrowserService.Unpaired.WINDOW : BrowserService.Unpaired.COMMAND;
+        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean());
     }
 
     /** Shows the server's window, or brings it up if it is there already. */

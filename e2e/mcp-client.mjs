@@ -1,17 +1,6 @@
 // Minimal MCP stdio client (newline-delimited JSON-RPC), enough to act like an IDE agent.
 
-import { execFileSync, spawn } from 'node:child_process';
-
-/**
- * The pairing token of the server that runs, as --show-token prints it. To be asked once the
- * server has started: it makes a new token at every start, and one read before that is of no use.
- */
-export function pairingToken(serverArgs) {
-  const shown = execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' });
-  const token = /Pairing token:\s*(\S+)/.exec(shown)?.[1];
-  if (!token) throw new Error(`--show-token printed no token:\n${shown}`);
-  return token;
-}
+import { spawn } from 'node:child_process';
 
 export class McpClient {
   /** @param name how this client introduces itself to the server (shown as the agent's name) */

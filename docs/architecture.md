@@ -107,17 +107,15 @@ sequenceDiagram
 
 A server that offers no common protocol version is refused (close code 4406). Ten failed pairings
 lock a server's port for a minute. A rotated token is checked at every heartbeat and before every
-command, so stale pairings end at once.
+command, so stale pairings end at once. Until then such a pairing is still open, and it counts
+for nothing (`WebSocketBridge.pairedOnCurrentToken`). The token's file is replaced in one step;
+a process that runs reads it again when it has changed, and at every asking for three seconds
+after a change, because some file systems keep a file's time to two seconds.
 
-A server makes the token when it starts (`McpMain` `renewed`, `Pairing.Tokens`): once it has
-its port, so that of two that were started at the same moment only the one that stays writes
-one, and before it takes a link, so that no process is answered on the last token. The file is
-replaced in one step. A link reads it when it connects; a process that already runs reads it
-again when it has changed, and at every asking for three seconds after a change, because some
-file systems keep a file's time to two seconds. The extension is not told of a new token: it
-comes with the one it holds, is refused (4401), and waits for the user. The server notes that
-(`ExtensionConnection.turnedAway`), and the window and the tools then say that the browser
-has another token, in place of "waiting for the browser".
+An extension that comes with a token that is not the server's is turned away (4401), and the
+server notes it (`ExtensionConnection.turnedAway`). So it can tell a browser that has to be
+paired from one that has not come yet, which as a rule is on its way: the window and the tools
+say which.
 
 A connection can stay open to a server that no longer answers: one that hangs. So the extension
 counts the answers to its heartbeat. A server that leaves two in a row unanswered is taken for
@@ -376,14 +374,14 @@ server: it shows every agent. What the user sees and can do there is in the
   answer which session it was ([protocol](development.md#protocol-reference)). The report the
   agent gets has no session in it, as before.
 - **It comes up by itself for a pairing.** When a tool of an agent finds no browser on that
-  agent's connection, the agent's service asks the server where the token is
-  (`Hub.unpaired`). If the browser is paired with no agent of the server, the server shows its
-  window, once until something is paired, and the tool's answer says that the token is copied
-  there; where no window can be shown it names the command. While it is so, the window has
-  the step at its top, with a button that copies the token (`PanelModel.pairingWanted`). Not for an agent whose link said
-  `quiet` (`--no-panel`), and not while the switch below is off. If the browser is paired by
-  way of another agent, nothing has to be pasted: the answer says that the browser finds this
-  agent shortly. A window that came up this way does not make the server stay.
+  agent's connection, the agent's service asks the server what it knows (`Hub.unpaired`). If
+  the browser is paired with no agent of the server and came to one with a token that is not
+  the server's, the server shows its window, once until something is paired, and the tool's
+  answer says that the token is copied there. While it is so, the window has the step at its
+  top, with a button that copies the token (`PanelModel.pairingWanted`). Not for an agent whose
+  link said `quiet` (`--no-panel`), and not while the switch below is off. Where no browser
+  has come, no window comes up: an extension that is paired finds the server by itself. A
+  window that came up this way does not make the server stay.
 - **Stop and Kill.** Stop runs the steps under "How a server ends". Kill halts the process with
   exit code 1 and runs none of them: the extension finds the connection gone instead of being
   told.

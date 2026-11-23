@@ -8,9 +8,11 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   2026-11-23. It brought the three faults of the first test on the public repository, mended
   (WP-21), and the skills with the command that installs one (WP-22). The repository is public
   since 2026-11-22.
-- Branch `new-token-each-start`, made from `main` on 2026-11-23: WP-17, a new pairing token at
-  every start of a server. One commit, made on the owner's word. Not pushed and not merged:
-  the owner tries it from the branch first.
+- Branch `new-token-each-start`, made from `main` on 2026-11-23: WP-17. Its first commit,
+  made on the owner's word, has a new pairing token at every start of a server. The owner then
+  had that taken out again and kept what helps when the browser has to be paired: a second
+  commit, made on the owner's word. Not pushed and not merged. The branch's name says what it
+  no longer does.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -27,22 +29,15 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 | WP-22, skills for agents that use TabGoblin | Merged. Built on 2026-11-22 on the owner's word. Three skills, as the owner chose, the same from their second section on; where each agent wants its skill is in `skills/README.md`. None has been loaded in its agent yet | [TODO.md](../../TODO.md) |
 | WP-21, what the first test on the public repository showed | Merged. Built on 2026-11-22 on the owner's word ("do the fixes please"). The notice is out of the picture before a screenshot is taken, also on a busy page; the window's metrics have a typical time per call beside each share, and a long pause counts as a minute; a log that is held says so and has a button to its newest line. What is open is in its entry | [TODO.md](../../TODO.md) |
 | WP-20, blocked sites | Merged on 2026-11-22. Built on the owner's word. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) |
-| WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 on the owner's decisions, and committed on `new-token-each-start`; not merged, the owner tries it first. A server makes a new pairing token when it starts and refuses a browser that holds an earlier one; the user pastes the new token, from the server's window, which comes up by itself when an agent needs the browser and none is paired; paired again, an agent has its tabs. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
+| WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both committed on `new-token-each-start`, not merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
-- **A new token at every start has run on Windows only,** with Java 21: in the suites, and by
-  hand with the real jar and the real window. Not tried: Linux and macOS, where the file is
-  replaced and the window comes up by other means; and a home folder that cannot be written,
-  where a server is built not to start.
-- **How often a user has to pair was not counted.** A server ends with its last agent, so with
-  one agent at a time it is a pairing for every session of the agent. A server started by hand
-  with `--panel` stays until it is stopped. Whether that is bearable in a day's work is the
-  owner's to find out; one click with a code in place of the pasting was put to the owner and
-  not chosen.
-- **The script with a real agent and the two against live sites were changed and not run:**
-  they read the token after the server's start now, and the first keeps one server for its
-  run. They need a model, or the internet.
+- **The window that comes up by itself has run on Windows only,** with Java 21, and with a
+  made-up browser: a program that answers the server's challenge with a proof that is none.
+  Not tried: Linux and macOS, and the owner's own extension after a real rotation.
+- **A server that starts is connected on the pairing made before,** as it always was. WP-17
+  as it was filed would have changed that; the owner dropped it for what it cost.
 - **A proxy at the owner's work holds back the documentation's pictures on GitHub,** PNG and
   SVG alike (WP-23, dropped). What the block page names when a picture's address is opened was
   not read, so the cause is not known.
@@ -102,8 +97,8 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   the one that connects next takes up the tabs of the one that has gone, where before it took
   them with its first use of them; and every server started by hand has one name, *Started by
   hand*, so one such server takes up the tabs of the one before it. Each tab that is taken up
-  adds a line to the popup's activity list. Since WP-17 a server that starts has a new token:
-  its agents take up their tabs only once the user has paired the browser with it.
+  adds a line to the popup's activity list. WP-17 would have put a pairing in front of that
+  at every start of a server; it was taken out again, and this is as it was.
 - **The copy button of the panel was pressed on Windows only.** There the clipboard held the
   token, the window and the log had nothing of it, and it was gone from the clipboard a minute
   later. The clipboard on Linux and macOS was not tried. A history of the clipboard that the
@@ -175,8 +170,7 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   high-contrast colours.
 - **Disconnect holds for one run of an agent's server.** The agent is refused by an id that its
   server makes when it starts; started again, it is connected again, without a tab.
-  [security.md](../security.md#agents) says so. WP-17 changed it only where the whole server
-  started again: then nothing is connected until the user has pasted the new token.
+  [security.md](../security.md#agents) says so.
 - **The tree's `chrome-extension/dist` was built on 2026-11-22 at 15:47,** by the owner, and
   has everything of `by-hand-panel`. One thing came after: an answer names the session its
   command ran in, without which a call that names no session is in no tab's metrics.
@@ -237,19 +231,13 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   through the accessibility interface. Before that, the same day, the owner's own Chrome and
   agent with the merged build: every tool of Explore on the public repository.
   Details in the [validation log](validation-log.md).
-- **Next action:** the owner's try of `new-token-each-start`, built from the branch, for a
-  day's work, and then the word on whether it is merged. Asked on 2026-11-23 whether the
-  package was necessary, the session answered no: it closes no hole, and buys that nothing
-  reconnects without the user at the price of a pairing at every start of a server. If the
-  pasting is too much, the renewal can become a setting in `tabgoblin.properties`, off for one
-  token as before, with the rest kept; that was put to the owner and not asked for yet. Both
-  parts have to be rebuilt for the try, which the owner's own Chrome and window need for WP-21
-  and WP-22 as well. And a first try of a
+- **Next action:** the owner's push and merge of `new-token-each-start`, and the rebuild of
+  both parts, which the owner's own Chrome and
+  window need for WP-21 and WP-22 as well: the server, after the one that runs from the jar is
+  stopped (`mvn -f java-server/pom.xml package`), and the extension
+  (`npm --prefix chrome-extension run build`, then a reload in Chrome). And a first try of a
   skill in its agent: the Claude Code one is the nearest, with `--install-skill claude-code`
-  and a new session.
-  Both parts have to be built by the owner before it shows in the tree: the server, after the
-  one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
-  extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first
+  and a new session. The first
   CI run with credit is the first to run the panel's code on GitHub. Then the second part of
   WP-18, WP-13's open points, WP-14's remainder (the address, the history), and the decisions
   on WP-12, WP-15 and WP-16. WP-15, an easy install, has its pairing step decided now.

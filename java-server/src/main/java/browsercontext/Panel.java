@@ -409,7 +409,7 @@ final class Panel {
         private final TextArea log = lines();
         private final ToggleButton browser = new ToggleButton();
         private final Button copy = new Button("Copy");
-        /** The same at the window's top, while no browser is paired: the step the window came up for. */
+        /** The same at the window's top, while the browser holds another token: the step the window came up for. */
         private final Button pairCopy = new Button("Copy token");
         private final HBox pair = new HBox();
         private final Region knob = new Region();
@@ -527,11 +527,11 @@ final class Panel {
             copy.setMinWidth(76);
             copies(copy, "Copy", commands);
             var pairing = new HBox(
-                    new VBox(label("Pairing token", "strong"), label("New at every start. Paste it into the popup.", "hint")), grow(), copy);
+                    new VBox(label("Pairing token", "strong"), label("Paste it into the extension's popup.", "hint")), grow(), copy);
             pairing.getStyleClass().add("row");
 
-            // While no browser is paired, that is the one thing to do, and what the window came up for:
-            // said at the top, with the button beside it.
+            // While the browser holds a token that is not the server's, pairing is the one thing to do,
+            // and what the window came up for: said at the top, with the button beside it.
             copies(pairCopy, "Copy token", commands);
             pairCopy.getStyleClass().add("primary");
             pairCopy.setMinWidth(Region.USE_PREF_SIZE);
@@ -965,7 +965,7 @@ final class Panel {
             return copy;
         }
 
-        /** The button at the top, which is there while no browser is paired. */
+        /** The button at the top, which is there while the browser holds another token. */
         Button pairCopy() {
             return pairCopy;
         }

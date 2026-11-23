@@ -26,28 +26,26 @@ class PairingTest {
     }
 
     @Test
-    void readingMakesNoTokenAndAServerThatStartsMakesANewOne(@TempDir Path dir) throws Exception {
+    void tokenIsCreatedOnceAndThenReused(@TempDir Path dir) throws Exception {
         Path file = dir.resolve("nested").resolve("pairing-token");
-        // Whoever only reads finds nothing, and leaves nothing behind.
-        assertEquals("", Pairing.readToken(file));
-        Pairing.Tokens tokens = Pairing.tokens(file);
-        assertEquals("", tokens.get());
-        assertFalse(Files.exists(file));
-
-        // A server that starts makes one, in the file and in what it holds, at once.
-        String first = tokens.renew();
+        String first = Pairing.loadOrCreateToken(file);
         assertEquals(64, first.length());
         assertTrue(first.matches("[0-9a-f]+"));
-        assertEquals(first, tokens.get());
+        assertEquals(first, Pairing.loadOrCreateToken(file));
         assertEquals(first, Files.readString(file));
-        assertEquals(first, Pairing.readToken(file));
+        assertNotEquals(first, Pairing.loadOrCreateToken(dir.resolve("other-token")));
+    }
 
-        // And the next start makes another: what was paired with the first is paired no longer.
-        String second = Pairing.tokens(file).renew();
+    @Test
+    void aRotationReplacesTheFileAndLeavesNothingBesideIt(@TempDir Path dir) throws Exception {
+        Path file = dir.resolve("pairing-token");
+        String first = Pairing.loadOrCreateToken(file);
+        String second = Pairing.rotateToken(file);
         assertNotEquals(first, second);
         assertEquals(second, Files.readString(file));
-        // Nothing but the token is left in the folder: the file was replaced, not written beside.
-        try (var files = Files.list(file.getParent())) {
+        assertEquals(second, Pairing.loadOrCreateToken(file));
+        // The file was replaced in one step: no other file is left in its folder.
+        try (var files = Files.list(dir)) {
             assertEquals(java.util.List.of("pairing-token"), files.map(found -> found.getFileName().toString()).toList());
         }
     }
@@ -56,11 +54,11 @@ class PairingTest {
     void aProcessThatRunsTakesTheNewTokenAtOnceAlsoWhereTheFilesTimeDoesNotMove(@TempDir Path dir) throws Exception {
         Path file = dir.resolve("pairing-token");
         String first = Pairing.rotateToken(file);
-        Pairing.Tokens running = Pairing.tokens(file);
+        Pairing.Tokens running = Pairing.tokenSource(file, first);
         assertEquals(first, running.get());
 
-        // Another process renews it, as a server that starts does. Some file systems keep a file's
-        // time to two seconds: the time is put back to what it was, as if the change fell inside them.
+        // Another process rotates it. Some file systems keep a file's time to two seconds: the
+        // time is put back to what it was, as if the change fell inside them.
         var before = Files.getLastModifiedTime(file);
         String second = Pairing.rotateToken(file);
         Files.setLastModifiedTime(file, before);
@@ -74,16 +72,9 @@ class PairingTest {
         assertEquals("", Pairing.readToken(file));
         // A process keeps the token it knew when the file is spoiled.
         String good = Pairing.rotateToken(file);
-        Pairing.Tokens running = Pairing.tokens(file);
+        Pairing.Tokens running = Pairing.tokenSource(file, good);
         Files.writeString(file, "");
         assertEquals(good, running.get());
-    }
-
-    @Test
-    void noTokenProvesNothing() {
-        // Signed with no token, a proof matches nothing, not even itself.
-        assertNotEquals(Pairing.clientProof("", SERVER_NONCE, CLIENT_NONCE), Pairing.clientProof("", SERVER_NONCE, CLIENT_NONCE));
-        assertNotEquals(Pairing.linkProof("", SERVER_NONCE, CLIENT_NONCE), Pairing.hubProof("", SERVER_NONCE, CLIENT_NONCE));
     }
 
     @Test

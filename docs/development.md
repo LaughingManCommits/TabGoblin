@@ -287,7 +287,7 @@ a link takes the server's end for a loss and starts it anew
 
 | Close code | Meaning |
 |---|---|
-| 4401 | Pairing failed or timed out, or the token is not the server's any more: the server was started since, or the token was rotated |
+| 4401 | Pairing failed, timed out, or the token was rotated |
 | 4403 | The user disconnected this agent |
 | 4406 | No common protocol version |
 | 4408 | The server left two heartbeats in a row unanswered; the extension takes it for gone and looks for it again |

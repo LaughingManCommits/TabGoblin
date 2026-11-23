@@ -29,12 +29,17 @@ class PanelTest {
     }
 
     private static PanelModel model(boolean connected, boolean off) {
+        return model(connected, off, 0);
+    }
+
+    /** @param closeCode why the browser is not connected, as the connection knows it */
+    private static PanelModel model(boolean connected, boolean off, int closeCode) {
         var sessions = List.of(
                 new Protocol.Session("s1", "c-1a2b3c4d", "a1", "https://mail.example.com", 7, 0, "d1", "write", 2, "active",
                         "Inbox (3) - private mail", "https://mail.example.com/mail/u/0/#inbox"),
                 new Protocol.Session("s2", "c-1a2b3c4d", "a2", "https://docs.example.org", 8, 0, "d2", "read", 1, "paused",
                         "Quarterly figures", "https://docs.example.org/d/quarterly"));
-        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, connected, off, 1_000, 0,
+        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, connected, off, 1_000, closeCode,
                 connected ? sessions : List.of(), TIME,
                 List.of(new Log.Line(2_000, "info", "extension connected client=c-1a2b3c4d protocol=2"),
                         new Log.Line(3_000, "warn", "connection rejected reason=pairing_proof")),
@@ -203,13 +208,16 @@ class PanelTest {
     }
 
     @Test
-    void whileNoBrowserIsPairedTheWindowSaysAtItsTopWhatToDoAndHasTheButtonForIt() throws Exception {
+    void whileTheBrowserHoldsAnotherTokenTheWindowSaysAtItsTopWhatToDoAndHasTheButtonForIt() throws Exception {
         List<String> seen = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
             var steps = new ArrayList<String>();
-            // Not paired: the step, and its button, which asks for the token as the other one does.
+            // No browser has come: one that is paired is on its way as a rule, and nothing is asked of the user.
             view.show(model(false, false));
-            steps.add("unpaired: shown=" + view.pairShown() + " words="
+            steps.add("waiting: shown=" + view.pairShown());
+            // One came with another token: the step, and its button, which asks for the token as the other one does.
+            view.show(model(false, false, Protocol.CLOSE_UNAUTHORIZED));
+            steps.add("another token: shown=" + view.pairShown() + " words="
                     + view.words().containsAll(List.of("Pair the browser with this server",
                             "Copy the token, then paste it into the TabGoblin popup in Chrome.")));
             view.pairCopy().fire();
@@ -217,12 +225,12 @@ class PanelTest {
             // Paired, or switched off here: there is nothing to pair, and the box is gone.
             view.show(model(true, false));
             steps.add("paired: shown=" + view.pairShown());
-            view.show(model(false, true));
+            view.show(model(false, true, Protocol.CLOSE_UNAUTHORIZED));
             steps.add("switched off: shown=" + view.pairShown());
             return steps;
         });
-        assertEquals(List.of("unpaired: shown=true words=true", "Copied -> [CopyToken[]]", "paired: shown=false",
-                "switched off: shown=false"), seen);
+        assertEquals(List.of("waiting: shown=false", "another token: shown=true words=true", "Copied -> [CopyToken[]]",
+                "paired: shown=false", "switched off: shown=false"), seen);
     }
 
     @Test
@@ -237,7 +245,7 @@ class PanelTest {
             // Bringing the view up to date asks for nothing again.
             view.show(model(true, false));
             steps.add(view.copy().getText() + " -> " + sent);
-            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "New at every start. Paste it into the popup."))));
+            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "Paste it into the extension's popup."))));
             return steps;
         });
         assertEquals(List.of("Copy -> []", "Copied -> [CopyToken[]]", "Copied -> [CopyToken[]]", "true"), seen);
@@ -299,7 +307,7 @@ class PanelTest {
             return view.words();
         });
         for (String shown : List.of("Agent c-1a2b3c4d  ·  port 47821",
-                "Not paired yet: waiting for the browser",
+                "Not connected: waiting for the extension",
                 "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
                 "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));

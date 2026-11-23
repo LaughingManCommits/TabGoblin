@@ -286,9 +286,11 @@ record PanelModel(String agent, String identity, int port, String version, Strin
     }
 
     /**
-     * Whether the one thing to do is to pair the browser: an agent is there, the switch is on, and
-     * the browser is paired with none. The window says it at its top then, with the button for it.
-     * Not where the server has a problem of its own, which pairing does not mend.
+     * Whether the one thing to do is to pair the browser: the switch is on, the browser is paired
+     * with no agent, and it came to one with a token that is not the server's. The window says it
+     * at its top then, with the button for it. Not while no browser has come: one that is paired
+     * is on its way as a rule. And not where the server has a problem of its own, which pairing
+     * does not mend.
      */
     boolean pairingWanted() {
         return problem == null && !switchedOff && !agents.isEmpty() && agents.stream().noneMatch(Member::connected)
@@ -307,7 +309,7 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             case Protocol.CLOSE_USER_DISCONNECTED -> "Not connected: disconnected in the extension's popup";
             case Protocol.CLOSE_UNAUTHORIZED -> "Not paired: the browser has another token";
             case Protocol.CLOSE_VERSION -> "Not connected: the extension is of another version";
-            default -> "Not paired yet: waiting for the browser";
+            default -> "Not connected: waiting for the extension";
         };
     }
 

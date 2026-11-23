@@ -36,6 +36,12 @@ final class Pairing {
      */
     private static final long YOUNG_MS = 3_000;
 
+    /** Reads the pairing token, creating a new random one on first use. */
+    static String loadOrCreateToken(Path file) throws IOException {
+        String token = readToken(file);
+        return token.isEmpty() ? rotateToken(file) : token;
+    }
+
     /** The token that is in the file, or nothing if there is none: nothing is made here. */
     static String readToken(Path file) {
         try {
@@ -48,8 +54,7 @@ final class Pairing {
 
     /**
      * Replaces the pairing token with a new random one. Every server reading this file stops
-     * accepting the old token, so the extension has to be paired again. A server does this when
-     * it starts: what was paired before it started is paired no longer.
+     * accepting the old token, so the extension has to be paired again.
      *
      * <p>The file is replaced in one step where the system can do that, so that a process that
      * reads it at that moment finds the old token or the new one, and never half of one.
@@ -113,21 +118,6 @@ final class Pairing {
             }
             return token;
         }
-
-        /**
-         * A new token, in the file and here at once. For a server that starts: nothing that was
-         * agreed before it started holds.
-         */
-        synchronized String renew() throws IOException {
-            token = rotateToken(file);
-            seen = modified();
-            return token;
-        }
-    }
-
-    /** The token of a file, beginning with what is in it now; nothing if there is none yet. */
-    static Tokens tokens(Path file) {
-        return new Tokens(file, readToken(file));
     }
 
     /** The token of a file, beginning with one that is known. */
@@ -164,10 +154,6 @@ final class Pairing {
     }
 
     static String hmacHex(String token, String message) {
-        if (token.isEmpty()) {
-            // No token is no secret: what is signed with it has to match nothing.
-            return randomHex(32);
-        }
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(token.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

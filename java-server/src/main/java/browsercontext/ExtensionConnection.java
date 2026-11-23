@@ -102,8 +102,8 @@ final class ExtensionConnection {
     }
 
     /**
-     * A browser came with a token that is not this server's. While none is paired, that is the
-     * reason why: the user has to paste this server's token.
+     * A browser came with a token that is not this server's: mistyped, or from before a rotation.
+     * While none is paired, that is the reason why: the user has to paste this server's token.
      */
     synchronized void turnedAway() {
         if (conn == null || !conn.isOpen()) {

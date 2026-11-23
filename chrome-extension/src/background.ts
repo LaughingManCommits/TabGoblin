@@ -1404,9 +1404,8 @@ function connectPort(port: number): void {
     const wasPaired = client.authenticated;
     if (event.code === CLOSE_UNAUTHORIZED) {
       pairingFailed = true;
-      // The token this extension holds was refused: the server was started since, and has a new
-      // one, or the token was rotated. Other agents of the server share it: a heartbeat makes each
-      // of them check now instead of in a while.
+      // The token this extension holds was refused, typically because it was rotated. Other
+      // servers share it: a heartbeat makes each of them check now instead of in a while.
       for (const other of clients.values()) {
         if (other !== client && other.authenticated && other.ws.readyState === WebSocket.OPEN) other.ws.send('{"type":"ping"}');
       }
@@ -1429,7 +1428,7 @@ function connectPort(port: number): void {
  */
 function scan(force: boolean, minGapMs = 2500): void {
   void ready.then(() => {
-    // A token that a server did not take will not fix itself: wait for the user to paste the server's.
+    // A wrong token will not fix itself: wait for the user to pair again.
     if (!config.token || pairingFailed) return;
     const now = Date.now();
     if (!force && now - lastScan < minGapMs) return;

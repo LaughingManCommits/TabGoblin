@@ -8,7 +8,7 @@
 //
 // Uses your Claude account and costs a few cents per run.
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -16,7 +16,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { startDemo } from '../demo-site/server.mjs';
-import { McpClient, pairingToken } from './mcp-client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const JAR = resolve(HERE, '../java-server/target/browser-context-mcp.jar');
@@ -136,14 +135,8 @@ function runAgent(prompt, allowed, configPath, cwd) {
 
 const work = mkdtempSync(join(tmpdir(), 'bcmcp-agent-'));
 const wsPort = await freePort();
-const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token'), '--no-panel'];
-// A server makes a new pairing token every time it starts, and it ends with its last agent. A real
-// agent starts a process of its own for every task: left to that, each task would have a server of
-// its own and need a pairing of its own. This client holds a place in the server for the whole
-// run and calls no tool: one server, one token, one pairing.
-const keeper = new McpClient('java', serverArgs, 'keeper');
-await keeper.initialize();
-const token = pairingToken(serverArgs);
+const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token')];
+const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' }))[1];
 const configPath = join(work, 'mcp.json');
 writeFileSync(configPath, JSON.stringify({ mcpServers: { [SERVER]: { command: 'java', args: serverArgs } } }));
 const demo = await startDemo(0, 0, 0);
@@ -230,7 +223,6 @@ try {
   }
 } finally {
   await browser?.close().catch(() => undefined);
-  await keeper.close().catch(() => undefined);
   await demo.close();
   try {
     rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
