@@ -54,8 +54,24 @@ What went wrong on the way, and is worth knowing:
 - **A line passed from one shell into another lost its quotes,** which looked like a fault of
   the line for Claude Code in Command Prompt. Run from a file of that shell, the line is right.
 
-Not run: the release workflow itself. Nothing was pushed, and it runs on GitHub only. Not made:
-a download for macOS. Not run: the lines for Codex and for Copilot; neither agent is on this
+Read on GitHub afterwards, through TabGoblin, on a tab the owner authorized with Explore, once
+the owner had merged and started the workflow by hand:
+
+- Run #1 of *Release*, on `83aea15`: succeeded in 7m 37s. *Java server* 1m 19s, *Chrome
+  extension* 59s, *Nothing personal* 14s, *End to end* 4m 22s, *Editors* 5m 47s; the three
+  downloads; *Publish* skipped.
+- The job for Windows, 1m 34s, and the one for macOS, 36s, each say the six modules and *Made*
+  with the download's name. On macOS that is the first time the script ran, and it starts the
+  server on the runtime it made before it packs.
+- Kept with the run: `tabgoblin-windows-x64` 47.9 MB, `tabgoblin-linux-x64` 51.1 MB,
+  `tabgoblin-macos-arm64` 47.1 MB.
+- CI run #22, for the merge itself, was cancelled after 5m 25s, with *Canceling since a higher
+  priority waiting request for ci-refs/heads/main exists*: the release's suites took its
+  place. On `release-keeps-ci` the group is named after the workflow as well. Both workflow
+  files were read as YAML again; the change has not run on GitHub.
+
+Not run: what a tag does, the publishing. Not used: the download for macOS, and any of the
+three as GitHub made them. Not run: the lines for Codex and for Copilot; neither agent is on this
 machine. Not done: the acceptance as the package has it, a person following the page on a
 machine with nothing installed, with the minutes counted. Not run on this tree: the editor lab;
 its files are as on `main`.
