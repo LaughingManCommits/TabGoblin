@@ -12,7 +12,7 @@ with a pairing: see below. Of WP-14 the files and the check were done on
 branch `server-panel` and waits for the owner's review; its entry says what is there and what
 is open. WP-12 and WP-16 are not started, and each waits for the owner's word on its points.
 WP-15 was built and committed on 2026-11-23, on the branch `easy-install`: a download, a setup
-command and a release by a tag. No release has been made yet.
+command and a release by a tag. Its first release, 0.2.0, is out since the same day.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and merged. WP-20, filed on
@@ -439,13 +439,13 @@ log.
 
 ### What is open
 
-- **No release has been made.** The workflow ran once, started by hand by the owner on
-  2026-11-23, which publishes nothing: the suites passed, the three downloads were made, and
-  the last job was skipped as it should be. A release is made by a tag, and none has been
-  pushed. That run cancelled the CI run for the merge it came after, which was still going:
-  both were in one group. They are in groups of their own since.
-- **The first version is the owner's.** The tree says 0.2.0, and a tag has to be `v` and the
-  version in the tree.
+- **The first release is out: 0.2.0, on 2026-11-23,** by the owner's tag. The workflow had run
+  once before, started by hand, which publishes nothing; that run cancelled the CI run for the
+  merge it came after, and the two are in groups of their own since. For the tag every job
+  passed and the last one published: three downloads, their checksums, and GitHub's
+  attestation, of which the one for the Windows download was asked for and is there.
+- **Nobody has used a download of the release.** They are as GitHub's machines made them. The
+  ones that were used were made on this machine and in its Linux subsystem.
 - **The download for macOS was made on GitHub's machine and never used.** The script that makes
   it starts the server on the runtime it made, and that passed there. The one for Linux was
   made and used in Ubuntu under Windows' Linux subsystem, without Java: setup and the server

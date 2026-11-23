@@ -25,8 +25,6 @@ is in the download.
    | Linux, x64 | `tabgoblin-<version>-linux-x64.tar.gz` |
    | macOS, Apple silicon | `tabgoblin-<version>-macos-arm64.tar.gz` |
 
-   If that page shows no release, none has been published yet: build from source.
-
 2. **Run setup** for your agent, in a terminal in that folder. The agent is one of
    `claude-code`, `codex` and `copilot`:
 
@@ -82,8 +80,9 @@ setup, and the server as an agent starts it. Its window was not seen there, thou
 said it had shown it; and a server started with `tabgoblin --panel` ended when its terminal
 was closed, where the command says that it stays. The one for macOS was made on GitHub's
 machine, where the server started on the runtime that is inside; nobody has used it on a Mac.
-No release has been published yet, so nobody has downloaded one. None is signed for Windows or
-macOS: either system may warn before it runs what is in a download.
+The first release, 0.2.0, is of 2026-11-23. Its downloads are as GitHub's machines made them,
+and none of the three has been used by a person yet. None is signed for Windows or macOS:
+either system may warn before it runs what is in a download.
 
 ## From source
 
