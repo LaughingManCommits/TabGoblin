@@ -2,7 +2,7 @@
 
 ## Overview
 
-Thirteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Fourteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -29,7 +29,8 @@ every start taken out again and kept what helps when the browser has to be paire
 filed on 2026-11-23, is a performance test between the extension and the server; its points
 are decided, and it is not started: the owner said not yet. WP-25, filed the same day, is
 release notes that say what changed; it is to come with the next release, and is not started.
-New work gets the next number, WP-26.
+WP-26, filed the same day, is access that ends by itself when it is not used; it is not
+started. New work gets the next number, WP-27.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1428,3 +1429,80 @@ release started by hand shows in its log the notes it would publish, with the ve
 section on top; a tag for a version that has no section stops before anything is built and
 says which section it wants; and the notes of the next release on GitHub begin with what
 changed.
+
+## WP-26: Access that ends by itself when it is not used
+
+Asked for by the owner on 2026-11-23: "we should have auto revoke of access after idle". Goal:
+a tab that was authorized and is no longer worked on does not stay open to an agent.
+
+Filed only. Nothing is built.
+
+### What there is today
+
+Read from the source on 2026-11-23 (`popup.html`, `policy.ts`, `background.ts`).
+
+- **An authorization lasts as long as was chosen when it was given:** *Until revoked*, which is
+  the first choice, *1 hour* or *8 hours*. The time runs from the moment of authorizing,
+  whatever happens after it. It is checked before every command and every half minute; when
+  it is over the session ends, and the agent is told `AUTHORIZATION_EXPIRED`.
+- **A session also ends** when the user revokes it, when the tab is closed, when the user
+  disconnects its agent, and when Chrome is closed. A tab that leaves its website is
+  suspended, not ended.
+- **It does not end for want of use.** A tab authorized until revoked stays open to its agent
+  for as long as Chrome runs: through a night, through a week. And when its agent has gone,
+  the session waits for an agent of the same name.
+- **Nothing says when a session was last used.** A session's record has no such time. The
+  activity list has the times of what happened, but it is short and the user can clear it.
+
+### What idle can mean
+
+It is the first thing to settle, and the request does not say.
+
+- **No command in the session for a while.** The agent is there and has not touched this tab.
+- **The session's agent gone for a while.** Nobody is there to use it.
+- **The user away from the machine.** Chrome can tell an extension that, but only with a
+  permission the extension does not have, and its four permissions are fixed. So this one is
+  out.
+
+### Proposal
+
+1. **A session remembers when it was last used:** the time of the last command of its agent
+   that was let through.
+2. **A session that has not been used for the idle time ends,** by the way an expired one ends,
+   at the same two moments: before a command, and every half minute. A machine that slept
+   through the idle time finds the session ended when it wakes.
+3. **The idle time is one setting in the popup,** for all sessions, beside the two that are
+   there: a few choices and *never*.
+4. **The popup says it:** the session's row when it is close to ending, and the activity list
+   when it has ended and why.
+5. **The agent is told why,** in the words of its answer, so that it can tell the user that
+   the tab has to be authorized again.
+6. **The rule is in `policy.ts`,** as the other rules are: a function of the session, the
+   time and the setting, with tests of its own.
+
+### Decisions for the owner
+
+1. **What idle means:** no command in the session (proposal), the agent gone, or either, each
+   with a time of its own.
+2. **How long, and whether it is on from the start.** It changes what happens to sessions that
+   exist: today they stay. Proposal: on, at one hour, with *never* to choose.
+3. **Ended or paused.** The owner's word is revoke: the session ends, and the tab is authorized
+   anew (proposal). Paused is softer: one click brings it back, and it stays in the list.
+4. **One setting for all** (proposal), or a choice at each authorization, beside *How long*.
+5. **A word before it ends,** in the session's row or on the toolbar's badge, or none.
+6. **What the agent is told.** The code there is for an authorization that is over, with other
+   words (proposal), or a code of its own, which the tool reference, the three skills and the
+   suite then have to know.
+
+### Tasks and acceptance
+
+Per the task map: "Change what is allowed" for the rule (`policy.ts`); "Change sessions,
+pairing or the connection" for the time in a session's record and the half-minute check
+(`background.ts`); "Change the popup" for the setting and the row. The tool's text changes, so
+`docs/tools.md` and the end-to-end suite; the user guide for sessions and its table of
+settings; and the table of what is tested in `docs/security.md`. Tests: the rule, with the
+clock given; the worker, that a command renews a session and that one left alone ends, also
+over a restart of the worker; end to end, with a short time set in the real popup. Acceptance:
+a session that is not used for the time set is gone from the popup and refused to the agent,
+with the reason said to both; one that is used stays; and with *never* nothing is different
+from today.
