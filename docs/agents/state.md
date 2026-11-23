@@ -10,9 +10,9 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 - **The tag `v0.2.0` is on `fde041c`, and release 0.2.0 was published from it** on
   2026-11-23: the first release.
 - Branch `wp-24-performance`, made from `main` on 2026-11-23: the filing of WP-24, a
-  performance test between the extension and the server, which is not to be started yet; and
-  the records of the first release. Two commits, made on the owner's word. Not pushed and not
-  merged.
+  performance test between the extension and the server, with the owner's decisions on it,
+  which is not to be started yet; and the records of the first release. Its commits were made
+  on the owner's word. Not pushed and not merged.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
