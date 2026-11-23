@@ -2,7 +2,7 @@
 
 ## Overview
 
-Twelve packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Thirteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -27,8 +27,9 @@ and its number is not used again. WP-17 was gone over on 2026-11-23, decided by 
 built that day on the branch `new-token-each-start`; the owner then had the new token at
 every start taken out again and kept what helps when the browser has to be paired. WP-24,
 filed on 2026-11-23, is a performance test between the extension and the server; its points
-are decided, and it is not started: the owner said not yet. New work gets the next number,
-WP-25.
+are decided, and it is not started: the owner said not yet. WP-25, filed the same day, is
+release notes that say what changed; it is to come with the next release, and is not started.
+New work gets the next number, WP-26.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1360,3 +1361,70 @@ run twice in a row, the middle times of each tool agree within a spread that is 
 the numbers are in the repository with the machine they are from; the three slowest things are
 named, each with its cause; no number and no file of the script has anything of a page's
 content in it; and nothing in the product has changed, unless the second decision says so.
+
+## WP-25: Release notes that say what changed
+
+Asked for by the owner on 2026-11-23, after asking whether there are release notes: "Make wp
+for that we can introduce it with the next release laters". Goal: someone who updates reads in
+a release's notes what is new and what is different in that version.
+
+Filed only. Nothing is built. It is wanted with the next release, not before.
+
+### What there is today
+
+- **Every release has notes, and they are the same but for the version.** The workflow fills
+  `release/notes.md` in: which download is for which system, how to set it up and to update,
+  how to check a download, and that none is signed. Read on release 0.2.0 on 2026-11-23: whole,
+  with nothing left unfilled.
+- **Nothing says what changed.** The repository has no changelog, and says so as a rule:
+  "git history is the record of changes" (`AGENTS.md`, and the runbook under "Change the
+  version").
+- **GitHub's own notes would be empty.** They list the pull requests that were merged, and the
+  owner merges branches as they are. What they would have is a link that compares two tags.
+- **What a package did is written down, for those who work on TabGoblin:** in this file and in
+  the validation log, at length and in their words. It is not what a user reads before an
+  update.
+- **Release 0.2.0 is the first,** and has nothing before it to differ from.
+
+### Proposal
+
+1. **One file, `CHANGELOG.md`, at the root,** with a section for each version, the newest
+   first, written for the one who uses TabGoblin: what is new, what behaves differently, what
+   was mended, and what to do when updating, where there is something to do. A few lines each.
+   It begins with the version after 0.2.0; 0.2.0 has one line, that it is the first release.
+2. **The release puts the version's section at the top of its notes,** above what the notes
+   have today.
+3. **A version without a section is not released.** The workflow stops for such a tag before
+   it builds anything, and says what is missing. Started by hand, it shows the notes it would
+   publish.
+4. **The lines are written as the work is merged,** under a heading for what is not released
+   yet; when the version is changed, that heading becomes the version's. So nobody has to
+   gather a release's changes afterwards from the history.
+5. **The rule is put anew:** git history stays the record of what changed in the code; the
+   changelog is what a release tells its users.
+
+### Decisions for the owner
+
+1. **Where the text lives.** One file with a section for each version (proposal); a file for
+   each release; or written by hand on GitHub once a release is out, with nothing in the
+   repository.
+2. **When it is written.** With each package as it is merged, under what is not released yet
+   (proposal), which adds a step to the end of every session; or once, when the version is
+   changed.
+3. **Whether a release without it is refused** (proposal: yes).
+4. **What a section holds.** New, changed, mended, and what to do when updating (proposal); or
+   free text.
+5. **Release 0.2.0.** Left as it is (proposal), or given a few lines after the fact: its notes
+   on GitHub are the owner's to edit, and the workflow does not publish a release twice.
+
+### Tasks and acceptance
+
+Per the task map, "Change the download, setup, or how a release is made": the workflow
+(`.github/workflows/release.yml`), `release/notes.md`, and a small script that takes one
+version's section out of the file, with a test of it. The runbook under "Change the version"
+and "Make a release". `AGENTS.md`: the sentence that there is no changelog, and the list of
+what a session does at its end, if the lines are written with each package. Acceptance: a
+release started by hand shows in its log the notes it would publish, with the version's
+section on top; a tag for a version that has no section stops before anything is built and
+says which section it wants; and the notes of the next release on GitHub begin with what
+changed.
