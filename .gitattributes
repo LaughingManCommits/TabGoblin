@@ -1,0 +1,5 @@
+# What a shell reads keeps its line ends, whatever system checks it out: a carriage return at a
+# line's end breaks a shell script, and a .cmd file wants one.
+*.sh text eol=lf
+release/tabgoblin text eol=lf
+*.cmd text eol=crlf

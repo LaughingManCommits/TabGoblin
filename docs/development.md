@@ -27,6 +27,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 
 | Command | What it covers |
 |---|---|
+| `bash release/bundle.sh` | Makes the download for the system it runs on, from both parts as they are built, into `release/out` |
 | `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. Six tests of the panel's window need a display and are skipped without one |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, the notice in the page, and the background worker against a fake Chrome |
@@ -89,6 +90,23 @@ started by hand:
 | Nothing personal | Linux | Runs the tests of `docs/agents/check-personal.mjs` and then the check on the files |
 
 The end-to-end job runs on Windows because that is where the suite is developed.
+
+### Releases
+
+`.github/workflows/release.yml` makes a release when a version tag is pushed, `v` and the
+version, and does nothing for any other push. Started by hand, it does all but the last job:
+the downloads are kept with the run, to be tried, and nothing is published.
+
+| Job | Runs on | Does |
+|---|---|---|
+| Suites | as in the table above | Every job of `ci.yml`, which the release calls as it is. Nothing is made if one fails |
+| Download, three times | Windows, Linux, macOS | Builds both parts and runs `release/bundle.sh`: a Java runtime with only the modules the jar uses (`jdeps`, `jlink`), the jar, the extension and a command to start it by, in one folder, packed. A runtime is made by the JDK of the system it is for, which is why there are three. The script refuses a tag that is not the version in the files, and a server that does not start on the runtime made for it |
+| Publish | Linux | Only for a tag. Writes `SHA256SUMS.txt`, has GitHub attest where each download was built, and makes the release with `gh`. It is the only job that may write to the repository; the others read |
+
+What a download holds and how a person uses it is in the
+[installation guide](installation.md#from-a-download); how a release is made is in the
+[runbook](agents/runbook.md#make-a-release). The downloads are not signed: that takes
+certificates, which cost money every year, and is the owner's to decide.
 
 ## The editor lab
 
@@ -270,13 +288,15 @@ the pairing token, then the agent's MCP messages as they are. Its version is 1.
 
 ```json
 { "type": "hello", "nonce": "…", "link": 1 }
-{ "type": "attach", "nonce": "…", "proof": "…", "link": 1, "panel": false }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 1, "panel": false, "quiet": false }
 { "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
 
 { "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
 { "tabgoblin": "stopping" }
 ```
 
+`panel` asks for the server's window at once; `quiet` says that the window is not to come up
+by itself for this agent when the browser has to be paired (`--no-panel`). Both are optional.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
 two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
 agent: a line of the agent's log, and the word that the user stopped the server, without which
@@ -309,9 +329,11 @@ the token directory (`~/.browser-context-mcp`) and the `BCMCP_*` environment var
 The Java package and the Maven group, both `browsercontext`, do not follow the convention of a
 reversed domain name. That is left as it is, decided on 2026-11-21:
 
-- Nothing outside this repository sees either name. The jar is not published; it is run by its
-  path.
+- Nothing outside this repository sees either name. The jar is run by its path. Since 2026-11-23
+  it is also inside a download, under its own name, `browser-context-mcp.jar`, in a folder and
+  beside a command that are both called `tabgoblin`.
 - A conventional name needs a domain or an account name, which is the owner's to choose.
 - The change touches every Java file and the jar's entry point, for no change in behaviour.
 
-If the jar is ever published, rename then, in one commit that does nothing else.
+If the jar is ever published by itself, to a repository of libraries for one, rename then, in
+one commit that does nothing else.

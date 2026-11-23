@@ -27,6 +27,24 @@ class PanelModelTest {
     }
 
     @Test
+    void pairingIsTheThingToDoWhileTheBrowserHoldsATokenThatIsNotTheServers() {
+        assertTrue(model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).pairingWanted());
+        // Not while no browser has come: one that is paired is on its way as a rule.
+        assertFalse(model(false, false, 0, 0, List.of()).pairingWanted());
+        assertFalse(model(false, false, 0, 1006, List.of()).pairingWanted());
+        // Not while one is paired, and not where pairing is not what is missing.
+        assertFalse(model(true, false, 1_000, 0, List.of()).pairingWanted());
+        assertFalse(model(false, true, 0, 0, List.of()).pairingWanted(), "switched off here: that is the user's to switch on");
+        assertFalse(model(false, false, 0, Protocol.CLOSE_USER_DISCONNECTED, List.of()).pairingWanted());
+        assertFalse(model(false, false, 0, Protocol.CLOSE_VERSION, List.of()).pairingWanted());
+        // A server without a port has a problem that pairing does not mend.
+        assertFalse(PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", "Could not listen on any port.", false, false, 0,
+                Protocol.CLOSE_UNAUTHORIZED, List.of(), NO_CALLS, List.of(), UTC).pairingWanted());
+        // And a server that no agent talks to has nothing to pair for.
+        assertFalse(PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), UTC).pairingWanted());
+    }
+
+    @Test
     void ofASessionItShowsTheSiteTheAccessAndTheStateAndNothingOfThePage() {
         PanelModel shown = model(true, false, 0, 0, List.of(
                 session("s1", "https://mail.example.com", "write", "active"),
@@ -121,7 +139,7 @@ class PanelModelTest {
                 model(false, true, 0, Protocol.CLOSE_USER_DISCONNECTED, List.of()).connection());
         assertEquals("Not connected: disconnected in the extension's popup",
                 model(false, false, 0, Protocol.CLOSE_USER_DISCONNECTED, List.of()).connection());
-        assertEquals("Not connected: the pairing has ended", model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).connection());
+        assertEquals("Not paired: the browser has another token", model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).connection());
         assertEquals("Not connected: the extension is of another version",
                 model(false, false, 0, Protocol.CLOSE_VERSION, List.of()).connection());
         assertEquals("Not connected: waiting for the extension", model(false, false, 0, 0, List.of()).connection());

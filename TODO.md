@@ -6,18 +6,27 @@ Eleven packages are listed. Four were asked for by the owner on 2026-11-21: WP-1
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
-start, and nothing connected on an old one. Of WP-14 the files and the check were done on
+start, and nothing connected on an old one, which was built and then cut back to what helps
+with a pairing: see below. Of WP-14 the files and the check were done on
 2026-11-22; the history remains, and is the owner's. WP-13 was built on 2026-11-22 on the
 branch `server-panel` and waits for the owner's review; its entry says what is there and what
-is open. The other four are not started, and each waits for the owner's word on its points.
+is open. WP-12 and WP-16 are not started, and each waits for the owner's word on its points.
+WP-15 was built and committed on 2026-11-23, on the branch `easy-install`: a download, a setup
+command and a release by a tag. No release has been made yet.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and merged. WP-20, filed on
 the same day, is a list of blocked sites in the server; the owner decided its points, and it is
 built and merged. WP-21, filed on the same day, is what the first test on the public repository
-showed: three faults, mended and committed on the branch `smoke-fixes`. WP-22, filed on the
-same day, is a skill for the tools for each of three agents; it is built and committed on the
-branch `agent-skills`. New work gets the next number, WP-23.
+showed: three faults, mended and merged. WP-22, filed on the same day, is a skill for the
+tools for each of three agents, and a command of the jar that installs one; it is built and
+merged. WP-23, on 2026-11-23, was the documentation's pictures as SVG in place of PNG, for a
+proxy at the owner's work that holds back PNG files from GitHub. It was built, and the owner
+dropped it the same day: the proxy holds back SVG as well. Nothing of it is in the repository,
+and its number is not used again. WP-17 was gone over on 2026-11-23, decided by the owner and
+built that day on the branch `new-token-each-start`; the owner then had the new token at
+every start taken out again and kept what helps when the browser has to be paired. New work
+gets the next number, WP-24.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -378,9 +387,85 @@ Read from [docs/installation.md](docs/installation.md), the runbook and the sour
   the popup. Once; it is kept in the user's home folder.
 - **Updating** is pulling and building both parts again. Server and extension must be of the
   same protocol version, and the popup says so when they are not.
-- **Nothing is published.** The repository is private; CI builds and tests and keeps nothing;
+- **Nothing is published.** The repository is public since 2026-11-22; CI builds and tests and keeps nothing;
   the runbook says there is no release procedure and no published artifact.
 - The sample output on the installation page is from an earlier build (52 tests; today 64).
+
+### Decided since it was filed
+
+- **No Chrome Web Store, ever: TabGoblin's releases are its own.** The owner on 2026-11-23: "i
+  think we would always be our own releases never on chrome web store". What follows from it:
+  the extension is loaded unpacked, with Chrome's developer mode on, for good; a browser whose
+  administrator forbids that cannot use TabGoblin; and the extension does not update by
+  itself. What falls away: a second id for the extension, and a server that has to work with
+  an extension of another version, since both parts come from one release. Step 1 of the
+  proposal below, and decisions 2 and 5, are overtaken by it.
+- **The repository is in the open** since 2026-11-22 (decision 1).
+- **Pairing stays as it is:** the token is pasted once. A new token at every start was built
+  and taken out again on 2026-11-23 (WP-17); a short code or a confirmation in the popup was
+  not asked for (decision 4).
+
+Measured on 2026-11-23, on Windows with Java 26, for a download with the Java runtime inside
+(decision 3): the jar needs the modules `java.base`, `java.desktop`, `java.net.http`,
+`java.sql`, `jdk.jfr` and `jdk.unsupported`; a runtime of those, made with `jlink`, is 50 MB
+unpacked and 33 MB as a zip; the jar's `--help` runs on it. Not tried on it: a server, and its
+window.
+
+### What was built
+
+On 2026-11-23, on the owner's word ("okay lets build wp 15 with the cd release"), on the branch
+`easy-install`, which is made from `new-token-each-start`. What was run is in the validation
+log.
+
+- **A download for each system** (`release/bundle.sh`): one folder, `tabgoblin`, with a Java
+  runtime of the six modules the jar uses, the jar, the extension, a command `tabgoblin` that
+  starts the server for a person, a page that says what to do, and the licence. It is about
+  50 MB packed, a zip for Windows and a tar for Linux and macOS, and it unpacks over an older
+  one, so that an update changes no path. The script refuses to pack a server that does not
+  start on the runtime it made.
+- **`--setup <agent>`** (`Setup.java`), for `claude-code`, `codex` and `copilot`. It puts
+  the agent's skill in its place and prints what is left, with the server's own paths: the
+  line that tells the agent about the server, which is the agent's own command for that; the
+  extension's folder, with the clicks that load it; and the command for the server's window,
+  to pair. It runs no other program and writes nothing but the skill. The help of a download
+  says that `tabgoblin` stands for the long command.
+- **A release by a tag** (`.github/workflows/release.yml`): the suites, then the three
+  downloads, each made on its own system, then the release, with checksums and GitHub's
+  attestation of where each download was built. Only the last job may write, and it runs only
+  for a tag. Started by hand the workflow publishes nothing.
+- **The pages:** the installation guide begins with the download, and the build from source is
+  its second half; the runbook says how a release is made.
+
+### What is open
+
+- **No release has been made, and the workflow has never run.** It is the owner's to start:
+  first by hand, which publishes nothing, then by a tag. Whether a job starts at all is not
+  known: none has since run #14, with GitHub's message about the account's billing, and
+  nothing was run again since the repository is public.
+- **The first version is the owner's.** The tree says 0.2.0, and a tag has to be `v` and the
+  version in the tree.
+- **The download for macOS has never been made,** and none was used on a Mac. The one for
+  Linux was made and used in Ubuntu under Windows' Linux subsystem, without Java: setup and the
+  server as an agent starts it. Its window was not seen there; the server's log said it had
+  shown it.
+- **On Linux a server started in a terminal with `--panel` ended when the terminal was
+  closed,** in the one try there was, with a terminal made up for it. The command says that
+  the server stays until it is stopped. That is the one server's start (WP-19), which had not
+  been tried on Linux; a start that the terminal's end does not reach would mend it.
+- **The lines for Codex and Copilot were not run.** They are each agent's own command as its
+  documentation had it on 2026-11-23; neither agent is on this machine. The one for Claude
+  Code was run, in Command Prompt and in PowerShell, against a configuration made for the
+  purpose, and what it stored was read.
+- **Setup prints the line and does not run it.** The user pastes one line. Running the agent's
+  command for them was left out: it is another program's, and could not be tried for two of
+  the three.
+- **The downloads are not signed.** Windows and macOS may warn. Signing takes certificates,
+  which cost money every year.
+- **A download carries JavaFX for all three systems,** as the jar does: a few megabytes more
+  than each needs.
+- **The acceptance as it was filed has not been done:** a person, on a machine with Chrome and
+  an agent and nothing else, following the page to a status that says connected, with the
+  steps and the minutes counted. It needs a release to download.
 
 ### Proposal
 
@@ -522,113 +607,73 @@ the link check and the check for what is personal pass.
 
 Asked for by the owner on 2026-11-22: "our tokens should be random on start up, i started up
 the mcp and agent conencted automatically, any connected agent without the latest token should
-be killed". Goal: a server that starts is not connected to the browser on something that was
-agreed before. What is connected is what the user let in since it started.
+be killed". Goal as it was filed: a server that starts is not connected to the browser on
+something that was agreed before.
 
-### What happens today
+**That is not what the repository has.** On 2026-11-23 it was built as the owner decided it
+that day, and committed on the branch `new-token-each-start`. Asked then whether it had been a
+necessary feature, the session said no, and the owner decided: "lets only have the parts that
+are usefull and remove the rest". The token is made once and kept, as before. What stays is
+what helps when the browser has to be paired.
 
-Read from the source on 2026-11-22 (`Pairing.java`, `McpMain.java`, `WebSocketBridge.java`;
-`connectPort` and `scan` in `background.ts`; `canUse` and `resolveSession` in `policy.ts`).
+### Why the new token went
 
-- **One token for the machine, made once.** The first start of a server makes 64 random
-  hexadecimal characters and writes them to the file `pairing-token`, in the folder
-  `.browser-context-mcp` of the user's home folder. Every later start of every server reads
-  that file. The token changes only with `--rotate-token`.
-- **The extension keeps the same token**, once the user has pasted it, and looks for servers
-  on eight ports: every 30 seconds, when the popup opens, and when the user changes tabs. It
-  pairs with each server it finds and asks nobody. That is what the owner saw, and what the
-  installation guide promises: "You pair once; it stays valid until you rotate it."
-- **So whatever starts the jar as this user is connected:** every agent the user set up, and
-  any other program that runs as the user, which can read the file as well. For the second,
-  see "What remains your risk" in [docs/security.md](docs/security.md).
-- **Connected is not authorized.** A connected agent has no tab until the user authorizes one.
-  Two things reach further: a tab authorized for "Any agent" goes to the first agent that uses
-  it, and the sessions of an agent that is gone go to an agent of the same name, which is a
-  name an agent gives itself.
-- **A rotation puts the extension out, not a server.** It writes a new token to the file. Each
-  running server reads the file again at its next heartbeat and before its next command, and
-  closes a connection that was paired with the old token (code 4401). All servers share the
-  file, so afterwards every server has the new token and the extension the old one: all its
-  agents are gone until the user pastes the new token. No server ends.
-- **Disconnect holds for one run of a server.** The popup refuses an agent by its id (code
-  4403), and a server makes its id when it starts. The server keeps running; started again, it
-  has another id and is connected again.
+- **It kept out less than it seemed to.** Since there is one server for all agents (WP-19), the
+  process an agent starts proves itself to the server with the token, so the token has to be
+  in its file. A program that runs as the user can read it there and become an agent of the
+  running server, with a new token at every start as without.
+- **What it did buy:** nothing was connected after a start without the user. Before, and now
+  again, a server that starts has the browser within half a minute, and its agents the tabs
+  that were authorized for their names.
+- **What it cost:** a pairing at every start of a server. A server ends with its last agent,
+  so with one agent at a time that was once for every session of the agent.
 
-### What the request runs into
+### What stays
 
-- **A server that an agent starts has nowhere to show a token.** Its output is the protocol,
-  and its log goes where the agent's program puts it. Today the user gets the token from a
-  second start of the jar, in a terminal (`--show-token`), which works because the token is in
-  a file. A token that is made at the start and kept nowhere cannot be fetched that way.
-- **A new token at every start is a new pairing at every start.** How often an agent's program
-  starts its server in a day's work was never counted: once for each session of a CLI and each
-  start of an IDE at least.
-- **"The latest token", with several agents.** Each agent has a server of its own, up to eight
-  run at once, and every suite runs two. If the newest start makes the one token that counts,
-  starting a second agent ends the first.
+- **The agent is told what is missing, and where the token is** (`BrowserService`
+  `pairingHelp`). Three cases are told apart: no browser has come, which as a rule is one on
+  its way; a browser came with a token that is not the server's, so pairing is what is
+  missing; the browser is paired with the server and has only not found this agent yet. The
+  token is in the server's window where that is open, and printed by `--show-token` otherwise.
+  The server's instructions and the three skills say that no tool pairs the browser.
+- **The server notes a browser that came with another token** (`ExtensionConnection.turnedAway`),
+  which is how it tells the first two cases apart.
+- **The window comes up by itself** when a tool finds no browser and one came with another
+  token (`Hub.unpaired`): once until something is paired. That is after `--rotate-token`, or
+  after a token that was mistyped. `--no-panel`, or `BCMCP_PANEL=0`, keeps it from that for an
+  agent. Where no browser has come, no window comes.
+- **The window says the step at its top** while it is so: *Pair the browser with this server*,
+  with a button **Copy token**, and its status line says *Not paired: the browser has another
+  token*.
+- **The popup** says *Paste the server's current token to connect*, with an amber dot, in the
+  place of *Pairing failed: check the token* with a red one; and the text over its field names
+  the server's window beside the command.
+- **A pairing on an older token counts for nothing while it is still open**
+  (`WebSocketBridge.pairedOnCurrentToken`). The suite found that after a rotation an agent was
+  told that the browser was paired with the server, because another agent's pairing had not
+  ended yet.
+- **The token's file is replaced in one step** at a rotation, and a process that runs reads
+  it again for three seconds after a change, whatever the file's time says.
 
-### Proposal
+### What was built and taken out
 
-1. **A secret for each server, made when it starts, held in memory, written nowhere.** It ends
-   with the process. The token file goes, and with it what another program could read.
-2. **The user lets each server in, in the popup.** The extension finds a server that it has
-   not let in, and does not pair. The popup says that an agent wants to connect, with the name
-   the agent gives, its port and a short code. The agent has the same code: the tool's answer
-   says that the user has to let it in, and names the code. The user compares the two and
-   allows. How two sides that share nothing beforehand agree on a secret is the design work of
-   this package: an exchange of keys from which both derive the code is the usual way, and the
-   code then differs when another program sits in between.
-3. **Nothing is kept over a start.** A server that is started again asks again. Closing Chrome
-   ends it too: the extension holds the secret in memory only, in the storage Chrome empties
-   when it closes, since its worker is put to sleep and wakes without what it knew.
-4. **That is the owner's "killed", for all agents alike.** A connection whose server was not
-   let in since it started does not exist, and letting one agent in does not end another.
+A new token at every start of the one server, and of a process that serves its agent alone;
+`--show-token` saying whether its token was a running server's; a window that came up whenever
+a tool found no browser; and the suites' scripts reading the token after the start. It is all
+in the branch's first commit, for whoever wants to see how it was done; the second takes it
+out.
 
-What it does not do: defend against a program that runs as the user and does what the user can
-do, start a browser of its own for one. That line of `docs/security.md` stays. And it is no
-second authorization: a tab is still given by a click on it.
+### What is open
 
-### Decisions for the owner
-
-1. What "the latest token" means when several agents run. One token, and the newest start
-   wins: that is what the words say, and it leaves one agent at a time. Or a secret for each
-   server, and the user lets each in (proposal).
-2. How the user lets a server in. The popup, with a code that the agent shows too (proposal).
-   The popup without a code: one click, and a program that sits on one of the eight ports
-   under a familiar name is let in when the user clicks. Or a pasted token as today, which
-   needs a server with a terminal.
-3. How often the user is asked. At every start of a server (proposal, and the owner's words),
-   after it was counted how often that is. Anything gentler needs something kept, which is
-   what this package takes away.
-4. What "killed" does to a server. Its connection is closed and it is refused, with an error
-   that tells the agent what the user has to do (proposal). Or the process is ended as well:
-   most agents' programs start it again, or leave the agent without its tools and without a
-   reason. Ending a server is in WP-13.
-5. The sessions of an agent that starts again. Today they pass to an agent of the same name.
-   Proposal: they still do, once the user has let that agent in; otherwise every start costs a
-   click on each tab as well. For Disconnect, WP-10 answered it the other way: there the
-   sessions end.
-6. What existing setups know: `--show-token`, `--rotate-token`, `--token-file`,
-   `BCMCP_TOKEN_FILE` and the folder in the home folder. The constraint in `AGENTS.md` keeps
-   legacy names. Proposal: the options stay as names and say that there is no token any more;
-   a server that starts removes the file. The protocol gets a new version, and an extension of
-   the old one is refused with the reason, as today.
-
-### Tasks and acceptance
-
-Per the task map, "Change sessions, pairing or the connection": `Pairing.java`,
-`WebSocketBridge.java`, `Protocol.java` and the options in `McpMain.java`; `pairing.ts`,
-`protocol.ts` and `background.ts`; the request in the popup, in place of the panel for the
-token; the test vector that `PairingTest` and `pairing.test.ts` share. The text an agent gets
-while it is not let in changes, so `docs/tools.md`, the server instructions and the suite end
-to end. Tests: a server started twice has two secrets, and an extension let in by the first is
-not connected to the second; the codes differ when a third party passes the messages on; a
-server that is not let in gets no command and no session, one for "Any agent" included; two
-agents that were let in work side by side; Disconnect holds as before. End to end: the suite
-lets its two agents in through the real popup, and a server that is ended and started again
-asks again. Then `docs/security.md` (the local connection, what remains your risk), step 6 of
-the installation guide, section 2 of the user guide, the protocol reference, and the pictures
-of the popup that show pairing. The third step of WP-15, pairing, is decided here.
+- **The goal as it was filed is not met,** by the owner's choice: a server that starts is
+  connected on the pairing that was made before.
+- **Seen on Windows only,** with Java 21. On Linux and macOS the window that comes up by
+  itself was not tried.
+- **The window that comes up by itself was seen with a made-up browser,** a program that
+  answers the server's challenge with a proof that is none. Not with the owner's own extension
+  after a real rotation.
+- **One click with a code to compare,** in the place of the pasting, was put to the owner and
+  not chosen.
 
 ## WP-18: Aftercare of the server's panel, and the documentation gone over
 

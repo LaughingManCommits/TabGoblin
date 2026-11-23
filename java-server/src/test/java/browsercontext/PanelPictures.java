@@ -162,7 +162,11 @@ final class PanelPictures {
                         "\"exam_ple.org\" in blocked.sites is no domain")), false),
                 // Someone reads in the log, scrolled up to its first line, and seven lines have come since:
                 // it stands still, and its corner says so, with the way to the newest line.
-                connected.held("16-log-held", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, later(log))));
+                connected.held("16-log-held", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, later(log))),
+                // A browser came with a token that is not the server's, as after a rotation: the window
+                // says at its top what the user has to do, with the button that copies the token.
+                new State("17-another-token", model("claude-code", null, false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of(), none,
+                        log.subList(0, 2)), false));
     }
 
     /** The same lines, and seven calls more. */

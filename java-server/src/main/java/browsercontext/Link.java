@@ -73,6 +73,7 @@ final class Link {
     private final OutputStream out;
     private final PrintStream err;
     private final Supplier<String> token;
+    private final boolean quiet;
     private final int port;
     private final boolean panel;
     private final Starter starter;
@@ -97,6 +98,16 @@ final class Link {
      * @param err     where this process's own log goes: the server's lines for this agent are written there
      */
     Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, int port, boolean panel, Starter starter) {
+        this(in, out, err, token, port, panel, false, starter);
+    }
+
+    /**
+     * @param quiet the agent was started with --no-panel: the server's window does not come up by
+     *              itself for it when the browser has to be paired
+     */
+    Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, int port, boolean panel, boolean quiet,
+            Starter starter) {
+        this.quiet = quiet;
         this.in = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
         this.out = out;
         this.err = err;
@@ -206,6 +217,7 @@ final class Link {
             ask.put("proof", Pairing.linkProof(current, serverNonce, nonce));
             ask.put("link", VERSION);
             ask.put("panel", panel);
+            ask.put("quiet", quiet);
             to.write((json.writeValueAsString(ask) + "\n").getBytes(StandardCharsets.UTF_8));
             to.flush();
             JsonNode answer = message(from.readLine());

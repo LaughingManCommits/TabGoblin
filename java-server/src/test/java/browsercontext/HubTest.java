@@ -442,6 +442,84 @@ class HubTest {
         }
     }
 
+    /** A browser that comes to an agent's port with a token that is not the server's, and is turned away. */
+    private static void comeWithAnotherToken(Agent agent) throws Exception {
+        FakeExtension stale = new FakeExtension(agent.bridge().getPort(), FakeExtension.ORIGIN, "f".repeat(64));
+        stale.connectBlocking();
+        await(() -> agent.bridge().lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED, "the browser to be turned away");
+    }
+
+    @Test
+    void whenTheBrowserCameWithAnotherTokenTheWindowComesUpByItselfOnceForTheNextToolThatFindsNone() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        AtomicInteger shown = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicBoolean up = new java.util.concurrent.atomic.AtomicBoolean();
+        hub.window(() -> {
+            shown.incrementAndGet();
+            up.set(true);
+        }, up::get);
+        Client agent = new Client(port, TOKEN, () -> { });
+        assertTrue(agent.connect());
+        agent.open("claude-code");
+        await(() -> hub.agents().size() == 1, "the agent");
+
+        // No browser has come. One that is paired is on its way as a rule: no window for that.
+        assertEquals(new BrowserService.Unpaired(false, false, false), hub.unpaired(false));
+        assertEquals(0, shown.get());
+        assertFalse(hub.standing());
+
+        // A browser came with another token: now the user has to paste the server's, and the window comes up.
+        comeWithAnotherToken(hub.agents().get(0));
+        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
+        assertEquals(1, shown.get());
+        assertFalse(hub.standing(), "a window that came up by itself does not make the server stay");
+        // Asked again, it is not brought to the front again: once is enough until something is paired.
+        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
+        assertEquals(1, shown.get());
+
+        // The browser is paired with this agent. A second agent that it has not found yet has nothing
+        // to paste: the browser is paired with the server.
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        await(() -> hub.agents().get(0).bridge().isExtensionConnected(), "the pairing");
+        assertEquals(new BrowserService.Unpaired(true, false, true), hub.unpaired(false));
+        assertEquals(1, shown.get());
+
+        // The browser goes, as when Chrome is closed: nothing is wrong with its token, and no window comes.
+        ext.closeBlocking();
+        await(() -> !hub.agents().get(0).bridge().isExtensionConnected(), "the browser to be gone");
+        assertEquals(new BrowserService.Unpaired(false, false, true), hub.unpaired(false));
+        assertEquals(1, shown.get());
+        // It comes with another token again, as after a rotation: the window comes up once more.
+        comeWithAnotherToken(hub.agents().get(0));
+        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
+        assertEquals(2, shown.get());
+    }
+
+    @Test
+    void noWindowComesUpByItselfForAnAgentThatWantsNoneNorWhileTheUserHasTheBrowserSwitchedOff() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        AtomicInteger shown = new AtomicInteger();
+        hub.window(shown::incrementAndGet);
+        Client agent = new Client(port, TOKEN, () -> { });
+        assertTrue(agent.connect());
+        agent.open("claude-code");
+        await(() -> hub.agents().size() == 1, "the agent");
+        comeWithAnotherToken(hub.agents().get(0));
+        // Started with --no-panel: it is known that the browser holds another token, and no window comes.
+        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(true));
+        assertEquals(0, shown.get());
+        // Switched off in the window: pairing would change nothing.
+        hub.setHeld(true);
+        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(false));
+        assertEquals(0, shown.get());
+        hub.setHeld(false);
+        // A server that has no display says so by having no window: the token comes from the command then.
+        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(false));
+        assertEquals(1, shown.get(), "the window was asked for; that none came is the display's doing");
+    }
+
     @Test
     void askedForItsWindowTheServerShowsItAndStaysForTheUser() throws Exception {
         int port = freePorts();

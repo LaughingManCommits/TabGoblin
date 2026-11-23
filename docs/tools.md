@@ -69,7 +69,33 @@ Session s2
 ```
 
 Without the extension the result says why, as far as the server knows, and what to ask the user
-for. One case has words of its own: the user switched this server's connection off in the
+for. Tell the user, and go on when they have done it: no tool pairs the browser.
+
+Where no browser has come, it may be on its way: an extension that is paired finds a server
+within half a minute. Or it is not paired at all. The result says both, and where the user finds
+the token: by a command, or in the server's window where that is open.
+
+```text
+Extension: not connected
+Listening on: ws://127.0.0.1:47821
+An extension that is paired finds this server within about 30 seconds, or at once when the user opens the TabGoblin popup. If it is not paired yet, ask the user to load the TabGoblin extension in Chrome, open its popup and paste this server's pairing token. The user sees the token by running the server's jar with --show-token in a terminal.
+```
+
+Where a browser came with a token that is not this server's, mistyped or from before a rotation,
+pairing is what is missing, and the result says so. The server brings its window up at that
+moment, once, unless the agent was started with `--no-panel`.
+
+```text
+Extension: not connected
+Listening on: ws://127.0.0.1:47821
+The browser holds a token that is not this server's. Ask the user to pair the browser with this server: in Chrome, with the TabGoblin extension loaded, open its popup and paste this server's pairing token. The TabGoblin server's window is open on the user's screen: Copy token, at its top, puts the token on the clipboard.
+```
+
+Where the browser is paired with the server and has only not found this agent yet, the result
+says that, and that it takes up to half a minute. Every other tool answers
+[`NOT_CONNECTED`](#errors) meanwhile, with the same words behind the reason.
+
+One case has words of its own: the user switched this server's connection off in the
 [server's panel](user-guide.md#9-the-servers-panel).
 
 ```text
@@ -451,7 +477,7 @@ Every failure is `Error [CODE]: message`.
 
 | Code | Meaning |
 |---|---|
-| `NOT_CONNECTED` | No paired extension (never paired, token rotated, the user disconnected this agent in the popup, or the user switched the connection off in the server's panel). The message says which, and what to ask the user for |
+| `NOT_CONNECTED` | No paired extension (none has come, it holds a token that is not the server's, the user disconnected this agent in the popup, or the user switched the connection off in the server's panel). The message says which, what to ask the user for, and where the user finds the token |
 | `NOT_AUTHORIZED` | This agent has no session |
 | `UNKNOWN_SESSION` | No such session id |
 | `SESSION_REQUIRED` | Several sessions exist; name one |

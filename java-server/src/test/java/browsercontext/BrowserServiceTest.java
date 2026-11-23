@@ -391,6 +391,77 @@ class BrowserServiceTest {
     }
 
     @Test
+    void withoutABrowserAToolSaysWhatTheUserHasToDoAndWhereTheTokenIs() throws Exception {
+        // Whoever serves the agent is asked what is known of the browser, and may bring the window up.
+        java.util.concurrent.atomic.AtomicInteger asked = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<BrowserService.Unpaired> known =
+                new java.util.concurrent.atomic.AtomicReference<>(BrowserService.Unpaired.NOTHING_KNOWN);
+        BrowserService asking = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> {
+            asked.incrementAndGet();
+            return known.get();
+        });
+        // While a browser is paired, nobody is asked: a tool that works brings no window up.
+        ext.responder = cmd -> FakeExtension.ok(cmd, FakeExtension.JSON.createObjectNode());
+        asking.call("browser_status", args());
+        assertEquals(0, asked.get());
+
+        // The browser is gone, as when Chrome is closed, and nothing is wrong with its token.
+        ext.closeBlocking();
+        for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
+            Thread.sleep(20);
+        }
+        String head = "Extension: not connected\nListening on: ws://127.0.0.1:" + bridge.getPort() + "\n";
+        String waiting = "An extension that is paired finds this server within about 30 seconds, or at once when the "
+                + "user opens the TabGoblin popup. If it is not paired yet, ask the user to load the TabGoblin extension "
+                + "in Chrome, open its popup and paste this server's pairing token. ";
+        String status = asking.call("browser_status", args()).text();
+        assertEquals(1, asked.get());
+        assertEquals(head + waiting + "The user sees the token by running the server's jar with --show-token in a terminal.", status);
+        // Another tool says the same behind its error.
+        String refused = asking.call("browser_snapshot", args()).text();
+        assertEquals("Error [NOT_CONNECTED]: The Chrome extension is not connected. " + waiting
+                + "The user sees the token by running the server's jar with --show-token in a terminal.", refused);
+        // With the server's window open, the token is copied there.
+        known.set(new BrowserService.Unpaired(false, false, true));
+        assertEquals(head + waiting + "The TabGoblin server's window is open on the user's screen: Copy, next to "
+                + "Pairing token, puts the token on the clipboard.", asking.call("browser_status", args()).text());
+
+        // The browser is paired with the server by way of another agent: nothing to paste, only to wait for.
+        known.set(new BrowserService.Unpaired(true, false, true));
+        assertEquals(head + "The browser is paired with this server and finds this agent within about 30 seconds, "
+                + "or at once when the user opens the TabGoblin popup. Try again then.", asking.call("browser_status", args()).text());
+
+        // A browser came with another token: that is why none is paired, and pairing is what the user has to do.
+        known.set(BrowserService.Unpaired.NOTHING_KNOWN);
+        FakeExtension stale = new FakeExtension(bridge.getPort(), FakeExtension.ORIGIN, "f".repeat(64));
+        stale.connectBlocking();
+        for (int i = 0; i < 100 && bridge.lastCloseCode() != Protocol.CLOSE_UNAUTHORIZED; i++) {
+            Thread.sleep(20);
+        }
+        String pair = "Ask the user to pair the browser with this server: in Chrome, with the TabGoblin extension loaded, "
+                + "open its popup and paste this server's pairing token. ";
+        assertEquals(head + "The browser holds a token that is not this server's. " + pair
+                + "The user sees the token by running the server's jar with --show-token in a terminal.",
+                asking.call("browser_status", args()).text());
+        // The window has come up for it: the step and its button are at its top.
+        known.set(new BrowserService.Unpaired(false, true, true));
+        assertEquals(head + "The browser holds a token that is not this server's. " + pair
+                + "The TabGoblin server's window is open on the user's screen: Copy token, at its top, puts the token on "
+                + "the clipboard.", asking.call("browser_status", args()).text());
+        // Behind an error the reason stands once.
+        assertEquals("Error [NOT_CONNECTED]: The Chrome extension is not paired with this server: the token it holds is "
+                + "not this server's. " + pair + "The TabGoblin server's window is open on the user's screen: Copy token, at "
+                + "its top, puts the token on the clipboard.", asking.call("browser_snapshot", args()).text());
+
+        // What the user switched off is theirs to switch on: nobody is asked, and no window comes up.
+        int before = asked.get();
+        bridge.setHeld(true);
+        asking.call("browser_status", args());
+        asking.call("browser_snapshot", args());
+        assertEquals(before, asked.get());
+    }
+
+    @Test
     void switchedOffInTheServersWindowStatusAndToolsSaySoAndWhatToAskTheUser() throws Exception {
         bridge.setHeld(true);
         for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {

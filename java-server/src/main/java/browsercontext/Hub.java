@@ -127,8 +127,12 @@ final class Hub {
     private volatile boolean held;
     private volatile boolean stopping;
     private volatile long emptySince = System.currentTimeMillis();
-    /** Shows the server's window; run when a link asks for it. */
+    /** Shows the server's window; run when a link asks for it, or when the browser has to be paired. */
     private volatile Runnable window = () -> { };
+    /** Whether the window is there: a server without a display has none, whoever asks. */
+    private volatile java.util.function.BooleanSupplier windowUp = () -> false;
+    /** The window came up by itself for a pairing, and nothing has been paired since. */
+    private final AtomicBoolean cameUp = new AtomicBoolean();
     /** Run when the last agent has gone and stayed gone, unless the user started this server. */
     private volatile Runnable whenEmpty = () -> { };
 
@@ -170,7 +174,39 @@ final class Hub {
     }
 
     void window(Runnable show) {
+        window(show, () -> false);
+    }
+
+    /**
+     * @param show shows the window, or brings it up if it is there
+     * @param up   whether the window is there
+     */
+    void window(Runnable show, java.util.function.BooleanSupplier up) {
         this.window = show;
+        this.windowUp = up;
+    }
+
+    /**
+     * Asked when a tool of one agent finds no browser on that agent's connection: what the server
+     * knows of it. If a browser came to one of its agents with a token that is not the server's,
+     * the user has to paste the token: the window, where it is copied, comes up by itself, once
+     * until something is paired. Where no browser has come at all, none does: a paired extension
+     * is on its way as a rule.
+     *
+     * @param quiet the agent's process was started with --no-panel: no window comes up for it
+     */
+    BrowserService.Unpaired unpaired(boolean quiet) {
+        // Paired on the token as it is now: after a new token an agent's old pairing is still open for a moment.
+        if (agents().stream().anyMatch(agent -> agent.bridge().pairedOnCurrentToken())) {
+            cameUp.set(false);
+            return new BrowserService.Unpaired(true, false, windowUp.getAsBoolean());
+        }
+        boolean refused = agents().stream().anyMatch(agent -> agent.bridge().lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED);
+        if (refused && !quiet && !held && cameUp.compareAndSet(false, true)) {
+            Log.info("window asked for reason=browser_has_another_token");
+            window.run();
+        }
+        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean());
     }
 
     /** Shows the server's window, or brings it up if it is there already. */
@@ -273,7 +309,8 @@ final class Hub {
             joining = member;
             members.add(member);
             emptySince = 0;
-            member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held);
+            boolean quiet = ask.path("quiet").asBoolean(false);
+            member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet));
             member.agent.announce();
             kept = true;
         } catch (IOException | RuntimeException e) {

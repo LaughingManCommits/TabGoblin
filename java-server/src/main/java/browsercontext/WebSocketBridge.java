@@ -303,6 +303,21 @@ public class WebSocketBridge extends WebSocketServer {
         return connection.request(action, session, params, timeout);
     }
 
+    /**
+     * Whether an extension is paired on the token as it is now. A pairing that was made on an
+     * older one is still open until its next heartbeat or command, and is about to end: it is none.
+     */
+    boolean pairedOnCurrentToken() {
+        String current = token.get();
+        for (WebSocket conn : getConnections()) {
+            Peer peer = conn.getAttachment();
+            if (peer != null && peer.authenticated && peer.tokenAtPairing.equals(current) && conn.isOpen()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** A rotated token ends existing pairings before the next command, not only at the next heartbeat. */
     private void dropStalePairings() {
         String current = token.get();
@@ -445,6 +460,10 @@ public class WebSocketBridge extends WebSocketServer {
                 && Pairing.constantTimeEquals(proof, Pairing.clientProof(current, peer.nonce, clientNonce));
         if (!ok) {
             recordFailedPairing();
+            if ("auth".equals(msg.path("type").asString(""))) {
+                // An extension with another token, an older one as a rule: said in the window and to the agent.
+                connection.turnedAway();
+            }
             log.warn("connection rejected reason=pairing_proof");
             conn.close(CLOSE_UNAUTHORIZED, "Pairing failed");
             return;

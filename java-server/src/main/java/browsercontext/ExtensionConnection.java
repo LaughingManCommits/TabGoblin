@@ -101,6 +101,16 @@ final class ExtensionConnection {
         return old == newConn ? null : old;
     }
 
+    /**
+     * A browser came with a token that is not this server's: mistyped, or from before a rotation.
+     * While none is paired, that is the reason why: the user has to paste this server's token.
+     */
+    synchronized void turnedAway() {
+        if (conn == null || !conn.isOpen()) {
+            lastCloseCode = Protocol.CLOSE_UNAUTHORIZED;
+        }
+    }
+
     /** The paired connection to send a command on: never one whose pairing answer is not out yet. */
     private synchronized WebSocket paired() {
         return conn;
@@ -186,11 +196,10 @@ final class ExtensionConnection {
             throw new BrowserException("NOT_CONNECTED", switch (lastCloseCode) {
                 case Protocol.CLOSE_USER_DISCONNECTED ->
                     "The user disconnected this agent in the TabGoblin popup. Ask them to allow it again.";
+                // What the user has to do about these two is said by the one who knows where the token is.
                 case Protocol.CLOSE_UNAUTHORIZED ->
-                    "The pairing with the Chrome extension has ended (the pairing token was rotated or no longer "
-                            + "matches). Ask the user to pair the extension again with the current token.";
-                default -> "The Chrome extension is not connected. Ask the user to open the TabGoblin "
-                        + "popup, check that it is paired, and try again.";
+                    "The Chrome extension is not paired with this server: the token it holds is not this server's.";
+                default -> "The Chrome extension is not connected.";
             });
         }
         Protocol.Command command = new Protocol.Command(id, action, session, params,

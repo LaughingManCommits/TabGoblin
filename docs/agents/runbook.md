@@ -189,15 +189,17 @@ cd java-server
 java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
 ```
 
-On Linux and macOS the separator in the class path is `:`. Success: sixteen pictures at
+On Linux and macOS the separator in the class path is `:`. Success: seventeen pictures at
 double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
 screen, the server without an agent, with two agents, the first and the second tab clicked, an
 agent clicked, sites blocked with a tab on one of them, and a settings file with a mistake in
-it. In the last two the Control card names what is blocked, or says that every site is refused,
-and the tab says *blocked*; with the mistake an amber box under the status names it. The last
-one has the log held: scrolled up to its first line, its corner says *held while you read*
+it, the log held, and a browser that came with another token. In the two of the blocked sites the Control card names what is blocked, or says that every site is refused,
+and the tab says *blocked*; with the mistake an amber box under the status names it. In the last, a green box under the status says *Pair the browser with this server* and has the
+button **Copy token**; no other picture has that box, also not the second, where no browser has
+come. The sixteenth
+has the log held: scrolled up to its first line, its corner says *held while you read*
 and has a button with the number of newer lines. In every picture with calls the Metrics card
 has two numbers for each heap, under *share* and *per call*. In every one the header and the whole Control card must be inside the window:
 look at the seventh and the eighth for that; there the list of tabs shows three rows and has a
@@ -225,6 +227,14 @@ this on each system the panel is to be trusted on: a see-through window that dre
 Linux was found this way, and by no test. Do not take pictures of the screen for it: a capture
 of a place on the screen shows whatever lies on top there.
 
+The window also comes up by itself: when a browser came with a token that is not the server's
+and an agent then uses a tool. To see it with your own setup, and no window open: run the jar
+with `--rotate-token`, and have your agent call a tool. The window comes up, with the green
+box at its top; the agent's answer says that the window is open and where the button is; a
+second call does not bring it to the front again. Paste the new token into the popup
+afterwards: until then your browser is not paired. With `--no-panel` in the agent's settings
+no window comes, and the answer names `--show-token`.
+
 ## Change the version
 
 The version is written in seven places. Change all of them in one commit:
@@ -241,8 +251,46 @@ e2e/mcp-client.mjs                                         clientInfo
 
 Check: `git grep -n "0\.2\.0" -- ":!*package-lock.json"` (with the old version) prints nothing, and
 all four suites pass. The server reads its version from the build (`java-server/pom.xml`), and the
-conformance check compares the two. There is no release procedure, no published artifact and no changelog; a
-version is a number in the tree and a merge to `main` by the owner.
+conformance check compares the two. There is no changelog; a version is a number in the tree
+and a merge to `main` by the owner, and a release of it is a tag: see the next section.
+
+## Make a release
+
+A release is the owner's: it is made by pushing a tag. The workflow
+(`.github/workflows/release.yml`, described in
+[development.md](../development.md#releases)) does the rest.
+
+1. The version in the tree is the one to release (the section above), and it is merged to
+   `main`.
+2. Try it first, without publishing: start the workflow *Release* by hand, on GitHub under
+   *Actions*. It runs the suites and makes the three downloads, which are kept with the run.
+   Download one and use it as the [installation guide](../installation.md#from-a-download)
+   says.
+3. Tag and push: `git tag v0.2.0`, `git push origin v0.2.0`, with the version of step 1. A tag
+   that is not `v` and that version makes no release: the workflow stops and says which tag it
+   wants.
+4. Success: a release of that name on GitHub, with three downloads and `SHA256SUMS.txt`.
+   `gh attestation verify <download> --repo <owner>/<repository>` says that it was built there.
+
+A release cannot be made again under the same tag. If one is wrong, delete it and its tag on
+GitHub, mend, and tag anew, or go on to the next version.
+
+To make the download for the system you are on, without GitHub:
+
+```sh
+mvn -f java-server/pom.xml package -DskipTests      # in a copy, if a server runs from the tree's jar
+npm --prefix chrome-extension run build
+bash release/bundle.sh                              # on Windows: in Git Bash
+```
+
+Success: `Made .../release/out/tabgoblin-<version>-<system>-<machine>` with `.zip` on Windows
+and `.tar.gz` elsewhere, about 50 MB; the folder is not in git. It needs a JDK 21 or newer on
+the path. Unpack it into a folder with a space in its name and try: `tabgoblin --help`;
+`tabgoblin --setup claude-code` with a home folder made for the purpose
+(`JAVA_TOOL_OPTIONS=-Duser.home=<folder without a space>`), which must put the skill there and
+print the line for the agent, the extension's folder and the command for the window; and the
+end-to-end suite with the download's `runtime/bin` first on the path, which runs every step
+on the runtime that is inside.
 
 ## Check the documentation links
 

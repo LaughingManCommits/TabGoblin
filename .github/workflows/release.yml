@@ -1,0 +1,102 @@
+name: Release
+
+# A version tag makes a release. The suites run; the download is made on each system it is for;
+# and the release is published with the three downloads, their checksums, and GitHub's word on
+# where each was built.
+#
+# Started by hand, it runs the suites and makes the downloads, and publishes nothing: they are
+# kept with the run, to be tried.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    name: Suites
+    uses: ./.github/workflows/ci.yml
+
+  # A runtime is made by the JDK of the system it is for, so each download is made on its own.
+  download:
+    name: Download for ${{ matrix.name }}
+    needs: suites
+    strategy:
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-latest
+          - name: linux-x64
+            os: ubuntu-latest
+          - name: macos-arm64
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: chrome-extension/package-lock.json
+      - name: Build the server
+        run: mvn -B -f java-server/pom.xml package -DskipTests
+      - name: Build the extension
+        working-directory: chrome-extension
+        run: |
+          npm ci
+          npm run build
+      # It refuses a tag that is not the version in the files, and a server that does not start
+      # on the runtime made for it.
+      - name: Make the download
+        shell: bash
+        run: bash release/bundle.sh
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tabgoblin-${{ matrix.name }}
+          path: |
+            release/out/*.zip
+            release/out/*.tar.gz
+          if-no-files-found: error
+
+  # Only for a tag, and the only job that may write: it makes the release and nothing else.
+  publish:
+    name: Publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: download
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: downloads
+          merge-multiple: true
+      - name: Three downloads, and their checksums
+        working-directory: downloads
+        run: |
+          ls -l
+          test "$(ls tabgoblin-* | wc -l)" = 3
+          sha256sum tabgoblin-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: downloads/tabgoblin-*
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -e "s|VERSION|$version|g" -e "s|REPOSITORY|$GITHUB_REPOSITORY|g" -e "s|TAG|$GITHUB_REF_NAME|g" release/notes.md > notes.md
+          gh release create "$GITHUB_REF_NAME" downloads/* --verify-tag --title "TabGoblin $version" --notes-file notes.md

@@ -107,7 +107,8 @@ const settingsFile = join(work, 'tabgoblin.properties');
 const demo = await startDemo(0, 0, 0);
 const wsPort = await freePort();
 // Every agent's server gets the same arguments; each takes the first free port from wsPort up.
-const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', tokenFile];
+// No window: the server's would come up by itself in the step that pairs with a wrong token.
+const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', tokenFile, '--no-panel'];
 
 const shown = execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' });
 const token = /Pairing token:\s*(\S+)/.exec(shown)?.[1];
@@ -132,8 +133,17 @@ try {
     }
   });
   await step('reports clearly when no extension is connected', async () => {
-    has((await one.tool('browser_status')).text, 'Extension: not connected');
-    fails(await one.tool('browser_snapshot'), 'NOT_CONNECTED');
+    const status = (await one.tool('browser_status')).text;
+    has(status, 'Extension: not connected');
+    // No browser has come: it may be on its way, or not paired at all. Both are said, and where the token is.
+    has(status, 'An extension that is paired finds this server within about 30 seconds');
+    has(status, 'If it is not paired yet, ask the user to load the TabGoblin extension in Chrome');
+    has(status, '--show-token');
+    lacks(status, 'holds a token');
+    lacks(status, token);
+    const refused = await one.tool('browser_snapshot');
+    fails(refused, 'NOT_CONNECTED');
+    has(refused.text, 'The Chrome extension is not connected. An extension that is paired finds this server');
   });
 
   console.log('\nChrome + extension');
@@ -361,14 +371,25 @@ try {
     assert(all.sort().join(',') === 'activeTab,alarms,scripting,storage', `permissions are ${all.join(',')}`);
     assert(!manifest.content_scripts, 'no content script should be registered for every page');
   });
-  await step('a wrong pairing token is rejected', async () => {
+  await step('a wrong pairing token is rejected: the popup says what to do, and the agent that the browser holds another token', async () => {
     const popup = await openPopup();
     await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
     await popup.type('#token', 'f'.repeat(64));
     await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
-    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'));
-    has((await one.tool('browser_status')).text, 'Extension: not connected');
+    await popup.waitForFunction(() => document.getElementById('connection').textContent === 'Paste the server\'s current token to connect');
+    assert(await popup.$eval('#dot', (el) => el.classList.contains('wanted') && !el.classList.contains('failed')), 'the dot says a fault, where it is the user\'s step');
+    // The agent is told why no browser is there, what the user has to do, and where the token is.
+    // This server was started with --no-panel, so that is the command and not the window.
+    const status = (await one.tool('browser_status')).text;
+    has(status, 'Extension: not connected');
+    has(status, 'The browser holds a token that is not this server\'s. Ask the user to pair the browser with this server');
+    has(status, '--show-token');
+    lacks(status, 'window is open');
+    lacks(status, token);
+    const refused = await one.tool('browser_snapshot');
+    fails(refused, 'NOT_CONNECTED');
+    has(refused.text, 'the token it holds is not this server\'s. Ask the user to pair the browser with this server');
   });
   await step('pairs with the real token; the agent is identified in the popup', async () => {
     const popup = await openPopup();
@@ -1846,15 +1867,15 @@ try {
     assert(rotated && rotated !== token, 'a new token should be printed');
     const refused = await one.tool('browser_snapshot', { session: sA });
     fails(refused, 'NOT_CONNECTED');
-    has(refused.text, 'pair the extension again');
+    has(refused.text, 'the token it holds is not this server\'s. Ask the user to pair the browser with this server');
     const popup = await openPopup();
-    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'), { timeout: 20000 });
+    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('current token'), { timeout: 20000 });
     // The old token no longer pairs.
     await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
     await popup.type('#token', token);
     await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
-    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'));
+    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('current token'));
     fails(await one.tool('browser_snapshot', { session: sA }), 'NOT_CONNECTED');
     // The new one does, and the session is where it was.
     await popup.type('#token', rotated);

@@ -29,12 +29,17 @@ class PanelTest {
     }
 
     private static PanelModel model(boolean connected, boolean off) {
+        return model(connected, off, 0);
+    }
+
+    /** @param closeCode why the browser is not connected, as the connection knows it */
+    private static PanelModel model(boolean connected, boolean off, int closeCode) {
         var sessions = List.of(
                 new Protocol.Session("s1", "c-1a2b3c4d", "a1", "https://mail.example.com", 7, 0, "d1", "write", 2, "active",
                         "Inbox (3) - private mail", "https://mail.example.com/mail/u/0/#inbox"),
                 new Protocol.Session("s2", "c-1a2b3c4d", "a2", "https://docs.example.org", 8, 0, "d2", "read", 1, "paused",
                         "Quarterly figures", "https://docs.example.org/d/quarterly"));
-        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, connected, off, 1_000, 0,
+        return PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", null, connected, off, 1_000, closeCode,
                 connected ? sessions : List.of(), TIME,
                 List.of(new Log.Line(2_000, "info", "extension connected client=c-1a2b3c4d protocol=2"),
                         new Log.Line(3_000, "warn", "connection rejected reason=pairing_proof")),
@@ -200,6 +205,32 @@ class PanelTest {
                 "back at its end: reading=false, last is '00:01:05  line 65'",
                 "some of it marked: reading=true, last is '00:01:05  line 65'",
                 "the mark gone: reading=false, last is '00:01:10  line 70'"), seen);
+    }
+
+    @Test
+    void whileTheBrowserHoldsAnotherTokenTheWindowSaysAtItsTopWhatToDoAndHasTheButtonForIt() throws Exception {
+        List<String> seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            var steps = new ArrayList<String>();
+            // No browser has come: one that is paired is on its way as a rule, and nothing is asked of the user.
+            view.show(model(false, false));
+            steps.add("waiting: shown=" + view.pairShown());
+            // One came with another token: the step, and its button, which asks for the token as the other one does.
+            view.show(model(false, false, Protocol.CLOSE_UNAUTHORIZED));
+            steps.add("another token: shown=" + view.pairShown() + " words="
+                    + view.words().containsAll(List.of("Pair the browser with this server",
+                            "Copy the token, then paste it into the TabGoblin popup in Chrome.")));
+            view.pairCopy().fire();
+            steps.add(view.pairCopy().getText() + " -> " + sent);
+            // Paired, or switched off here: there is nothing to pair, and the box is gone.
+            view.show(model(true, false));
+            steps.add("paired: shown=" + view.pairShown());
+            view.show(model(false, true, Protocol.CLOSE_UNAUTHORIZED));
+            steps.add("switched off: shown=" + view.pairShown());
+            return steps;
+        });
+        assertEquals(List.of("waiting: shown=false", "another token: shown=true words=true", "Copied -> [CopyToken[]]",
+                "paired: shown=false", "switched off: shown=false"), seen);
     }
 
     @Test

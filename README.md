@@ -55,7 +55,13 @@ flowchart LR
 
 ## Quick start
 
-Requires Java 21+, Maven, Node 24+ and Chrome 120+.
+**From a download,** with nothing to install first: get the file for your system from the
+[latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest), unpack it where it can stay, and run
+`tabgoblin --setup claude-code` (or `codex`, or `copilot`) in its folder. It installs the
+agent's skill and prints the three steps that are left, with your own paths: tell the agent
+about the server, load the extension into Chrome, and pair the two.
+
+**From source.** Requires Java 21+, Maven, Node 24+ and Chrome 120+.
 
 ```sh
 mvn -f java-server/pom.xml package

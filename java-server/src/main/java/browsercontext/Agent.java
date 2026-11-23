@@ -51,6 +51,15 @@ final class Agent {
      * @param held       the user has the connection to the browser switched off in the server's window
      */
     static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held) {
+        return serve(settings, in, out, onInputEnd, held, () -> BrowserService.Unpaired.NOTHING_KNOWN);
+    }
+
+    /**
+     * @param unpaired asked when a tool finds no browser on this agent's connection: what is known of
+     *                 the browser. Whoever answers may bring the server's window up.
+     */
+    static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
+            Supplier<BrowserService.Unpaired> unpaired) {
         WebSocketBridge bridge = null;
         String startupProblem = null;
         for (int candidate = settings.port(); candidate < settings.port() + McpMain.PORT_RANGE && bridge == null; candidate++) {
@@ -72,7 +81,7 @@ final class Agent {
             bridge.setHeld(true);
         }
         bridge.blockedSites(settings.blocked());
-        BrowserService service = new BrowserService(bridge, startupProblem);
+        BrowserService service = new BrowserService(bridge, startupProblem, unpaired);
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
         // An agent's name is taken from its opening message: a server that was started again is
         // given its tabs back by that name, and should not have to wait for a tool call to have it.

@@ -409,6 +409,9 @@ final class Panel {
         private final TextArea log = lines();
         private final ToggleButton browser = new ToggleButton();
         private final Button copy = new Button("Copy");
+        /** The same at the window's top, while the browser holds another token: the step the window came up for. */
+        private final Button pairCopy = new Button("Copy token");
+        private final HBox pair = new HBox();
         private final Region knob = new Region();
         private final Label browserHint = label("", "hint");
         private final Label blockedHint = label("", "hint");
@@ -522,19 +525,24 @@ final class Panel {
 
             // The pairing token is handed over and never shown: a click puts it on the clipboard.
             copy.setMinWidth(76);
-            copy.setAccessibleText("Copy the pairing token to the clipboard");
-            copy.setTooltip(new Tooltip("Puts the pairing token on the clipboard, for the extension's popup.\n"
-                    + "It is not shown here, and it leaves the clipboard again after a minute."));
-            var copied = new PauseTransition(Duration.seconds(3));
-            copied.setOnFinished(over -> copy.setText("Copy"));
-            copy.setOnAction(click -> {
-                commands.accept(new Command.CopyToken());
-                copy.setText("Copied");
-                copied.playFromStart();
-            });
+            copies(copy, "Copy", commands);
             var pairing = new HBox(
                     new VBox(label("Pairing token", "strong"), label("Paste it into the extension's popup.", "hint")), grow(), copy);
             pairing.getStyleClass().add("row");
+
+            // While the browser holds a token that is not the server's, pairing is the one thing to do,
+            // and what the window came up for: said at the top, with the button beside it.
+            copies(pairCopy, "Copy token", commands);
+            pairCopy.getStyleClass().add("primary");
+            pairCopy.setMinWidth(Region.USE_PREF_SIZE);
+            var pairHint = label("Copy the token, then paste it into the TabGoblin popup in Chrome.", "hint");
+            pairHint.setWrapText(true);
+            pairHint.setMinHeight(Region.USE_PREF_SIZE);
+            var pairWords = new VBox(label("Pair the browser with this server", "strong"), pairHint);
+            pairWords.setMinWidth(0);
+            HBox.setHgrow(pairWords, Priority.ALWAYS);
+            pair.getChildren().addAll(pairWords, pairCopy);
+            pair.getStyleClass().addAll("row", "pair");
 
             // The sites no agent may work on: what is in force now, and the way to the file they are named in.
             edit.setMinWidth(76);
@@ -570,7 +578,7 @@ final class Panel {
             middle.setFocusTraversable(false);
             VBox.setVgrow(middle, Priority.ALWAYS);
 
-            root.getChildren().addAll(header, status, problem, note, middle, control, foot);
+            root.getChildren().addAll(header, status, pair, problem, note, middle, control, foot);
         }
 
         /** Makes the body this high: the log takes what is left over, and gives it up first. */
@@ -623,6 +631,8 @@ final class Panel {
                 shownConnected = !model.switchedOff();
                 goblin.awake(shownConnected);
             }
+            pair.setVisible(model.pairingWanted());
+            pair.setManaged(model.pairingWanted());
             problem.setText(model.problem() == null ? "" : model.problem());
             problem.setVisible(model.problem() != null);
             problem.setManaged(model.problem() != null);
@@ -953,6 +963,32 @@ final class Panel {
         /** The button that copies the pairing token, for a test. */
         Button copy() {
             return copy;
+        }
+
+        /** The button at the top, which is there while the browser holds another token. */
+        Button pairCopy() {
+            return pairCopy;
+        }
+
+        boolean pairShown() {
+            return pair.isVisible();
+        }
+
+        /**
+         * A button that puts the pairing token on the clipboard: it asks for that, and says for a
+         * moment that it is done. The token is never in the window.
+         */
+        private static void copies(Button button, String idle, Consumer<Command> commands) {
+            button.setAccessibleText("Copy the pairing token to the clipboard");
+            button.setTooltip(new Tooltip("Puts the pairing token on the clipboard, for the extension's popup.\n"
+                    + "It is not shown here, and it leaves the clipboard again after a minute."));
+            var copied = new PauseTransition(Duration.seconds(3));
+            copied.setOnFinished(over -> button.setText(idle));
+            button.setOnAction(click -> {
+                commands.accept(new Command.CopyToken());
+                button.setText("Copied");
+                copied.playFromStart();
+            });
         }
 
         /** The button that opens the settings file. */

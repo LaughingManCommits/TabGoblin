@@ -28,7 +28,9 @@ how much you may do there.
 1. Call `browser_status`. It says whether the extension is connected and lists your sessions:
    one for each tab the user has authorized, with its id (`s1`, `s2`, …), its website, its
    access level and the page it is on.
-2. **Not connected:** the result says why and what to ask the user for. Tell the user that.
+2. **Not connected:** the result says why and what to ask the user for. Tell the user that,
+   and go on when they have done it. No tool pairs the browser, and calling one again does not
+   help.
 3. **No session:** ask the user to open the site in Chrome, click the TabGoblin icon on that
    tab, choose an access level and press **Authorize**. Say which level the task needs:
    - **Read** looks at the page that is open.

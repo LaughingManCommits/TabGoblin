@@ -3,6 +3,128 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-23, on `easy-install`: WP-15, a download, a setup command, and a release by a tag
+
+The owner decided that there will be no Chrome Web Store, ever, and then: "okay lets build wp 15
+with the cd release". Made from `new-token-each-start`. Committed on the owner's word; not
+pushed.
+
+In a copy of the tree, with a jar and an extension built there; the session's own server runs
+from the tree's jar, which was not rebuilt.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 151 tests, and the 8 of the conformance check on the built jar. Five of the 151 are new for this: four of setup, one of the help |
+| `npm run check` in `chrome-extension` | 161 tests, with the type-check and the build |
+| `cd e2e && node run.mjs` | 95 passed, 0 failed. No server of the copy left running |
+| `bash release/bundle.sh`, on Windows 11 with a JDK 26 | `tabgoblin-0.2.0-windows-x64.zip`, 48.5 MB; 67 MB unpacked. With a tag that is not the version it makes nothing and ends with 1 |
+| `cd e2e && node run.mjs`, with the download's `runtime/bin` first on the path | 95 passed, 0 failed, on a jar that is byte for byte the download's. `java` was the download's, for the shell and for Node |
+| `bash release/bundle.sh`, in Ubuntu under Windows' Linux subsystem, with a JDK 21 fetched for the making | `tabgoblin-0.2.0-linux-x64.tar.gz`, 51.3 MB |
+| both workflow files read as YAML | well-formed; the release calls the suites, makes three downloads after them, and publishes only for a tag, as the one job that may write |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The download for Windows, unpacked into a folder with a space in its name:
+
+- `tabgoblin --help` prints the help, with the line that says what the command stands for.
+- `tabgoblin --setup claude-code` and `--setup copilot`, with a home folder made for the purpose:
+  the skill was put there; the line for the agent, the extension's folder and the command for
+  the window were printed with the download's own paths, each in quotes; asked again, it said
+  that the skill was there already.
+- The line for Claude Code was run with the real tool, in Command Prompt and in PowerShell,
+  against a configuration made for the purpose, and what it stored was read: the Java of the
+  download as the command, its path whole with the space in it, and `-jar` with the jar.
+- Started as an agent's program starts it, on the runtime that is inside: the server came up,
+  and its window after a browser had come with another token, read through UI Automation.
+
+The download for Linux, in the Linux subsystem, where there is no Java: the help; setup for
+Codex, which put both files of that skill in place; and the server as an agent starts it,
+which answered `initialize` and a `browser_status`. Its window: the server's log said `panel
+shown`, and the window was not found by a look from either system, so it counts as not seen.
+A server started with `tabgoblin --panel` in a terminal made up for the purpose was gone once
+that terminal had closed.
+
+What went wrong on the way, and is worth knowing:
+
+- **The first run of the suite "on the download's runtime" was not on it.** The path was given
+  in the form Windows writes, which the shell did not take, and the suite ran on the system's
+  Java. Its own first line showed it. The run was thrown away and done again, and its record
+  now names the Java the shell and Node each found.
+- **Counts of windows in the Linux subsystem meant nothing:** the tools that list them are not
+  installed there, and their errors were hidden. Nothing was installed.
+- **A line passed from one shell into another lost its quotes,** which looked like a fault of
+  the line for Claude Code in Command Prompt. Run from a file of that shell, the line is right.
+
+Not run: the release workflow itself. Nothing was pushed, and it runs on GitHub only. Not made:
+a download for macOS. Not run: the lines for Codex and for Copilot; neither agent is on this
+machine. Not done: the acceptance as the package has it, a person following the page on a
+machine with nothing installed, with the minutes counted. Not run on this tree: the editor lab;
+its files are as on `main`.
+
+## 2026-11-23, on `new-token-each-start`: WP-17, built, and cut back to what helps with a pairing
+
+Three things happened on this day, and the entry says what stands at its end.
+
+1. WP-23, the documentation's pictures as SVG, was built and committed on a branch. The owner
+   pushed it and looked from the network it was for: the proxy there holds back SVG as well,
+   by the owner's report. The owner deleted the branch. Nothing of it is in `main`. What the
+   block page names was not read.
+2. WP-17 was built as the owner decided it: a new pairing token at every start of a server.
+   Committed on the owner's word. All suites passed on it: the server's 148 tests and the 8 of
+   the conformance check, the extension's 161, 97 steps end to end, the editor lab with 222 of
+   225; and the real window was read by hand.
+3. Asked whether it had been a necessary feature, the session said no: the token has to stay
+   in its file for the agents' processes, so a new one at every start keeps out no program
+   that runs as the user, and it costs a pairing at every start. The owner had it taken out
+   and kept the rest. Committed on the owner's word, as a second commit; not pushed.
+
+What follows is of the third, the tree as it is. All of it in a copy of the tree, with a jar
+and an extension built there; the session's own server runs from the tree's jar, which was not
+rebuilt.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 146 tests, and the 8 of the conformance check on the built jar. Ten of the 146 are new against `main` |
+| `npm run check` in `chrome-extension` | 161 tests, with the type-check and the build |
+| `cd e2e && node run.mjs` | 95 passed, 0 failed: the steps there were, three of them with more in them. No server of the copy left running |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+What the changed steps of the suite show, with the real jar, real Chrome and the real popup:
+
+- With no browser, the status says that a paired extension finds the server within half a
+  minute and what to do if it is not paired, names `--show-token`, and says nothing of a token
+  that is held.
+- A wrong token pasted into the popup is not taken. The popup says *Paste the server's current
+  token to connect*, and its dot is amber and not red. The status then says that the browser
+  holds a token that is not the server's and what the user has to do, and names no token.
+- After a rotation the agent is told the same, and not that the browser is paired by way of
+  the other agent, whose pairing on the old token is still open at that moment.
+
+By hand, with the built jar started as an agent's program does, on ports and a token file of
+its own, and the window read through UI Automation, with no part of the screen captured:
+
+- A token written to the file before the start is the server's after it: it is kept.
+- With no browser, `browser_status` brings no window up.
+- A program that connects as an extension and answers the challenge with a proof that is none
+  is closed with 4401. The next `browser_status` says that the browser holds another token and
+  that the window is open; the window is there, with *Not paired: the browser has another
+  token*, *Pair the browser with this server* and the button *Copy token*. The token is in no
+  word of the window and not in the status.
+- With `--no-panel` no window comes, and the status names `--show-token`.
+- When the agent's process ended, the server and its window were gone.
+
+The buttons that copy the token were not pressed: they write to the clipboard of the machine.
+
+Looked at, each opened: the window's states as its picture tool draws them, seventeen now. The
+pairing box is in the new one, where a browser came with another token, and in no other: not
+where no browser has come, not where the server has no port, not where it is switched off. The
+picture of the first state is byte for byte `docs/images/server-panel.png` as it is on `main`.
+The popup before pairing and after a refused token, captured from the real popup: the text
+fits. `docs/images/popup-pairing.png` is new; the other pictures show nothing that changed.
+
+Not run on the tree as it is: the editor lab; its files are as on `main`. Not tried: Linux and
+macOS; the owner's own extension after a real rotation; an extension from before this change
+against this server, with real parts.
+
 ## 2026-11-22, on `agent-skills`: WP-22, a skill for the tools for each of three agents
 
 The owner asked for a folder of skills for Claude Code, Codex and Copilot, "to standards", if it
@@ -533,121 +655,22 @@ opened. Nothing of that run speaks about the code.
 Not run: the suite end to end and the editor lab; the pass changed three test files of the
 server and no other code.
 
-## 2026-11-22, on `server-panel`: WP-13, the server's panel
-
-A window for the server, asked for with `--panel`. Built in JavaFX after a first attempt in
-Swing was turned down by the owner. The jar was built and the suites that need it were run in a
-copy of the tree, because the session's own server runs from the tree's jar.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify`, in the copy | 84 tests; `McpConformanceIT` on the built jar: 8 tests. The jar is 17,554,410 bytes; the one before this work 7,091,063 |
-| `mvn -B -f java-server/pom.xml test`, in the tree | 84 tests. On the way: five runs and four runs in a row without a failure, after two tests had each failed once (below) |
-| the same with `-DargLine=-Djava.awt.headless=true`, as on a machine without a display | 83 tests, 6 skipped, none failed; run before the last test was added |
-| `cd e2e && npm test`, in the copy | 94 passed, 0 failed, four times, each on the jar of that moment. The last was on a jar whose own classes are those of the final jar; one test was added after it |
-| `node docs/agents/check-links.mjs` | 90 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-Two tests failed once each in repeated runs. `aUserDisconnectIsExplainedToTheAgent` waited for
-the connection to stop being open, which happens a moment before the server notes the code it
-was closed with: it now waits for the code. `itIsReadFromTheRunningServer…` found a session
-still listed a moment after its connection had closed: the panel now shows no tabs without a
-connection, which is a change to the product and not to the test.
-
-By hand, on Windows 11, with the jar from the copy:
-
-- **The window, on Java 21 and on Java 26:** `panel shown` in the log, nothing on standard
-  output, exit code 0 when the input ends. Standard error has one warning of JavaFX on both;
-  on Java 26 four more lines of Java about a method that will be removed.
-- **Its controls, pressed in the real window** through Windows' accessibility interface, which
-  does not move the mouse: the switch off and on (the log says so, the line with the dot and
-  the hint change); Stop twice, exit code 0 a third of a second later; Kill twice, exit code 1,
-  and `ending at once on the user's word in the panel` as the last line. What the window offers
-  a screen reader was read: every label, the two states of the switch, and the log under the
-  name of its heading, after it had none.
-- **Its icon.** Windows said the window had no icon of its own; the owner had seen Java's on the
-  taskbar. The icons were set and silently passed over, because of the form of their pixels.
-  After the fix Windows returns a goblin of 32 by 32 for the small and the big icon, and the
-  window's button on the taskbar, pictured alone, shows it.
-- **The log's view, measured in the real window:** at its last line with 40, 41 and 66 lines;
-  unmoved and unwritten while scrolled up and while some of it was marked; at the new last line
-  after the view was brought back down.
-- **The keyboard:** when the window appears it is with the panel's ground, not with a button.
-- **With the real extension,** in Chrome as the suite drives it, with the Java on the path
-  (26): after the switch was pressed, `browser_status` and a snapshot said that the user had
-  switched the connection off and where, the popup said *Disconnected: is the MCP server
-  running?* with the session still listed, and opening the popup did not get the extension
-  back in. After it was pressed again the extension was connected by itself after 14.3
-  seconds, the session was the agent's again, and a snapshot worked. Stop, pressed twice,
-  ended the server with exit code 0 under a real MCP client; no line on standard output was
-  anything but protocol.
-
-On Linux, Ubuntu 26.04 in the Linux subsystem of Windows, with a Java 21 runtime fetched for
-the purpose and nothing installed:
-
-- The first build's window, without a frame and see-through, was there for the system and drew
-  nothing. The owner saw it first: an icon on the taskbar and nothing on the desktop.
-- With the system's frame the window draws: six points in its margins had the colour of the
-  panel's ground, and the picture taken after that shows the whole panel. The server ended
-  with exit code 0. Without a display it logged `panel not shown reason=no_display` and ran.
-- Not done there: pressing a button.
-
-Pictures: the six drawings of `PanelPictures`, each opened; the first is
-`docs/images/server-panel.png`. The real window was pictured on Windows in four states and on
-Linux in one; those are not in git.
-
-What went wrong on the way, and is worth knowing:
-
-- **Three captures of a place on the screen showed other windows of the owner's desktop**
-  instead of the panel, because the panel was not in front or drew nothing. They were deleted.
-  The tool that took such captures was removed from the tree before any commit, and the
-  runbook says not to picture the screen for this. Afterwards a window was pictured only once
-  points inside it had been read as the panel's own.
-- **A drawing was right where the window was wrong, twice:** the icon, and the window on
-  Linux. Neither is found by a test.
-
-Not run: the extension's suite and the editor lab (none of their files changed); the two unit
-suites on Linux in a container (Docker was not running); anything on macOS; CI. CI run #14, for
-`main` as it is, was read on GitHub as completed successfully; its jobs were not opened.
-
-## 2026-11-22, on `ci-tab-address`: CI for the day's merges, and the step that failed in run #12
-
-Read on GitHub by a session, through TabGoblin, on a tab the owner authorized with Explore:
-
-- Run #11 (`3071781`, the merge of `nothing-personal`): passed. It is the first run with the
-  fifth job, "Nothing personal", which had run on Windows only before.
-- Run #12 (`5274b04`, the merge of `disconnect-revokes`): failed. Four jobs passed; end to end,
-  92 passed and 1 failed: "a redirect out of the site during navigate suspends the session
-  too", with "tab is at" and the address of the first demo site. The step for Disconnect, which
-  that merge brought, passed.
-- Run #13 (`2c26e0b`, the merge of `notice-box`): passed in all five jobs. End to end took 4m
-  11s; its steps were not read one by one. It is the first run of the new step for the notice
-  on GitHub's runner.
-
-The cause of #12, concluded from its log and the step and not shown. The step lets the agent
-navigate to an address that redirects out of the site, and then asserts three things: the
-navigation is refused as having left the site, a snapshot is refused because the session is
-suspended, and the tab is on the other site. The first two passed, so the extension had seen
-the tab leave. The third asks the suite's driver, whose `url()` is what the browser last told
-it; asked right after the tools' answers, it still named the page before. Two more steps ask
-the same way: the click that leaves the site, and the move between the sites of a session.
-
-The fix is in the suite alone: the three places wait, for up to five seconds, until the driver
-names the address that is expected, and say the address it has if that does not come.
-
-| Command | Result |
-|---|---|
-| `cd e2e && npm test`, in a copy of the tree with a jar built there | 94 passed, 0 failed, the three steps among them |
-| `node docs/agents/check-links.mjs` | 79 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-Not shown: the failure itself. It never came up on this machine, in any of the day's runs, and
-run #13 passed on GitHub with the step as it was. So the run above shows that the fix breaks
-nothing, not that it mends the step. Not run: the unit suites and the editor lab; no product
-code and none of their files changed.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `server-panel` (WP-13, the server's panel): a window for the server in JavaFX,
+  after one in Swing was turned down by the owner. Server 84 tests and the 8 of the conformance
+  check; end to end 94 of 94, four times. By hand on Windows 11: the window on Java 21 and on
+  Java 26, its controls pressed through the accessibility interface, its icon, the log's view,
+  and the switch with the real extension. In Ubuntu under the Linux subsystem the window drew
+  once it had the system's frame; a see-through one had been there and drawn nothing, which the
+  owner saw first. Three captures of a place on the screen showed other windows of the owner's
+  desktop and were deleted; the screen has not been pictured for this since.
+- 2026-11-22, on `ci-tab-address` (CI for the day's merges, and the step that failed in run
+  #12): read on GitHub through TabGoblin, runs #11 and #13 passed and #12 failed in one
+  end-to-end step, which asked the suite's driver for the tab's address right after the tools'
+  answers and got the page before. Three steps that ask that way now wait up to five seconds
+  for the address. The suite passed with them, 94 of 94; the failure itself never came up on
+  this machine, so the run shows that the fix breaks nothing, not that it mends the step.
 - 2026-11-22, on `notice-box` (WP-11, the notice in the page: a bar, and pills of what ended):
   the extension's check passed with 151 tests, twelve of them new, and the suite end to end with
   94, in the third of five full runs to pass. The notice was drawn in 31 states and looked at,

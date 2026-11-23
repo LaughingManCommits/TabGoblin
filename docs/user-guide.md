@@ -207,7 +207,7 @@ can reach.
 | What you see | What it means | What to do |
 |---|---|---|
 | *Not paired* | No token stored | Paste the token from `--show-token` |
-| *Pairing failed: check the token* | A server refused the token | Paste the current token; it changes with `--rotate-token` |
+| *Paste the server's current token to connect* | A server refused the token the extension holds: it was mistyped, or replaced with `--rotate-token` | Paste the current token: **Copy token** in [the server's window](#9-the-servers-panel), which comes up by itself then, or `--show-token` |
 | *Disconnected: is the MCP server running?* | No server found on the ports, or the one there has its connection switched off in [its panel](#9-the-servers-panel) | Start your agent, or have it call any TabGoblin tool; check the *First port* under *Connection…*; switch the connection on in the panel |
 | *Server and extension versions differ* | Jar and extension are from different builds | Rebuild both and reload the extension |
 | Agent says "not connected" right after starting | It asked before the extension found its server | It waits up to 10 seconds by itself; opening the popup connects at once |
@@ -277,6 +277,13 @@ it by its name. To have no server, end the agents, or press **Stop server** in t
 
 The server has no window unless you ask for one. There is one window, as there is one server,
 and it shows every agent that is connected.
+
+One case brings it up by itself: the browser came with a token that is not the server's, because
+it was mistyped or replaced with `--rotate-token`. The next time an agent uses a TabGoblin tool,
+the window comes up, once, and says *Pair the browser with this server* at its top, with the
+button **Copy token**. The agent is told the same, and tells you. With `--no-panel` where you
+told your agent about the server, or `BCMCP_PANEL=0`, no window comes for that agent, and the
+token is the one `--show-token` prints.
 
 **To see it at once,** run this in the project's folder:
 
@@ -361,7 +368,8 @@ then, so a key that was on its way elsewhere presses nothing.
   extension and lets it in no more until you switch it on. The agent's tools then answer that
   you switched it off, and where; the popup says *Disconnected*. Switched on, the extension
   finds the server by itself within half a minute, and the agent has its tabs as before.
-- **Pairing token** has a **Copy** button. It puts the pairing token on the clipboard, for the
+- **Pairing token** has a **Copy** button; while the browser holds another token, **Copy token**
+  at the window's top does the same. It puts the pairing token on the clipboard, for the
   *Pairing token* field of the extension's popup, without showing it. The token leaves the
   clipboard again after a minute, and when you stop the server from the panel, unless you have
   copied something else since. A clipboard history that your system keeps is not emptied.
@@ -387,7 +395,7 @@ then, so a key that was on its way elsewhere presses nothing.
 | *1 of 2 agents is connected to the browser*, and the like | The extension is connected to some agents and not to others. An agent's heading says *not connected*; the pointer on it says why | What the reason asks for, from the rows below |
 | *Not connected: waiting for the extension* | Chrome is not running, the extension is not paired, or it has not found this server yet | Open the popup: a paired extension connects at once, and by itself within half a minute. To pair, **Copy** the token here and paste it into the popup |
 | *Not connected: disconnected in the extension's popup* | You pressed *Disconnect* next to this agent. The line and the log stay as they are until you allow it again | Press *Allow again* there |
-| *Not connected: the pairing has ended* | The token was rotated, or the pairing failed | Pair again: **Copy** the token here and paste it into the popup ([step 6 of the installation guide](installation.md#6-pair-the-extension-with-the-server)) |
+| *Not paired: the browser has another token* | The extension came with a token that is not this server's: it was mistyped, or the token was rotated | Press **Copy token** at the window's top and paste it into the popup ([step 6 of the installation guide](installation.md#6-pair-the-extension-with-the-server)) |
 | *Not connected: the extension is of another version* | Jar and extension are from different builds | Rebuild both and reload the extension |
 | *Switched off here: the extension is not let in* | The switch in this window is off | Switch it on |
 
@@ -416,7 +424,7 @@ panel is built is in the [architecture](architecture.md#the-servers-panel).
 |---|---|---|
 | When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
 | Indicator in the page | Switch under *Settings* in the popup | on |
-| The server's panel | `--panel` / `BCMCP_PANEL` = `1` on the server | off |
+| The server's panel | `--panel` / `BCMCP_PANEL=1` on the server: there from the start. `--no-panel` / `BCMCP_PANEL=0`: never by itself | off, but for the one case that brings it up |
 | First port | *Connection…* in the popup; `--port` on the server | 47821 |
 | Token file | `--token-file` / `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` |
 | Blocked sites | `blocked.sites` in the settings file; **Edit** in the server's panel opens it | none |

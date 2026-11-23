@@ -141,7 +141,8 @@ name while the first is away. An agent without a name is given nothing.
 | No retries | A command is sent once; a timed-out command is cancelled so it cannot run later |
 
 The token is stored in `~/.browser-context-mcp/pairing-token` and in the extension's storage,
-which content scripts cannot read. It is never logged.
+which content scripts cannot read. It is never logged. At a rotation the file is replaced in one
+step, so that a process reading it finds the old token or the new one and never half of one.
 
 ## Submissions
 
@@ -278,6 +279,9 @@ Where it stops:
 | Wrong token, wrong origin, missing origin, other extension id refused | Java, end-to-end |
 | Old protocol version refused | Java, worker, end-to-end |
 | Pairing lockout, token rotation | Java, end-to-end |
+| A browser that comes with a token that is not the server's is told apart from one that has not come: the agent is told that pairing is what is missing, and where the token is, and never the token | Java, end-to-end |
+| The server's window comes up by itself when a tool finds no browser and one came with another token: once until something is paired, not for an agent started with `--no-panel`, and not while the connection is switched off | Java |
+| After a rotation, an agent's pairing on the old token counts for nothing while it is still open: no other agent is told that the browser is paired | Java, end-to-end |
 | Nothing readable before authorization | End-to-end |
 | Cross-origin navigation, links, redirects blocked or suspended | Rules, end-to-end |
 | Cross-origin frame never read | DOM, end-to-end |
@@ -360,3 +364,7 @@ Chrome.
   depends on their label.
 - **Local malware** running as you can read the token file. TabGoblin does not defend against a
   compromised user account.
+- **A download is what the release workflow built.** Trusting one is trusting this repository
+  and GitHub's machines. Its checksum and GitHub's attestation say that it is the file that was
+  built there from the release's tag, and nothing about what the code does. The downloads are
+  not signed for Windows or macOS.

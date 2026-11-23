@@ -72,7 +72,7 @@ sequenceDiagram
   Note over S: bound to 127.0.0.1, the port after the agents' eight
   L->>S: connects
   S->>L: hello { nonce, link: 1 }
-  L->>S: attach { nonce, proof = HMAC(token, "link:"+sn+":"+ln), link: 1, panel }
+  L->>S: attach { nonce, proof = HMAC(token, "link:"+sn+":"+ln), link: 1, panel, quiet }
   S->>L: attached { proof = HMAC(token, "hub:"+sn+":"+ln) }
   Note over L,S: from here on the agent's MCP messages, as they are
   S-->>L: { tabgoblin: "log", text } and { tabgoblin: "stopping" }, for the link itself
@@ -107,7 +107,15 @@ sequenceDiagram
 
 A server that offers no common protocol version is refused (close code 4406). Ten failed pairings
 lock a server's port for a minute. A rotated token is checked at every heartbeat and before every
-command, so stale pairings end at once.
+command, so stale pairings end at once. Until then such a pairing is still open, and it counts
+for nothing (`WebSocketBridge.pairedOnCurrentToken`). The token's file is replaced in one step;
+a process that runs reads it again when it has changed, and at every asking for three seconds
+after a change, because some file systems keep a file's time to two seconds.
+
+An extension that comes with a token that is not the server's is turned away (4401), and the
+server notes it (`ExtensionConnection.turnedAway`). So it can tell a browser that has to be
+paired from one that has not come yet, which as a rule is on its way: the window and the tools
+say which.
 
 A connection can stay open to a server that no longer answers: one that hangs. So the extension
 counts the answers to its heartbeat. A server that leaves two in a row unanswered is taken for
@@ -365,6 +373,15 @@ server: it shows every agent. What the user sees and can do there is in the
   command may name none and be given the agent's only session, so the extension says in each
   answer which session it was ([protocol](development.md#protocol-reference)). The report the
   agent gets has no session in it, as before.
+- **It comes up by itself for a pairing.** When a tool of an agent finds no browser on that
+  agent's connection, the agent's service asks the server what it knows (`Hub.unpaired`). If
+  the browser is paired with no agent of the server and came to one with a token that is not
+  the server's, the server shows its window, once until something is paired, and the tool's
+  answer says that the token is copied there. While it is so, the window has the step at its
+  top, with a button that copies the token (`PanelModel.pairingWanted`). Not for an agent whose
+  link said `quiet` (`--no-panel`), and not while the switch below is off. Where no browser
+  has come, no window comes up: an extension that is paired finds the server by itself. A
+  window that came up this way does not make the server stay.
 - **Stop and Kill.** Stop runs the steps under "How a server ends". Kill halts the process with
   exit code 1 and runs none of them: the extension finds the connection gone instead of being
   told.
@@ -375,8 +392,8 @@ server: it shows every agent. What the user sees and can do there is in the
   every half minute, as for any server it cannot reach, so switching on needs nothing in the
   popup. Meanwhile a tool call is answered [`NOT_CONNECTED`](tools.md#errors), with words that
   say where the connection was switched off.
-- **The log is kept only when the panel is asked for:** the last 300 lines, in memory, from the
-  server's first line on. They are the lines written to standard error at the level `BCMCP_LOG`
+- **The log is kept for the window, which may come up at any time:** the last 300 lines, in
+  memory, from the server's first line on. They are the lines written to standard error at the level `BCMCP_LOG`
   sets, with two additions: info and warning lines are kept even where `BCMCP_LOG` silences
   them, and so is the line of each tool call that went through, which standard error has only
   at the level `debug`. Without that the window's log has the calls that failed and none that

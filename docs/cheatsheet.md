@@ -18,13 +18,15 @@ Explained in the [installation guide](installation.md).
 ## Commands you run yourself
 
 Your agents start the server themselves: the first that needs it, for all of them. These are
-the commands for you.
+the commands for you. With a [download](installation.md#from-a-download), `tabgoblin` in its
+folder stands for `java -jar java-server/target/browser-context-mcp.jar` in every row.
 
 | To | Command |
 |---|---|
 | Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in the server's window, which puts it on the clipboard |
 | Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
 | See the server's window, with every agent in it | `java -jar java-server/target/browser-context-mcp.jar --panel`. It brings the window up and returns; if no server runs, it starts one, which stays until you stop it |
+| Set TabGoblin up for an agent | `java -jar java-server/target/browser-context-mcp.jar --setup claude-code`, or `codex`, or `copilot`. It installs the skill and prints the line that tells the agent about this server, the extension's folder, and how to pair |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
 | Give your agent the skill for the tools | `java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code`, or `codex`, or `copilot`. Add `--replace` to overwrite one that is there and is not this one |
 | Block a site for every agent | **Edit** next to *Blocked sites* in the server's window opens the settings file. Write `blocked.sites = example.org, intranet.example` and save: it is in force at once |
@@ -74,7 +76,7 @@ started in, and the option wins.
 | `--port` | `BCMCP_PORT` | `47821` | The first of the eight ports a server tries |
 | `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
 | `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
-| `--panel` | `BCMCP_PANEL=1` | off | Whether the server shows its panel |
+| `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself. With neither it comes up only when the browser came with a token that is not the server's |
 | `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is: it names the [blocked sites](user-guide.md#blocked-sites) |
 | none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
 

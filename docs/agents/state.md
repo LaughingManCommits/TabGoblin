@@ -1,20 +1,23 @@
 # Current state and handoff
 
-Last updated: 2026-11-22. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-23. Claims here go stale; check the date, then `git status` and `git log`.
 
 ## Where the code is
 
-- `main` = `origin/main` = `37366f6`: the owner's merge of `records-after-merge` on 2026-11-22,
-  and pushed. Before it, the same day, the merge of `blocked-sites`, which brought one server
-  for all agents (WP-19) and blocked sites (WP-20). Those branches are gone. The repository is
-  public since that day.
-- Branch `smoke-fixes`, made from `main` on 2026-11-22: WP-21, three faults that the first test
-  on the public repository showed, mended. One commit, made on the owner's word. Not pushed and
-  not merged.
-- Branch `agent-skills`, made from `smoke-fixes` on 2026-11-22: WP-22, a skill for the tools
-  for each of Claude Code, Codex and GitHub Copilot, in `skills/`, with a test that holds them
-  to the server and to each other; and the jar puts one in its place on `--install-skill`. Two
-  commits, made on the owner's word. Not pushed and not merged.
+- `main` = `origin/main` = `2b2bc56`: the owner's merge of `agent-skills`, pushed, seen on
+  2026-11-23. It brought the three faults of the first test on the public repository, mended
+  (WP-21), and the skills with the command that installs one (WP-22). The repository is public
+  since 2026-11-22.
+- Branch `new-token-each-start`, made from `main` on 2026-11-23: WP-17. Its first commit,
+  made on the owner's word, has a new pairing token at every start of a server. The owner then
+  had that taken out again and kept what helps when the browser has to be paired: a second
+  commit, made on the owner's word. Not pushed and not merged. The branch's name says what it
+  no longer does.
+- Branch `easy-install`, made from `new-token-each-start` on 2026-11-23: WP-15, a download
+  with the Java runtime inside, a setup command, and a release by a tag. One commit, made on
+  the owner's word. Not pushed and not merged.
+- A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
+  the backlog's overview). Nothing of it is in `main`.
 
 ## Active work
 
@@ -23,16 +26,41 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
 | WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
-| WP-12, WP-15 | Filed on 2026-11-21, not started. Each waits for the owner's decisions. WP-12, the goblin that acts, has its place now: the goblin's face is in the notice and shows the state, not yet the action. WP-15, an easy install, has WP-14 as its first step; a name of its own on the taskbar for the server's panel belongs to it | [TODO.md](../../TODO.md) |
+| WP-15, an easy install | Built on 2026-11-23 on the owner's word, and committed on `easy-install`; not merged. A download for each system with the Java runtime, the jar and the extension in one folder; `--setup <agent>`, which installs the skill and prints the agent's own line for the server, the extension's folder and how to pair; and a workflow that makes a release when a version tag is pushed. The owner decided the same day that there will be no Chrome Web Store, ever. No release has been made, and the workflow has not run | [TODO.md](../../TODO.md) |
+| WP-12, a goblin that acts out what the agent does | Filed on 2026-11-21, not started. It waits for the owner's decisions. It has its place now: the goblin's face is in the notice and shows the state, not yet the action | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
 | WP-19, one server, and every agent connected to it | Merged on 2026-11-22. Built on the owner's word ("okay do your recommendations"). The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry |
-| WP-22, skills for agents that use TabGoblin | Built on 2026-11-22 on the owner's word, and committed on `agent-skills`. Three skills, as the owner chose, the same from their second section on; where each agent wants its skill is in `skills/README.md`. None has been loaded in its agent yet | [TODO.md](../../TODO.md) |
-| WP-21, what the first test on the public repository showed | Built on 2026-11-22 on the owner's word ("do the fixes please"), and committed on `smoke-fixes`. The notice is out of the picture before a screenshot is taken, also on a busy page; the window's metrics have a typical time per call beside each share, and a long pause counts as a minute; a log that is held says so and has a button to its newest line. What is open is in its entry | [TODO.md](../../TODO.md) |
+| WP-22, skills for agents that use TabGoblin | Merged. Built on 2026-11-22 on the owner's word. Three skills, as the owner chose, the same from their second section on; where each agent wants its skill is in `skills/README.md`. None has been loaded in its agent yet | [TODO.md](../../TODO.md) |
+| WP-21, what the first test on the public repository showed | Merged. Built on 2026-11-22 on the owner's word ("do the fixes please"). The notice is out of the picture before a screenshot is taken, also on a busy page; the window's metrics have a typical time per call beside each share, and a long pause counts as a minute; a log that is held says so and has a button to its newest line. What is open is in its entry | [TODO.md](../../TODO.md) |
 | WP-20, blocked sites | Merged on 2026-11-22. Built on the owner's word. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) |
-| WP-17, a new token at every start, and nothing connected on an old one | Filed on 2026-11-22, not started. Its first decision is what "the latest token" means when several agents run. It decides the pairing step of WP-15 | [TODO.md](../../TODO.md) |
+| WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both committed on `new-token-each-start`, not merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
+- **The release workflow has never run.** It can be started by hand on GitHub, which runs the
+  suites and makes the three downloads and publishes nothing; a tag publishes. Whether any job
+  starts is not known: see the line on CI below. What was checked here: both workflow files
+  are well-formed and wired as meant, and the script that makes a download ran on Windows and
+  in Ubuntu under the Linux subsystem.
+- **The downloads: Windows used, Linux in part, macOS never made.** On Windows the download
+  was unpacked into a folder with a space in its name and used: help, setup, the line for
+  Claude Code in two shells, the server and its window, and the end-to-end suite on the runtime
+  that is inside. In the Linux subsystem, without Java: help, setup, and the server as an agent
+  starts it; its window was not seen, though the server's log said *panel shown*. None is
+  signed.
+- **On Linux the server that `--panel` starts in a terminal ended with that terminal,** in
+  one try with a terminal made up for it. The command says that it stays. Not mended: it is
+  the one server's start, which had not been tried on Linux before.
+- **Setup's lines for Codex and Copilot are from their documentation,** read on 2026-11-23, and
+  were not run. Claude Code's was.
+- **The window that comes up by itself has run on Windows only,** with Java 21, and with a
+  made-up browser: a program that answers the server's challenge with a proof that is none.
+  Not tried: Linux and macOS, and the owner's own extension after a real rotation.
+- **A server that starts is connected on the pairing made before,** as it always was. WP-17
+  as it was filed would have changed that; the owner dropped it for what it cost.
+- **A proxy at the owner's work holds back the documentation's pictures on GitHub,** PNG and
+  SVG alike (WP-23, dropped). What the block page names when a picture's address is opened was
+  not read, so the cause is not known.
 - **The three skills have not been loaded in an agent,** and none is in the owner's own home
   folder: the command that installs one was tried against a folder made for the purpose. Their
   places and fields are from each agent's documentation as read on 2026-11-22. How the server is added to Codex and to Copilot
@@ -89,8 +117,8 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   the one that connects next takes up the tabs of the one that has gone, where before it took
   them with its first use of them; and every server started by hand has one name, *Started by
   hand*, so one such server takes up the tabs of the one before it. Each tab that is taken up
-  adds a line to the popup's activity list. WP-17, a new token at every start, has to say how
-  this goes together with it.
+  adds a line to the popup's activity list. WP-17 would have put a pairing in front of that
+  at every start of a server; it was taken out again, and this is as it was.
 - **The copy button of the panel was pressed on Windows only.** There the clipboard held the
   token, the window and the log had nothing of it, and it was gone from the clipboard a minute
   later. The clipboard on Linux and macOS was not tried. A history of the clipboard that the
@@ -162,7 +190,7 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   high-contrast colours.
 - **Disconnect holds for one run of an agent's server.** The agent is refused by an id that its
   server makes when it starts; started again, it is connected again, without a tab.
-  [security.md](../security.md#agents) says so. WP-17 would change it.
+  [security.md](../security.md#agents) says so.
 - **The tree's `chrome-extension/dist` was built on 2026-11-22 at 15:47,** by the owner, and
   has everything of `by-hand-panel`. One thing came after: an answer names the session its
   command ran in, without which a call that names no session is in no tab's metrics.
@@ -223,14 +251,17 @@ Last updated: 2026-11-22. Claims here go stale; check the date, then `git status
   through the accessibility interface. Before that, the same day, the owner's own Chrome and
   agent with the merged build: every tool of Explore on the public repository.
   Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `smoke-fixes` and of `agent-skills`, which is
-  built on it, and the rebuild of both parts to have the fixes in their own
-  Chrome and window. And a first try of a skill in its agent: the Claude Code one is the
-  nearest, with `--install-skill claude-code` and a new session.
-  Both parts have to be built by the owner before it shows in the tree: the server, after the
-  one that runs from the jar is stopped (`mvn -f java-server/pom.xml package`), and the
-  extension (`npm --prefix chrome-extension run build`, then a reload in Chrome). The first
+- **Next action:** the owner's push and merge of `new-token-each-start` and of `easy-install`,
+  which is built on it. Then the
+  release workflow, started by hand on GitHub: it shows whether jobs run there again, and
+  makes the three downloads without publishing; one of them, used on a machine without Java,
+  is the acceptance of WP-15. Then a tag, for the first release. And the rebuild of both
+  parts, which the owner's own Chrome and window need for WP-21 and WP-22 as well: the server,
+  after the one that runs from the jar is
+  stopped (`mvn -f java-server/pom.xml package`), and the extension
+  (`npm --prefix chrome-extension run build`, then a reload in Chrome). And a first try of a
+  skill in its agent: the Claude Code one is the nearest, with `--install-skill claude-code`
+  and a new session. The first
   CI run with credit is the first to run the panel's code on GitHub. Then the second part of
   WP-18, WP-13's open points, WP-14's remainder (the address, the history), and the decisions
-  on WP-12 and WP-15 to WP-17. Of those WP-17, a new token at every start, was recommended as
-  the next to build.
+  on WP-12, WP-15 and WP-16. WP-15, an easy install, has its pairing step decided now.

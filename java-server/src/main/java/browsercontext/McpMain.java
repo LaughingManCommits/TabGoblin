@@ -42,6 +42,8 @@ public final class McpMain {
             pass session=<id> to every tool when you have more than one. The user can block sites for all \
             agents: a tool then answers SITE_BLOCKED. There is no other way to such a site through these tools; \
             tell the user.
+            Pairing: when a tool says the extension is not connected, tell the user what it says they have to \
+            do, and go on once they have done it. No tool pairs the browser.
             Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
             browser_fill / browser_press_key / browser_scroll / browser_navigate -> take a new snapshot to see \
             the result. Refs go stale when the page changes; take a new snapshot when told so.
@@ -89,7 +91,24 @@ public final class McpMain {
         String extensionOrigin = options.extensionOrigin();
 
         if (options.help()) {
-            mcpOut.println(USAGE);
+            Setup.Self self = Setup.Self.running();
+            mcpOut.println(usage(self != null && self.launcher() != null));
+            return;
+        }
+        if (options.setup() != null) {
+            // On the user's own command: the skill goes into their home, and the rest is said. Nothing is started.
+            Setup.Self self = Setup.Self.running();
+            if (self == null) {
+                System.err.println("Setup tells an agent about this server's jar, and this server does not run from one. "
+                        + "Run it from the download, or build the server first.");
+                System.exit(1);
+                return;
+            }
+            Skills.Result skill = Skills.install(options.setup(), Path.of(System.getProperty("user.home")), options.replace());
+            mcpOut.println(Setup.says(skill, self));
+            if (!skill.ok()) {
+                System.exit(1);
+            }
             return;
         }
         if (options.installSkill() != null) {
@@ -141,7 +160,7 @@ public final class McpMain {
         }
         // An agent's program started this process. There is one server for all agents: this process
         // passes its agent's messages on to it, and starts it first if there is none.
-        Link link = new Link(System.in, mcpOut, System.err, tokens, Link.port(port), options.panel(),
+        Link link = new Link(System.in, mcpOut, System.err, tokens, Link.port(port), options.panel(), options.quiet(),
                 () -> startServer(options, false));
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
@@ -168,19 +187,20 @@ public final class McpMain {
         }
         RUNNING.add(hub::close);
         hub.whenEmpty(McpMain::end);
-        java.util.concurrent.atomic.AtomicBoolean shown = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicBoolean up = new java.util.concurrent.atomic.AtomicBoolean();
         hub.window(() -> {
-            if (shown.compareAndSet(false, true)) {
-                showPanel(() -> PanelModel.of(
+            if (asked.compareAndSet(false, true)) {
+                up.set(showPanel(() -> PanelModel.of(
                         hub.agents().stream().map(agent -> PanelModel.facts(agent.bridge(), agent.startupProblem())).toList(),
                         hub.port(), version(), hub.held(), Log.recent(), java.time.ZoneId.systemDefault(),
                         settings.blocked().get(), options.settings().toAbsolutePath().toString()),
                         command -> carryOut(command, hub::setHeld, settings.token(), Panel::copySecret,
-                                () -> BlockedSites.edit(options.settings())), Panel::possible);
+                                () -> BlockedSites.edit(options.settings())), Panel::possible));
             } else {
                 Panel.raise();
             }
-        });
+        }, up::get);
         if (options.panel()) {
             hub.showWindow();
         }
@@ -192,18 +212,41 @@ public final class McpMain {
      * machine where the one server cannot be had.
      */
     private static void serveAlone(Agent.Settings settings, Options options, PrintStream mcpOut) throws InterruptedException {
-        if (options.panel()) {
-            // From the first line on, so that the panel has the log of this server's start as well.
-            Log.keep(Panel.LOG_LINES);
-        }
+        // The window may come up at any time, when the browser has to be paired: the log is kept from the first line on.
+        Log.keep(Panel.LOG_LINES);
         Log.warn("serving this agent alone reason=no_server_to_connect_to");
-        Agent agent = Agent.serve(settings, System.in, mcpOut, McpMain::inputEnded, false);
+        java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
+        java.util.concurrent.atomic.AtomicBoolean up = new java.util.concurrent.atomic.AtomicBoolean();
+        Agent[] served = new Agent[1];
+        Runnable window = () -> {
+            Agent agent = served[0];
+            if (agent == null) {
+                return;
+            }
+            if (asked.compareAndSet(false, true)) {
+                up.set(showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem(), options.settings().toAbsolutePath().toString()),
+                        command -> carryOut(command, agent.bridge()::setHeld, settings.token(), Panel::copySecret,
+                                () -> BlockedSites.edit(options.settings())), Panel::possible));
+            } else {
+                Panel.raise();
+            }
+        };
+        // Asked when a tool finds no browser. If one came with a token that is not this server's, the
+        // user has to paste the token: the window comes up for it, once.
+        java.util.concurrent.atomic.AtomicBoolean cameUp = new java.util.concurrent.atomic.AtomicBoolean();
+        Agent agent = Agent.serve(settings, System.in, mcpOut, McpMain::inputEnded, false, () -> {
+            Agent own = served[0];
+            boolean refused = own != null && own.bridge().lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED;
+            if (refused && !options.quiet() && cameUp.compareAndSet(false, true)) {
+                window.run();
+            }
+            return new BrowserService.Unpaired(false, refused, up.get());
+        });
+        served[0] = agent;
         agent.announce();
         RUNNING.add(agent::close);
         if (options.panel()) {
-            showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem(), options.settings().toAbsolutePath().toString()),
-                    command -> carryOut(command, agent.bridge()::setHeld, settings.token(), Panel::copySecret,
-                            () -> BlockedSites.edit(options.settings())), Panel::possible);
+            window.run();
         }
         Thread.currentThread().join();
     }
@@ -215,7 +258,7 @@ public final class McpMain {
      */
     private static boolean showWindow(Agent.Settings settings, Options options, PrintStream said) {
         Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(), System.err,
-                settings.token(), Link.port(settings.port()), true, () -> { });
+                settings.token(), Link.port(settings.port()), true, false, () -> { });
         try {
             if (asker.show()) {
                 said.println("The TabGoblin server is running; its window is open now. "
@@ -381,6 +424,21 @@ public final class McpMain {
         }
     }
 
+    /**
+     * The help. A download has a command of its own, and no Java on the path as a rule: its user is
+     * told that the command stands for what the lines below begin with.
+     *
+     * @param download the server runs from a download, which has the command "tabgoblin" beside the jar
+     */
+    static String usage(boolean download) {
+        if (!download) {
+            return USAGE;
+        }
+        String title = USAGE.substring(0, USAGE.indexOf('\n'));
+        return title + "\n\nIn this folder the command is tabgoblin: it stands for \"java -jar browser-context-mcp.jar\" below."
+                + USAGE.substring(title.length());
+    }
+
     private static final String USAGE = """
             TabGoblin MCP server (browser-context-mcp)
 
@@ -388,16 +446,26 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --panel          open the server's window (starts the server if it is not running)
               java -jar browser-context-mcp.jar --show-token     print the pairing token for the extension popup
               java -jar browser-context-mcp.jar --rotate-token   replace the pairing token (pair the extension again)
+              java -jar browser-context-mcp.jar --setup <agent>  set TabGoblin up for an agent: claude-code, codex or copilot.
+                                                                 It installs the skill, and prints the line that tells
+                                                                 the agent about this server, the extension's folder,
+                                                                 and how to pair
               java -jar browser-context-mcp.jar --install-skill <agent>
                                                                  put the skill that tells an agent how to use the tools where
                                                                  that agent looks for skills: claude-code, codex or copilot
               java -jar browser-context-mcp.jar --help           this text
 
             What your agent runs (this goes into the agent's MCP settings, you do not run it):
-              java -jar browser-context-mcp.jar                  add --panel to have the window open whenever that agent runs
+              java -jar browser-context-mcp.jar                  add --panel to have the window open whenever that agent runs,
+                                                                 or --no-panel to never have it come up by itself
 
             There is one server for all your agents. The first agent that needs it starts it, and it ends
             by itself when the last agent has gone. To stop it yourself, press Stop server in its window.
+
+            Pairing: paste the pairing token into the extension's popup, once: --show-token prints it, and
+            Copy in the server's window copies it. When the browser comes with a token that is not the
+            server's, as after --rotate-token, the window comes up by itself the next time an agent needs
+            the browser.
 
             Blocked sites: sites that no agent may work on are named in the settings file, one line:
               blocked.sites = example.org, intranet.example
@@ -406,7 +474,7 @@ public final class McpMain {
 
             Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
                       --settings <path of the settings file>
-                      --replace  with --install-skill: overwrite a skill that is there and is not this one""";
+                      --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -733,7 +801,8 @@ public final class McpMain {
 
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
-            boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace) {
+            boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace, boolean quiet,
+            Skills.Agent setup) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -749,8 +818,10 @@ public final class McpMain {
             String origin = null;
             String settings = null;
             String skill = null;
+            String setUp = null;
             boolean replace = false;
             boolean panel = false;
+            boolean noPanel = false;
             boolean hub = false;
             boolean standing = false;
             for (int i = 0; i < args.length; i++) {
@@ -760,11 +831,12 @@ public final class McpMain {
                     case "--show-token" -> showToken = true;
                     case "--rotate-token" -> rotateToken = true;
                     case "--panel" -> panel = true;
+                    case "--no-panel" -> noPanel = true;
                     case "--replace" -> replace = true;
                     // The two that this program gives itself when it starts the one server: not for a command line.
                     case "--hub" -> hub = true;
                     case "--standing" -> standing = true;
-                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill" -> {
+                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill", "--setup" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
                         }
@@ -777,6 +849,8 @@ public final class McpMain {
                             settings = value;
                         } else if (arg.equals("--install-skill")) {
                             skill = value;
+                        } else if (arg.equals("--setup")) {
+                            setUp = value;
                         } else {
                             origin = value;
                         }
@@ -799,17 +873,33 @@ public final class McpMain {
             if (skill != null && installSkill == null) {
                 throw new UsageException("There is no skill for \"" + skill + "\". There is one for each of: " + Skills.Agent.names() + ".");
             }
-            if (replace && installSkill == null) {
-                throw new UsageException("--replace goes with --install-skill.");
+            Skills.Agent setup = setUp == null ? null : Skills.Agent.named(setUp);
+            if (setUp != null && setup == null) {
+                throw new UsageException("There is no setup for \"" + setUp + "\". There is one for each of: " + Skills.Agent.names() + ".");
             }
+            if (setup != null && installSkill != null) {
+                throw new UsageException("--setup installs the skill as well: leave --install-skill out.");
+            }
+            if (replace && installSkill == null && setup == null) {
+                throw new UsageException("--replace goes with --setup or --install-skill.");
+            }
+            if (panel && noPanel) {
+                throw new UsageException("--panel and --no-panel exclude each other.");
+            }
+            // The window: there from the start (--panel, or the variable on), never by itself
+            // (--no-panel, or the variable off), or by itself when the browser has to be paired (neither).
+            String variable = environment.apply("BCMCP_PANEL");
+            boolean named = panel || noPanel;
+            boolean fromStart = panel || (!named && switchedOn("BCMCP_PANEL", variable));
+            boolean quiet = noPanel || (!named && variable != null && !variable.isBlank() && !switchedOn("BCMCP_PANEL", variable));
             Path token = Path.of(firstSet(tokenFile, environment.apply("BCMCP_TOKEN_FILE"), Pairing.defaultTokenFile().toString()));
             // The settings are beside the token that is in use, unless they are named: a server with a token
             // of its own does not read the list of another.
-            String named = firstSet(settings, environment.apply("BCMCP_SETTINGS"), "");
+            String list = firstSet(settings, environment.apply("BCMCP_SETTINGS"), "");
             return new Options(help, showToken, rotateToken, number, token,
                     firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
-                    panel || switchedOn("BCMCP_PANEL", environment.apply("BCMCP_PANEL")), hub, standing,
-                    named.isEmpty() ? BlockedSites.beside(token) : Path.of(named), installSkill, replace);
+                    fromStart, hub, standing,
+                    list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup);
         }
 
         /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */

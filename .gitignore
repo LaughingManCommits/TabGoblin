@@ -48,3 +48,6 @@ e2e/editors/build/
 ### Pictures of the prompt and of the notice in the page, to look at ###
 e2e/prompt-pictures/
 e2e/notice-pictures/
+
+### The downloads that release/bundle.sh makes ###
+release/out/
