@@ -4,18 +4,12 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `2b2bc56`: the owner's merge of `agent-skills`, pushed, seen on
-  2026-11-23. It brought the three faults of the first test on the public repository, mended
-  (WP-21), and the skills with the command that installs one (WP-22). The repository is public
-  since 2026-11-22.
-- Branch `new-token-each-start`, made from `main` on 2026-11-23: WP-17. Its first commit,
-  made on the owner's word, has a new pairing token at every start of a server. The owner then
-  had that taken out again and kept what helps when the browser has to be paired: a second
-  commit, made on the owner's word. Not pushed and not merged. The branch's name says what it
-  no longer does.
-- Branch `easy-install`, made from `new-token-each-start` on 2026-11-23: WP-15, a download
-  with the Java runtime inside, a setup command, and a release by a tag. One commit, made on
-  the owner's word. Not pushed and not merged.
+- `main` = `origin/main` = `83aea15`: the owner's merge of `easy-install` on 2026-11-23, and
+  pushed. It brought WP-17 as it was cut back, and WP-15: the download, setup, and the release
+  workflow. The repository is public since 2026-11-22.
+- Branch `release-keeps-ci`, made from `main` on 2026-11-23: a release's suites no longer
+  cancel a CI run for the same branch, and the records of what the first run of the release
+  workflow showed. One commit, made on the owner's word. Not pushed and not merged.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -26,28 +20,35 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
 | WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
-| WP-15, an easy install | Built on 2026-11-23 on the owner's word, and committed on `easy-install`; not merged. A download for each system with the Java runtime, the jar and the extension in one folder; `--setup <agent>`, which installs the skill and prints the agent's own line for the server, the extension's folder and how to pair; and a workflow that makes a release when a version tag is pushed. The owner decided the same day that there will be no Chrome Web Store, ever. No release has been made, and the workflow has not run | [TODO.md](../../TODO.md) |
+| WP-15, an easy install | Merged on 2026-11-23. Built that day on the owner's word. A download for each system with the Java runtime, the jar and the extension in one folder; `--setup <agent>`, which installs the skill and prints the agent's own line for the server, the extension's folder and how to pair; and a workflow that makes a release when a version tag is pushed. The owner decided the same day that there will be no Chrome Web Store, ever. The workflow ran once, by hand, and made the three downloads; no release has been made | [TODO.md](../../TODO.md) |
 | WP-12, a goblin that acts out what the agent does | Filed on 2026-11-21, not started. It waits for the owner's decisions. It has its place now: the goblin's face is in the notice and shows the state, not yet the action | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
 | WP-19, one server, and every agent connected to it | Merged on 2026-11-22. Built on the owner's word ("okay do your recommendations"). The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry |
 | WP-22, skills for agents that use TabGoblin | Merged. Built on 2026-11-22 on the owner's word. Three skills, as the owner chose, the same from their second section on; where each agent wants its skill is in `skills/README.md`. None has been loaded in its agent yet | [TODO.md](../../TODO.md) |
 | WP-21, what the first test on the public repository showed | Merged. Built on 2026-11-22 on the owner's word ("do the fixes please"). The notice is out of the picture before a screenshot is taken, also on a busy page; the window's metrics have a typical time per call beside each share, and a long pause counts as a minute; a log that is held says so and has a button to its newest line. What is open is in its entry | [TODO.md](../../TODO.md) |
 | WP-20, blocked sites | Merged on 2026-11-22. Built on the owner's word. A line `blocked.sites` in `tabgoblin.properties` beside the pairing token; a domain blocks itself and its subdomains; the server refuses with `SITE_BLOCKED` before anything is sent, the extension refuses too, the popup offers no authorization there, and the server's window names what is blocked and opens the file with **Edit**. A file that cannot be read refuses every site. What building it showed is in its entry; **Edit** goes beyond what was first decided, and the owner kept it | [TODO.md](../../TODO.md) |
-| WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both committed on `new-token-each-start`, not merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
+| WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
 
-- **The release workflow has never run.** It can be started by hand on GitHub, which runs the
-  suites and makes the three downloads and publishes nothing; a tag publishes. Whether any job
-  starts is not known: see the line on CI below. What was checked here: both workflow files
-  are well-formed and wired as meant, and the script that makes a download ran on Windows and
-  in Ubuntu under the Linux subsystem.
-- **The downloads: Windows used, Linux in part, macOS never made.** On Windows the download
+- **The release workflow ran once, by hand, and has made no release.** Read on GitHub on
+  2026-11-23 through TabGoblin, on a tab the owner authorized with Explore: run #1 of
+  *Release*, on `83aea15`, succeeded in 7m 37s. The five suites passed, the three downloads
+  were made, and the job that publishes was skipped, as it is without a tag. The downloads are
+  kept with the run: 47.9 MB for Windows, 51.1 MB for Linux, 47.1 MB for macOS. What a tag
+  does, the publishing with checksums and attestation, has not run.
+- **That run cancelled CI run #22,** the one for the merge of `easy-install`, after 5m 25s:
+  four of its jobs had ended and *Editors* was cut off. GitHub's words: *Canceling since a
+  higher priority waiting request for ci-refs/heads/main exists*. The release calls the CI's
+  jobs, and they were in the CI's group for the branch. On `release-keeps-ci` the group has
+  the workflow's name in it. Not shown on GitHub yet: it takes a release started while a CI
+  run is going.
+- **The downloads: Windows used, Linux in part, macOS made and not used.** On Windows the download
   was unpacked into a folder with a space in its name and used: help, setup, the line for
   Claude Code in two shells, the server and its window, and the end-to-end suite on the runtime
   that is inside. In the Linux subsystem, without Java: help, setup, and the server as an agent
-  starts it; its window was not seen, though the server's log said *panel shown*. None is
-  signed.
+  starts it; its window was not seen, though the server's log said *panel shown*. The one for
+  macOS was made on GitHub's machine, where the server started on its runtime. None is signed.
 - **On Linux the server that `--panel` starts in a terminal ended with that terminal,** in
   one try with a terminal made up for it. The command says that it stays. Not mended: it is
   the one server's start, which had not been tried on Linux before.
@@ -81,9 +82,10 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 - **A screenshot of a tab whose window is covered or minimized was not tried.** The page draws
   nothing then, so it answers at once that its notice is gone, and the picture is what the
   browser has. The same goes for a page that has not drawn after a second and a half.
-- **CI has not run since run #14.** Runs #15 to #20 failed in three seconds each: GitHub did not
-  start the jobs, with a message about the account's billing. Read on 2026-11-22 through
-  TabGoblin. Whether the repository being public cures it is not known; nothing was re-run.
+- **CI runs again.** Runs #15 to #20 had failed in three seconds each, with GitHub's message
+  about the account's billing. Run #21, for the merge of `agent-skills` on 2026-11-22, passed
+  in 5m 34s, and so did every job of the release's run on 2026-11-23; read on GitHub that day.
+  What cured it was not looked into.
 - **`main` on GitHub has no ruleset and no branch protection,** read the same way; the other
   settings that were read are in WP-21. Changing them is the owner's.
 - **After a site is taken off the list, a command can still be refused for a moment** by an
@@ -204,17 +206,16 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   this project, changed on 2026-11-22 so that the owner can watch the agent's server). Its
   window was there after the owner's Reconnect at 15:59. The session's tools have been gone
   since about 16:20, when its server was ended; they come back with a Reconnect.
-- **The panel's code has not run in CI.** Run #15 (`42eb02b`, the merge of `server-panel`)
-  failed, read on GitHub on 2026-11-22: all five jobs ended after two seconds. The owner says
-  the account's credit for Actions is used up; the jobs' logs were not opened. So nothing of
-  the run speaks about the code, and CI will say nothing until there is credit again. What
-  the Linux job will show when it runs is known from this machine only: six tests of the
-  panel's window skipped, the others passing.
-- **The last run that ran passed:** #14 (`3aa4d5f`, the merge of `ci-tab-address`), read from
-  the list of runs; its jobs were not opened. It is the first run with the fix to the suite's
-  three steps. Before it, #13 (`2c26e0b`) passed in all five jobs, #11 (`3071781`) passed, and
-  #12 (`5274b04`, the merge of `disconnect-revokes`) failed in one step end to end, 92 of 93.
-  One passing run does not show that a fault of timing is gone for good.
+- **The panel's code has run in CI since run #21,** and in the release's run of 2026-11-23,
+  where *Java server* passed in 1m 19s. The job's log was not opened: how many of the panel's
+  tests were skipped there, on a machine without a display, was not read. On this machine,
+  without a display, it is six.
+- **The last runs:** the release's run #1 passed in all its jobs on 2026-11-23; CI #22 was
+  cancelled by it (above); CI #21 (`2b2bc56`, the merge of `agent-skills`) passed. Before the
+  runs that did not start, #14 (`3aa4d5f`) and #13 (`2c26e0b`) passed, #11 (`3071781`) passed,
+  and #12 (`5274b04`, the merge of `disconnect-revokes`) failed in one step end to end, 92 of
+  93. The step that failed in #12 has passed in every run since; that does not show that a
+  fault of timing is gone for good.
 - **Why run #12 failed is concluded, not shown.** The step asked the suite's driver where the
   tab was right after the agent's tools had said that it had left its site, and the driver
   still named the page before. The two tool results in front of it passed, so the extension
@@ -251,13 +252,12 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   through the accessibility interface. Before that, the same day, the owner's own Chrome and
   agent with the merged build: every tool of Explore on the public repository.
   Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `new-token-each-start` and of `easy-install`,
-  which is built on it. Then the
-  release workflow, started by hand on GitHub: it shows whether jobs run there again, and
-  makes the three downloads without publishing; one of them, used on a machine without Java,
-  is the acceptance of WP-15. Then a tag, for the first release. And the rebuild of both
-  parts, which the owner's own Chrome and window need for WP-21 and WP-22 as well: the server,
-  after the one that runs from the jar is
+- **Next action:** the owner's push and merge of `release-keeps-ci`. Then one
+  of the three downloads of the release's run, used on a machine without Java as the
+  installation guide says, with the steps and the minutes counted: that is the acceptance of
+  WP-15, and the one for macOS has never been used at all. Then a tag, for the first release;
+  the tree says 0.2.0. And the rebuild of both parts, which the owner's own Chrome and window
+  need for WP-21 and WP-22 as well: the server, after the one that runs from the jar is
   stopped (`mvn -f java-server/pom.xml package`), and the extension
   (`npm --prefix chrome-extension run build`, then a reload in Chrome). And a first try of a
   skill in its agent: the Claude Code one is the nearest, with `--install-skill claude-code`

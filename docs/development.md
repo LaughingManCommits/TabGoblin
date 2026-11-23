@@ -99,7 +99,7 @@ the downloads are kept with the run, to be tried, and nothing is published.
 
 | Job | Runs on | Does |
 |---|---|---|
-| Suites | as in the table above | Every job of `ci.yml`, which the release calls as it is. Nothing is made if one fails |
+| Suites | as in the table above | Every job of `ci.yml`, which the release calls as it is. Nothing is made if one fails. They run beside a CI run for the same branch, not in its place: the two are in groups of their own |
 | Download, three times | Windows, Linux, macOS | Builds both parts and runs `release/bundle.sh`: a Java runtime with only the modules the jar uses (`jdeps`, `jlink`), the jar, the extension and a command to start it by, in one folder, packed. A runtime is made by the JDK of the system it is for, which is why there are three. The script refuses a tag that is not the version in the files, and a server that does not start on the runtime made for it |
 | Publish | Linux | Only for a tag. Writes `SHA256SUMS.txt`, has GitHub attest where each download was built, and makes the release with `gh`. It is the only job that may write to the repository; the others read |
 

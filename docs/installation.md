@@ -80,8 +80,9 @@ on the runtime that is inside, and the whole end-to-end suite on that runtime. T
 Linux was made and used in Ubuntu under Windows' Linux subsystem, on a machine without Java:
 setup, and the server as an agent starts it. Its window was not seen there, though the server
 said it had shown it; and a server started with `tabgoblin --panel` ended when its terminal
-was closed, where the command says that it stays. The one for macOS has never been made. No
-release has been published yet, so nobody has downloaded one. None is signed for Windows or
+was closed, where the command says that it stays. The one for macOS was made on GitHub's
+machine, where the server started on the runtime that is inside; nobody has used it on a Mac.
+No release has been published yet, so nobody has downloaded one. None is signed for Windows or
 macOS: either system may warn before it runs what is in a download.
 
 ## From source

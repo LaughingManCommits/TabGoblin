@@ -438,16 +438,17 @@ log.
 
 ### What is open
 
-- **No release has been made, and the workflow has never run.** It is the owner's to start:
-  first by hand, which publishes nothing, then by a tag. Whether a job starts at all is not
-  known: none has since run #14, with GitHub's message about the account's billing, and
-  nothing was run again since the repository is public.
+- **No release has been made.** The workflow ran once, started by hand by the owner on
+  2026-11-23, which publishes nothing: the suites passed, the three downloads were made, and
+  the last job was skipped as it should be. A release is made by a tag, and none has been
+  pushed. That run cancelled the CI run for the merge it came after, which was still going:
+  both were in one group. They are in groups of their own since.
 - **The first version is the owner's.** The tree says 0.2.0, and a tag has to be `v` and the
   version in the tree.
-- **The download for macOS has never been made,** and none was used on a Mac. The one for
-  Linux was made and used in Ubuntu under Windows' Linux subsystem, without Java: setup and the
-  server as an agent starts it. Its window was not seen there; the server's log said it had
-  shown it.
+- **The download for macOS was made on GitHub's machine and never used.** The script that makes
+  it starts the server on the runtime it made, and that passed there. The one for Linux was
+  made and used in Ubuntu under Windows' Linux subsystem, without Java: setup and the server
+  as an agent starts it. Its window was not seen there; the server's log said it had shown it.
 - **On Linux a server started in a terminal with `--panel` ended when the terminal was
   closed,** in the one try there was, with a terminal made up for it. The command says that
   the server stays until it is stopped. That is the one server's start (WP-19), which had not
