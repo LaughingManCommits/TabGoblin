@@ -11,8 +11,15 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   2026-11-23: the first release.
 - Branch `wp-24-performance`, made from `main` on 2026-11-23: the filing of WP-24, a
   performance test between the extension and the server, with the owner's decisions on it,
-  which is not to be started yet; and the records of the first release. Its commits were made
-  on the owner's word. Not pushed and not merged.
+  which is not to be started yet; the filing of WP-25, release notes that say what changed;
+  and the records of the first release. Its commits were made on the owner's word. Not pushed
+  and not merged.
+- Branch `simpler-front-pages`, made from `wp-24-performance` on 2026-11-23: the root README
+  and `docs/README.md` made simpler, after the owner said the documentation might be too
+  complex. Both now say in a few steps what happens when an agent uses a tool; the quick
+  start is the download; the pages are grouped by who reads them. No other page was touched.
+  One commit, made on the owner's word. Not pushed and not merged. Whether the longer guides
+  get the same is the owner's to say once these two have been read.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
