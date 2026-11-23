@@ -26,8 +26,9 @@ dropped it the same day: the proxy holds back SVG as well. Nothing of it is in t
 and its number is not used again. WP-17 was gone over on 2026-11-23, decided by the owner and
 built that day on the branch `new-token-each-start`; the owner then had the new token at
 every start taken out again and kept what helps when the browser has to be paired. WP-24,
-filed on 2026-11-23, is a performance test between the extension and the server; it is not
-started. New work gets the next number, WP-25.
+filed on 2026-11-23, is a performance test between the extension and the server; its points
+are decided, and it is not started: the owner said not yet. New work gets the next number,
+WP-25.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1277,7 +1278,7 @@ us, dont start yet". Goal: numbers that say where the time and the bytes of a to
 between the server and the extension, measured the same way every time, so that it can be
 decided from them whether code has to be made faster, and seen afterwards whether it was.
 
-Filed only. Nothing is built.
+Filed, and decided the same day. Nothing is built: the owner said not to start yet.
 
 ### What there is today
 
@@ -1335,21 +1336,19 @@ What it is not: a limit that fails a build. A machine of GitHub's is not the sam
 run, and a limit that fails by chance is worse than none. And it makes nothing faster: that
 is work of its own, once the numbers say where.
 
-### Decisions for the owner
+### Decided by the owner on 2026-11-23
 
-1. **Which question first.** A single call on pages of growing size (proposal: a snapshot of a
-   big page is the likeliest cost); several agents at once; a start; or memory.
-2. **Who counts the bytes.** The script alone, from outside (proposal), or the server, as one
-   more line of its account. The second changes a tool's text, and with it the tool reference
-   and the suite.
-3. **Where it runs, and what the numbers to compare with are.** By hand on one machine, which
-   is named with them (proposal); in CI as well, for the record and without a limit; or with a
-   loose limit there, a tool three times slower than before, for one.
-4. **The waits on purpose.** Measured and shown apart, and none changed here (proposal). They
-   are what "success is never assumed" costs.
-5. **What is fast enough.** A time for a snapshot of a page of a thousand elements, and for a
-   click with its settling: the owner's to name, so that the reading has something to hold the
-   numbers against. Without it the package ends with numbers and no verdict.
+1. **Which question first: a single call, on pages of growing size.** Several agents at once,
+   a start and memory come after it, if at all.
+2. **The script counts the bytes,** from outside. The server's account stays as it is, and so
+   does every tool's text.
+3. **It runs by hand, on one machine,** which is named with its numbers; those are what a later
+   run is compared with. Not in CI.
+4. **The waits on purpose are measured and shown apart, and none is changed here.** That was
+   put to the owner as what would be done unless they said otherwise, and they did not.
+5. **What is fast enough is decided after the first numbers,** by the owner, with the numbers
+   at hand. So the package has two parts: the measuring, and then, once the owner has named
+   the times to hold them against, the reading.
 
 ### Tasks and acceptance
 
