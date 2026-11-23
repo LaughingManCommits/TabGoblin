@@ -59,6 +59,22 @@ flowchart LR
 
 ## What happens to one tool call
 
+A call passes through three hops before it reaches a page, and its answer comes back the same
+way:
+
+```text
+your agent
+   │  MCP: messages over the input and output of the process it started
+   ▼
+the process your agent started
+   │  a local connection on 127.0.0.1, proven with the pairing token
+   ▼
+the one TabGoblin server, shared by all your agents
+   │  a WebSocket on 127.0.0.1, paired with the token
+   ▼
+the Chrome extension  →  the tab you authorized
+```
+
 1. **Your agent calls a tool,** for example `browser_snapshot`, or `browser_click` with the
    number of an element. All it ever gets back is text.
 2. **A small process that your agent started passes the call on** to the one TabGoblin server,
