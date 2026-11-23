@@ -32,103 +32,104 @@ flowchart LR
 
 <img src="docs/images/popup-sessions.png" width="354" alt="The TabGoblin popup with two sessions"> <img src="docs/images/popup-confirm.png" width="354" alt="The popup asking to allow a submission">
 
+## How it works
+
+1. **You authorize a tab.** Click the goblin on the tab, pick an access level and press
+   **Authorize**. That tab, on that website, is now a session your agent can use.
+2. **Your agent calls a tool,** for example "take a snapshot" or "click element 14". It gets
+   plain text back: the page's structure with numbered elements, its text, or what the click did.
+3. **The server passes the call on, once.** It runs on your machine and talks to the extension
+   over a local connection that the two set up with a shared token.
+4. **The extension checks, then acts.** Is the tab authorized for this agent? Is the page still
+   on that website? Does the access level allow it? Only then does it work in the page, and
+   anything that sends data asks you first.
+
+The agent never gets cookies, tokens, passwords or raw page code, and it cannot reach a tab you
+did not authorize.
+
 ## What it does
 
-- **Sessions.** Each tab you authorize is a session with one website, one access level and one
-  owning agent. Several tabs and several agents work side by side and cannot reach each other.
-- **Access levels.** Read looks, Explore also navigates and expands, Read / Write also operates.
-- **Reading.** A structured snapshot with numbered elements, and structured text with an outline;
-  both bounded, and both say how complete they are.
-- **Acting.** Click, fill, type, press keys, scroll, navigate, go back, wait, take screenshots.
-- **Submitting.** Declared by the agent, confirmed by you (every time, or the first time for each
-  control, as you choose), sent once, and verified against the
-  page: confirmed, failed or uncertain, with the evidence. Pressing Enter in a message box counts
-  as submitting.
-- **Control.** Pause or revoke a session, disconnect an agent, watch what happens. If a tab leaves
-  its website the session is suspended until you resume it. Started with `--panel`, a server
-  shows a small window with its sessions, its log and a button to stop it
-  ([user guide](docs/user-guide.md#9-the-servers-panel)).
-- **Blocked sites.** Name the sites no agent may work on, in one line of a settings file. The
-  server refuses every action there, whatever a tab is authorized for
+- **Sessions.** Each authorized tab is a session: one website, one access level, one agent.
+  Agents and tabs cannot reach each other.
+- **Access levels.** Read looks. Explore also navigates and expands. Read / Write also clicks,
+  types and submits.
+- **Reading.** A snapshot with numbered elements, or the page's text with an outline. Both say
+  how complete they are.
+- **Acting.** Click, fill, type, press keys, scroll, navigate, wait, take screenshots.
+- **Submitting.** The agent declares it, you confirm it, it is sent once, and the result is
+  checked against the page.
+- **Control.** Pause or revoke a session, disconnect an agent, and watch what happens, in the
+  popup or in the [server's window](docs/user-guide.md#9-the-servers-panel). A tab that leaves
+  its website is suspended until you resume it.
+- **Blocked sites.** Name the sites no agent may work on, whatever a tab is authorized for
   ([user guide](docs/user-guide.md#blocked-sites)).
-- **Website-agnostic.** No site-specific code anywhere; the agent supplies the understanding.
+- **Any website.** There is no site-specific code anywhere; the agent supplies the understanding.
 
 ## Quick start
 
-**From a download,** with nothing to install first: get the file for your system from the
-[latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest), unpack it where it can stay, and run
-`tabgoblin --setup claude-code` (or `codex`, or `copilot`) in its folder. It installs the
-agent's skill and prints the three steps that are left, with your own paths: tell the agent
-about the server, load the extension into Chrome, and pair the two.
+Nothing has to be installed first: the Java the server runs on is in the download.
 
-**From source.** Requires Java 21+, Maven, Node 24+ and Chrome 120+.
+1. **Download** the file for your system from the [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest),
+   and unpack it where it can stay.
+2. **Run setup** in that folder: `tabgoblin --setup claude-code` (or `codex`, or `copilot`).
+   It prints the next three steps with your own paths.
+3. **Tell your agent about the server:** run the one line that setup printed.
+4. **Load the extension:** at `chrome://extensions`, switch Developer mode on, press Load
+   unpacked and choose the download's `extension` folder.
+5. **Pair:** `tabgoblin --panel` opens the server's window. Press **Copy** next to *Pairing
+   token* and paste it into the goblin's popup in Chrome.
 
-```sh
-mvn -f java-server/pom.xml package
-cd chrome-extension && npm install && npm run build
-```
+Then open a website, click the goblin on that tab, press **Authorize**, and ask your agent for
+the browser status.
 
-1. Load `chrome-extension/dist` as an unpacked extension at `chrome://extensions`.
-2. Add the server to your agent's MCP settings, with the folder you cloned the project into in
-   place of `<folder>`:
-
-   ```json
-   {
-     "mcpServers": {
-       "tabgoblin": {
-         "command": "java",
-         "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar"]
-       }
-     }
-   }
-   ```
-
-3. Run the jar with `--show-token` and paste the token into the popup.
-4. Open a website, click the goblin on that tab, pick an access level, and press **Authorize**.
-
-The [installation guide](docs/installation.md) walks through each step with what you should see.
+The [installation guide](docs/installation.md) has every step with what you should see, and how
+to build from source instead.
 
 ## Documentation
 
+To use it:
+
 | | |
 |---|---|
-| [Installation](docs/installation.md) | Build the server and the extension, load it in Chrome, connect your agent, pair |
-| [User guide](docs/user-guide.md) | Authorize tabs, the popup, submissions, troubleshooting |
-| [Cheat sheet](docs/cheatsheet.md) | The commands at a glance: build, pair, run with the panel, stop, test |
-| [Tool reference](docs/tools.md) | Every tool with real outputs, completeness, every error code |
-| [Skills](skills/README.md) | A skill each for Claude Code, Codex and GitHub Copilot: how an agent works with the tools |
-| [Editors](docs/editors.md) | Which rich-text and code editors can be filled, how, and what was measured |
-| [Architecture](docs/architecture.md) | Processes, protocol, sessions, refs, navigation, submissions |
-| [Security model](docs/security.md) | What an agent can reach, how it is enforced, what remains your risk |
+| [Installation](docs/installation.md) | Get it running: from a download, or built from source |
+| [User guide](docs/user-guide.md) | Authorize tabs, the popup, submissions, the server's window, troubleshooting |
+| [Cheat sheet](docs/cheatsheet.md) | The commands at a glance |
+| [Skills](skills/README.md) | A skill that teaches your agent the tools: Claude Code, Codex, GitHub Copilot |
+
+To understand it:
+
+| | |
+|---|---|
+| [Tool reference](docs/tools.md) | Every tool with real outputs and every error code |
+| [Security model](docs/security.md) | What an agent can reach, how that is enforced, what remains your risk |
+| [Architecture](docs/architecture.md) | How the parts fit: processes, protocol, sessions |
+| [Editors](docs/editors.md) | Which rich-text and code editors can be filled, and what was measured |
+
+To work on it:
+
+| | |
+|---|---|
+| [Development](docs/development.md) | Build, run the tests, conventions, releases |
 | [MCP conformance](docs/mcp-conformance.md) | Which revision of the protocol the server speaks, and how that is checked |
-| [Development](docs/development.md) | Build, tests, demo sites, conventions, protocol reference |
-
-## Verify
-
-```sh
-mvn -f java-server/pom.xml verify       # 89 tests, then the built jar checked against the protocol
-cd chrome-extension && npm run check    # 155 tests, type-check, build
-cd e2e && npm install && npm test       # 94 steps in your Chrome, against three demo sites
-cd e2e/editors && npm install && npm test   # text entry into 13 editor libraries and 2 plain controls
-```
 
 ## Limits worth knowing
 
-- Whatever is visible in an authorized tab is sent to your agent and its model provider.
-- Page content is untrusted input and may try to steer an agent within the access you granted.
-  Keep "Ask me every time" where a wrong submission would hurt.
-- Each time a tab changes website Chrome withdraws the extension's access, so a session spanning
-  two websites needs one click from you per move.
+- Whatever is visible in an authorized tab goes to your agent and its model provider.
+- A page can try to steer an agent within the access you gave it. Keep "Ask me every time"
+  where a wrong submission would hurt.
+- When a tab moves to another website, Chrome withdraws the extension's access: a session that
+  spans two websites needs one click from you per move.
 - Frames from another website and closed shadow roots are not read.
-- Rich-text and code editors are filled without real keystrokes, which a page script cannot
-  produce. Thirteen common editor libraries are tested ([results](docs/editors.md#results));
-  editors that draw to a canvas, such as Google Docs, are out of reach.
-- There is no hover. Content that a page shows only while the mouse is over something (CSS
-  `:hover`) cannot be brought up: only a real pointer or Chrome's debugger sets that state, and
-  the debugger is excluded by design. Menus that also open on click or keyboard focus work.
-- Recognising submit-like and high-impact buttons outside forms relies on English labels.
-- Not yet tried with IntelliJ's own agent: the tools are verified with a generic MCP client and
-  with the `claude` CLI.
+- Rich-text and code editors are filled without real keystrokes. Thirteen editor libraries are
+  tested ([results](docs/editors.md#results)); editors that draw to a canvas, such as Google
+  Docs, are out of reach.
+- There is no hover. What a page shows only while the mouse is over something cannot be
+  brought up; menus that also open on a click or with the keyboard work.
+- Buttons that submit, or that do something drastic, are recognised outside forms by English
+  labels.
+- The extension is loaded unpacked, with Chrome's developer mode on. It is not in the Chrome
+  Web Store.
+- Tried with a generic MCP client and with Claude Code; not yet with IntelliJ's own agent.
 
 What of this is a risk to you, and what else is, stands with its reasons in the security model
 under [what remains your risk](docs/security.md#what-remains-your-risk).

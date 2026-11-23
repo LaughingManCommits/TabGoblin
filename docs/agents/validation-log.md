@@ -70,8 +70,21 @@ the owner had merged and started the workflow by hand:
   place. On `release-keeps-ci` the group is named after the workflow as well. Both workflow
   files were read as YAML again; the change has not run on GitHub.
 
-Not run: what a tag does, the publishing. Not used: the download for macOS, and any of the
-three as GitHub made them. Not run: the lines for Codex and for Copilot; neither agent is on this
+Later that day the owner merged that change and pushed the tag `v0.2.0`. Read from GitHub,
+without signing in, since the repository is public:
+
+- Run #2 of *Release*, for the tag, on `fde041c`: completed, success.
+- The release *TabGoblin 0.2.0*, published at 18:10 UTC, neither a draft nor a prerelease, with
+  `tabgoblin-0.2.0-windows-x64.zip` 47.9 MB, `tabgoblin-0.2.0-linux-x64.tar.gz` 51.3 MB,
+  `tabgoblin-0.2.0-macos-arm64.tar.gz` 47.1 MB and `SHA256SUMS.txt`, which has a line for
+  each of the three. Its notes begin as `release/notes.md` does.
+- GitHub holds one attestation for the digest of the Windows download, as `SHA256SUMS.txt`
+  gives it.
+- CI run #23, for the merge of the change to the groups, passed. That does not show the
+  change: the release ran for the tag, which was never in the CI's group.
+
+Not done: a download of the release taken and used, on any system; `gh attestation verify`
+run against one; the two other attestations asked for. Not run: the lines for Codex and for Copilot; neither agent is on this
 machine. Not done: the acceptance as the package has it, a person following the page on a
 machine with nothing installed, with the minutes counted. Not run on this tree: the editor lab;
 its files are as on `main`.

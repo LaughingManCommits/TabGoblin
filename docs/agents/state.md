@@ -4,12 +4,24 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 
 ## Where the code is
 
-- `main` = `origin/main` = `83aea15`: the owner's merge of `easy-install` on 2026-11-23, and
-  pushed. It brought WP-17 as it was cut back, and WP-15: the download, setup, and the release
-  workflow. The repository is public since 2026-11-22.
-- Branch `release-keeps-ci`, made from `main` on 2026-11-23: a release's suites no longer
-  cancel a CI run for the same branch, and the records of what the first run of the release
-  workflow showed. One commit, made on the owner's word. Not pushed and not merged.
+- `main` = `origin/main` = `fde041c`: the owner's merge of `release-keeps-ci` on
+  2026-11-23, and pushed. Before it, the same day, the merge of `easy-install`, which brought
+  WP-17 as it was cut back and WP-15. The repository is public since 2026-11-22.
+- **The tag `v0.2.0` is on `fde041c`, and release 0.2.0 was published from it** on
+  2026-11-23: the first release.
+- Branch `wp-24-performance`, made from `main` on 2026-11-23: the filing of WP-24, a
+  performance test between the extension and the server, with the owner's decisions on it,
+  which is not to be started yet; the filing of WP-25, release notes that say what changed;
+  and the records of the first release. Its commits were made on the owner's word. Not pushed
+  and not merged.
+- Branch `simpler-front-pages`, made from `wp-24-performance` on 2026-11-23: the root README
+  and `docs/README.md` made simpler, after the owner said the documentation might be too
+  complex. Both now say in a few steps what happens when an agent uses a tool; the quick
+  start is the download; the pages are grouped by who reads them; and `docs/README.md` has the
+  chain of who talks to whom as a few lines of plain text. No other page was touched. The
+  filing of WP-26 is on this branch as well.
+  One commit, made on the owner's word. Not pushed and not merged. Whether the longer guides
+  get the same is the owner's to say once these two have been read.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -20,7 +32,10 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
 | WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
-| WP-15, an easy install | Merged on 2026-11-23. Built that day on the owner's word. A download for each system with the Java runtime, the jar and the extension in one folder; `--setup <agent>`, which installs the skill and prints the agent's own line for the server, the extension's folder and how to pair; and a workflow that makes a release when a version tag is pushed. The owner decided the same day that there will be no Chrome Web Store, ever. The workflow ran once, by hand, and made the three downloads; no release has been made | [TODO.md](../../TODO.md) |
+| WP-15, an easy install | Merged on 2026-11-23. Built that day on the owner's word. A download for each system with the Java runtime, the jar and the extension in one folder; `--setup <agent>`, which installs the skill and prints the agent's own line for the server, the extension's folder and how to pair; and a workflow that makes a release when a version tag is pushed. The owner decided the same day that there will be no Chrome Web Store, ever. Release 0.2.0, the first, was published by the owner's tag on 2026-11-23; nobody has used one of its downloads yet | [TODO.md](../../TODO.md) |
+| WP-24, a performance test between the extension and the server | Filed on 2026-11-23 on the owner's word, and not to be started yet. A script beside the suite that runs every tool many times on pages of known sizes and writes down times, where they went, bytes, memory and starts; then a reading of the three slowest things before any code is changed. Decided by the owner the same day: single calls on pages of growing size first; the script counts the bytes; by hand on one machine; what is fast enough is named after the first numbers. It waits for the owner's word to start | [TODO.md](../../TODO.md) |
+| WP-25, release notes that say what changed | Filed on 2026-11-23 on the owner's word, to come with the next release and not before. A changelog for users, a section for each version, which the release puts at the top of its notes and without which it does not publish; today the notes are the same for every release but for the version. Five decisions wait for the owner | [TODO.md](../../TODO.md) |
+| WP-26, access that ends by itself when it is not used | Filed on 2026-11-23 on the owner's word ("we should have auto revoke of access after idle"), not started. Today an authorization lasts until revoked, or one or eight hours from when it was given, whether it is used or not; nothing records when a session was last used. Six decisions wait for the owner, the first being what idle means | [TODO.md](../../TODO.md) |
 | WP-12, a goblin that acts out what the agent does | Filed on 2026-11-21, not started. It waits for the owner's decisions. It has its place now: the goblin's face is in the notice and shows the state, not yet the action | [TODO.md](../../TODO.md) |
 | WP-16, a page that shows how TabGoblin differs from other tools | Filed on 2026-11-22, not started. No other tool has been read up or tried yet; the products it names are from memory. Waits for the owner's decisions | [TODO.md](../../TODO.md) |
 | WP-19, one server, and every agent connected to it | Merged on 2026-11-22. Built on the owner's word ("okay do your recommendations"). The server is a process of its own that an agent's process starts; every agent's process passes its messages on to it. What was built, and how it differs from the proposal, is in its entry |
@@ -31,18 +46,19 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 
 ## Blockers and unknowns
 
-- **The release workflow ran once, by hand, and has made no release.** Read on GitHub on
-  2026-11-23 through TabGoblin, on a tab the owner authorized with Explore: run #1 of
-  *Release*, on `83aea15`, succeeded in 7m 37s. The five suites passed, the three downloads
-  were made, and the job that publishes was skipped, as it is without a tag. The downloads are
-  kept with the run: 47.9 MB for Windows, 51.1 MB for Linux, 47.1 MB for macOS. What a tag
-  does, the publishing with checksums and attestation, has not run.
+- **Release 0.2.0 is published, and nobody has used it.** Read from GitHub on 2026-11-23: run
+  #2 of *Release*, for the tag `v0.2.0` on `fde041c`, succeeded; the release has the three
+  downloads, 47.9 MB for Windows, 51.3 MB for Linux and 47.1 MB for macOS, and
+  `SHA256SUMS.txt` with a line for each; GitHub holds an attestation for the Windows
+  download, which is the one that was asked for. Not done: a download of the release taken
+  and used, on any system; and `gh attestation verify` run against one.
 - **That run cancelled CI run #22,** the one for the merge of `easy-install`, after 5m 25s:
   four of its jobs had ended and *Editors* was cut off. GitHub's words: *Canceling since a
   higher priority waiting request for ci-refs/heads/main exists*. The release calls the CI's
   jobs, and they were in the CI's group for the branch. On `release-keeps-ci` the group has
-  the workflow's name in it. Not shown on GitHub yet: it takes a release started while a CI
-  run is going.
+  the workflow's name in it, merged since. Not shown on GitHub yet: it takes a release started
+  on a branch while a CI run for that branch is going. CI run #23, for the merge of that
+  change, passed; the release for the tag ran on the tag, which was never in the CI's group.
 - **The downloads: Windows used, Linux in part, macOS made and not used.** On Windows the download
   was unpacked into a folder with a space in its name and used: help, setup, the line for
   Claude Code in two shells, the server and its window, and the end-to-end suite on the runtime
@@ -252,11 +268,12 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   through the accessibility interface. Before that, the same day, the owner's own Chrome and
   agent with the merged build: every tool of Explore on the public repository.
   Details in the [validation log](validation-log.md).
-- **Next action:** the owner's push and merge of `release-keeps-ci`. Then one
-  of the three downloads of the release's run, used on a machine without Java as the
-  installation guide says, with the steps and the minutes counted: that is the acceptance of
-  WP-15, and the one for macOS has never been used at all. Then a tag, for the first release;
-  the tree says 0.2.0. And the rebuild of both parts, which the owner's own Chrome and window
+- **Next action:** the owner's push and merge of `wp-24-performance`. Then one of the three
+  downloads of release 0.2.0, used on a machine without Java as the installation guide says,
+  with the steps and the minutes counted: that is the acceptance of
+  WP-15, and the one for macOS has never been used at all. WP-24 is decided and waits for the
+  owner's word to start. WP-25 has to be decided and built before the next release, if that
+  release is to say what changed. And the rebuild of both parts, which the owner's own Chrome and window
   need for WP-21 and WP-22 as well: the server, after the one that runs from the jar is
   stopped (`mvn -f java-server/pom.xml package`), and the extension
   (`npm --prefix chrome-extension run build`, then a reload in Chrome). And a first try of a

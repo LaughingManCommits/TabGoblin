@@ -2,7 +2,7 @@
 
 ## Overview
 
-Eleven packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Fourteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -12,7 +12,7 @@ with a pairing: see below. Of WP-14 the files and the check were done on
 branch `server-panel` and waits for the owner's review; its entry says what is there and what
 is open. WP-12 and WP-16 are not started, and each waits for the owner's word on its points.
 WP-15 was built and committed on 2026-11-23, on the branch `easy-install`: a download, a setup
-command and a release by a tag. No release has been made yet.
+command and a release by a tag. Its first release, 0.2.0, is out since the same day.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and merged. WP-20, filed on
@@ -25,8 +25,12 @@ proxy at the owner's work that holds back PNG files from GitHub. It was built, a
 dropped it the same day: the proxy holds back SVG as well. Nothing of it is in the repository,
 and its number is not used again. WP-17 was gone over on 2026-11-23, decided by the owner and
 built that day on the branch `new-token-each-start`; the owner then had the new token at
-every start taken out again and kept what helps when the browser has to be paired. New work
-gets the next number, WP-24.
+every start taken out again and kept what helps when the browser has to be paired. WP-24,
+filed on 2026-11-23, is a performance test between the extension and the server; its points
+are decided, and it is not started: the owner said not yet. WP-25, filed the same day, is
+release notes that say what changed; it is to come with the next release, and is not started.
+WP-26, filed the same day, is access that ends by itself when it is not used; it is not
+started. New work gets the next number, WP-27.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -438,13 +442,13 @@ log.
 
 ### What is open
 
-- **No release has been made.** The workflow ran once, started by hand by the owner on
-  2026-11-23, which publishes nothing: the suites passed, the three downloads were made, and
-  the last job was skipped as it should be. A release is made by a tag, and none has been
-  pushed. That run cancelled the CI run for the merge it came after, which was still going:
-  both were in one group. They are in groups of their own since.
-- **The first version is the owner's.** The tree says 0.2.0, and a tag has to be `v` and the
-  version in the tree.
+- **The first release is out: 0.2.0, on 2026-11-23,** by the owner's tag. The workflow had run
+  once before, started by hand, which publishes nothing; that run cancelled the CI run for the
+  merge it came after, and the two are in groups of their own since. For the tag every job
+  passed and the last one published: three downloads, their checksums, and GitHub's
+  attestation, of which the one for the Windows download was asked for and is there.
+- **Nobody has used a download of the release.** They are as GitHub's machines made them. The
+  ones that were used were made on this machine and in its Linux subsystem.
 - **The download for macOS was made on GitHub's machine and never used.** The script that makes
   it starts the server on the runtime it made, and that passed there. The one for Linux was
   made and used in Ubuntu under Windows' Linux subsystem, without Java: setup and the server
@@ -1267,3 +1271,238 @@ word.
   for one that is started as a program.
 - **For one project nothing installs a skill.** The command puts it into the user's home, for
   every project; into a project the user copies the folder.
+
+## WP-24: A performance test between the extension and the server
+
+Asked for by the owner on 2026-11-23: "can you make performance test with metric between
+extension and mcp server which use to bench and see if need to improve our code, create wp for
+us, dont start yet". Goal: numbers that say where the time and the bytes of a tool call go
+between the server and the extension, measured the same way every time, so that it can be
+decided from them whether code has to be made faster, and seen afterwards whether it was.
+
+Filed, and decided the same day. Nothing is built: the owner said not to start yet.
+
+### What there is today
+
+Read from the source on 2026-11-23 (`Timings.java`, `Protocol.java`, `background.ts`,
+`interact.ts`, `e2e/run.mjs`).
+
+- **The server says where the time of a call went** (WP-9): with the agent between two calls,
+  in the server, waiting to send, on the way to the extension, in the tab's queue, in the
+  extension and the page, and with the user. The extension gives its part with every answer:
+  how long the command ran, how long it waited for its turn, how much of that was the user's.
+  It is in `browser_status` with `diagnostics: true`, in the server's window, and
+  `SHOW_TIMES=1` prints it for a run of the end-to-end suite.
+- **Those are the times of whatever happened to run.** The example in the tool reference is
+  from the suite: 3 ms in the extension and the page for a typical call, 1 ms on the way. The
+  suite's pages are small, its agent is a script, and no run is like another.
+- **There is no benchmark:** no fixed load, no page of a known size, no repeat, no numbers
+  kept from one day to the next, and nothing that says when a change made a tool slower.
+- **Not measured at all:** bytes, of a command, of an answer and of what the agent is given;
+  the memory of the server and of the extension's worker; a start, from the agent's process to
+  its first answer, with the server running and without; how long the extension takes to find
+  a server, which it looks for every half minute; a big page; several agents at once.
+- **Some of the time is waited on purpose.** After a click or a key the extension waits for the
+  page to settle; after a scroll, 350 ms; before a screenshot, until the notice is out of the
+  picture. They are there so that an answer says what is so. A benchmark shows them as a floor
+  under some tools, not as slowness.
+
+### Proposal
+
+1. **A script beside the suite,** `e2e/bench.mjs`, with the suite's own parts: the built jar,
+   real Chrome, the built extension, paired and authorized through the real popup. It is not
+   part of `npm test`.
+2. **Pages made for it** in the demo site, of known sizes: a hundred elements, a thousand, ten
+   thousand and fifty thousand; a long text; a long table; a page with frames.
+3. **Every tool, many times,** after some calls to warm up: the status, a snapshot in each of
+   its forms, an extract in each of its forms, click, fill, key, scroll, navigate, wait and
+   screenshot; and one loop as an agent works, snapshot, click, snapshot.
+4. **What is written down for each tool and each size of page:**
+   - the time of a call: the middle one, the 95th of a hundred, the longest;
+   - where it went, from the server's own account: server, way, queue, extension and page;
+   - bytes: of the command, of the answer on the socket, and of the text the agent gets;
+   - calls a second, one after another, and with two, four and eight agents on tabs of their
+     own;
+   - memory: of the server's process before and after, and of the extension's worker;
+   - a start: from the process to the first answer, with a server running and without, and
+     until the extension is connected.
+5. **A table on the screen and a file of numbers,** with the machine, the system, the Java and
+   the Chrome they are from. One run is kept in the repository as the numbers to compare with,
+   on a page that owns them; a run is compared with it by hand.
+6. **Then a reading of it, before any code is changed:** the three slowest things, and for
+   each whether it is a wait on purpose, the page's own work, or ours: the walk over the page,
+   the writing and reading of the message, the queue, the second process between agent and
+   server.
+
+What it is not: a limit that fails a build. A machine of GitHub's is not the same from run to
+run, and a limit that fails by chance is worse than none. And it makes nothing faster: that
+is work of its own, once the numbers say where.
+
+### Decided by the owner on 2026-11-23
+
+1. **Which question first: a single call, on pages of growing size.** Several agents at once,
+   a start and memory come after it, if at all.
+2. **The script counts the bytes,** from outside. The server's account stays as it is, and so
+   does every tool's text.
+3. **It runs by hand, on one machine,** which is named with its numbers; those are what a later
+   run is compared with. Not in CI.
+4. **The waits on purpose are measured and shown apart, and none is changed here.** That was
+   put to the owner as what would be done unless they said otherwise, and they did not.
+5. **What is fast enough is decided after the first numbers,** by the owner, with the numbers
+   at hand. So the package has two parts: the measuring, and then, once the owner has named
+   the times to hold them against, the reading.
+
+### Tasks and acceptance
+
+Per the task map: "Something slow or hanging" for the server's account (`Timings.java`); the
+suite's harness (`e2e/mcp-client.mjs`) and the demo site for the script and its pages; the
+runbook for the command; and a page that owns the numbers, named in
+[development.md](docs/development.md#documentation). Acceptance: one command prints the table;
+run twice in a row, the middle times of each tool agree within a spread that is written down;
+the numbers are in the repository with the machine they are from; the three slowest things are
+named, each with its cause; no number and no file of the script has anything of a page's
+content in it; and nothing in the product has changed, unless the second decision says so.
+
+## WP-25: Release notes that say what changed
+
+Asked for by the owner on 2026-11-23, after asking whether there are release notes: "Make wp
+for that we can introduce it with the next release laters". Goal: someone who updates reads in
+a release's notes what is new and what is different in that version.
+
+Filed only. Nothing is built. It is wanted with the next release, not before.
+
+### What there is today
+
+- **Every release has notes, and they are the same but for the version.** The workflow fills
+  `release/notes.md` in: which download is for which system, how to set it up and to update,
+  how to check a download, and that none is signed. Read on release 0.2.0 on 2026-11-23: whole,
+  with nothing left unfilled.
+- **Nothing says what changed.** The repository has no changelog, and says so as a rule:
+  "git history is the record of changes" (`AGENTS.md`, and the runbook under "Change the
+  version").
+- **GitHub's own notes would be empty.** They list the pull requests that were merged, and the
+  owner merges branches as they are. What they would have is a link that compares two tags.
+- **What a package did is written down, for those who work on TabGoblin:** in this file and in
+  the validation log, at length and in their words. It is not what a user reads before an
+  update.
+- **Release 0.2.0 is the first,** and has nothing before it to differ from.
+
+### Proposal
+
+1. **One file, `CHANGELOG.md`, at the root,** with a section for each version, the newest
+   first, written for the one who uses TabGoblin: what is new, what behaves differently, what
+   was mended, and what to do when updating, where there is something to do. A few lines each.
+   It begins with the version after 0.2.0; 0.2.0 has one line, that it is the first release.
+2. **The release puts the version's section at the top of its notes,** above what the notes
+   have today.
+3. **A version without a section is not released.** The workflow stops for such a tag before
+   it builds anything, and says what is missing. Started by hand, it shows the notes it would
+   publish.
+4. **The lines are written as the work is merged,** under a heading for what is not released
+   yet; when the version is changed, that heading becomes the version's. So nobody has to
+   gather a release's changes afterwards from the history.
+5. **The rule is put anew:** git history stays the record of what changed in the code; the
+   changelog is what a release tells its users.
+
+### Decisions for the owner
+
+1. **Where the text lives.** One file with a section for each version (proposal); a file for
+   each release; or written by hand on GitHub once a release is out, with nothing in the
+   repository.
+2. **When it is written.** With each package as it is merged, under what is not released yet
+   (proposal), which adds a step to the end of every session; or once, when the version is
+   changed.
+3. **Whether a release without it is refused** (proposal: yes).
+4. **What a section holds.** New, changed, mended, and what to do when updating (proposal); or
+   free text.
+5. **Release 0.2.0.** Left as it is (proposal), or given a few lines after the fact: its notes
+   on GitHub are the owner's to edit, and the workflow does not publish a release twice.
+
+### Tasks and acceptance
+
+Per the task map, "Change the download, setup, or how a release is made": the workflow
+(`.github/workflows/release.yml`), `release/notes.md`, and a small script that takes one
+version's section out of the file, with a test of it. The runbook under "Change the version"
+and "Make a release". `AGENTS.md`: the sentence that there is no changelog, and the list of
+what a session does at its end, if the lines are written with each package. Acceptance: a
+release started by hand shows in its log the notes it would publish, with the version's
+section on top; a tag for a version that has no section stops before anything is built and
+says which section it wants; and the notes of the next release on GitHub begin with what
+changed.
+
+## WP-26: Access that ends by itself when it is not used
+
+Asked for by the owner on 2026-11-23: "we should have auto revoke of access after idle". Goal:
+a tab that was authorized and is no longer worked on does not stay open to an agent.
+
+Filed only. Nothing is built.
+
+### What there is today
+
+Read from the source on 2026-11-23 (`popup.html`, `policy.ts`, `background.ts`).
+
+- **An authorization lasts as long as was chosen when it was given:** *Until revoked*, which is
+  the first choice, *1 hour* or *8 hours*. The time runs from the moment of authorizing,
+  whatever happens after it. It is checked before every command and every half minute; when
+  it is over the session ends, and the agent is told `AUTHORIZATION_EXPIRED`.
+- **A session also ends** when the user revokes it, when the tab is closed, when the user
+  disconnects its agent, and when Chrome is closed. A tab that leaves its website is
+  suspended, not ended.
+- **It does not end for want of use.** A tab authorized until revoked stays open to its agent
+  for as long as Chrome runs: through a night, through a week. And when its agent has gone,
+  the session waits for an agent of the same name.
+- **Nothing says when a session was last used.** A session's record has no such time. The
+  activity list has the times of what happened, but it is short and the user can clear it.
+
+### What idle can mean
+
+It is the first thing to settle, and the request does not say.
+
+- **No command in the session for a while.** The agent is there and has not touched this tab.
+- **The session's agent gone for a while.** Nobody is there to use it.
+- **The user away from the machine.** Chrome can tell an extension that, but only with a
+  permission the extension does not have, and its four permissions are fixed. So this one is
+  out.
+
+### Proposal
+
+1. **A session remembers when it was last used:** the time of the last command of its agent
+   that was let through.
+2. **A session that has not been used for the idle time ends,** by the way an expired one ends,
+   at the same two moments: before a command, and every half minute. A machine that slept
+   through the idle time finds the session ended when it wakes.
+3. **The idle time is one setting in the popup,** for all sessions, beside the two that are
+   there: a few choices and *never*.
+4. **The popup says it:** the session's row when it is close to ending, and the activity list
+   when it has ended and why.
+5. **The agent is told why,** in the words of its answer, so that it can tell the user that
+   the tab has to be authorized again.
+6. **The rule is in `policy.ts`,** as the other rules are: a function of the session, the
+   time and the setting, with tests of its own.
+
+### Decisions for the owner
+
+1. **What idle means:** no command in the session (proposal), the agent gone, or either, each
+   with a time of its own.
+2. **How long, and whether it is on from the start.** It changes what happens to sessions that
+   exist: today they stay. Proposal: on, at one hour, with *never* to choose.
+3. **Ended or paused.** The owner's word is revoke: the session ends, and the tab is authorized
+   anew (proposal). Paused is softer: one click brings it back, and it stays in the list.
+4. **One setting for all** (proposal), or a choice at each authorization, beside *How long*.
+5. **A word before it ends,** in the session's row or on the toolbar's badge, or none.
+6. **What the agent is told.** The code there is for an authorization that is over, with other
+   words (proposal), or a code of its own, which the tool reference, the three skills and the
+   suite then have to know.
+
+### Tasks and acceptance
+
+Per the task map: "Change what is allowed" for the rule (`policy.ts`); "Change sessions,
+pairing or the connection" for the time in a session's record and the half-minute check
+(`background.ts`); "Change the popup" for the setting and the row. The tool's text changes, so
+`docs/tools.md` and the end-to-end suite; the user guide for sessions and its table of
+settings; and the table of what is tested in `docs/security.md`. Tests: the rule, with the
+clock given; the worker, that a command renews a session and that one left alone ends, also
+over a restart of the worker; end to end, with a short time set in the real popup. Acceptance:
+a session that is not used for the time set is gone from the popup and refused to the agent,
+with the reason said to both; one that is used stays; and with *never* nothing is different
+from today.
