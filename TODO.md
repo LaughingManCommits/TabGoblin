@@ -2,7 +2,7 @@
 
 ## Overview
 
-Eleven packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Twelve packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -25,8 +25,9 @@ proxy at the owner's work that holds back PNG files from GitHub. It was built, a
 dropped it the same day: the proxy holds back SVG as well. Nothing of it is in the repository,
 and its number is not used again. WP-17 was gone over on 2026-11-23, decided by the owner and
 built that day on the branch `new-token-each-start`; the owner then had the new token at
-every start taken out again and kept what helps when the browser has to be paired. New work
-gets the next number, WP-24.
+every start taken out again and kept what helps when the browser has to be paired. WP-24,
+filed on 2026-11-23, is a performance test between the extension and the server; it is not
+started. New work gets the next number, WP-25.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1267,3 +1268,96 @@ word.
   for one that is started as a program.
 - **For one project nothing installs a skill.** The command puts it into the user's home, for
   every project; into a project the user copies the folder.
+
+## WP-24: A performance test between the extension and the server
+
+Asked for by the owner on 2026-11-23: "can you make performance test with metric between
+extension and mcp server which use to bench and see if need to improve our code, create wp for
+us, dont start yet". Goal: numbers that say where the time and the bytes of a tool call go
+between the server and the extension, measured the same way every time, so that it can be
+decided from them whether code has to be made faster, and seen afterwards whether it was.
+
+Filed only. Nothing is built.
+
+### What there is today
+
+Read from the source on 2026-11-23 (`Timings.java`, `Protocol.java`, `background.ts`,
+`interact.ts`, `e2e/run.mjs`).
+
+- **The server says where the time of a call went** (WP-9): with the agent between two calls,
+  in the server, waiting to send, on the way to the extension, in the tab's queue, in the
+  extension and the page, and with the user. The extension gives its part with every answer:
+  how long the command ran, how long it waited for its turn, how much of that was the user's.
+  It is in `browser_status` with `diagnostics: true`, in the server's window, and
+  `SHOW_TIMES=1` prints it for a run of the end-to-end suite.
+- **Those are the times of whatever happened to run.** The example in the tool reference is
+  from the suite: 3 ms in the extension and the page for a typical call, 1 ms on the way. The
+  suite's pages are small, its agent is a script, and no run is like another.
+- **There is no benchmark:** no fixed load, no page of a known size, no repeat, no numbers
+  kept from one day to the next, and nothing that says when a change made a tool slower.
+- **Not measured at all:** bytes, of a command, of an answer and of what the agent is given;
+  the memory of the server and of the extension's worker; a start, from the agent's process to
+  its first answer, with the server running and without; how long the extension takes to find
+  a server, which it looks for every half minute; a big page; several agents at once.
+- **Some of the time is waited on purpose.** After a click or a key the extension waits for the
+  page to settle; after a scroll, 350 ms; before a screenshot, until the notice is out of the
+  picture. They are there so that an answer says what is so. A benchmark shows them as a floor
+  under some tools, not as slowness.
+
+### Proposal
+
+1. **A script beside the suite,** `e2e/bench.mjs`, with the suite's own parts: the built jar,
+   real Chrome, the built extension, paired and authorized through the real popup. It is not
+   part of `npm test`.
+2. **Pages made for it** in the demo site, of known sizes: a hundred elements, a thousand, ten
+   thousand and fifty thousand; a long text; a long table; a page with frames.
+3. **Every tool, many times,** after some calls to warm up: the status, a snapshot in each of
+   its forms, an extract in each of its forms, click, fill, key, scroll, navigate, wait and
+   screenshot; and one loop as an agent works, snapshot, click, snapshot.
+4. **What is written down for each tool and each size of page:**
+   - the time of a call: the middle one, the 95th of a hundred, the longest;
+   - where it went, from the server's own account: server, way, queue, extension and page;
+   - bytes: of the command, of the answer on the socket, and of the text the agent gets;
+   - calls a second, one after another, and with two, four and eight agents on tabs of their
+     own;
+   - memory: of the server's process before and after, and of the extension's worker;
+   - a start: from the process to the first answer, with a server running and without, and
+     until the extension is connected.
+5. **A table on the screen and a file of numbers,** with the machine, the system, the Java and
+   the Chrome they are from. One run is kept in the repository as the numbers to compare with,
+   on a page that owns them; a run is compared with it by hand.
+6. **Then a reading of it, before any code is changed:** the three slowest things, and for
+   each whether it is a wait on purpose, the page's own work, or ours: the walk over the page,
+   the writing and reading of the message, the queue, the second process between agent and
+   server.
+
+What it is not: a limit that fails a build. A machine of GitHub's is not the same from run to
+run, and a limit that fails by chance is worse than none. And it makes nothing faster: that
+is work of its own, once the numbers say where.
+
+### Decisions for the owner
+
+1. **Which question first.** A single call on pages of growing size (proposal: a snapshot of a
+   big page is the likeliest cost); several agents at once; a start; or memory.
+2. **Who counts the bytes.** The script alone, from outside (proposal), or the server, as one
+   more line of its account. The second changes a tool's text, and with it the tool reference
+   and the suite.
+3. **Where it runs, and what the numbers to compare with are.** By hand on one machine, which
+   is named with them (proposal); in CI as well, for the record and without a limit; or with a
+   loose limit there, a tool three times slower than before, for one.
+4. **The waits on purpose.** Measured and shown apart, and none changed here (proposal). They
+   are what "success is never assumed" costs.
+5. **What is fast enough.** A time for a snapshot of a page of a thousand elements, and for a
+   click with its settling: the owner's to name, so that the reading has something to hold the
+   numbers against. Without it the package ends with numbers and no verdict.
+
+### Tasks and acceptance
+
+Per the task map: "Something slow or hanging" for the server's account (`Timings.java`); the
+suite's harness (`e2e/mcp-client.mjs`) and the demo site for the script and its pages; the
+runbook for the command; and a page that owns the numbers, named in
+[development.md](docs/development.md#documentation). Acceptance: one command prints the table;
+run twice in a row, the middle times of each tool agree within a spread that is written down;
+the numbers are in the repository with the machine they are from; the three slowest things are
+named, each with its cause; no number and no file of the script has anything of a page's
+content in it; and nothing in the product has changed, unless the second decision says so.
