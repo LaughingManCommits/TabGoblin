@@ -251,8 +251,46 @@ e2e/mcp-client.mjs                                         clientInfo
 
 Check: `git grep -n "0\.2\.0" -- ":!*package-lock.json"` (with the old version) prints nothing, and
 all four suites pass. The server reads its version from the build (`java-server/pom.xml`), and the
-conformance check compares the two. There is no release procedure, no published artifact and no changelog; a
-version is a number in the tree and a merge to `main` by the owner.
+conformance check compares the two. There is no changelog; a version is a number in the tree
+and a merge to `main` by the owner, and a release of it is a tag: see the next section.
+
+## Make a release
+
+A release is the owner's: it is made by pushing a tag. The workflow
+(`.github/workflows/release.yml`, described in
+[development.md](../development.md#releases)) does the rest.
+
+1. The version in the tree is the one to release (the section above), and it is merged to
+   `main`.
+2. Try it first, without publishing: start the workflow *Release* by hand, on GitHub under
+   *Actions*. It runs the suites and makes the three downloads, which are kept with the run.
+   Download one and use it as the [installation guide](../installation.md#from-a-download)
+   says.
+3. Tag and push: `git tag v0.2.0`, `git push origin v0.2.0`, with the version of step 1. A tag
+   that is not `v` and that version makes no release: the workflow stops and says which tag it
+   wants.
+4. Success: a release of that name on GitHub, with three downloads and `SHA256SUMS.txt`.
+   `gh attestation verify <download> --repo <owner>/<repository>` says that it was built there.
+
+A release cannot be made again under the same tag. If one is wrong, delete it and its tag on
+GitHub, mend, and tag anew, or go on to the next version.
+
+To make the download for the system you are on, without GitHub:
+
+```sh
+mvn -f java-server/pom.xml package -DskipTests      # in a copy, if a server runs from the tree's jar
+npm --prefix chrome-extension run build
+bash release/bundle.sh                              # on Windows: in Git Bash
+```
+
+Success: `Made .../release/out/tabgoblin-<version>-<system>-<machine>` with `.zip` on Windows
+and `.tar.gz` elsewhere, about 50 MB; the folder is not in git. It needs a JDK 21 or newer on
+the path. Unpack it into a folder with a space in its name and try: `tabgoblin --help`;
+`tabgoblin --setup claude-code` with a home folder made for the purpose
+(`JAVA_TOOL_OPTIONS=-Duser.home=<folder without a space>`), which must put the skill there and
+print the line for the agent, the extension's folder and the command for the window; and the
+end-to-end suite with the download's `runtime/bin` first on the path, which runs every step
+on the runtime that is inside.
 
 ## Check the documentation links
 

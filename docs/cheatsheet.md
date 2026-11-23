@@ -18,13 +18,15 @@ Explained in the [installation guide](installation.md).
 ## Commands you run yourself
 
 Your agents start the server themselves: the first that needs it, for all of them. These are
-the commands for you.
+the commands for you. With a [download](installation.md#from-a-download), `tabgoblin` in its
+folder stands for `java -jar java-server/target/browser-context-mcp.jar` in every row.
 
 | To | Command |
 |---|---|
 | Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in the server's window, which puts it on the clipboard |
 | Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
 | See the server's window, with every agent in it | `java -jar java-server/target/browser-context-mcp.jar --panel`. It brings the window up and returns; if no server runs, it starts one, which stays until you stop it |
+| Set TabGoblin up for an agent | `java -jar java-server/target/browser-context-mcp.jar --setup claude-code`, or `codex`, or `copilot`. It installs the skill and prints the line that tells the agent about this server, the extension's folder, and how to pair |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
 | Give your agent the skill for the tools | `java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code`, or `codex`, or `copilot`. Add `--replace` to overwrite one that is there and is not this one |
 | Block a site for every agent | **Edit** next to *Blocked sites* in the server's window opens the settings file. Write `blocked.sites = example.org, intranet.example` and save: it is in force at once |

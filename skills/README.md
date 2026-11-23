@@ -26,7 +26,9 @@ The server's jar carries the three skills and puts one in its place for you, in 
 java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code
 ```
 
-with `claude-code`, `codex` or `copilot`. It says where it put the skill. Run again when the
+with `claude-code`, `codex` or `copilot`. It says where it put the skill. `--setup` with
+the same name does this as its first step, and goes on to say how the agent is told about the
+server ([installation guide](../docs/installation.md#from-a-download)). Run again when the
 skill is there already, it writes nothing. If a skill of that name is there and is not this one,
 yours perhaps, it is left as it is and the command says so; `--replace` after the agent's name
 overwrites it. Files in that folder that the skill does not have are not touched.

@@ -2,6 +2,7 @@ package browsercontext;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -13,6 +14,19 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class McpMainTest {
+
+    @Test
+    void theHelpOfADownloadSaysThatItsCommandStandsForTheLongOne() {
+        String plain = McpMain.usage(false);
+        assertTrue(plain.startsWith("TabGoblin MCP server (browser-context-mcp)\n\nCommands you run yourself:"), plain);
+        assertFalse(plain.contains("the command is tabgoblin"), plain);
+        assertTrue(plain.contains("--setup <agent>"), plain);
+        String download = McpMain.usage(true);
+        assertTrue(download.startsWith("TabGoblin MCP server (browser-context-mcp)\n\nIn this folder the command is tabgoblin: "
+                + "it stands for \"java -jar browser-context-mcp.jar\" below.\n\nCommands you run yourself:"), download);
+        // The rest is the same help.
+        assertTrue(download.endsWith(plain.substring(plain.indexOf("Commands you run yourself:"))), download);
+    }
 
     private static Options parse(Map<String, String> environment, String... args) throws UsageException {
         return Options.parse(args, environment::get);
@@ -60,7 +74,7 @@ class McpMainTest {
     }
 
     @Test
-    void aCommandLineThatIsNotUnderstoodIsRefusedAndSaysWhy() {
+    void aCommandLineThatIsNotUnderstoodIsRefusedAndSaysWhy() throws Exception {
         // A mistyped command used to start a server that waits for a client.
         assertEquals("Unknown option: --show-tokn",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--show-tokn")).getMessage());
@@ -68,8 +82,22 @@ class McpMainTest {
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--install-skill", "cursor")).getMessage());
         assertEquals("--install-skill needs a value.",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--install-skill")).getMessage());
-        assertEquals("--replace goes with --install-skill.",
+        assertEquals("--replace goes with --setup or --install-skill.",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--replace")).getMessage());
+
+        // Setup, for the same agents as the skills.
+        assertNull(parse(Map.of()).setup());
+        assertEquals(Skills.Agent.COPILOT, parse(Map.of(), "--setup", "copilot").setup());
+        Options again = parse(Map.of(), "--setup", "claude-code", "--replace");
+        assertEquals(Skills.Agent.CLAUDE_CODE, again.setup());
+        assertTrue(again.replace());
+        assertNull(again.installSkill());
+        assertEquals("There is no setup for \"cursor\". There is one for each of: claude-code, codex, copilot.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--setup", "cursor")).getMessage());
+        assertEquals("--setup needs a value.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--setup")).getMessage());
+        assertEquals("--setup installs the skill as well: leave --install-skill out.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--setup", "codex", "--install-skill", "codex")).getMessage());
         assertEquals("Unknown option: status",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "status")).getMessage());
         assertEquals("--port needs a value.",

@@ -10,7 +10,9 @@ start, and nothing connected on an old one, which was built and then cut back to
 with a pairing: see below. Of WP-14 the files and the check were done on
 2026-11-22; the history remains, and is the owner's. WP-13 was built on 2026-11-22 on the
 branch `server-panel` and waits for the owner's review; its entry says what is there and what
-is open. WP-12, WP-15 and WP-16 are not started, and each waits for the owner's word on its points.
+is open. WP-12 and WP-16 are not started, and each waits for the owner's word on its points.
+WP-15 was built and committed on 2026-11-23, on the branch `easy-install`: a download, a setup
+command and a release by a tag. No release has been made yet.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and merged. WP-20, filed on
@@ -385,9 +387,85 @@ Read from [docs/installation.md](docs/installation.md), the runbook and the sour
   the popup. Once; it is kept in the user's home folder.
 - **Updating** is pulling and building both parts again. Server and extension must be of the
   same protocol version, and the popup says so when they are not.
-- **Nothing is published.** The repository is private; CI builds and tests and keeps nothing;
+- **Nothing is published.** The repository is public since 2026-11-22; CI builds and tests and keeps nothing;
   the runbook says there is no release procedure and no published artifact.
 - The sample output on the installation page is from an earlier build (52 tests; today 64).
+
+### Decided since it was filed
+
+- **No Chrome Web Store, ever: TabGoblin's releases are its own.** The owner on 2026-11-23: "i
+  think we would always be our own releases never on chrome web store". What follows from it:
+  the extension is loaded unpacked, with Chrome's developer mode on, for good; a browser whose
+  administrator forbids that cannot use TabGoblin; and the extension does not update by
+  itself. What falls away: a second id for the extension, and a server that has to work with
+  an extension of another version, since both parts come from one release. Step 1 of the
+  proposal below, and decisions 2 and 5, are overtaken by it.
+- **The repository is in the open** since 2026-11-22 (decision 1).
+- **Pairing stays as it is:** the token is pasted once. A new token at every start was built
+  and taken out again on 2026-11-23 (WP-17); a short code or a confirmation in the popup was
+  not asked for (decision 4).
+
+Measured on 2026-11-23, on Windows with Java 26, for a download with the Java runtime inside
+(decision 3): the jar needs the modules `java.base`, `java.desktop`, `java.net.http`,
+`java.sql`, `jdk.jfr` and `jdk.unsupported`; a runtime of those, made with `jlink`, is 50 MB
+unpacked and 33 MB as a zip; the jar's `--help` runs on it. Not tried on it: a server, and its
+window.
+
+### What was built
+
+On 2026-11-23, on the owner's word ("okay lets build wp 15 with the cd release"), on the branch
+`easy-install`, which is made from `new-token-each-start`. What was run is in the validation
+log.
+
+- **A download for each system** (`release/bundle.sh`): one folder, `tabgoblin`, with a Java
+  runtime of the six modules the jar uses, the jar, the extension, a command `tabgoblin` that
+  starts the server for a person, a page that says what to do, and the licence. It is about
+  50 MB packed, a zip for Windows and a tar for Linux and macOS, and it unpacks over an older
+  one, so that an update changes no path. The script refuses to pack a server that does not
+  start on the runtime it made.
+- **`--setup <agent>`** (`Setup.java`), for `claude-code`, `codex` and `copilot`. It puts
+  the agent's skill in its place and prints what is left, with the server's own paths: the
+  line that tells the agent about the server, which is the agent's own command for that; the
+  extension's folder, with the clicks that load it; and the command for the server's window,
+  to pair. It runs no other program and writes nothing but the skill. The help of a download
+  says that `tabgoblin` stands for the long command.
+- **A release by a tag** (`.github/workflows/release.yml`): the suites, then the three
+  downloads, each made on its own system, then the release, with checksums and GitHub's
+  attestation of where each download was built. Only the last job may write, and it runs only
+  for a tag. Started by hand the workflow publishes nothing.
+- **The pages:** the installation guide begins with the download, and the build from source is
+  its second half; the runbook says how a release is made.
+
+### What is open
+
+- **No release has been made, and the workflow has never run.** It is the owner's to start:
+  first by hand, which publishes nothing, then by a tag. Whether a job starts at all is not
+  known: none has since run #14, with GitHub's message about the account's billing, and
+  nothing was run again since the repository is public.
+- **The first version is the owner's.** The tree says 0.2.0, and a tag has to be `v` and the
+  version in the tree.
+- **The download for macOS has never been made,** and none was used on a Mac. The one for
+  Linux was made and used in Ubuntu under Windows' Linux subsystem, without Java: setup and the
+  server as an agent starts it. Its window was not seen there; the server's log said it had
+  shown it.
+- **On Linux a server started in a terminal with `--panel` ended when the terminal was
+  closed,** in the one try there was, with a terminal made up for it. The command says that
+  the server stays until it is stopped. That is the one server's start (WP-19), which had not
+  been tried on Linux; a start that the terminal's end does not reach would mend it.
+- **The lines for Codex and Copilot were not run.** They are each agent's own command as its
+  documentation had it on 2026-11-23; neither agent is on this machine. The one for Claude
+  Code was run, in Command Prompt and in PowerShell, against a configuration made for the
+  purpose, and what it stored was read.
+- **Setup prints the line and does not run it.** The user pastes one line. Running the agent's
+  command for them was left out: it is another program's, and could not be tried for two of
+  the three.
+- **The downloads are not signed.** Windows and macOS may warn. Signing takes certificates,
+  which cost money every year.
+- **A download carries JavaFX for all three systems,** as the jar does: a few megabytes more
+  than each needs.
+- **The acceptance as it was filed has not been done:** a person, on a machine with Chrome and
+  an agent and nothing else, following the page to a status that says connected, with the
+  steps and the minutes counted. It needs a release to download.
 
 ### Proposal
 

@@ -364,3 +364,7 @@ Chrome.
   depends on their label.
 - **Local malware** running as you can read the token file. TabGoblin does not defend against a
   compromised user account.
+- **A download is what the release workflow built.** Trusting one is trusting this repository
+  and GitHub's machines. Its checksum and GitHub's attestation say that it is the file that was
+  built there from the release's tag, and nothing about what the code does. The downloads are
+  not signed for Windows or macOS.

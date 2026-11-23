@@ -91,7 +91,24 @@ public final class McpMain {
         String extensionOrigin = options.extensionOrigin();
 
         if (options.help()) {
-            mcpOut.println(USAGE);
+            Setup.Self self = Setup.Self.running();
+            mcpOut.println(usage(self != null && self.launcher() != null));
+            return;
+        }
+        if (options.setup() != null) {
+            // On the user's own command: the skill goes into their home, and the rest is said. Nothing is started.
+            Setup.Self self = Setup.Self.running();
+            if (self == null) {
+                System.err.println("Setup tells an agent about this server's jar, and this server does not run from one. "
+                        + "Run it from the download, or build the server first.");
+                System.exit(1);
+                return;
+            }
+            Skills.Result skill = Skills.install(options.setup(), Path.of(System.getProperty("user.home")), options.replace());
+            mcpOut.println(Setup.says(skill, self));
+            if (!skill.ok()) {
+                System.exit(1);
+            }
             return;
         }
         if (options.installSkill() != null) {
@@ -407,6 +424,21 @@ public final class McpMain {
         }
     }
 
+    /**
+     * The help. A download has a command of its own, and no Java on the path as a rule: its user is
+     * told that the command stands for what the lines below begin with.
+     *
+     * @param download the server runs from a download, which has the command "tabgoblin" beside the jar
+     */
+    static String usage(boolean download) {
+        if (!download) {
+            return USAGE;
+        }
+        String title = USAGE.substring(0, USAGE.indexOf('\n'));
+        return title + "\n\nIn this folder the command is tabgoblin: it stands for \"java -jar browser-context-mcp.jar\" below."
+                + USAGE.substring(title.length());
+    }
+
     private static final String USAGE = """
             TabGoblin MCP server (browser-context-mcp)
 
@@ -414,6 +446,10 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --panel          open the server's window (starts the server if it is not running)
               java -jar browser-context-mcp.jar --show-token     print the pairing token for the extension popup
               java -jar browser-context-mcp.jar --rotate-token   replace the pairing token (pair the extension again)
+              java -jar browser-context-mcp.jar --setup <agent>  set TabGoblin up for an agent: claude-code, codex or copilot.
+                                                                 It installs the skill, and prints the line that tells
+                                                                 the agent about this server, the extension's folder,
+                                                                 and how to pair
               java -jar browser-context-mcp.jar --install-skill <agent>
                                                                  put the skill that tells an agent how to use the tools where
                                                                  that agent looks for skills: claude-code, codex or copilot
@@ -438,7 +474,7 @@ public final class McpMain {
 
             Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
                       --settings <path of the settings file>
-                      --replace  with --install-skill: overwrite a skill that is there and is not this one""";
+                      --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -765,13 +801,8 @@ public final class McpMain {
 
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
-            boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace, boolean quiet) {
-
-        /** Without the word on the window that comes up by itself: it does. */
-        Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
-                boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace) {
-            this(help, showToken, rotateToken, port, tokenFile, extensionOrigin, panel, hub, standing, settings, installSkill, replace, false);
-        }
+            boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace, boolean quiet,
+            Skills.Agent setup) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -787,6 +818,7 @@ public final class McpMain {
             String origin = null;
             String settings = null;
             String skill = null;
+            String setUp = null;
             boolean replace = false;
             boolean panel = false;
             boolean noPanel = false;
@@ -804,7 +836,7 @@ public final class McpMain {
                     // The two that this program gives itself when it starts the one server: not for a command line.
                     case "--hub" -> hub = true;
                     case "--standing" -> standing = true;
-                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill" -> {
+                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill", "--setup" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
                         }
@@ -817,6 +849,8 @@ public final class McpMain {
                             settings = value;
                         } else if (arg.equals("--install-skill")) {
                             skill = value;
+                        } else if (arg.equals("--setup")) {
+                            setUp = value;
                         } else {
                             origin = value;
                         }
@@ -839,8 +873,15 @@ public final class McpMain {
             if (skill != null && installSkill == null) {
                 throw new UsageException("There is no skill for \"" + skill + "\". There is one for each of: " + Skills.Agent.names() + ".");
             }
-            if (replace && installSkill == null) {
-                throw new UsageException("--replace goes with --install-skill.");
+            Skills.Agent setup = setUp == null ? null : Skills.Agent.named(setUp);
+            if (setUp != null && setup == null) {
+                throw new UsageException("There is no setup for \"" + setUp + "\". There is one for each of: " + Skills.Agent.names() + ".");
+            }
+            if (setup != null && installSkill != null) {
+                throw new UsageException("--setup installs the skill as well: leave --install-skill out.");
+            }
+            if (replace && installSkill == null && setup == null) {
+                throw new UsageException("--replace goes with --setup or --install-skill.");
             }
             if (panel && noPanel) {
                 throw new UsageException("--panel and --no-panel exclude each other.");
@@ -858,7 +899,7 @@ public final class McpMain {
             return new Options(help, showToken, rotateToken, number, token,
                     firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
                     fromStart, hub, standing,
-                    list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet);
+                    list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup);
         }
 
         /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */
