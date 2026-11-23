@@ -55,7 +55,7 @@ class McpConformanceIT {
                     Path.of(System.getProperty("java.home"), "bin", "java").toString(), "-jar", JAR.toString()));
             if (arguments.length == 0) {
                 command.addAll(List.of("--port", String.valueOf(port), "--token-file", tokenFile.toString(),
-                        "--extension-origin", FakeExtension.ORIGIN));
+                        "--extension-origin", FakeExtension.ORIGIN, "--no-panel"));
             } else {
                 command.addAll(List.of(arguments));
             }

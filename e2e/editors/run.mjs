@@ -11,14 +11,13 @@
 // Exit code 1 if an editor that is expected to work (see EXPECTED below) fails a check, or if the
 // tool reports success for text that did not arrive.
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
-import { McpClient } from '../mcp-client.mjs';
+import { McpClient, pairingToken } from '../mcp-client.mjs';
 import { FIXTURES, startLab } from './lab.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -89,8 +88,7 @@ const checks = CHECKS.filter((c) => !onlyChecks || onlyChecks.has(c.id));
 const work = mkdtempSync(join(tmpdir(), 'bcmcp-editors-'));
 const lab = await startLab(0);
 const wsPort = await freePort();
-const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token')];
-const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' }))?.[1];
+const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token'), '--no-panel'];
 const agent = new McpClient('java', serverArgs, 'editor-lab');
 let browser;
 const results = {};
@@ -119,7 +117,7 @@ try {
   await extension.triggerAction(page);
   const popup = await until(async () => (await extension.pages()).find((p) => p.url().includes('popup.html')), 'the popup');
   await popup.waitForSelector('#connection');
-  await popup.type('#token', token);
+  await popup.type('#token', pairingToken(serverArgs));
   await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
   await popup.click('#pair');
   await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');

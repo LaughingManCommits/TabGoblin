@@ -129,6 +129,31 @@
     -fx-font-size: 12px;
 }
 
+/* What the user has to do while no browser is paired: the one step, in the colour of what goes on. */
+.pair {
+    -fx-background-color: -tg-accent, -tg-accent-soft;
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 10, 9;
+    -fx-padding: 9 10 9 12;
+    -fx-spacing: 10;
+}
+.pair .hint {
+    -fx-text-fill: -tg-fg;
+    -fx-opacity: 0.8;
+}
+.button.primary {
+    -fx-background-color: -tg-accent;
+    -fx-background-insets: 0;
+    -fx-text-fill: -tg-accent-ink;
+}
+.button.primary:hover {
+    -fx-background-color: derive(-tg-accent, 14%);
+}
+.button.primary:focused {
+    -fx-background-color: -tg-fg, -tg-accent;
+    -fx-background-insets: 0, 2;
+}
+
 /* Said by a server that no agent talks to: quiet, in the card's own colours, and not a warning. */
 .note {
     -fx-background-color: -tg-line, -tg-raised;

@@ -6,18 +6,23 @@ Eleven packages are listed. Four were asked for by the owner on 2026-11-21: WP-1
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
-start, and nothing connected on an old one. Of WP-14 the files and the check were done on
+start, and nothing connected on an old one, which is built: see below. Of WP-14 the files and the check were done on
 2026-11-22; the history remains, and is the owner's. WP-13 was built on 2026-11-22 on the
 branch `server-panel` and waits for the owner's review; its entry says what is there and what
-is open. The other four are not started, and each waits for the owner's word on its points.
+is open. WP-12, WP-15 and WP-16 are not started, and each waits for the owner's word on its points.
 WP-18, filed on 2026-11-22, is the aftercare of that panel and a pass over the
 documentation. WP-19, filed on the same day on the owner's word, is one server for all agents
 in place of one for each; it is built and merged. WP-20, filed on
 the same day, is a list of blocked sites in the server; the owner decided its points, and it is
 built and merged. WP-21, filed on the same day, is what the first test on the public repository
-showed: three faults, mended and committed on the branch `smoke-fixes`. WP-22, filed on the
-same day, is a skill for the tools for each of three agents; it is built and committed on the
-branch `agent-skills`. New work gets the next number, WP-23.
+showed: three faults, mended and merged. WP-22, filed on the same day, is a skill for the
+tools for each of three agents, and a command of the jar that installs one; it is built and
+merged. WP-23, on 2026-11-23, was the documentation's pictures as SVG in place of PNG, for a
+proxy at the owner's work that holds back PNG files from GitHub. It was built, and the owner
+dropped it the same day: the proxy holds back SVG as well. Nothing of it is in the repository,
+and its number is not used again. WP-17 was gone over on 2026-11-23, decided by the owner and
+built and committed that day on the branch `new-token-each-start`; the owner tries it before
+it is merged. New work gets the next number, WP-24.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -525,110 +530,94 @@ the mcp and agent conencted automatically, any connected agent without the lates
 be killed". Goal: a server that starts is not connected to the browser on something that was
 agreed before. What is connected is what the user let in since it started.
 
-### What happens today
+Filed that day with a proposal that did without a token: a secret for each server, and a code
+to compare in the popup. It was written when every agent had a server of its own. Gone over on
+2026-11-23, when there was one server for all agents (WP-19) with a window (WP-13), decided by
+the owner that day, and built on the branch `new-token-each-start`.
 
-Read from the source on 2026-11-22 (`Pairing.java`, `McpMain.java`, `WebSocketBridge.java`;
-`connectPort` and `scan` in `background.ts`; `canUse` and `resolveSession` in `policy.ts`).
+### What there was
 
-- **One token for the machine, made once.** The first start of a server makes 64 random
-  hexadecimal characters and writes them to the file `pairing-token`, in the folder
-  `.browser-context-mcp` of the user's home folder. Every later start of every server reads
-  that file. The token changes only with `--rotate-token`.
-- **The extension keeps the same token**, once the user has pasted it, and looks for servers
-  on eight ports: every 30 seconds, when the popup opens, and when the user changes tabs. It
-  pairs with each server it finds and asks nobody. That is what the owner saw, and what the
-  installation guide promises: "You pair once; it stays valid until you rotate it."
-- **So whatever starts the jar as this user is connected:** every agent the user set up, and
-  any other program that runs as the user, which can read the file as well. For the second,
-  see "What remains your risk" in [docs/security.md](docs/security.md).
-- **Connected is not authorized.** A connected agent has no tab until the user authorizes one.
-  Two things reach further: a tab authorized for "Any agent" goes to the first agent that uses
-  it, and the sessions of an agent that is gone go to an agent of the same name, which is a
-  name an agent gives itself.
-- **A rotation puts the extension out, not a server.** It writes a new token to the file. Each
-  running server reads the file again at its next heartbeat and before its next command, and
-  closes a connection that was paired with the old token (code 4401). All servers share the
-  file, so afterwards every server has the new token and the extension the old one: all its
-  agents are gone until the user pastes the new token. No server ends.
-- **Disconnect holds for one run of a server.** The popup refuses an agent by its id (code
-  4403), and a server makes its id when it starts. The server keeps running; started again, it
-  has another id and is connected again.
+- **One token for the machine, made once.** The first start of a server wrote it to
+  `pairing-token` in `.browser-context-mcp` of the home folder; every later start read it. It
+  changed only with `--rotate-token`.
+- **The extension kept it** and paired with every server it found, asking nobody. That is what
+  the owner saw, and what the installation guide promised: "You pair once".
+- **Since WP-19 the token has a second use:** the process an agent starts proves with it that
+  it may pass its agent's messages to the one server.
 
-### What the request runs into
+### What the one server changed
 
-- **A server that an agent starts has nowhere to show a token.** Its output is the protocol,
-  and its log goes where the agent's program puts it. Today the user gets the token from a
-  second start of the jar, in a terminal (`--show-token`), which works because the token is in
-  a file. A token that is made at the start and kept nowhere cannot be fetched that way.
-- **A new token at every start is a new pairing at every start.** How often an agent's program
-  starts its server in a day's work was never counted: once for each session of a CLI and each
-  start of an IDE at least.
-- **"The latest token", with several agents.** Each agent has a server of its own, up to eight
-  run at once, and every suite runs two. If the newest start makes the one token that counts,
-  starting a second agent ends the first.
+- **"The latest token" is no question any more.** There is one server, so there is one token:
+  the running server's.
+- **The server has a place to hand its token over:** its window, where **Copy** puts it on the
+  clipboard. When this was filed, a server that an agent started had none.
+- **A token that is kept nowhere cannot be had.** The agents' processes need it to reach the
+  server. So it stays in its file, and the file is what a start replaces.
 
-### Proposal
+### Decided by the owner on 2026-11-23
 
-1. **A secret for each server, made when it starts, held in memory, written nowhere.** It ends
-   with the process. The token file goes, and with it what another program could read.
-2. **The user lets each server in, in the popup.** The extension finds a server that it has
-   not let in, and does not pair. The popup says that an agent wants to connect, with the name
-   the agent gives, its port and a short code. The agent has the same code: the tool's answer
-   says that the user has to let it in, and names the code. The user compares the two and
-   allows. How two sides that share nothing beforehand agree on a secret is the design work of
-   this package: an exchange of keys from which both derive the code is the usual way, and the
-   code then differs when another program sits in between.
-3. **Nothing is kept over a start.** A server that is started again asks again. Closing Chrome
-   ends it too: the extension holds the secret in memory only, in the storage Chrome empties
-   when it closes, since its worker is put to sleep and wakes without what it knew.
-4. **That is the owner's "killed", for all agents alike.** A connection whose server was not
-   let in since it started does not exist, and letting one agent in does not end another.
+1. **How a newly started server is let in: its new token is pasted**, as before, after every
+   start. Not chosen: one click in the popup with a code to compare with the server's window,
+   which needs an exchange of keys and a new protocol version.
+2. **When the server's window comes up by itself: when an agent needs the browser and none is
+   paired.** Not chosen: at every start of a server, and only with `--panel` as before.
+3. **The tabs after a new start come back once the browser is paired again,** to the agent of
+   the same name, as after a restart before. Not chosen: every start begins empty.
 
-What it does not do: defend against a program that runs as the user and does what the user can
-do, start a browser of its own for one. That line of `docs/security.md` stays. And it is no
-second authorization: a tab is still given by a click on it.
+### What was built
 
-### Decisions for the owner
+On the branch `new-token-each-start`, committed on the owner's word. What was run is in the
+validation log.
 
-1. What "the latest token" means when several agents run. One token, and the newest start
-   wins: that is what the words say, and it leaves one agent at a time. Or a secret for each
-   server, and the user lets each in (proposal).
-2. How the user lets a server in. The popup, with a code that the agent shows too (proposal).
-   The popup without a code: one click, and a program that sits on one of the eight ports
-   under a familiar name is let in when the user clicks. Or a pasted token as today, which
-   needs a server with a terminal.
-3. How often the user is asked. At every start of a server (proposal, and the owner's words),
-   after it was counted how often that is. Anything gentler needs something kept, which is
-   what this package takes away.
-4. What "killed" does to a server. Its connection is closed and it is refused, with an error
-   that tells the agent what the user has to do (proposal). Or the process is ended as well:
-   most agents' programs start it again, or leave the agent without its tools and without a
-   reason. Ending a server is in WP-13.
-5. The sessions of an agent that starts again. Today they pass to an agent of the same name.
-   Proposal: they still do, once the user has let that agent in; otherwise every start costs a
-   click on each tab as well. For Disconnect, WP-10 answered it the other way: there the
-   sessions end.
-6. What existing setups know: `--show-token`, `--rotate-token`, `--token-file`,
-   `BCMCP_TOKEN_FILE` and the folder in the home folder. The constraint in `AGENTS.md` keeps
-   legacy names. Proposal: the options stay as names and say that there is no token any more;
-   a server that starts removes the file. The protocol gets a new version, and an extension of
-   the old one is refused with the reason, as today.
+- **A server makes a new token when it starts** (`McpMain` `renewed`, `Pairing.Tokens`): once it
+  has its port and before it takes a process of an agent, and it writes the token in the place
+  of the last one, in one step. A browser that holds an earlier token is refused, as after a
+  rotation. A process that serves its agent alone does the same. A server that cannot write the
+  token does not start. Reading makes no token any more: an agent's process reads the running
+  server's.
+- **`--show-token` says whose token it prints:** the running server's, or, when no server
+  answers, one that the next start replaces. With no token yet it prints none.
+- **The window comes up by itself** the first time a tool of an agent finds no browser on its
+  connection and the browser is paired with no agent of the server (`Hub.unpaired`): once
+  until something is paired. `--no-panel`, or `BCMCP_PANEL=0`, keeps it from that for an agent;
+  `--panel` has it from the start, as before. Nothing comes up while the user has the
+  connection switched off.
+- **The window says the step at its top** while no browser is paired: *Pair the browser with
+  this server*, with a button **Copy token**. Its status line says *Not paired yet: waiting for
+  the browser*, or *Not paired: the browser has another token* once a browser came with one.
+- **The agent is told** what the user has to do and where the token is: in the window, or by
+  the command where there is no window; and that the browser holds another token when that is
+  so. Where the browser is paired with the server by way of another agent, it is told to wait
+  half a minute instead. The server's instructions and the three skills say that no tool pairs
+  the browser.
+- **The popup** says *Paste the server's current token to connect* in the place of *Pairing
+  failed: check the token*, and its field's text says that a server makes a new token at every
+  start and where it is copied.
+- **Found by the suite and mended:** after a new token, an agent was told that the browser was
+  paired with the server, because another agent's pairing on the old token was still open for
+  a moment. A pairing counts only on the token as it is now.
+- **The scripts that start a server** read the token once it runs and start it with
+  `--no-panel`. The script that runs a real agent keeps one server for its run.
 
-### Tasks and acceptance
+### What is open
 
-Per the task map, "Change sessions, pairing or the connection": `Pairing.java`,
-`WebSocketBridge.java`, `Protocol.java` and the options in `McpMain.java`; `pairing.ts`,
-`protocol.ts` and `background.ts`; the request in the popup, in place of the panel for the
-token; the test vector that `PairingTest` and `pairing.test.ts` share. The text an agent gets
-while it is not let in changes, so `docs/tools.md`, the server instructions and the suite end
-to end. Tests: a server started twice has two secrets, and an extension let in by the first is
-not connected to the second; the codes differ when a third party passes the messages on; a
-server that is not let in gets no command and no session, one for "Any agent" included; two
-agents that were let in work side by side; Disconnect holds as before. End to end: the suite
-lets its two agents in through the real popup, and a server that is ended and started again
-asks again. Then `docs/security.md` (the local connection, what remains your risk), step 6 of
-the installation guide, section 2 of the user guide, the protocol reference, and the pictures
-of the popup that show pairing. The third step of WP-15, pairing, is decided here.
+- **How often a user pairs was not counted in real use.** A server ends when its last agent
+  has gone, so with one agent at a time it is once for every session of the agent. A server
+  started by hand with `--panel` stays, with its token, until it is stopped; the user guide
+  says so. The owner tries the branch for that before it is merged. If it is too much, the
+  renewal can become a setting, with one token kept where it is off, and the rest stays as it
+  is: the messages, the window that comes up for a pairing, and the popup's words.
+- **The token's file is still there,** and a program that runs as the user can read it, as
+  before. The proposal that was filed took the file away; with one server its agents'
+  processes need it. That line of `docs/security.md` stays.
+- **Where an agent's process serves alone,** because the one server's port is taken, every
+  such start makes the new token, and the browser has to be paired again for all of them.
+- **Seen on Windows only,** with Java 21. On Linux and macOS neither the start nor the window
+  that comes up by itself was tried.
+- **Not run:** the script with a real agent and the two scripts against live sites, which were
+  changed to read the token after the start.
+- **One click with a code to compare** was not built, by the owner's choice. It would spare the
+  pasting, and the clipboard.
 
 ## WP-18: Aftercare of the server's panel, and the documentation gone over
 

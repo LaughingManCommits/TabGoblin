@@ -391,6 +391,69 @@ class BrowserServiceTest {
     }
 
     @Test
+    void withoutAPairedBrowserAToolSaysWhatTheUserHasToDoAndWhereTheTokenIs() throws Exception {
+        // Whoever serves the agent is asked where the token is, and may bring the window up for it.
+        java.util.concurrent.atomic.AtomicInteger asked = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicReference<BrowserService.Unpaired> where =
+                new java.util.concurrent.atomic.AtomicReference<>(BrowserService.Unpaired.WINDOW);
+        BrowserService asking = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> {
+            asked.incrementAndGet();
+            return where.get();
+        });
+        // While a browser is paired, nobody is asked: a tool that works brings no window up.
+        ext.responder = cmd -> FakeExtension.ok(cmd, FakeExtension.JSON.createObjectNode());
+        asking.call("browser_status", args());
+        assertEquals(0, asked.get());
+
+        ext.closeBlocking();
+        for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
+            Thread.sleep(20);
+        }
+        String status = asking.call("browser_status", args()).text();
+        assertEquals(1, asked.get());
+        assertEquals("Extension: not connected\nListening on: ws://127.0.0.1:" + bridge.getPort() + "\n"
+                + "Ask the user to pair the browser with this server: in Chrome, with the TabGoblin extension loaded, "
+                + "open its popup and paste this server's pairing token. A server makes a new token every time it "
+                + "starts, so a pairing from before that does not count. The TabGoblin server's window is open on the "
+                + "user's screen: Copy token, at its top, puts the token on the clipboard.", status);
+        // Another tool says the same behind its error.
+        String refused = asking.call("browser_snapshot", args()).text();
+        assertTrue(refused.startsWith("Error [NOT_CONNECTED]: The Chrome extension is not connected. Ask the user to pair"), refused);
+        assertTrue(refused.endsWith("Copy token, at its top, puts the token on the clipboard."), refused);
+
+        // Where there is no window, the token comes from a command.
+        where.set(BrowserService.Unpaired.COMMAND);
+        status = asking.call("browser_status", args()).text();
+        assertTrue(status.endsWith("The user sees the token by running the server's jar with --show-token in a terminal."), status);
+        assertFalse(status.contains("window"), status);
+
+        // The browser is paired with the server by way of another agent: nothing to paste, only to wait for.
+        where.set(BrowserService.Unpaired.PAIRED_ELSEWHERE);
+        status = asking.call("browser_status", args()).text();
+        assertTrue(status.endsWith("The browser is paired with this server and finds this agent within about 30 seconds, "
+                + "or at once when the user opens the TabGoblin popup. Try again then."), status);
+        assertFalse(status.contains("pairing token"), status);
+
+        // A browser that came with another token is why none is paired, and the tool says that first.
+        FakeExtension stale = new FakeExtension(bridge.getPort(), FakeExtension.ORIGIN, "f".repeat(64));
+        stale.connectBlocking();
+        for (int i = 0; i < 100 && bridge.lastCloseCode() != Protocol.CLOSE_UNAUTHORIZED; i++) {
+            Thread.sleep(20);
+        }
+        where.set(BrowserService.Unpaired.COMMAND);
+        refused = asking.call("browser_snapshot", args()).text();
+        assertTrue(refused.startsWith("Error [NOT_CONNECTED]: The Chrome extension is not paired with this server: the token "
+                + "it holds is not this server's. Ask the user to pair"), refused);
+
+        // What the user switched off is theirs to switch on: nobody is asked for the token, and no window comes up.
+        int before = asked.get();
+        bridge.setHeld(true);
+        asking.call("browser_status", args());
+        asking.call("browser_snapshot", args());
+        assertEquals(before, asked.get());
+    }
+
+    @Test
     void switchedOffInTheServersWindowStatusAndToolsSaySoAndWhatToAskTheUser() throws Exception {
         bridge.setHeld(true);
         for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {

@@ -11,7 +11,7 @@
 //   BCMCP_CHROME=<path>     use a specific Chrome/Chromium binary
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { connect, createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -107,10 +107,15 @@ const settingsFile = join(work, 'tabgoblin.properties');
 const demo = await startDemo(0, 0, 0);
 const wsPort = await freePort();
 // Every agent's server gets the same arguments; each takes the first free port from wsPort up.
-const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', tokenFile];
+// No window: the server's would come up by itself when a step finds no browser paired.
+const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', tokenFile, '--no-panel'];
 
-const shown = execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' });
-const token = /Pairing token:\s*(\S+)/.exec(shown)?.[1];
+// A token from before the server's start, as an extension holds one that was paired with the server's last run.
+const EARLIER_TOKEN = 'e'.repeat(64);
+writeFileSync(tokenFile, EARLIER_TOKEN);
+// The server's own token: it makes it when it starts, so it is read then.
+let token;
+const tokenShown = () => execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' });
 let one = new McpClient('java', serverArgs, 'agent-one');
 let two = null;
 const servers = [one];
@@ -119,10 +124,17 @@ let browser;
 try {
   console.log('\nMCP server');
   await step('server starts and answers initialize over stdio', async () => {
-    assert(token && token.length >= 32, '--show-token printed no token');
     const init = await one.initialize();
     assert(init.serverInfo.name === 'browser-context-mcp', `unexpected serverInfo ${JSON.stringify(init.serverInfo)}`);
     has(init.instructions, 'untrusted data');
+  });
+  await step('the server made a new pairing token when it started, and --show-token says whose it is', async () => {
+    const shown = tokenShown();
+    token = /Pairing token:\s*(\S+)/.exec(shown)?.[1];
+    assert(token && /^[0-9a-f]{64}$/.test(token), `--show-token printed no token: ${shown}`);
+    assert(token !== EARLIER_TOKEN, 'the token from before the start is still the server\'s');
+    assert(readFileSync(tokenFile, 'utf8').trim() === token, 'the file does not hold the token that was shown');
+    has(shown, 'It is the token of the server that is running now.');
   });
   await step('lists exactly the generic tools, each bindable to a session', async () => {
     const { tools } = await one.request('tools/list');
@@ -361,14 +373,28 @@ try {
     assert(all.sort().join(',') === 'activeTab,alarms,scripting,storage', `permissions are ${all.join(',')}`);
     assert(!manifest.content_scripts, 'no content script should be registered for every page');
   });
-  await step('a wrong pairing token is rejected', async () => {
+  await step('the token from before the server\'s start is not taken: popup and agent say what to do', async () => {
     const popup = await openPopup();
     await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
-    await popup.type('#token', 'f'.repeat(64));
+    has(await popup.$eval('#pairing', (el) => el.textContent), 'A server makes a new token every time it starts.');
+    await popup.type('#token', EARLIER_TOKEN);
     await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
-    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'));
-    has((await one.tool('browser_status')).text, 'Extension: not connected');
+    await popup.waitForFunction(() => document.getElementById('connection').textContent === 'Paste the server\'s current token to connect');
+    // The agent is told why no browser is there, what the user has to do, and where the token is.
+    // This server was started with --no-panel, so that is the command and not the window.
+    const status = (await one.tool('browser_status')).text;
+    has(status, 'Extension: not connected');
+    has(status, 'The browser holds a token that is not this server\'s.');
+    has(status, 'Ask the user to pair the browser with this server');
+    has(status, 'A server makes a new token every time it starts');
+    has(status, '--show-token');
+    lacks(status, 'window is open');
+    lacks(status, token);
+    const refused = await one.tool('browser_snapshot');
+    fails(refused, 'NOT_CONNECTED');
+    has(refused.text, 'the token it holds is not this server\'s');
+    has(refused.text, 'Ask the user to pair the browser with this server');
   });
   await step('pairs with the real token; the agent is identified in the popup', async () => {
     const popup = await openPopup();
@@ -1846,19 +1872,20 @@ try {
     assert(rotated && rotated !== token, 'a new token should be printed');
     const refused = await one.tool('browser_snapshot', { session: sA });
     fails(refused, 'NOT_CONNECTED');
-    has(refused.text, 'pair the extension again');
+    has(refused.text, 'Ask the user to pair the browser with this server');
     const popup = await openPopup();
-    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'), { timeout: 20000 });
+    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('current token'), { timeout: 20000 });
     // The old token no longer pairs.
     await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
     await popup.type('#token', token);
     await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
-    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('Pairing failed'));
+    await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('current token'));
     fails(await one.tool('browser_snapshot', { session: sA }), 'NOT_CONNECTED');
     // The new one does, and the session is where it was.
     await popup.type('#token', rotated);
     await popup.click('#pair');
+    token = rotated;
     await until(async () => !(await one.tool('browser_snapshot', { session: sA })).isError, 'the pairing to be restored', 20000);
     has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
     await until(async () => !(await two.tool('browser_status')).text.includes('not connected'), 'the second agent to pair again', 20000);
@@ -1970,6 +1997,32 @@ try {
     await until(async () => !(await listens(wsPort + 8)), 'the server to end after its last agent', 15000);
     const popup = await openPopup();
     await popup.waitForFunction(() => document.getElementById('connection').textContent.startsWith('Disconnected'));
+  });
+  await step('a server that starts again has a new token: the browser is not let in on the last one, and paired anew its agent has its tabs', async () => {
+    const last = token;
+    one = new McpClient('java', serverArgs, 'agent-one');
+    servers.push(one);
+    await one.initialize();
+    token = /Pairing token:\s*(\S+)/.exec(tokenShown())?.[1];
+    assert(token && token !== last, 'the server that started again has the token of the last one');
+    // The extension still holds the last one. It finds the new server and is not let in.
+    const popup = await openPopup();
+    await popup.waitForFunction(() => document.getElementById('connection').textContent === 'Paste the server\'s current token to connect', { timeout: 20000 });
+    await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
+    const status = (await one.tool('browser_status')).text;
+    has(status, 'Extension: not connected');
+    has(status, 'The browser holds a token that is not this server\'s.');
+    // The user pastes the new one, and the agent of the same name has the tabs it had.
+    await popup.type('#token', token);
+    await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
+    await popup.click('#pair');
+    await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected', { timeout: 20000 });
+    await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the agent to be connected', 15000);
+    const again = (await one.tool('browser_status')).text;
+    assert(/^Sessions: [1-9]/m.test(again) && /^Session s\d+$/m.test(again), `the agent has no tab after the new pairing:\n${again}`);
+    for (const server of servers) lacks(server.stderr, token);
+    assert(await one.close() === 0, 'the agent did not exit cleanly');
+    await until(async () => !(await listens(wsPort + 8)), 'the server to end after its last agent', 15000);
   });
 } finally {
   await browser?.close().catch(() => undefined);

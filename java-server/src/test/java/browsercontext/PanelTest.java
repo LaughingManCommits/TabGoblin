@@ -203,6 +203,29 @@ class PanelTest {
     }
 
     @Test
+    void whileNoBrowserIsPairedTheWindowSaysAtItsTopWhatToDoAndHasTheButtonForIt() throws Exception {
+        List<String> seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            var steps = new ArrayList<String>();
+            // Not paired: the step, and its button, which asks for the token as the other one does.
+            view.show(model(false, false));
+            steps.add("unpaired: shown=" + view.pairShown() + " words="
+                    + view.words().containsAll(List.of("Pair the browser with this server",
+                            "Copy the token, then paste it into the TabGoblin popup in Chrome.")));
+            view.pairCopy().fire();
+            steps.add(view.pairCopy().getText() + " -> " + sent);
+            // Paired, or switched off here: there is nothing to pair, and the box is gone.
+            view.show(model(true, false));
+            steps.add("paired: shown=" + view.pairShown());
+            view.show(model(false, true));
+            steps.add("switched off: shown=" + view.pairShown());
+            return steps;
+        });
+        assertEquals(List.of("unpaired: shown=true words=true", "Copied -> [CopyToken[]]", "paired: shown=false",
+                "switched off: shown=false"), seen);
+    }
+
+    @Test
     void theCopyButtonAsksForThePairingTokenAndTheWindowNeverHoldsIt() throws Exception {
         List<String> seen = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
@@ -214,7 +237,7 @@ class PanelTest {
             // Bringing the view up to date asks for nothing again.
             view.show(model(true, false));
             steps.add(view.copy().getText() + " -> " + sent);
-            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "Paste it into the extension's popup."))));
+            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "New at every start. Paste it into the popup."))));
             return steps;
         });
         assertEquals(List.of("Copy -> []", "Copied -> [CopyToken[]]", "Copied -> [CopyToken[]]", "true"), seen);
@@ -276,7 +299,7 @@ class PanelTest {
             return view.words();
         });
         for (String shown : List.of("Agent c-1a2b3c4d  ·  port 47821",
-                "Not connected: waiting for the extension",
+                "Not paired yet: waiting for the browser",
                 "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
                 "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));

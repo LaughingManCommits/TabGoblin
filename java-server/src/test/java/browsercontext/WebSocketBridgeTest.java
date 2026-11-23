@@ -529,6 +529,56 @@ class WebSocketBridgeTest {
     }
 
     @Test
+    void aPairingMadeOnAnOlderTokenIsNoneAlsoWhileItIsStillOpen() throws Exception {
+        java.util.concurrent.atomic.AtomicReference<String> current = new java.util.concurrent.atomic.AtomicReference<>(TOKEN);
+        WebSocketBridge changing = new WebSocketBridge(0, current::get, FakeExtension.ORIGIN);
+        changing.startAndWait();
+        try {
+            assertFalse(changing.pairedOnCurrentToken());
+            FakeExtension paired = FakeExtension.paired(changing.getPort(), TOKEN);
+            assertTrue(changing.pairedOnCurrentToken());
+            // The token changes. Until its next heartbeat or command the connection is still there,
+            // and it counts for nothing: another agent of the server must not be told that the browser is paired.
+            current.set(Pairing.randomHex(32));
+            assertTrue(changing.isExtensionConnected(), "the old pairing ends at its next heartbeat or command, not before");
+            assertFalse(changing.pairedOnCurrentToken());
+            paired.closeBlocking();
+        } finally {
+            changing.stop(500);
+        }
+    }
+
+    @Test
+    void aBrowserThatComesWithAnotherTokenIsWhyNoneIsPairedUnlessOneIs() throws Exception {
+        WebSocketBridge fresh = new WebSocketBridge(0, TOKEN, FakeExtension.ORIGIN, 400);
+        fresh.startAndWait();
+        try {
+            assertEquals(0, fresh.lastCloseCode());
+            // The extension still holds the token of an earlier start.
+            FakeExtension stale = new FakeExtension(fresh.getPort(), FakeExtension.ORIGIN, "e".repeat(64));
+            stale.connectBlocking();
+            for (int i = 0; i < 100 && fresh.lastCloseCode() != Protocol.CLOSE_UNAUTHORIZED; i++) {
+                Thread.sleep(20);
+            }
+            assertEquals(Protocol.CLOSE_UNAUTHORIZED, fresh.lastCloseCode(), "said in the window and to the agent");
+            assertFalse(fresh.isExtensionConnected());
+            // Paired with the right token, that is over.
+            FakeExtension right = FakeExtension.paired(fresh.getPort(), TOKEN);
+            assertTrue(fresh.isExtensionConnected());
+            assertEquals(0, fresh.lastCloseCode());
+            // And while one is paired, another that comes with a wrong token changes nothing of what is said.
+            FakeExtension other = new FakeExtension(fresh.getPort(), FakeExtension.ORIGIN, "d".repeat(64));
+            other.connectBlocking();
+            Thread.sleep(200);
+            assertTrue(fresh.isExtensionConnected());
+            assertEquals(0, fresh.lastCloseCode());
+            right.closeBlocking();
+        } finally {
+            fresh.stop(500);
+        }
+    }
+
+    @Test
     void rotatingTheTokenEndsThePairingAtTheNextHeartbeat() throws Exception {
         AtomicReference<String> current = new AtomicReference<>(TOKEN);
         WebSocketBridge rotating = new WebSocketBridge(0, current::get, FakeExtension.ORIGIN, 400, 60_000);
@@ -551,7 +601,7 @@ class WebSocketBridgeTest {
             BrowserException refused = assertThrows(BrowserException.class,
                     () -> rotating.send("snapshot", "s1", null, SHORT));
             assertEquals("NOT_CONNECTED", refused.code());
-            assertTrue(refused.getMessage().contains("pair the extension again"), refused.getMessage());
+            assertTrue(refused.getMessage().contains("not this server's"), refused.getMessage());
             assertTrue(second.commands.isEmpty(), "nothing may be sent over a pairing made with an old token");
             rotated = again;
 

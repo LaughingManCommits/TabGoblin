@@ -270,13 +270,15 @@ the pairing token, then the agent's MCP messages as they are. Its version is 1.
 
 ```json
 { "type": "hello", "nonce": "…", "link": 1 }
-{ "type": "attach", "nonce": "…", "proof": "…", "link": 1, "panel": false }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 1, "panel": false, "quiet": false }
 { "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
 
 { "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
 { "tabgoblin": "stopping" }
 ```
 
+`panel` asks for the server's window at once; `quiet` says that the window is not to come up
+by itself for this agent when the browser has to be paired (`--no-panel`). Both are optional.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
 two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
 agent: a line of the agent's log, and the word that the user stopped the server, without which
@@ -285,7 +287,7 @@ a link takes the server's end for a loss and starts it anew
 
 | Close code | Meaning |
 |---|---|
-| 4401 | Pairing failed, timed out, or the token was rotated |
+| 4401 | Pairing failed or timed out, or the token is not the server's any more: the server was started since, or the token was rotated |
 | 4403 | The user disconnected this agent |
 | 4406 | No common protocol version |
 | 4408 | The server left two heartbeats in a row unanswered; the extension takes it for gone and looks for it again |

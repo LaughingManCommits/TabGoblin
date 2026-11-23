@@ -72,6 +72,8 @@ body {
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .dot.connected { background: var(--ok); box-shadow: 0 0 0 3px var(--accent-soft); }
 .dot.failed { background: var(--bad); box-shadow: 0 0 0 3px var(--bad-soft); }
+/* The user's step, and no fault: the server's token is to be pasted. */
+.dot.wanted { background: var(--warn-line); box-shadow: 0 0 0 3px var(--warn-soft); }
 
 /* ---------- cards ---------- */
 main { padding: 0 12px; display: flex; flex-direction: column; gap: 8px; }

@@ -443,6 +443,90 @@ class HubTest {
     }
 
     @Test
+    void whenAnAgentNeedsABrowserAndNoneIsPairedTheWindowComesUpByItselfOnce() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        AtomicInteger shown = new AtomicInteger();
+        java.util.concurrent.atomic.AtomicBoolean up = new java.util.concurrent.atomic.AtomicBoolean();
+        hub.window(() -> {
+            shown.incrementAndGet();
+            up.set(true);
+        }, up::get);
+        Client agent = new Client(port, TOKEN, () -> { });
+        assertTrue(agent.connect());
+        agent.open("claude-code");
+        await(() -> hub.agents().size() == 1, "the agent");
+        assertEquals(0, shown.get(), "an agent that has not asked for the browser brings no window up");
+        assertFalse(hub.standing(), "a window that came up by itself does not make the server stay");
+
+        // A tool found no browser: the window comes up, and the agent is told the token is there.
+        assertEquals(BrowserService.Unpaired.WINDOW, hub.unpaired(false));
+        assertEquals(1, shown.get());
+        // Asked again, it is not brought to the front again: once is enough until something is paired.
+        assertEquals(BrowserService.Unpaired.WINDOW, hub.unpaired(false));
+        assertEquals(1, shown.get());
+
+        // The browser is paired with this agent. A second agent that it has not found yet has nothing
+        // to paste: the browser is paired with the server.
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        await(() -> hub.agents().get(0).bridge().isExtensionConnected(), "the pairing");
+        assertEquals(BrowserService.Unpaired.PAIRED_ELSEWHERE, hub.unpaired(false));
+        assertEquals(1, shown.get());
+
+        // The pairing is gone again, by a new token for one: the window comes up once more.
+        ext.closeBlocking();
+        await(() -> !hub.agents().get(0).bridge().isExtensionConnected(), "the pairing to be gone");
+        assertEquals(BrowserService.Unpaired.WINDOW, hub.unpaired(false));
+        assertEquals(2, shown.get());
+    }
+
+    @Test
+    void noWindowComesUpByItselfForAnAgentThatWantsNoneNorWhileTheUserHasTheBrowserSwitchedOff() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        AtomicInteger shown = new AtomicInteger();
+        hub.window(shown::incrementAndGet);
+        // Started with --no-panel: told where the token is, and no window.
+        assertEquals(BrowserService.Unpaired.COMMAND, hub.unpaired(true));
+        assertEquals(0, shown.get());
+        // Switched off in the window: pairing would change nothing.
+        hub.setHeld(true);
+        assertEquals(BrowserService.Unpaired.COMMAND, hub.unpaired(false));
+        assertEquals(0, shown.get());
+        hub.setHeld(false);
+        // A server that has no display says so by having no window: the token comes from the command then.
+        assertEquals(BrowserService.Unpaired.COMMAND, hub.unpaired(false));
+        assertEquals(1, shown.get(), "the window was asked for; that none came is the display's doing");
+    }
+
+    @Test
+    void whetherAServerAnswersIsFoundOutWithoutProvingAnythingAndWithoutBeingCountedAsAFailedProof() throws Exception {
+        int port = freePorts();
+        assertFalse(Link.answers(Link.port(port)), "nothing listens there");
+        Hub hub = hub(port, false);
+        // More often than a series of failed proofs is long: none of these is one.
+        for (int i = 0; i < 15; i++) {
+            assertTrue(Link.answers(Link.port(port)));
+        }
+        Client agent = new Client(port, TOKEN, () -> { });
+        assertTrue(agent.connect(), "the server still listens to a process that knows the token: " + agent.log());
+        // Something else on the port is not the server.
+        try (ServerSocket other = new ServerSocket(0, 1, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
+            Thread silent = new Thread(() -> {
+                try (java.net.Socket taken = other.accept()) {
+                    taken.getOutputStream().write("HTTP/1.1 400 Bad Request\r\n\r\n".getBytes(StandardCharsets.UTF_8));
+                    taken.getOutputStream().flush();
+                } catch (IOException e) {
+                    // closed
+                }
+            });
+            silent.setDaemon(true);
+            silent.start();
+            assertFalse(Link.answers(other.getLocalPort()));
+        }
+    }
+
+    @Test
     void askedForItsWindowTheServerShowsItAndStaysForTheUser() throws Exception {
         int port = freePorts();
         Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(),

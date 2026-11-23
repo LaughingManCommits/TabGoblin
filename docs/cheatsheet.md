@@ -22,8 +22,9 @@ the commands for you.
 
 | To | Command |
 |---|---|
-| Print the pairing token | `java -jar java-server/target/browser-context-mcp.jar --show-token`; or **Copy** in the server's window, which puts it on the clipboard |
-| Replace the pairing token | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
+| Get the pairing token, after every start of the server | **Copy** in the server's window, which comes up when an agent needs the browser and puts the token on the clipboard; or `java -jar java-server/target/browser-context-mcp.jar --show-token` while the server runs |
+| Pair once for the day | Start the server yourself with `--panel` (next row but one): it stays, with its token, until you stop it |
+| Replace the pairing token while the server runs | `java -jar java-server/target/browser-context-mcp.jar --rotate-token` |
 | See the server's window, with every agent in it | `java -jar java-server/target/browser-context-mcp.jar --panel`. It brings the window up and returns; if no server runs, it starts one, which stays until you stop it |
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
 | Give your agent the skill for the tools | `java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code`, or `codex`, or `copilot`. Add `--replace` to overwrite one that is there and is not this one |
@@ -72,9 +73,9 @@ started in, and the option wins.
 | Option | Variable | Default | What it sets |
 |---|---|---|---|
 | `--port` | `BCMCP_PORT` | `47821` | The first of the eight ports a server tries |
-| `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
+| `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the running server's pairing token is kept |
 | `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
-| `--panel` | `BCMCP_PANEL=1` | off | Whether the server shows its panel |
+| `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself. With neither it comes up when the browser has to be paired |
 | `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is: it names the [blocked sites](user-guide.md#blocked-sites) |
 | none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
 

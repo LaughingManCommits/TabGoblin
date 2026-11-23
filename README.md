@@ -77,7 +77,9 @@ cd chrome-extension && npm install && npm run build
    }
    ```
 
-3. Run the jar with `--show-token` and paste the token into the popup.
+3. Start your agent and paste the server's pairing token into the popup: **Copy** in the
+   server's window, or the jar with `--show-token`. A server makes a new token every time
+   it starts, so you do this after every start.
 4. Open a website, click the goblin on that tab, pick an access level, and press **Authorize**.
 
 The [installation guide](docs/installation.md) walks through each step with what you should see.

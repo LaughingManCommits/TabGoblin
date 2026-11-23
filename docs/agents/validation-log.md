@@ -3,6 +3,77 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-23, on `new-token-each-start`: WP-17, a new pairing token at every start of a server
+
+The owner chose WP-17 as the next package, and decided its three points: the new token is
+pasted, the server's window comes up by itself when an agent needs the browser and none is
+paired, and the tabs come back once the browser is paired again. Committed on the owner's
+word; not pushed.
+
+Earlier that day: WP-23, the documentation's pictures as SVG, was built and committed on a
+branch, and the owner pushed it and looked from the network it was for. The proxy there holds
+back SVG as well, by the owner's report; the owner deleted the branch. Nothing of it is in
+`main`. What the block page names was not read.
+
+All of it in a copy of the tree, with a jar and an extension built there; the session's own
+server runs from the tree's jar, which was not rebuilt.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 148 tests, and the 8 of the conformance check on the built jar. Thirteen of the 148 are new for this |
+| `npm run check` in `chrome-extension` | 161 tests, with the type-check and the build |
+| `cd e2e && node run.mjs` | 97 passed, 0 failed: the 95 there were, two of them changed, and two new ones. No server of the copy left running |
+| `cd e2e/editors && node run.mjs` | 222 of 225 checks, tab in front, no `SILENT`: as before. Its script reads the token after the server's start now |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+What the new steps of the suite show, with the real jar, real Chrome and the real popup:
+
+- A token written to the file before the server's start is not the server's after it; the
+  file holds what `--show-token` prints, and that says whose it is.
+- Pasted into the popup, the earlier token is not taken. The popup says *Paste the server's
+  current token to connect*; the status tells the agent that the browser holds another token,
+  what the user has to do and where the token is, and names no token.
+- After the last agent has gone and the server has ended, an agent starts a new one: its token
+  is another, the extension that holds the last one is not let in, and with the new token
+  pasted the agent of the same name has its tab again.
+
+By hand, with the built jar started as an agent's program does, on ports and a token file of
+its own, and the window read through UI Automation, with no part of the screen captured:
+
+- No window before a tool is called. After `browser_status` with no browser paired, the window
+  is there, with *Not paired yet: waiting for the browser*, *Pair the browser with this server*
+  and the button *Copy token*; the status says that the window is open and where the button
+  is. The token is in no word of the window and not in the status.
+- With `--no-panel` no window comes, and the status names `--show-token`.
+- When the agent's process ended, the server and its window were gone.
+- `--show-token` with no token and no server prints no token, says that a server makes one
+  when it starts, and writes no file.
+- With another program on the port where the one server listens for agents' processes, the
+  process served its agent alone, after the five seconds it waits for an answer there. It had
+  made a new token, and its log said so without the token.
+
+The buttons that copy the token were not pressed: they write to the clipboard of the machine.
+
+What the first run of the suite showed, and was mended: after the token had been rotated, an
+agent was told that the browser was paired with the server and would find it shortly. Another
+agent's pairing on the old token was still open, until its next heartbeat. A pairing counts
+only on the token as it is now (`WebSocketBridge.pairedOnCurrentToken`); a test holds it. Four
+more steps failed in that run because that one had stopped before pairing again, and one
+because the suite looked for the session's id at the start of a line, where the status has
+`Session s2`.
+
+Looked at, each opened: the window's sixteen states as its picture tool draws them. The
+pairing box is in the one without a browser and in no other; at first it also stood where the
+server has no port, which pairing does not mend, and the token's hint ran out of its row. The
+popup before pairing and after a refused token, captured from the real popup: the text fits,
+and the dot is amber where it was red. `docs/images/popup-pairing.png` and
+`docs/images/server-panel.png` are new; the other pictures show nothing that changed.
+
+Not run: the script with a real agent and the two against live sites, which were changed to
+read the token after the server's start. Not tried: Linux and macOS; a home folder that cannot
+be written; an extension from before this change against this server, with real parts. Not
+counted: how often a user has to pair in a day's work.
+
 ## 2026-11-22, on `agent-skills`: WP-22, a skill for the tools for each of three agents
 
 The owner asked for a folder of skills for Claude Code, Codex and Copilot, "to standards", if it
@@ -610,44 +681,14 @@ Not run: the extension's suite and the editor lab (none of their files changed);
 suites on Linux in a container (Docker was not running); anything on macOS; CI. CI run #14, for
 `main` as it is, was read on GitHub as completed successfully; its jobs were not opened.
 
-## 2026-11-22, on `ci-tab-address`: CI for the day's merges, and the step that failed in run #12
-
-Read on GitHub by a session, through TabGoblin, on a tab the owner authorized with Explore:
-
-- Run #11 (`3071781`, the merge of `nothing-personal`): passed. It is the first run with the
-  fifth job, "Nothing personal", which had run on Windows only before.
-- Run #12 (`5274b04`, the merge of `disconnect-revokes`): failed. Four jobs passed; end to end,
-  92 passed and 1 failed: "a redirect out of the site during navigate suspends the session
-  too", with "tab is at" and the address of the first demo site. The step for Disconnect, which
-  that merge brought, passed.
-- Run #13 (`2c26e0b`, the merge of `notice-box`): passed in all five jobs. End to end took 4m
-  11s; its steps were not read one by one. It is the first run of the new step for the notice
-  on GitHub's runner.
-
-The cause of #12, concluded from its log and the step and not shown. The step lets the agent
-navigate to an address that redirects out of the site, and then asserts three things: the
-navigation is refused as having left the site, a snapshot is refused because the session is
-suspended, and the tab is on the other site. The first two passed, so the extension had seen
-the tab leave. The third asks the suite's driver, whose `url()` is what the browser last told
-it; asked right after the tools' answers, it still named the page before. Two more steps ask
-the same way: the click that leaves the site, and the move between the sites of a session.
-
-The fix is in the suite alone: the three places wait, for up to five seconds, until the driver
-names the address that is expected, and say the address it has if that does not come.
-
-| Command | Result |
-|---|---|
-| `cd e2e && npm test`, in a copy of the tree with a jar built there | 94 passed, 0 failed, the three steps among them |
-| `node docs/agents/check-links.mjs` | 79 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-Not shown: the failure itself. It never came up on this machine, in any of the day's runs, and
-run #13 passed on GitHub with the step as it was. So the run above shows that the fix breaks
-nothing, not that it mends the step. Not run: the unit suites and the editor lab; no product
-code and none of their files changed.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `ci-tab-address` (CI for the day's merges, and the step that failed in run
+  #12): read on GitHub through TabGoblin, runs #11 and #13 passed and #12 failed in one
+  end-to-end step, which asked the suite's driver for the tab's address right after the tools'
+  answers and got the page before. Three steps that ask that way now wait up to five seconds
+  for the address. The suite passed with them, 94 of 94; the failure itself never came up on
+  this machine, so the run shows that the fix breaks nothing, not that it mends the step.
 - 2026-11-22, on `notice-box` (WP-11, the notice in the page: a bar, and pills of what ended):
   the extension's check passed with 151 tests, twelve of them new, and the suite end to end with
   94, in the third of five full runs to pass. The notice was drawn in 31 states and looked at,

@@ -121,13 +121,20 @@ java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --instal
 
 What the skills say, and where each agent keeps them, is in [skills](../skills/README.md).
 
-A server has no window. With `--panel` as a further argument it shows a small one, with its
-sessions, its log and a button to stop it: see
+A server shows a small window when the browser has to be paired, and otherwise none. With
+`--panel` as a further argument the window is there from the start, with its sessions, its log
+and a button to stop it; with `--no-panel` it never comes up by itself: see
 [the server's panel](user-guide.md#9-the-servers-panel).
 
 ## 6. Pair the extension with the server
 
-The extension only talks to servers that know a secret token. Print it:
+The extension only talks to a server whose secret token it holds, and a server makes a new token
+every time it starts. So you pair with the server running, and again after every start of it.
+
+Start your agent and have it use a TabGoblin tool, "check the browser status" for one. It finds
+no browser, tells you so, and the server's window comes up, with *Pair the browser with this
+server* at its top: press **Copy token** there. Where no window comes, on a system without a display or with `--no-panel`, print
+the token:
 
 ```sh
 java -jar java-server/target/browser-context-mcp.jar --show-token
@@ -136,18 +143,17 @@ java -jar java-server/target/browser-context-mcp.jar --show-token
 ```text
 Pairing token: 3f9c…  (64 characters)
 Port:          47821
+It is the token of the server that is running now. A server makes a new one every time it starts.
 ```
 
 Click the goblin in Chrome's toolbar, paste the token into **Pairing token**, leave the port as it
 is, and press **Save and connect**.
 
-A server that shows [its panel](user-guide.md#9-the-servers-panel) saves you the command: its
-**Copy** button puts the token on the clipboard.
-
 <img src="images/popup-pairing.png" width="354" alt="The popup before pairing">
 
-The token is created on first use and kept in `.browser-context-mcp/pairing-token` in your home
-folder. You pair once; it stays valid until you rotate it.
+The running server's token is kept in `.browser-context-mcp/pairing-token` in your home folder,
+where your agents' processes read it to reach the server; the next start replaces it. How often
+you pair, and how to keep one server for the day, is in the [user guide](user-guide.md#2-pair).
 
 ## 7. Check that it works
 
@@ -182,13 +188,14 @@ cd ..
 
 Then press the **reload** arrow on TabGoblin's card at `chrome://extensions`, and restart your
 agent so it starts the new server. Server and extension must come from the same version; if they
-do not, the popup says *Server and extension versions differ*. The pairing survives an update.
+do not, the popup says *Server and extension versions differ*. The new server has a new token:
+pair again.
 
 ## Uninstalling
 
 1. At `chrome://extensions`, press **Remove** on TabGoblin's card.
 2. Remove the `tabgoblin` entry from your agent's MCP settings.
-3. Delete the folder `.browser-context-mcp` in your home folder (it holds only the token).
+3. Delete the folder `.browser-context-mcp` in your home folder (it holds the token and your settings).
 4. Delete the project folder.
 
 ## Problems
@@ -204,7 +211,7 @@ do not, the popup says *Server and extension versions differ*. The pairing survi
 | The extension's ID is different | The `key` in `chrome-extension/manifest.json` was changed or removed | Restore it; or start the server with `--extension-origin any` |
 | Agent: *Could not listen on any of ports 47821-47828* | Eight servers are already running, or other programs hold those ports | Close unused agents, or start the server with `--port` and set the same *First port* in the popup under *Connection…* |
 
-What the popup and the agent say once everything is installed (*Disconnected*, *Pairing failed*,
+What the popup and the agent say once everything is installed (*Disconnected*, *Paste the server's current token*,
 "not connected") is in the user guide's [troubleshooting](user-guide.md#7-troubleshooting).
 
 Chrome is the only browser this has been run in. Other Chromium browsers may work but are untested.

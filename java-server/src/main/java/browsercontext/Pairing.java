@@ -28,67 +28,111 @@ final class Pairing {
         return Path.of(System.getProperty("user.home"), ".browser-context-mcp", "pairing-token");
     }
 
-    /** Reads the pairing token, creating a new random one on first use. */
-    static String loadOrCreateToken(Path file) throws IOException {
-        if (Files.exists(file)) {
+    /** Shortest text that is taken for a token. */
+    private static final int MIN_TOKEN_LENGTH = 32;
+    /**
+     * How long after its last change a file is read at every asking. Some file systems keep that
+     * time to two seconds only: a second change inside them would look like none.
+     */
+    private static final long YOUNG_MS = 3_000;
+
+    /** The token that is in the file, or nothing if there is none: nothing is made here. */
+    static String readToken(Path file) {
+        try {
             String token = Files.readString(file, StandardCharsets.UTF_8).trim();
-            if (token.length() >= 32) {
-                return token;
-            }
+            return token.length() >= MIN_TOKEN_LENGTH ? token : "";
+        } catch (IOException e) {
+            return "";
         }
-        return rotateToken(file);
     }
 
     /**
      * Replaces the pairing token with a new random one. Every server reading this file stops
-     * accepting the old token, so the extension has to be paired again.
+     * accepting the old token, so the extension has to be paired again. A server does this when
+     * it starts: what was paired before it started is paired no longer.
+     *
+     * <p>The file is replaced in one step where the system can do that, so that a process that
+     * reads it at that moment finds the old token or the new one, and never half of one.
      */
     static String rotateToken(Path file) throws IOException {
         String token = randomHex(32);
-        Files.createDirectories(file.getParent());
-        Files.writeString(file, token, StandardCharsets.UTF_8);
+        Path folder = file.toAbsolutePath().getParent();
+        Files.createDirectories(folder);
+        Path fresh = Files.createTempFile(folder, "pairing-token", ".new");
         try {
-            Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-------"));
-        } catch (UnsupportedOperationException e) {
-            // Windows: the file inherits the user-profile ACL, which is already per-user.
+            Files.writeString(fresh, token, StandardCharsets.UTF_8);
+            try {
+                Files.setPosixFilePermissions(fresh, PosixFilePermissions.fromString("rw-------"));
+            } catch (UnsupportedOperationException e) {
+                // Windows: the file inherits the user-profile ACL, which is already per-user.
+            }
+            try {
+                Files.move(fresh, file, java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                Files.move(fresh, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(fresh);
         }
         return token;
     }
 
     /**
-     * The current token of a file, re-read when the file changes, so a rotation takes effect in
-     * servers that are already running. Falls back to the last known token if the file is unreadable.
+     * The token of a file as it is now: read again when the file changes, so that a new token takes
+     * effect in the processes that are already running. Keeps the last one it knew if the file
+     * cannot be read.
      */
-    static java.util.function.Supplier<String> tokenSource(Path file, String initial) {
-        return new java.util.function.Supplier<>() {
-            private String token = initial;
-            private long seen = modified();
+    static final class Tokens implements java.util.function.Supplier<String> {
+        private final Path file;
+        private String token;
+        private long seen;
 
-            private long modified() {
-                try {
-                    return Files.getLastModifiedTime(file).toMillis();
-                } catch (IOException e) {
-                    return -1;
+        private Tokens(Path file, String initial) {
+            this.file = file;
+            this.token = initial;
+            this.seen = modified();
+        }
+
+        private long modified() {
+            try {
+                return Files.getLastModifiedTime(file).toMillis();
+            } catch (IOException e) {
+                return -1;
+            }
+        }
+
+        @Override
+        public synchronized String get() {
+            long now = modified();
+            if (now != seen || (now >= 0 && Math.abs(System.currentTimeMillis() - now) < YOUNG_MS)) {
+                seen = now;
+                String read = readToken(file);
+                if (!read.isEmpty()) {
+                    token = read;
                 }
             }
+            return token;
+        }
 
-            @Override
-            public synchronized String get() {
-                long now = modified();
-                if (now != seen) {
-                    seen = now;
-                    try {
-                        String read = Files.readString(file, StandardCharsets.UTF_8).trim();
-                        if (read.length() >= 32) {
-                            token = read;
-                        }
-                    } catch (IOException e) {
-                        // keep the last known token
-                    }
-                }
-                return token;
-            }
-        };
+        /**
+         * A new token, in the file and here at once. For a server that starts: nothing that was
+         * agreed before it started holds.
+         */
+        synchronized String renew() throws IOException {
+            token = rotateToken(file);
+            seen = modified();
+            return token;
+        }
+    }
+
+    /** The token of a file, beginning with what is in it now; nothing if there is none yet. */
+    static Tokens tokens(Path file) {
+        return new Tokens(file, readToken(file));
+    }
+
+    /** The token of a file, beginning with one that is known. */
+    static Tokens tokenSource(Path file, String initial) {
+        return new Tokens(file, initial);
     }
 
     static String randomHex(int bytes) {
@@ -120,6 +164,10 @@ final class Pairing {
     }
 
     static String hmacHex(String token, String message) {
+        if (token.isEmpty()) {
+            // No token is no secret: what is signed with it has to match nothing.
+            return randomHex(32);
+        }
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(token.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));

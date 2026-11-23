@@ -59,8 +59,35 @@ public final class BrowserService {
         }
     };
 
+    /** Where the user finds the token, when a tool finds no browser on this agent's connection. */
+    enum Unpaired {
+        /** The server's window is on the user's screen: the token is copied there. */
+        WINDOW,
+        /** There is no window: the token is shown by a command. */
+        COMMAND,
+        /** The browser is paired with this server, by way of another agent: it has only not found this one yet. */
+        PAIRED_ELSEWHERE
+    }
+
+    /** What the user has to do when the browser is not paired with this server. */
+    static final String PAIR = "Ask the user to pair the browser with this server: in Chrome, with the TabGoblin extension "
+            + "loaded, open its popup and paste this server's pairing token. A server makes a new token every time it "
+            + "starts, so a pairing from before that does not count.";
+    static final String TOKEN_IN_WINDOW = "The TabGoblin server's window is open on the user's screen: Copy token, at "
+            + "its top, puts the token on the clipboard.";
+    static final String TOKEN_BY_COMMAND = "The user sees the token by running the server's jar with --show-token in a "
+            + "terminal.";
+    static final String FOUND_SOON = "The browser is paired with this server and finds this agent within about 30 "
+            + "seconds, or at once when the user opens the TabGoblin popup. Try again then.";
+
+    private final java.util.function.Supplier<Unpaired> unpaired;
+
     public BrowserService(WebSocketBridge bridge, String startupProblem) {
-        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10));
+        this(bridge, startupProblem, () -> Unpaired.COMMAND);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, java.util.function.Supplier<Unpaired> unpaired) {
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired);
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout) {
@@ -68,6 +95,12 @@ public final class BrowserService {
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace) {
+        this(bridge, startupProblem, defaultTimeout, connectGrace, () -> Unpaired.COMMAND);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace,
+            java.util.function.Supplier<Unpaired> unpaired) {
+        this.unpaired = unpaired;
         this.bridge = bridge;
         this.json = bridge.json();
         this.startupProblem = startupProblem;
@@ -97,6 +130,24 @@ public final class BrowserService {
                 return;
             }
         }
+    }
+
+    /**
+     * What the user has to do so that this agent has a browser, and where the token is. Asking may
+     * bring the server's window up: it is asked only when a tool has found no browser.
+     */
+    private String pairingHelp() {
+        return switch (unpaired.get()) {
+            case PAIRED_ELSEWHERE -> FOUND_SOON;
+            case WINDOW -> PAIR + " " + TOKEN_IN_WINDOW;
+            case COMMAND -> PAIR + " " + TOKEN_BY_COMMAND;
+        };
+    }
+
+    /** Whether pairing is what is missing: not while the user has switched it off or disconnected this agent, which are theirs to undo. */
+    private boolean pairingIsMissing() {
+        return !bridge.isExtensionConnected() && !bridge.isHeld() && startupProblem == null
+                && bridge.lastCloseCode() != Protocol.CLOSE_USER_DISCONNECTED && bridge.lastCloseCode() != Protocol.CLOSE_VERSION;
     }
 
     ObjectMapper json() {
@@ -144,6 +195,10 @@ public final class BrowserService {
         } catch (BrowserException e) {
             // If this server never got its port, say so: that is why no extension can be connected.
             String hint = startupProblem != null && e.code().equals("NOT_CONNECTED") ? " " + startupProblem : "";
+            // And if it is the pairing that is missing, say what the user has to do and where the token is.
+            if (e.code().equals("NOT_CONNECTED") && pairingIsMissing()) {
+                hint += " " + pairingHelp();
+            }
             return ToolResult.error("Error [" + e.code() + "]: " + e.getMessage() + hint);
         }
     }
@@ -265,9 +320,16 @@ public final class BrowserService {
         if (!bridge.isExtensionConnected()) {
             sb.append("Extension: not connected\n");
             sb.append("Listening on: ws://127.0.0.1:").append(bridge.getPort()).append('\n');
-            sb.append("Ask the user to load the TabGoblin extension in Chrome, open its popup, ")
-                    .append("and pair it with this server's pairing token. A paired extension finds a new server ")
-                    .append("within about 30 seconds, or at once when its popup is opened.");
+            if (pairingIsMissing()) {
+                if (bridge.lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED) {
+                    sb.append("The browser holds a token that is not this server's. ");
+                }
+                sb.append(pairingHelp());
+            } else if (bridge.lastCloseCode() == Protocol.CLOSE_USER_DISCONNECTED) {
+                sb.append("The user disconnected this agent in the TabGoblin popup. Ask them to allow it again.");
+            } else if (bridge.lastCloseCode() == Protocol.CLOSE_VERSION) {
+                sb.append("The extension is of another version than this server: both have to be of the same release.");
+            }
             return ToolResult.ok(sb.toString());
         }
         BlockedSites.Rule rule = bridge.blocked();

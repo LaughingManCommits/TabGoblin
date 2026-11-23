@@ -134,14 +134,18 @@ name while the first is away. An agent without a name is given nothing.
 | Nothing on an unproven word | A server names itself in its first message, before the proof. The extension uses that only to turn away an agent you disconnected; what a server is given depends on the id in its proven answer |
 | Version negotiation | A peer speaking another protocol version is refused with a reason |
 | Lockout | Ten failed pairings block new connections to that server for a minute |
+| A new token at every start | A server makes a new pairing token when it starts, once it has its port and before it listens to anything, and writes it in the place of the last one. An extension that holds an earlier token is refused: what is connected is what you let in since the server started. A process that serves its agent alone does the same when it starts |
 | Rotation | `--rotate-token` ends every pairing before its next command |
 | Validation | Every inbound message is parsed into a typed message or dropped |
 | Limits | Message size (1 MB to the extension, 8 MB to the server), 20 commands per second per agent, per-command deadlines |
 | Replay | A command id is accepted once per connection |
 | No retries | A command is sent once; a timed-out command is cancelled so it cannot run later |
 
-The token is stored in `~/.browser-context-mcp/pairing-token` and in the extension's storage,
-which content scripts cannot read. It is never logged.
+The running server's token is stored in `~/.browser-context-mcp/pairing-token`, where the
+agents' processes read it to prove themselves to the server, and in the extension's storage,
+which content scripts cannot read. It is never logged. The file is replaced in one step, so that
+a process reading it finds the last token or the new one and never half of one. A server that
+cannot write it does not start.
 
 ## Submissions
 
@@ -278,6 +282,8 @@ Where it stops:
 | Wrong token, wrong origin, missing origin, other extension id refused | Java, end-to-end |
 | Old protocol version refused | Java, worker, end-to-end |
 | Pairing lockout, token rotation | Java, end-to-end |
+| A server that starts has a new token; a browser that holds the last one is refused, and popup and agent say what to do; paired anew, the agent has its tabs | Java, end-to-end |
+| The server's window comes up by itself when a tool finds no browser paired with the server: once until something is paired, not for an agent started with `--no-panel`, and not while the connection is switched off | Java |
 | Nothing readable before authorization | End-to-end |
 | Cross-origin navigation, links, redirects blocked or suspended | Rules, end-to-end |
 | Cross-origin frame never read | DOM, end-to-end |

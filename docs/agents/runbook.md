@@ -191,11 +191,13 @@ java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browse
 
 On Linux and macOS the separator in the class path is `:`. Success: sixteen pictures at
 double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
-waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
+waiting for the browser, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
 screen, the server without an agent, with two agents, the first and the second tab clicked, an
 agent clicked, sites blocked with a tab on one of them, and a settings file with a mistake in
-it. In the last two the Control card names what is blocked, or says that every site is refused,
+it. In the second, where no browser is paired, a green box under the status says *Pair the
+browser with this server* and has the button **Copy token**; no other picture has that box, also
+not the one without a port. In the last two the Control card names what is blocked, or says that every site is refused,
 and the tab says *blocked*; with the mistake an amber box under the status names it. The last
 one has the log held: scrolled up to its first line, its corner says *held while you read*
 and has a button with the number of newer lines. In every picture with calls the Metrics card
@@ -224,6 +226,26 @@ later the clipboard is empty), the dash, and the two buttons, each of which need
 this on each system the panel is to be trusted on: a see-through window that drew nothing on
 Linux was found this way, and by no test. Do not take pictures of the screen for it: a capture
 of a place on the screen shows whatever lies on top there.
+
+The window also comes up by itself, when an agent needs the browser and none is paired. To see
+that, start the jar as an agent's program does, on ports and with a token file of its own, with
+any MCP client; the suite's is enough:
+
+```js
+// in e2e, as a file of its own:  node <file>
+import { McpClient } from './mcp-client.mjs';
+const agent = new McpClient('java', ['-jar', '../java-server/target/browser-context-mcp.jar',
+  '--port', '47850', '--token-file', '<a file in a folder of its own>'], 'by-hand');
+await agent.initialize();                                  // no window yet
+console.log((await agent.tool('browser_status')).text);   // after ten seconds: the window is up
+await new Promise((later) => setTimeout(later, 60000));    // look at it
+await agent.close();                                       // the server ends, and its window with it
+```
+
+Look at: no window before the tool is called; the window after it, with the green box at its
+top and **Copy token** in it; the status, which tells the agent that the window is open and
+where the button is; a second call, which does not bring the window to the front again. With
+`--no-panel` among the arguments no window comes, and the status names `--show-token`.
 
 ## Change the version
 

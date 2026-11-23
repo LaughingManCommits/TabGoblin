@@ -7,14 +7,13 @@
 // Unlike run.mjs this cannot look into the editor's model; it checks that the page shows the
 // text afterwards. Pages change and may be unreachable: treat a failure here as a lead, not a verdict.
 
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
-import { McpClient } from '../mcp-client.mjs';
+import { McpClient, pairingToken } from '../mcp-client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const JAR = resolve(HERE, '../../java-server/target/browser-context-mcp.jar');
@@ -56,8 +55,7 @@ const freePort = () => new Promise((done) => {
 
 const work = mkdtempSync(join(tmpdir(), 'bcmcp-editors-live-'));
 const wsPort = await freePort();
-const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token')];
-const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' }))?.[1];
+const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token'), '--no-panel'];
 const agent = new McpClient('java', serverArgs, 'editor-live');
 let browser;
 const rows = [];
@@ -95,7 +93,7 @@ try {
       const popup = await until(findPopup, 'the popup');
       await popup.waitForSelector('#connection');
       if (!paired) {
-        await popup.type('#token', token);
+        await popup.type('#token', pairingToken(serverArgs));
         await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
         await popup.click('#pair');
         await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('agent connected'));
