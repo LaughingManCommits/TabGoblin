@@ -89,13 +89,20 @@ public final class BrowserService {
             + "seconds, or at once when the user opens the TabGoblin popup. Try again then.";
 
     private final java.util.function.Supplier<Unpaired> unpaired;
+    /** Who this agent is: by a key of its own, or for this start only. */
+    private final AgentKeys.Identity identity;
 
     public BrowserService(WebSocketBridge bridge, String startupProblem) {
         this(bridge, startupProblem, () -> Unpaired.NOTHING_KNOWN);
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, java.util.function.Supplier<Unpaired> unpaired) {
-        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired);
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired, null);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, java.util.function.Supplier<Unpaired> unpaired,
+            AgentKeys.Identity identity) {
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired, identity);
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout) {
@@ -108,6 +115,14 @@ public final class BrowserService {
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace,
             java.util.function.Supplier<Unpaired> unpaired) {
+        this(bridge, startupProblem, defaultTimeout, connectGrace, unpaired, null);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace,
+            java.util.function.Supplier<Unpaired> unpaired, AgentKeys.Identity identity) {
+        // Without a word on who the agent is, it is the bridge's id for this start.
+        this.identity = identity != null ? identity
+                : new AgentKeys.Identity(bridge.clientId(), null, false, () -> false);
         this.unpaired = unpaired;
         this.bridge = bridge;
         this.json = bridge.json();
@@ -169,6 +184,26 @@ public final class BrowserService {
         return json;
     }
 
+    /** What an agent is told when the user has revoked it on this machine. Only the user can undo it. */
+    private String revokedMessage() {
+        return "The user revoked this agent (\"" + identity.label() + "\") on this machine, so it has no tool. Nothing "
+                + "was done. Do not try another way: tell the user, who can allow it again by running the server's jar "
+                + "with --allow-agent " + identity.label() + " and starting this agent again.";
+    }
+
+    /** Who this agent is, in the words of the status: whether its tabs are its own again after a restart. */
+    private String identityLine() {
+        if (identity.persistent()) {
+            return " (identity \"" + identity.label() + "\": the same agent at every start)";
+        }
+        if (identity.label() != null) {
+            return " (another agent with the identity \"" + identity.label() + "\" is connected: this one has an id "
+                    + "for this start only, and its tabs do not come back after a restart)";
+        }
+        return " (no identity of its own: its tabs do not come back after a restart. The user gives it one by "
+                + "adding --agent <name> to the command that starts this server)";
+    }
+
     /** Records who the MCP client is, for the extension's activity panel. */
     public void noteClient(String name) {
         bridge.setClientName(name);
@@ -189,6 +224,11 @@ public final class BrowserService {
 
     private ToolResult run(String tool, JsonNode args) {
         JsonNode a = args == null || !args.isObject() ? json.createObjectNode() : args;
+        // An agent the user revoked is told so by every tool, before anything is looked at or sent.
+        if (identity.revoked().getAsBoolean()) {
+            bridge.refused(null, tool, "AGENT_REVOKED");
+            return ToolResult.error("Error [AGENT_REVOKED]: " + revokedMessage());
+        }
         long asked = System.nanoTime();
         awaitExtension();
         bridge.timings().waited(System.nanoTime() - asked);
@@ -249,7 +289,22 @@ public final class BrowserService {
             bridge.refused(session, action, "SETTINGS_UNREADABLE");
             throw new BrowserException("SETTINGS_UNREADABLE", SETTINGS_UNREADABLE);
         }
-        if (rule.domains().isEmpty()) {
+        // What the user's policy takes away from every agent, as far as it can be told before anything is sent.
+        BlockedSites.Limits limits = rule.limits();
+        if (action.equals("screenshot") && !limits.screenshots()) {
+            bridge.refused(session, action, "SCREENSHOTS_DISABLED");
+            throw new BrowserException("SCREENSHOTS_DISABLED", "The user's security policy allows no screenshots. Nothing was "
+                    + "captured. Read the page with browser_snapshot or browser_extract instead.");
+        }
+        String needs = NEEDS.getOrDefault(action, "read");
+        if (!limits.allows(needs)) {
+            bridge.refused(session, action, "ACCESS_RESTRICTED");
+            throw new BrowserException("ACCESS_RESTRICTED", "The user's security policy allows no session more than "
+                    + (limits.maxAccess().equals("explore") ? "Explore" : "Read") + " access, and this needs "
+                    + (needs.equals("write") ? "Write" : "Explore") + ". Nothing was done. Only the user can change the policy, "
+                    + "in the settings of the TabGoblin server.");
+        }
+        if (rule.domains().isEmpty() && limits.allowed().isEmpty()) {
             return;
         }
         java.util.List<String> addresses = new java.util.ArrayList<>();
@@ -286,6 +341,21 @@ public final class BrowserService {
             bridge.refused(id, action, "SITE_BLOCKED");
             throw new BrowserException("SITE_BLOCKED", blockedMessage(host));
         }
+        String outside = rule.outside(addresses);
+        if (outside != null) {
+            bridge.refused(id, action, "SITE_NOT_ALLOWED");
+            throw new BrowserException("SITE_NOT_ALLOWED", notAllowedMessage(outside));
+        }
+    }
+
+    /** The least access each action needs: what the extension's rules have, said here to refuse ahead of sending. */
+    private static final Map<String, String> NEEDS = Map.of("navigate", "explore", "click", "explore", "press_key", "explore",
+            "hover", "explore", "fill", "write", "submit", "write");
+
+    /** What an agent is told of a site outside the ones the user limits agents to. It names the one site, and never the list. */
+    static String notAllowedMessage(String host) {
+        return host + " is not among the sites the user's security policy allows agents to work on. Only the user "
+                + "can change that, in the settings of the TabGoblin server.";
     }
 
     /** Whether an address names a site of its own, and is not one within the site the tab is on. */
@@ -347,12 +417,16 @@ public final class BrowserService {
         BlockedSites.Rule rule = bridge.blocked();
         if (rule.everything()) {
             sb.append("Blocked sites: ").append(SETTINGS_UNREADABLE).append('\n');
+        } else if (!rule.limits().equals(BlockedSites.Limits.NONE)) {
+            // What the user's settings take away from every agent. The sites it is limited to are not listed to it.
+            sb.append("Security policy: ").append(policyLine(rule.limits())).append('\n');
         }
         ObjectNode p = json.createObjectNode();
         p.put("diagnostics", optBool(a, "diagnostics", false));
         JsonNode s = bridge.send("status", null, p, defaultTimeout);
         sb.append("Extension: connected (protocol ").append(Protocol.VERSION).append(")\n");
-        sb.append("This agent: ").append(bridge.clientId()).append(" on port ").append(bridge.getPort()).append('\n');
+        sb.append("This agent: ").append(bridge.clientId()).append(" on port ").append(bridge.getPort())
+                .append(identityLine()).append('\n');
         // The general setting. Older extensions say only yes or no.
         String asking = s.path("confirmation").asString(s.path("confirmSubmissions").asBoolean(true) ? "always" : "never");
         sb.append("Submissions need user confirmation: ").append(describeAsking(asking)).append('\n');
@@ -392,6 +466,8 @@ public final class BrowserService {
             }
             if (blockedIn(rule, session) != null) {
                 sb.append("  Blocked: ").append(blockedMessage(blockedIn(rule, session))).append('\n');
+            } else if (rule.outside(addressesOf(session)) != null) {
+                sb.append("  Not allowed: ").append(notAllowedMessage(rule.outside(addressesOf(session)))).append('\n');
             }
             JsonNode tab = session.path("tab");
             if (tab.isObject()) {
@@ -413,6 +489,17 @@ public final class BrowserService {
             }
         }
         return ToolResult.ok(sb.toString().stripTrailing());
+    }
+
+    /** The user's restrictions as an agent is told them: what holds, and not which sites are allowed. */
+    private static String policyLine(BlockedSites.Limits limits) {
+        BlockedSites.Limits shown = new BlockedSites.Limits(limits.strict(), List.of(), limits.screenshots(), limits.maxAccess(),
+                limits.sessionMaxMinutes(), limits.sessionIdleMinutes());
+        String said = shown.summary();
+        if (!limits.allowed().isEmpty()) {
+            said = (said.isEmpty() ? "" : said + "; ") + "agents work only on the sites the user allows";
+        }
+        return said;
     }
 
     /** When the user is asked before a submission, in the words agents read. */

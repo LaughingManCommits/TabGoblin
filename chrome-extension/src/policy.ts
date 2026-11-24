@@ -119,6 +119,113 @@ export function checkBlocked(blocked: Blocked, addresses: readonly (string | nul
   }
 }
 
+/**
+ * What the user's local security policy takes away from every agent, as the server's settings
+ * file has it. Nothing in it widens what an agent may do. The server has the same rule
+ * (BlockedSites.java, `Limits`) and refuses what it can tell before sending; here it is checked
+ * at the moment of a command.
+ */
+export interface Limits {
+  /** The strict profile: every submission is put to the user, a click that may change something is one, and a tab is for one named agent. */
+  strict: boolean;
+  /** The only sites agents may work on, as domains; none for no such limit. */
+  allowed: readonly string[];
+  /** Whether an agent may take a picture of a tab. */
+  screenshots: boolean;
+  /** The highest access level a session may have. */
+  maxAccess: Mode;
+  /** How long an authorization lasts at most, in minutes; 0 for no limit. */
+  sessionMaxMinutes: number;
+  /** After how many minutes without a command an authorization ends; 0 for never. */
+  sessionIdleMinutes: number;
+}
+
+export const NO_LIMITS: Limits = { strict: false, allowed: [], screenshots: true, maxAccess: 'write', sessionMaxMinutes: 0, sessionIdleMinutes: 0 };
+
+/** The lower of an access level and the highest one the policy allows. */
+export function capMode(mode: Mode, max: Mode): Mode {
+  return RANK[mode] <= RANK[max] ? mode : max;
+}
+
+/** What holds when several servers say different things: of each restriction the stricter one. */
+export function strictest(all: readonly Limits[]): Limits {
+  const least = (values: number[]): number => values.filter((v) => v > 0).reduce((a, b) => Math.min(a, b), Infinity);
+  const minutes = (values: number[]): number => (Number.isFinite(least(values)) ? least(values) : 0);
+  const limited = all.filter((l) => l.allowed.length > 0);
+  return {
+    strict: all.some((l) => l.strict),
+    // A site has to be allowed by every server that limits sites.
+    allowed: limited.length === 0 ? [] : limited[0].allowed.filter((site) => limited.every((l) => blockedBy(site, l.allowed) !== null)),
+    screenshots: all.every((l) => l.screenshots),
+    maxAccess: all.reduce<Mode>((mode, l) => capMode(mode, l.maxAccess), 'write'),
+    sessionMaxMinutes: minutes(all.map((l) => l.sessionMaxMinutes)),
+    sessionIdleMinutes: minutes(all.map((l) => l.sessionIdleMinutes)),
+  };
+}
+
+/**
+ * The host among these addresses that is outside the sites agents are limited to; null when all
+ * are inside or there is no such limit. An address that names no site is outside: what cannot be
+ * told to be allowed is not.
+ */
+export function outsideAllowed(limits: Limits, addresses: readonly (string | null | undefined)[]): string | null {
+  if (limits.allowed.length === 0) return null;
+  for (const address of addresses) {
+    if (!address) continue;
+    const host = hostOf(address);
+    if (!host) return 'an address that names no site';
+    if (!blockedBy(host, limits.allowed)) return host;
+  }
+  return null;
+}
+
+/**
+ * Refuses a command that the user's security policy rules out: a screenshot where there are to
+ * be none, an action above the highest access level, and anything on a site outside the allowed ones.
+ */
+export function checkLimits(limits: Limits, action: string, addresses: readonly (string | null | undefined)[]): void {
+  if (action === 'screenshot' && !limits.screenshots) {
+    throw new CommandError('SCREENSHOTS_DISABLED',
+      'The user\'s security policy allows no screenshots. Nothing was captured. Read the page with browser_snapshot or browser_extract instead.');
+  }
+  const required = REQUIRED[action];
+  if (required && RANK[required] > RANK[limits.maxAccess]) throw restricted(limits);
+  const outside = outsideAllowed(limits, addresses);
+  if (outside) {
+    throw new CommandError('SITE_NOT_ALLOWED',
+      `${outside} is not among the sites the user's security policy allows agents to work on. Only the user can change that, in the settings of the TabGoblin server.`);
+  }
+}
+
+/** The refusal of something above the highest access level the policy allows. */
+export function restricted(limits: Pick<Limits, 'maxAccess'>): CommandError {
+  return new CommandError('ACCESS_RESTRICTED',
+    `The user's security policy allows no session more than ${limits.maxAccess === 'explore' ? 'Explore' : 'Read'} access. Nothing was done. `
+    + 'Only the user can change the policy, in the settings of the TabGoblin server.');
+}
+
+/**
+ * When an authorization ends: the earliest of the time the user gave it, the longest the policy
+ * lets one last, and the time since its last command that the policy lets pass. Null for never.
+ */
+export function endsAt(
+  session: { expiresAt: number | null; createdAt?: number; lastUsedAt?: number }, limits: Pick<Limits, 'sessionMaxMinutes' | 'sessionIdleMinutes'>,
+): number | null {
+  const ends: number[] = [];
+  if (session.expiresAt !== null) ends.push(session.expiresAt);
+  if (limits.sessionMaxMinutes > 0 && session.createdAt !== undefined) ends.push(session.createdAt + limits.sessionMaxMinutes * 60_000);
+  if (limits.sessionIdleMinutes > 0) {
+    const last = session.lastUsedAt ?? session.createdAt;
+    if (last !== undefined) ends.push(last + limits.sessionIdleMinutes * 60_000);
+  }
+  return ends.length ? Math.min(...ends) : null;
+}
+
+/** When the user is asked under the policy: under the strict profile about every submission, whatever was set. */
+export function askUnder(limits: Pick<Limits, 'strict'>, mode: AskMode): AskMode {
+  return limits.strict ? 'always' : mode;
+}
+
 function needs(mode: Mode): CommandError {
   return mode === 'write'
     ? new CommandError('WRITE_NOT_AUTHORIZED',
@@ -175,28 +282,29 @@ export interface ClientIdentity {
   name: string;
 }
 
-/** Whether an agent may use a session: its own, an unclaimed one, or one left by its former self. */
-export function canUse(
-  session: Pick<SessionAuth, 'clientId' | 'clientName'>,
-  client: ClientIdentity,
-  connectedClientIds: ReadonlySet<string>,
-): boolean {
-  return session.clientId === client.id
-    || session.clientId === null
-    || (!connectedClientIds.has(session.clientId) && !!client.name && session.clientName === client.name);
+/**
+ * Whether an agent has an id that is the same at every start: the id of a key of its own, which
+ * its process proved to the server. Any other id is made for one start of the agent.
+ */
+export function isLastingAgent(id: string | null | undefined): boolean {
+  return typeof id === 'string' && /^a-[0-9a-f]{12}$/.test(id);
 }
 
 /**
- * The sessions that go with an agent when the user disconnects it: those it owns, and those its
- * former self left, which it could take up with its next command. A session that no agent has
- * taken up yet was given to none, and stays.
+ * Whether an agent may use a session: its own, or one that no agent has taken up yet. An agent is
+ * known by the id the server proved for it and by nothing else. What it calls itself is shown to
+ * the user and decides nothing: a session never passes to another id.
  */
-export function sessionsOfAgent<T extends Pick<SessionAuth, 'clientId' | 'clientName'>>(
-  sessions: readonly T[],
-  client: ClientIdentity,
-  connectedClientIds: ReadonlySet<string>,
-): T[] {
-  return sessions.filter((session) => session.clientId !== null && canUse(session, client, connectedClientIds));
+export function canUse(session: Pick<SessionAuth, 'clientId'>, client: ClientIdentity): boolean {
+  return session.clientId === client.id || session.clientId === null;
+}
+
+/**
+ * The sessions that go with an agent when the user disconnects it: those it owns. A session that
+ * no agent has taken up yet was given to none, and stays.
+ */
+export function sessionsOfAgent<T extends Pick<SessionAuth, 'clientId'>>(sessions: readonly T[], client: ClientIdentity): T[] {
+  return sessions.filter((session) => session.clientId !== null && canUse(session, client));
 }
 
 /** What the badge on the toolbar says; nothing when no tab is authorized. */
@@ -211,14 +319,13 @@ export type Badge = '?' | 'RUN' | 'ON' | 'OFF' | 'II' | '';
 export function badgeFor(
   asking: boolean,
   running: boolean,
-  sessions: readonly (Pick<SessionAuth, 'clientId' | 'clientName'> & { paused: boolean; suspended: boolean })[],
+  sessions: readonly (Pick<SessionAuth, 'clientId'> & { paused: boolean; suspended: boolean })[],
   connected: readonly ClientIdentity[],
 ): Badge {
   if (asking) return '?';
   if (running) return 'RUN';
   const open = sessions.filter((s) => !s.paused && !s.suspended);
-  const ids = new Set(connected.map((c) => c.id));
-  if (open.some((s) => connected.some((c) => canUse(s, c, ids)))) return 'ON';
+  if (open.some((s) => connected.some((c) => canUse(s, c)))) return 'ON';
   if (open.length) return 'OFF';
   return sessions.some((s) => s.paused && !s.suspended) ? 'II' : '';
 }
@@ -244,16 +351,15 @@ export function requireMode(mode: Mode, required: Mode): void {
  * Picks the session a command is for and decides whether this agent may use it.
  *
  * A session belongs to the agent that claimed it. An unclaimed session is claimed by the first
- * agent that uses it. If the owner is gone and a same-named agent appears (the IDE restarted its
- * server), ownership moves to it; a different agent never takes over someone else's session.
+ * agent that uses it. No agent ever takes over another's session: an agent that is started again
+ * has its sessions because it has the same id, which its key gives it.
  */
 export function resolveSession<T extends SessionAuth>(
   sessions: readonly T[],
   client: ClientIdentity,
   requested: string | undefined,
-  connectedClientIds: ReadonlySet<string>,
 ): { session: T; claim: boolean } {
-  const usable = (s: T): boolean => canUse(s, client, connectedClientIds);
+  const usable = (s: T): boolean => canUse(s, client);
 
   if (requested !== undefined) {
     const session = sessions.find((s) => s.id === requested);
@@ -322,7 +428,7 @@ export interface ClickTarget {
  * Decides whether a click may proceed. Returns 'submit' when it is a submission (which the
  * caller may additionally put in front of the user) and 'interact' otherwise.
  */
-export function checkClick(mode: Mode, intent: Intent, target: ClickTarget): 'interact' | 'submit' {
+export function checkClick(mode: Mode, intent: Intent, target: ClickTarget, strict = false): 'interact' | 'submit' {
   if (target.externalLink) {
     throw new CommandError('NAVIGATION_BLOCKED', 'That link leads outside the authorized origin, so it was not clicked.');
   }
@@ -340,6 +446,13 @@ export function checkClick(mode: Mode, intent: Intent, target: ClickTarget): 'in
   if (target.submit === 'likely') {
     throw new CommandError('SUBMIT_INTENT_REQUIRED',
       'This control looks like it submits or changes data. If the user explicitly asked for that, use browser_submit (or repeat the click with intent="submit"); otherwise leave it.');
+  }
+  // What a click does is the page's own business. Under the strict profile only a click that
+  // shows something (a link of this site, an expand or collapse control) passes as reading.
+  if (strict && !target.readSafe && !target.disclosure) {
+    throw new CommandError('SUBMIT_INTENT_REQUIRED',
+      'Under the user\'s strict security profile a click on anything but a link or an expand/collapse control counts as a change, '
+      + 'and the user confirms each one. If the user explicitly asked for it, use browser_submit (or repeat the click with intent="submit"); otherwise leave it.');
   }
   return 'interact';
 }
@@ -382,9 +495,9 @@ export interface KeyTarget {
  * - 'ask': it is a submission the agent declared; the caller puts it in front of the user first.
  * - 'click': the key activates a control, and that is a submission; the caller runs it as one.
  */
-export function checkKey(mode: Mode, intent: Intent, target: KeyTarget): 'press' | 'ask' | 'click' {
+export function checkKey(mode: Mode, intent: Intent, target: KeyTarget, strict = false): 'press' | 'ask' | 'click' {
   // A key that activates a control is a click on it, and no way around the rules for clicks.
-  if (target.click) return checkClick(mode, intent, target.click) === 'submit' ? 'click' : 'press';
+  if (target.click) return checkClick(mode, intent, target.click, strict) === 'submit' ? 'click' : 'press';
   if (!target.submit) return 'press';
   if (mode !== 'write') throw needs('write');
   if (intent === 'submit') return 'ask';
@@ -736,6 +849,11 @@ export function failureNote(code: string): string {
     case 'NAVIGATION_BLOCKED': return 'outside authorized site';
     case 'SITE_BLOCKED': return 'site blocked';
     case 'SETTINGS_UNREADABLE': return 'settings unreadable';
+    case 'SITE_NOT_ALLOWED': return 'site not allowed by your policy';
+    case 'ACCESS_RESTRICTED': return 'above the access your policy allows';
+    case 'SCREENSHOTS_DISABLED': return 'screenshots are off in your policy';
+    case 'SCREENSHOT_BLOCKED': return 'a frame of another site is in view';
+    case 'APPROVAL_STALE': return 'changed after you were asked';
     case 'STALE_REF': return 'page changed';
     case 'STALE_COMMAND': return 'arrived too late';
     case 'DUPLICATE_COMMAND': return 'duplicate command';

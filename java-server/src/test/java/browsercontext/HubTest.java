@@ -39,8 +39,8 @@ class HubTest {
     static final String TOKEN = WebSocketBridgeTest.TOKEN;
     static final ObjectMapper JSON = new ObjectMapper();
 
-    private final List<Hub> hubs = new ArrayList<>();
-    private final List<Client> clients = new ArrayList<>();
+    private final List<Hub> hubs = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final List<Client> clients = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @AfterEach
     void endEverything() {
@@ -68,7 +68,12 @@ class HubTest {
     }
 
     private Hub hub(int port, boolean standing) throws IOException {
-        Hub hub = Hub.open(new Agent.Settings(port, () -> TOKEN, FakeExtension.ORIGIN), standing);
+        return hub(port, standing, null);
+    }
+
+    /** A server that tells agents apart by the keys in this folder. */
+    private Hub hub(int port, boolean standing, java.nio.file.Path agentKeys) throws IOException {
+        Hub hub = Hub.open(new Agent.Settings(port, () -> TOKEN, FakeExtension.ORIGIN, () -> BlockedSites.Rule.NONE, agentKeys), standing);
         hubs.add(hub);
         Thread serving = new Thread(hub::serve, "test-hub");
         serving.setDaemon(true);
@@ -93,13 +98,18 @@ class HubTest {
         final CompletableFuture<Link.End> ended = new CompletableFuture<>();
 
         Client(int port, String token, Link.Starter starter) throws IOException {
+            this(port, token, starter, null, null);
+        }
+
+        /** An agent whose program names it: it has the key of that label in the folder. */
+        Client(int port, String token, Link.Starter starter, String agent, java.nio.file.Path agentKeys) throws IOException {
             PipedInputStream linkIn = new PipedInputStream(toLink, 1 << 16);
             PipedOutputStream linkOut = new PipedOutputStream();
             BufferedReader fromLink = new BufferedReader(new InputStreamReader(new PipedInputStream(linkOut, 1 << 16), StandardCharsets.UTF_8));
-            link = new Link(linkIn, linkOut, new PrintStream(log, true, StandardCharsets.UTF_8), () -> token, Link.port(port), false, () -> {
+            link = new Link(linkIn, linkOut, new PrintStream(log, true, StandardCharsets.UTF_8), () -> token, Link.port(port), false, false, () -> {
                 starts.incrementAndGet();
                 starter.start();
-            });
+            }, agent, agentKeys);
             Thread reading = new Thread(() -> {
                 try {
                     String line;
@@ -543,5 +553,171 @@ class HubTest {
         assertTrue(wishing.connect());
         await(() -> shown.get() == 2, "the window to be asked for by the agent's settings");
         toLink.close();
+    }
+
+    /** What a tool answers through a client, as text. */
+    private static String status(Client client, int id) throws Exception {
+        client.call(id, "browser_status", "{}");
+        return client.text(client.answerTo(id));
+    }
+
+    @Test
+    void anAgentWithAKeyIsTheSameAgentAtEveryStartAndOneThatOnlyHasItsNameIsNot(@org.junit.jupiter.api.io.TempDir java.nio.file.Path keys)
+            throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, true, keys);
+        Client first = new Client(port, TOKEN, () -> { }, "ide", keys);
+        assertTrue(first.connect());
+        first.open("my-ide");
+        await(() -> hub.agents().size() == 1, "the agent to be with the server");
+        String id = hub.agents().get(0).bridge().clientId();
+        assertTrue(id.matches("a-[0-9a-f]{12}"), id);
+        assertEquals(AgentKeys.idOf(AgentKeys.read(keys, "ide")), id, "the id is the one its key has");
+        assertFalse(id.contains(AgentKeys.read(keys, "ide").substring(0, 8)), "and says nothing of the key");
+        first.leave();
+        await(() -> hub.agents().isEmpty(), "the agent to have gone");
+
+        // Started again, under another name: the same key, so the same agent.
+        Client again = new Client(port, TOKEN, () -> { }, "ide", keys);
+        assertTrue(again.connect());
+        again.open("renamed");
+        await(() -> hub.agents().size() == 1, "the agent to be back");
+        assertEquals(id, hub.agents().get(0).bridge().clientId());
+
+        // A program that gives itself the first one's name, and has no key: another agent, with an id for this start.
+        Client sameName = new Client(port, TOKEN, () -> { });
+        assertTrue(sameName.connect());
+        sameName.open("my-ide");
+        await(() -> hub.agents().size() == 2, "the second agent");
+        String other = hub.agents().stream().map(a -> a.bridge().clientId()).filter(x -> !x.equals(id)).findFirst().orElseThrow();
+        assertTrue(other.matches("c-[0-9a-f]{8}"), other);
+
+        // And an agent with a key of its own is a third.
+        Client another = new Client(port, TOKEN, () -> { }, "cli", keys);
+        assertTrue(another.connect());
+        another.open("my-ide");
+        await(() -> hub.agents().size() == 3, "the third agent");
+        assertEquals(3, hub.agents().stream().map(a -> a.bridge().clientId()).distinct().count());
+        assertFalse(AgentKeys.read(keys, "ide").equals(AgentKeys.read(keys, "cli")));
+        assertFalse(AgentKeys.read(keys, "ide").equals(TOKEN), "an agent's key is not the pairing token");
+    }
+
+    /** One line to the server as a link writes it, and the server's answer to it. */
+    private static JsonNode attachBy(int port, java.util.function.BiConsumer<tools.jackson.databind.node.ObjectNode, String> fill) throws Exception {
+        try (Socket raw = new Socket(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), Link.port(port))) {
+            raw.setSoTimeout(5000);
+            BufferedReader from = new BufferedReader(new InputStreamReader(raw.getInputStream(), StandardCharsets.UTF_8));
+            String nonce = JSON.readTree(from.readLine()).path("nonce").asString();
+            String mine = "0123456789abcdef0123456789abcdef";
+            tools.jackson.databind.node.ObjectNode ask = JSON.createObjectNode();
+            ask.put("type", "attach").put("nonce", mine).put("link", Link.VERSION);
+            ask.put("proof", Pairing.linkProof(TOKEN, nonce, mine));
+            fill.accept(ask, AgentKeys.class.getSimpleName() + ":" + nonce + ":" + mine);
+            raw.getOutputStream().write((JSON.writeValueAsString(ask) + "\n").getBytes(StandardCharsets.UTF_8));
+            raw.getOutputStream().flush();
+            return JSON.readTree(from.readLine());
+        }
+    }
+
+    @Test
+    void aProcessThatKnowsThePairingTokenAndNotAnAgentsKeyIsNotThatAgent(@org.junit.jupiter.api.io.TempDir java.nio.file.Path keys)
+            throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, true, keys);
+        String key = AgentKeys.loadOrCreate(keys, "ide");
+
+        // The pairing token is proven, and the agent's key is not: no proof, a made-up one, and one made with the token.
+        assertEquals("agent_proof", attachBy(port, (ask, x) -> ask.put("agent", "ide")).path("reason").asString());
+        assertEquals("agent_proof", attachBy(port, (ask, x) -> ask.put("agent", "ide").put("agentProof", "0".repeat(64))).path("reason").asString());
+        assertEquals("agent_proof", attachBy(port, (ask, x) -> ask.put("agent", "ide")
+                .put("agentProof", Pairing.linkProof(TOKEN, x.split(":")[1], x.split(":")[2]))).path("reason").asString());
+        // A label that has no key, and one that is no label: neither is made an agent, and no key is made for it here.
+        assertEquals("agent_proof", attachBy(port, (ask, x) -> ask.put("agent", "nobody").put("agentProof", "0".repeat(64))).path("reason").asString());
+        assertEquals("agent_proof", attachBy(port, (ask, x) -> ask.put("agent", "../pairing-token").put("agentProof", "0".repeat(64))).path("reason").asString());
+        assertTrue(AgentKeys.read(keys, "nobody").isEmpty());
+        assertTrue(hub.agents().isEmpty(), "none of them is served");
+
+        // With the key's proof it is that agent.
+        JsonNode attached = attachBy(port, (ask, x) -> ask.put("agent", "ide")
+                .put("agentProof", AgentKeys.proof(key, x.split(":")[1], x.split(":")[2])));
+        assertEquals("attached", attached.path("type").asString());
+    }
+
+    @Test
+    void ofTwoProcessesThatHoldOneKeyAtOnceOnlyTheFirstIsThatAgent(@org.junit.jupiter.api.io.TempDir java.nio.file.Path keys) throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, true, keys);
+        Client first = new Client(port, TOKEN, () -> { }, "ide", keys);
+        assertTrue(first.connect());
+        first.open("ide");
+        await(() -> hub.agents().size() == 1, "the first agent");
+        String id = hub.agents().get(0).bridge().clientId();
+
+        Client second = new Client(port, TOKEN, () -> { }, "ide", keys);
+        assertTrue(second.connect());
+        second.open("ide");
+        await(() -> hub.agents().size() == 2, "the second agent");
+        String other = hub.agents().stream().map(a -> a.bridge().clientId()).filter(x -> !x.equals(id)).findFirst().orElseThrow();
+        assertTrue(other.matches(id + "~[0-9a-f]{4}"), other);
+        // A tab has one agent: the extension binds a tab to the id, and this is not the first one's id.
+        FakeExtension ext = FakeExtension.paired(hub.agents().stream().filter(a -> a.bridge().clientId().equals(other)).findFirst().orElseThrow()
+                .bridge().getPort(), TOKEN);
+        String said = status(second, 1);
+        assertTrue(said.contains("another agent with the identity \"ide\" is connected"), said);
+        ext.closeBlocking();
+    }
+
+    @Test
+    void anAgentTheUserRevokedHasNoToolAndAllowedAgainItIsANewAgent(@org.junit.jupiter.api.io.TempDir java.nio.file.Path keys) throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, true, keys);
+        Client agent = new Client(port, TOKEN, () -> { }, "ide", keys);
+        assertTrue(agent.connect());
+        agent.open("ide");
+        await(() -> hub.agents().size() == 1, "the agent");
+        String id = hub.agents().get(0).bridge().clientId();
+        FakeExtension ext = FakeExtension.paired(hub.agents().get(0).bridge().getPort(), TOKEN);
+        assertTrue(status(agent, 1).contains("identity \"ide\": the same agent at every start"));
+        int sentBefore = ext.commands.size();
+
+        // Revoked while it runs: its next call is refused, whatever the tool, and nothing is sent to a browser.
+        AgentKeys.revoke(keys, "ide");
+        assertTrue(status(agent, 2).startsWith("Error [AGENT_REVOKED]"), status(agent, 3));
+        agent.call(4, "browser_snapshot", "{}");
+        assertTrue(agent.text(agent.answerTo(4)).startsWith("Error [AGENT_REVOKED]"));
+        assertEquals(sentBefore, ext.commands.size(), "nothing reached the browser");
+        ext.closeBlocking();
+        assertTrue(AgentKeys.read(keys, "ide").isEmpty(), "its key is gone");
+        agent.leave();
+        await(() -> hub.agents().isEmpty(), "the agent to have gone");
+
+        // Started again it is served, has no key made for it, and is told the same.
+        Client again = new Client(port, TOKEN, () -> { }, "ide", keys);
+        assertTrue(again.connect());
+        again.open("ide");
+        await(() -> hub.agents().size() == 1, "the revoked agent");
+        assertTrue(status(again, 1).startsWith("Error [AGENT_REVOKED]"));
+        assertTrue(AgentKeys.read(keys, "ide").isEmpty(), "no key is made for a label that is revoked");
+        assertFalse(hub.agents().get(0).bridge().clientId().equals(id), "the id it had is nobody's");
+        again.leave();
+        await(() -> hub.agents().isEmpty(), "the agent to have gone");
+
+        // Another agent was not touched by it.
+        Client other = new Client(port, TOKEN, () -> { }, "cli", keys);
+        assertTrue(other.connect());
+        other.open("cli");
+        await(() -> hub.agents().size() == 1, "the other agent");
+        FakeExtension forOther = FakeExtension.paired(hub.agents().get(0).bridge().getPort(), TOKEN);
+        assertTrue(status(other, 1).contains("identity \"cli\""));
+        forOther.closeBlocking();
+
+        // Allowed again: a new key, so a new agent. Nothing of the old one comes back to it.
+        assertTrue(AgentKeys.allow(keys, "ide"));
+        Client anew = new Client(port, TOKEN, () -> { }, "ide", keys);
+        assertTrue(anew.connect());
+        anew.open("ide");
+        await(() -> hub.agents().size() == 2, "the agent, allowed again");
+        assertFalse(hub.agents().stream().anyMatch(a -> a.bridge().clientId().equals(id)));
+        assertEquals(2, hub.agents().stream().filter(a -> a.bridge().clientId().matches("a-[0-9a-f]{12}")).count());
     }
 }

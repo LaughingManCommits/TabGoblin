@@ -88,6 +88,7 @@ started by hand:
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
 | Nothing personal | Linux | Runs the tests of `docs/agents/check-personal.mjs` and then the check on the files |
+| Dependencies | Linux | `npm audit` for the extension and the test runner, which fails on an advisory of high severity; the same for the editor lab, listed only, because the editors under test are fixed versions of other people's libraries and are never shipped; and, on a pull request, GitHub's dependency review of what it changes, which covers the server's Maven libraries |
 
 The end-to-end job runs on Windows because that is where the suite is developed.
 
@@ -101,7 +102,8 @@ the downloads are kept with the run, to be tried, and nothing is published.
 |---|---|---|
 | Suites | as in the table above | Every job of `ci.yml`, which the release calls as it is. Nothing is made if one fails. They run beside a CI run for the same branch, not in its place: the two are in groups of their own |
 | Download, three times | Windows, Linux, macOS | Builds both parts and runs `release/bundle.sh`: a Java runtime with only the modules the jar uses (`jdeps`, `jlink`), the jar, the extension and a command to start it by, in one folder, packed. A runtime is made by the JDK of the system it is for, which is why there are three. The script refuses a tag that is not the version in the files, and a server that does not start on the runtime made for it |
-| Publish | Linux | Only for a tag. Writes `SHA256SUMS.txt`, has GitHub attest where each download was built, and makes the release with `gh`. It is the only job that may write to the repository; the others read |
+| Lists of components | Linux | Two files in the CycloneDX format: the libraries in the server's jar (`cyclonedx-maven-plugin`), and the tools the extension is built with (`npm sbom`), none of which is in the extension |
+| Publish | Linux | Only for a tag. Writes `SHA256SUMS.txt` for the three downloads and the two lists, has GitHub attest where each was built, and makes the release with `gh`. It is the only job that may write to the repository; the others read |
 
 What a download holds and how a person uses it is in the
 [installation guide](installation.md#from-a-download); how a release is made is in the
@@ -219,12 +221,13 @@ page that owns it:
 
 ## Protocol reference
 
-Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
+Version 3. Typed in `Protocol.java` and `protocol.ts`; independent of MCP. A peer of another
+version is refused; version 2 handed sessions on by an agent's name and had no security policy.
 
 ```json
-{ "type": "challenge", "nonce": "…", "versions": [2], "clientId": "c-1a2b3c4d" }
-{ "type": "auth", "nonce": "…", "proof": "…", "version": 2 }
-{ "type": "auth_ok", "proof": "…", "version": 2, "clientId": "c-1a2b3c4d", "clientName": "…" }
+{ "type": "challenge", "nonce": "…", "versions": [3], "clientId": "a-1a2b3c4d5e6f" }
+{ "type": "auth", "nonce": "…", "proof": "…", "version": 3 }
+{ "type": "auth_ok", "proof": "…", "version": 3, "clientId": "a-1a2b3c4d5e6f", "clientName": "…" }
 
 { "id": "17", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
 { "id": "17", "success": true, "result": {}, "timing": { "ran": 132, "queued": 0, "asked": 0 }, "session": "s2" }
@@ -232,7 +235,8 @@ Version 2. Typed in `Protocol.java` and `protocol.ts`; independent of MCP.
 
 { "type": "cancel", "id": "17" }
 { "type": "client", "name": "IntelliJ IDEA" }
-{ "type": "policy", "blocked": ["example.org"], "unreadable": false }
+{ "type": "policy", "blocked": ["example.org"], "unreadable": false, "strict": false, "allowed": [], "screenshots": true,
+  "maxAccess": "write", "sessionMaxMinutes": 0, "sessionIdleMinutes": 0 }
 { "type": "event", "event": "sessions", "data": { "sessions": [] } }
 { "type": "event", "event": "activity", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
 { "type": "ping" }   { "type": "pong" }
@@ -244,8 +248,9 @@ step for the server's other threads (`WebSocketBridge.authenticate`): an extensi
 `auth_ok` is connected for every tool call from then on, and none is told `NOT_CONNECTED`. The
 agent's name is in `auth_ok` if the server knows it by then, and follows as `client` if it
 learns it later. An agent names itself when it opens its connection to the server
-(`initialize`). When a name arrives, the extension tells every agent its sessions anew: a name
-can make sessions an agent's own ([architecture](architecture.md#sessions)).
+(`initialize`). The name is shown to the user and decides nothing. `clientId` is who the agent
+is: `a-` and twelve hexadecimal digits for an agent with a key of its own, the same at every
+start; anything else is an id for one start ([architecture](architecture.md#sessions)).
 
 `policy` is the user's list of [blocked sites](security.md#blocked-sites), as the server's settings
 have it: the domains, in lower case and in their encoded form; `unreadable` is true while the
@@ -256,6 +261,11 @@ does at once with its sessions, and again when the list has changed. It is not s
 message it does not know for a failed pairing. Once paired, such an extension ignores it. What an
 entry blocks is decided in two places, `BlockedSites.java` and `blockedBy` in `policy.ts`; both are
 held to one list of cases, `java-server/src/test/resources/browsercontext/blocked-sites-cases.json`.
+The same message carries the rest of the user's [security policy](security.md#the-security-policy):
+`strict`, `allowed` (domains, matched as blocked ones are), `screenshots`, `maxAccess`, and the
+two times in minutes, 0 for none. A field that is missing restricts nothing; one that is there
+and cannot be read makes the message no message. The server's side is `Limits` in
+`BlockedSites.java`, the extension's `Limits` and `checkLimits` in `policy.ts`.
 
 `clientId` in `challenge` is who the server says it is before anything is proven. The
 extension uses it for one thing: the server of an agent the user disconnected is closed there

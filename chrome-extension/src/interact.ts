@@ -5,7 +5,7 @@ import { editorKind, fillEditor, fireKey, pressEditorKey, type FillResult } from
 import { scrollerOf, visibleText } from './extract.ts';
 import { looksLikeSearch, looksLikeSubmission, type ClickTarget, type KeyTarget } from './policy.ts';
 import {
-  DomError, accessibleName, checkedState, frameDocument, isDisabled, isEditingHost, isScrollable, isSensitiveField, isVisible,
+  DomError, accessibleName, checkedState, frameDocument, inViewport, isDisabled, isEditingHost, isScrollable, isSensitiveField, isVisible,
   mainScroller, norm, roleOf, type PageState, type RefRegistry,
 } from './snapshot.ts';
 
@@ -595,6 +595,46 @@ export function viewportCoverage(doc: Document): string {
   const percent = Math.max(1, Math.round((viewport / total) * 100));
   return `This image shows only the visible viewport: ${top}-${top + Math.round(viewport)}px of a ${Math.round(total)}px tall ${inner ? 'scrolling area' : 'page'} (about ${percent}%). `
     + `Not in the image: ${top}px above and ${below}px below. Use browser_scroll and capture again to see more, or browser_extract to read all of the text at once.`;
+}
+
+/** The smallest side of a frame that counts as showing something: below it there is nothing to read in a picture. */
+const FRAME_SHOWS_FROM_PX = 8;
+const EMBEDDING = 'iframe, frame, object, embed, fencedframe, portal';
+
+/**
+ * How many frames of another site are in view. A picture of the tab would show what is in them,
+ * and that is not the session's to read: their text is never read either. A frame counts when
+ * its document cannot be reached from this one, which is how the browser tells a frame of
+ * another site, and when an embedded file names another site as its address. Frames inside a
+ * frame of this site are looked at as well.
+ */
+export function foreignFramesInView(doc: Document, depth = 0): number {
+  const view = doc.defaultView;
+  if (!view || depth > 3) return 0;
+  let count = 0;
+  for (const el of Array.from(doc.querySelectorAll(EMBEDDING))) {
+    const rect = el.getBoundingClientRect();
+    if (rect.width < FRAME_SHOWS_FROM_PX || rect.height < FRAME_SHOWS_FROM_PX) continue;
+    if (!isVisible(el) || !inViewport(rect, view)) continue;
+    const tag = el.localName;
+    if (tag === 'object' || tag === 'embed') {
+      // An embedded file: of another site when its address says so. Without an address it shows nothing of one.
+      const address = el.getAttribute(tag === 'object' ? 'data' : 'src');
+      if (!address) continue;
+      let origin: string | null = null;
+      try {
+        origin = new URL(address, doc.baseURI).origin;
+      } catch {
+        origin = null;
+      }
+      if (origin !== doc.location?.origin) count++;
+      continue;
+    }
+    const inner = frameDocument(el);
+    if (!inner) count++;
+    else count += foreignFramesInView(inner, depth + 1);
+  }
+  return count;
 }
 
 export type WaitCondition = 'visible' | 'gone' | 'enabled' | 'disabled';

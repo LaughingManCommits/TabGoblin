@@ -180,26 +180,27 @@ stateDiagram-v2
 ```
 
 **Ownership.** A session belongs to the agent chosen at authorization, or to the first agent that
-uses an unclaimed one. Every command is checked against the owner. If the owner's server is gone
-and an agent with the same name connects, it inherits the session (an IDE restarting its server);
-no other agent ever does.
+uses an unclaimed one. Every command is checked against the owner's id, and no session ever
+passes to another id (`canUse` in `policy.ts`).
 
-**A server that is started again.** A server makes a new id each time it starts and remembers
-nothing, so its sessions come back to it by its agent's name alone, and it is the extension
-that says so: a session is the user's grant and is kept there, and a server cannot claim one.
-Two things make that happen at once. The server takes the agent's name from the message with
-which the agent opens its connection (`StdinTap`), not from its first tool call. And the
-extension makes what the server's former self left the new server's own the moment it pairs,
-or the moment its name arrives, and tells it so (`takeUp` in `background.ts`). So the server's
-panel lists the tabs, and the popup names the server that is there as their agent, before any
-tool is called. An agent that has given no name is given nothing.
+**Who an agent is.** An agent's program names its agent with `--agent <name>`. The process it
+starts (`Link.java`) reads the key of that name, or makes it (`AgentKeys.java`: a file in the
+folder `agents` beside the pairing token), and proves to the server that it holds it, in the
+same message in which it proves the pairing token. The server (`Hub.identify`) checks the proof
+against the key file and gives the agent's connection to the extension the id that follows
+from the key. A process that names no agent gets an id for that start. A key has one agent at
+a time: a second process with the same key gets an id of its own. The rules, and where they
+stop, are in the [security model](security.md#agents).
 
-**Disconnect.** When the user disconnects an agent in the popup, the sessions that are that
-agent's end with it: those it owns, and those a former self of the same name left behind, which
-it could have taken up with its next command (`sessionsOfAgent` in `policy.ts`). A session no
-agent has taken up yet stays. So nothing waits for *Allow again*, and nothing is left for an
-agent of the same name to inherit. An agent that goes away by itself keeps its sessions, as
-above.
+**A server that is started again.** An agent with a key has the same id in the new server, so
+its sessions are its own without anything being handed over: the extension tells the server its
+sessions the moment it pairs. A session is the user's grant and is kept in the extension; a
+server cannot claim one. An agent without a key has a new id and no session.
+
+**Disconnect.** When the user disconnects an agent in the popup, the sessions that carry its id
+end with it (`sessionsOfAgent` in `policy.ts`). A session no agent has taken up yet stays. An
+agent that goes away by itself keeps its sessions, as above. The id of an agent with a key is
+kept in the extension's own storage, so that the no holds over a restart of the browser.
 
 The server of a disconnected agent keeps running, and the extension cannot know whose server
 holds a port without connecting to it. So it connects each time it looks at the ports, and the
@@ -329,11 +330,11 @@ starts the server anew, or connects to the one that another link has started mea
 things keep that from being a second sending of anything. The link answers every request its
 agent was waiting for, itself: a tool call gets the result of a failed call,
 [`CONNECTION_LOST`](tools.md#errors), which says that the outcome is unknown and that nothing
-was retried. It sends the new server the agent's opening message again, so that the server knows
-the agent by its name and gives it its sessions back, and does not pass the answer on, which the
-agent has already. And a message of the agent's that had not reached the old server goes to the
-new one once. The agent's connection stays what it was; its server has a new id, as after any
-restart ([sessions](#sessions)).
+was retried. It proves its agent's key to the new server, so that the agent has the id it had, and sends
+the agent's opening message again; it does not pass the answer on, which the agent has
+already. And a message of the agent's that had not reached the old server goes to the
+new one once. The agent's connection stays what it was. An agent with a key has its id and its sessions
+again; one without has a new id ([sessions](#sessions)).
 
 A command line that is not understood starts nothing: the reason and the usage text go to
 standard error, and the exit code is 2.
@@ -492,7 +493,9 @@ java-server/src/main/java/browsercontext/
   PanelModel.java          what the server's panel shows at a moment, without a window
   Panel.java               the panel's window (JavaFX); panel.css in the resources is its look
   BrowserService.java      tool arguments → commands → results, submission ids
-  BlockedSites.java        the user's list of blocked sites: the settings file, what an entry blocks
+  BlockedSites.java        the settings file: the user's list of blocked sites and what an entry blocks,
+                           and the security policy (Limits)
+  AgentKeys.java           an agent's key file, the id that follows from it, its proof, revoking
   Skills.java              the skills for agents that the jar carries, and putting one in its place
   WebSocketBridge.java     localhost endpoint, origin check, pairing, lockout, limits
   ExtensionConnection.java correlation, deadlines, cancellation, per-session ordering
@@ -503,6 +506,7 @@ java-server/src/main/java/browsercontext/
 chrome-extension/src/
   background.ts            connections, sessions, gate, navigation, submissions, activity
   policy.ts                every rule, as pure functions
+  redact.ts                what looks like a credential, taken out of text and addresses
   protocol.ts              typed messages and their validation
   pairing.ts               HMAC proofs for the pairing, the mirror of Pairing.java
   content.ts               fixed set of page operations; holds the notice in the page

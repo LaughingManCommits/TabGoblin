@@ -16,4 +16,6 @@ To update, unpack the new download over the old folder, press the reload arrow o
 gh attestation verify tabgoblin-VERSION-windows-x64.zip --repo REPOSITORY
 ```
 
+**What it is built from.** `tabgoblin-VERSION-server.cdx.json` lists the libraries in the server's jar, and `tabgoblin-VERSION-extension.cdx.json` the tools the extension is built with, none of which is in the extension. Both are in the CycloneDX format, and both are in `SHA256SUMS.txt`.
+
 The downloads are not signed for Windows or macOS. Either system may warn before it runs what is in them.

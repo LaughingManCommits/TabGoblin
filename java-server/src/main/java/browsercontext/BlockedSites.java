@@ -46,10 +46,40 @@ final class BlockedSites {
      * could not be taken as a list, why: a few words for the user, which follow "the settings file
      * is not in force:". While that is so every site counts as blocked.
      */
-    record Rule(List<String> domains, String unreadable) {
+    record Rule(List<String> domains, String unreadable, Limits limits) {
+
+        /** A list of blocked sites, and no other restriction. */
+        Rule(List<String> domains, String unreadable) {
+            this(domains, unreadable, Limits.NONE);
+        }
 
         /** Nothing is blocked: no file, or no entry in it. */
         static final Rule NONE = new Rule(List.of(), null);
+
+        /**
+         * The host among these addresses that is outside the sites agents are limited to, or null
+         * if all of them are inside, or there is no such limit. An address that is no site is
+         * outside: what cannot be told to be allowed is not.
+         */
+        String outside(Iterable<String> addresses) {
+            if (limits.allowed().isEmpty()) {
+                return null;
+            }
+            Rule within = new Rule(limits.allowed(), null);
+            for (String address : addresses) {
+                if (address == null || address.isEmpty()) {
+                    continue;
+                }
+                String host = host(address);
+                if (host == null) {
+                    return "an address that names no site";
+                }
+                if (within.blocking(host) == null) {
+                    return host;
+                }
+            }
+            return null;
+        }
 
         /** Whether everything is refused, because the list could not be read. */
         boolean everything() {
@@ -88,6 +118,129 @@ final class BlockedSites {
         }
     }
 
+    /**
+     * What the user's settings restrict besides blocked sites. It is local to this machine: a file
+     * the user, or whoever manages the machine, writes. Nothing here widens what an agent may do;
+     * every entry takes something away.
+     *
+     * @param strict             the strict profile: every submission is put to the user, a click that may
+     *                           change something is a submission, and a tab is authorized for one named agent
+     * @param allowed            the only sites agents may work on, as domains; empty for no such limit
+     * @param screenshots        whether an agent may take a picture of a tab
+     * @param maxAccess          the highest access level a session may have: read, explore or write
+     * @param sessionMaxMinutes  how long an authorization lasts at most; 0 for no limit
+     * @param sessionIdleMinutes after how long without a command an authorization ends; 0 for never
+     */
+    record Limits(boolean strict, List<String> allowed, boolean screenshots, String maxAccess, int sessionMaxMinutes,
+            int sessionIdleMinutes) {
+
+        /** No restriction: what holds without a settings file. */
+        static final Limits NONE = new Limits(false, List.of(), true, "write", 0, 0);
+
+        /** Whether an action that needs this access level is within the highest level allowed. */
+        boolean allows(String level) {
+            return rank(level) <= rank(maxAccess);
+        }
+
+        private static int rank(String level) {
+            return switch (level) {
+                case "write" -> 2;
+                case "explore" -> 1;
+                default -> 0;
+            };
+        }
+
+        /** The restrictions in a few words, for the user and for an agent; empty when there is none. */
+        String summary() {
+            List<String> parts = new java.util.ArrayList<>();
+            if (strict) {
+                parts.add("strict profile (every submission is confirmed by the user; a click that may change something counts as one)");
+            }
+            if (!allowed.isEmpty()) {
+                parts.add("agents work only on " + String.join(", ", allowed));
+            }
+            if (!screenshots) {
+                parts.add("no screenshots");
+            }
+            if (!maxAccess.equals("write")) {
+                parts.add("access up to " + (maxAccess.equals("explore") ? "Explore" : "Read"));
+            }
+            if (sessionMaxMinutes > 0) {
+                parts.add("an authorization lasts at most " + sessionMaxMinutes + " min");
+            }
+            if (sessionIdleMinutes > 0) {
+                parts.add("and ends after " + sessionIdleMinutes + " min without a command");
+            }
+            return String.join("; ", parts);
+        }
+    }
+
+    /** The keys of the restrictions. */
+    static final String PROFILE = "security.profile";
+    static final String ALLOWED = "allowed.sites";
+    static final String SCREENSHOTS = "screenshots";
+    static final String MAX_ACCESS = "access.max";
+    static final String SESSION_MAX = "session.max.minutes";
+    static final String SESSION_IDLE = "session.idle.minutes";
+    /** What the strict profile sets where the file says nothing else. */
+    static final int STRICT_SESSION_MAX = 480;
+    static final int STRICT_SESSION_IDLE = 30;
+
+    /** A problem in the settings file: a few words for the user. */
+    private static final class Slip extends Exception {
+        private static final long serialVersionUID = 1L;
+
+        Slip(String what) {
+            super(what);
+        }
+    }
+
+    private static Limits limits(Properties properties) throws Slip {
+        String profile = properties.getProperty(PROFILE, "standard").trim().toLowerCase(Locale.ROOT);
+        if (!profile.equals("standard") && !profile.equals("strict")) {
+            throw new Slip("\"" + profile + "\" in " + PROFILE + " is neither standard nor strict");
+        }
+        boolean strict = profile.equals("strict");
+        TreeSet<String> allowed = new TreeSet<>();
+        for (String entry : properties.getProperty(ALLOWED, "").split("[,\\s]+")) {
+            if (entry.isEmpty()) {
+                continue;
+            }
+            String domain = domain(entry);
+            if (domain == null) {
+                throw new Slip("\"" + entry + "\" in " + ALLOWED + " is no domain");
+            }
+            allowed.add(domain);
+        }
+        String pictures = properties.getProperty(SCREENSHOTS, strict ? "off" : "on").trim().toLowerCase(Locale.ROOT);
+        if (!pictures.equals("on") && !pictures.equals("off")) {
+            throw new Slip("\"" + pictures + "\" in " + SCREENSHOTS + " is neither on nor off");
+        }
+        String access = properties.getProperty(MAX_ACCESS, "write").trim().toLowerCase(Locale.ROOT);
+        if (!List.of("read", "explore", "write").contains(access)) {
+            throw new Slip("\"" + access + "\" in " + MAX_ACCESS + " is none of read, explore, write");
+        }
+        return new Limits(strict, List.copyOf(allowed), pictures.equals("on"), access,
+                minutes(properties, SESSION_MAX, strict ? STRICT_SESSION_MAX : 0),
+                minutes(properties, SESSION_IDLE, strict ? STRICT_SESSION_IDLE : 0));
+    }
+
+    private static int minutes(Properties properties, String key, int fallback) throws Slip {
+        String text = properties.getProperty(key);
+        if (text == null || text.isBlank()) {
+            return fallback;
+        }
+        try {
+            int minutes = Integer.parseInt(text.trim());
+            if (minutes >= 0 && minutes <= 7 * 24 * 60) {
+                return minutes;
+            }
+        } catch (NumberFormatException e) {
+            // said below
+        }
+        throw new Slip("\"" + text.trim() + "\" in " + key + " is no number of minutes between 0 and 10080");
+    }
+
     /** What a settings file starts with, when the user asks to edit one and there is none: what it can hold, as comments. */
     static final String TEMPLATE = """
             # TabGoblin settings.
@@ -97,6 +250,23 @@ final class BlockedSites {
             # A change is in force as soon as this file is saved.
             #
             # blocked.sites = example.org, intranet.example
+            #
+            # Restrictions. Each one takes something away from every agent; none gives anything.
+            #
+            # security.profile = strict       every submission is confirmed by you, a click that may change
+            #                                 something counts as one, a tab is authorized for one named agent,
+            #                                 no screenshots, and an authorization ends after 8 hours, or
+            #                                 after 30 minutes without a command
+            # allowed.sites = example.org     agents work on these sites and their subdomains only
+            # screenshots = off               no agent takes a picture of a tab
+            # access.max = explore            no session has more than this: read, explore or write
+            # session.max.minutes = 240       an authorization lasts this long at most
+            # session.idle.minutes = 20       and ends when no command came for this long
+            #
+            # A record of what agents did, on this machine only: one line of JSON for each tool call, in
+            # audit.jsonl beside this file. It has ids, actions, times and outcomes, and nothing of a page.
+            #
+            # audit.log = on
             """;
 
     /** Makes the settings file, with what it can hold written out as comments, if there is none. */
@@ -244,7 +414,28 @@ final class BlockedSites {
             }
             domains.add(domain);
         }
-        return domains.isEmpty() ? Rule.NONE : new Rule(List.copyOf(domains), null);
+        Limits limits;
+        try {
+            limits = limits(properties);
+        } catch (Slip slip) {
+            // A restriction that was meant and is not in force must not go unnoticed either.
+            return new Rule(List.of(), slip.getMessage());
+        }
+        return domains.isEmpty() && limits.equals(Limits.NONE) ? Rule.NONE : new Rule(List.copyOf(domains), null, limits);
+    }
+
+    /** Whether the settings file asks for the record of what agents did. Only a plain "on" does. */
+    static boolean audits(Path file) {
+        if (!Files.exists(file)) {
+            return false;
+        }
+        Properties properties = new Properties();
+        try (Reader in = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            properties.load(in);
+        } catch (IOException | IllegalArgumentException e) {
+            return false;
+        }
+        return properties.getProperty(Audit.KEY, "off").trim().equalsIgnoreCase("on");
     }
 
     /**
@@ -274,10 +465,19 @@ final class BlockedSites {
                 if (!state.equals(seen)) {
                     seen = state;
                     Rule read = read(file);
+                    Audit.to(audits(file) ? file.toAbsolutePath().resolveSibling(Audit.FILE) : null);
                     if (!read.equals(rule)) {
                         rule = read;
                         Log.info(read.everything() ? "blocked sites: settings file unreadable, every site is refused"
                                 : "blocked sites: " + read.domains().size() + " in force");
+                        if (!read.everything() && !read.limits().equals(Limits.NONE)) {
+                            Log.info("security policy: profile=" + (read.limits().strict() ? "strict" : "standard")
+                                    + " allowed_sites=" + read.limits().allowed().size()
+                                    + " screenshots=" + (read.limits().screenshots() ? "on" : "off")
+                                    + " access_max=" + read.limits().maxAccess()
+                                    + " session_max_min=" + read.limits().sessionMaxMinutes()
+                                    + " session_idle_min=" + read.limits().sessionIdleMinutes());
+                        }
                     }
                 }
                 return rule;

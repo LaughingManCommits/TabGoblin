@@ -21,10 +21,19 @@ import java.util.function.Supplier;
 final class Agent {
 
     /** What every agent of a server has in common: where the ports begin, the pairing token, and whose extension may connect. */
-    record Settings(int port, Supplier<String> token, String extensionOrigin, Supplier<BlockedSites.Rule> blocked) {
+    /**
+     * @param agentKeys the folder of the agents' keys, or null where agents are not told apart by a key
+     */
+    record Settings(int port, Supplier<String> token, String extensionOrigin, Supplier<BlockedSites.Rule> blocked,
+            java.nio.file.Path agentKeys) {
         /** With no site blocked. */
         Settings(int port, Supplier<String> token, String extensionOrigin) {
             this(port, token, extensionOrigin, () -> BlockedSites.Rule.NONE);
+        }
+
+        /** Without keys for agents: each agent has an id for this start only. */
+        Settings(int port, Supplier<String> token, String extensionOrigin, Supplier<BlockedSites.Rule> blocked) {
+            this(port, token, extensionOrigin, blocked, null);
         }
     }
 
@@ -60,10 +69,18 @@ final class Agent {
      */
     static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
             Supplier<BrowserService.Unpaired> unpaired) {
+        return serve(settings, in, out, onInputEnd, held, unpaired, AgentKeys.Identity.ephemeral());
+    }
+
+    /**
+     * @param identity who this agent is: the id of its key, proven before this is called, or an id for this start
+     */
+    static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
+            Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity) {
         WebSocketBridge bridge = null;
         String startupProblem = null;
         for (int candidate = settings.port(); candidate < settings.port() + McpMain.PORT_RANGE && bridge == null; candidate++) {
-            WebSocketBridge attempt = new WebSocketBridge(candidate, settings.token(), settings.extensionOrigin());
+            WebSocketBridge attempt = new WebSocketBridge(candidate, settings.token(), settings.extensionOrigin(), identity.id());
             try {
                 attempt.startAndWait();
                 bridge = attempt;
@@ -73,7 +90,7 @@ final class Agent {
         }
         boolean listening = bridge != null;
         if (!listening) {
-            bridge = new WebSocketBridge(settings.port(), settings.token(), settings.extensionOrigin());
+            bridge = new WebSocketBridge(settings.port(), settings.token(), settings.extensionOrigin(), identity.id());
             startupProblem = "Could not listen on any of ports " + settings.port() + "-"
                     + (settings.port() + McpMain.PORT_RANGE - 1) + " on 127.0.0.1: too many TabGoblin servers are running.";
         }
@@ -81,7 +98,7 @@ final class Agent {
             bridge.setHeld(true);
         }
         bridge.blockedSites(settings.blocked());
-        BrowserService service = new BrowserService(bridge, startupProblem, unpaired);
+        BrowserService service = new BrowserService(bridge, startupProblem, unpaired, identity);
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
         // An agent's name is taken from its opening message: a server that was started again is
         // given its tabs back by that name, and should not have to wait for a tool call to have it.

@@ -41,7 +41,7 @@ is in the download.
    command for adding a server, and looks like this for Claude Code:
 
    ```text
-   claude mcp add --scope user tabgoblin -- "<folder>\tabgoblin\runtime\bin\java.exe" -jar "<folder>\tabgoblin\browser-context-mcp.jar"
+   claude mcp add --scope user tabgoblin -- "<folder>\tabgoblin\runtime\bin\java.exe" -jar "<folder>\tabgoblin\browser-context-mcp.jar" --agent claude-code
    ```
 
    An agent that setup does not know takes the same command in its MCP settings:
@@ -174,7 +174,7 @@ Most MCP clients take this JSON:
   "mcpServers": {
     "tabgoblin": {
       "command": "java",
-      "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar"]
+      "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar", "--agent", "my-ide"]
     }
   }
 }
@@ -183,8 +183,14 @@ Most MCP clients take this JSON:
 | Agent | Where it goes |
 |---|---|
 | IntelliJ IDEA, AI Assistant | *Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add*, paste the JSON. The menu names vary a little between versions. |
-| Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar` |
-| Anything else that speaks MCP over stdio | Command `java`, arguments `-jar` and the path |
+| Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --agent claude-code` |
+| Anything else that speaks MCP over stdio | Command `java`, arguments `-jar`, the path, `--agent` and a name |
+
+`--agent` names the agent to the server, with a short name of your choice, a different one for
+each agent. By it the agent has a key of its own and is the same agent at every start: after a
+restart its tabs are its own again. Without it everything works, and the tabs have to be
+authorized again after each restart ([agents](user-guide.md#agents)). A setup from before this
+option needs the two arguments added once.
 
 Restart the agent, or reload its MCP servers, so it picks the server up. You can connect several
 agents this way, up to eight at once: each starts the jar, the first of them starts the one

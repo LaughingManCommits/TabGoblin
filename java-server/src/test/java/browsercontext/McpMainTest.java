@@ -206,4 +206,36 @@ class McpMainTest {
             Log.keep(0);
         }
     }
+
+    @Test
+    void anAgentIsNamedByAnOptionOrTheEnvironmentAndOnlyByAShortPlainName() throws Exception {
+        assertNull(parse(Map.of()).agent(), "an agent that is not named has no key");
+        assertEquals("claude-code", parse(Map.of(), "--agent", "Claude-Code").agent());
+        assertEquals("codex", parse(Map.of("BCMCP_AGENT", "codex")).agent());
+        assertEquals("given", parse(Map.of("BCMCP_AGENT", "codex"), "--agent", "given").agent());
+        // A label becomes a file name: nothing that could name another file is one.
+        for (String bad : new String[] {"../pairing-token", "a/b", "a b", ".hidden", "", "x".repeat(41), "a..b"}) {
+            assertThrows(UsageException.class, () -> parse(Map.of(), "--agent", bad), bad);
+            assertThrows(UsageException.class, () -> parse(Map.of(), "--revoke-agent", bad), bad);
+        }
+        assertThrows(UsageException.class, () -> parse(Map.of(), "--agent"));
+        assertEquals("ide", parse(Map.of(), "--revoke-agent", "ide").revokeAgent());
+        assertEquals("ide", parse(Map.of(), "--allow-agent", "ide").allowAgent());
+        assertTrue(parse(Map.of(), "--list-agents").listAgents());
+    }
+
+    @Test
+    void aProcessThatServesItsAgentAloneKnowsItByItsKeyAsWell(@org.junit.jupiter.api.io.TempDir Path keys) throws Exception {
+        AgentKeys.Identity none = McpMain.identityAlone(null, keys);
+        assertFalse(none.persistent());
+        assertTrue(none.id().startsWith("c-"));
+        AgentKeys.Identity first = McpMain.identityAlone("ide", keys);
+        assertTrue(first.persistent());
+        assertEquals(first.id(), McpMain.identityAlone("ide", keys).id(), "the same at every start");
+        AgentKeys.revoke(keys, "ide");
+        AgentKeys.Identity revoked = McpMain.identityAlone("ide", keys);
+        assertTrue(revoked.revoked().getAsBoolean());
+        assertFalse(revoked.persistent());
+        assertFalse(revoked.id().equals(first.id()));
+    }
 }

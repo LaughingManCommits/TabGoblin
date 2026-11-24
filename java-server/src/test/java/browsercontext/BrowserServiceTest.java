@@ -308,7 +308,7 @@ class BrowserServiceTest {
             return FakeExtension.ok(cmd, s);
         };
         String text = service.call("browser_status", args()).text();
-        assertTrue(text.contains("Extension: connected (protocol 2)"), text);
+        assertTrue(text.contains("Extension: connected (protocol 3)"), text);
         assertTrue(text.contains("This agent: " + bridge.clientId()));
         assertTrue(text.contains("Sessions: 2 (pass session=<id> to every tool)"));
         assertTrue(text.contains("Session s1\n  Authorized origin: https://example.com\n  Access: read/write\n  Paused: no"));
@@ -701,5 +701,83 @@ class BrowserServiceTest {
         }
         assertTrue(later.policies.get(0).path("unreadable").asBoolean());
         later.closeBlocking();
+    }
+
+    private static BlockedSites.Rule limited(boolean strict, java.util.List<String> allowed, boolean screenshots, String maxAccess) {
+        return new BlockedSites.Rule(java.util.List.of(), null, new BlockedSites.Limits(strict, allowed, screenshots, maxAccess, 480, 30));
+    }
+
+    @Test
+    void whatTheUsersPolicyTakesAwayIsRefusedBeforeItReachesTheBrowser() throws Exception {
+        twoSessions();
+        // No screenshots.
+        bridge.blockedSites(() -> limited(false, java.util.List.of(), false, "write"));
+        BrowserService.ToolResult picture = service.call("browser_screenshot", args().put("session", "s1"));
+        assertTrue(picture.text().startsWith("Error [SCREENSHOTS_DISABLED]"), picture.text());
+
+        // No session more than Explore: what needs Write is refused, what Explore may do is sent.
+        bridge.blockedSites(() -> limited(false, java.util.List.of(), true, "explore"));
+        for (BrowserService.ToolResult refused : java.util.List.of(
+                service.call("browser_fill", args().put("session", "s1").put("ref", 3).put("text", "x")),
+                service.call("browser_submit", args().put("session", "s1").put("ref", 3)))) {
+            assertTrue(refused.text().startsWith("Error [ACCESS_RESTRICTED]: The user's security policy allows no session more than Explore"),
+                    refused.text());
+        }
+        assertEquals(0, ext.commands.size(), "nothing reached the browser");
+        assertFalse(service.call("browser_click", args().put("session", "s1").put("ref", 3)).text().startsWith("Error [ACCESS_RESTRICTED]"));
+        assertEquals(1, ext.commands.size());
+        // No session more than Read.
+        bridge.blockedSites(() -> limited(false, java.util.List.of(), true, "read"));
+        for (BrowserService.ToolResult refused : java.util.List.of(
+                service.call("browser_click", args().put("session", "s1").put("ref", 3)),
+                service.call("browser_press_key", args().put("session", "s1").put("key", "Tab")),
+                service.call("browser_navigate", args().put("session", "s1").put("url", "/x")))) {
+            assertTrue(refused.text().startsWith("Error [ACCESS_RESTRICTED]"), refused.text());
+        }
+        assertEquals(1, ext.commands.size());
+
+        // Only the sites that are allowed: the session elsewhere is refused, and the agent is told
+        // the one site it ran into and never which ones are allowed.
+        bridge.blockedSites(() -> limited(false, java.util.List.of("example.net"), true, "write"));
+        BrowserService.ToolResult outside = service.call("browser_snapshot", args().put("session", "s2"));
+        assertEquals("Error [SITE_NOT_ALLOWED]: mail.example.org is not among the sites the user's security policy allows agents "
+                + "to work on. Only the user can change that, in the settings of the TabGoblin server.", outside.text());
+        assertFalse(outside.text().contains("example.net"));
+        assertEquals(1, ext.commands.size());
+        BrowserService.ToolResult away = service.call("browser_navigate", args().put("session", "s1").put("url", "https://elsewhere.example/"));
+        assertTrue(away.text().startsWith("Error [SITE_NOT_ALLOWED]: elsewhere.example"), away.text());
+        assertEquals(1, ext.commands.size(), "no navigation was sent");
+    }
+
+    @Test
+    void theStatusSaysWhatThePolicyRestrictsAndNotWhichSitesAreAllowed() throws Exception {
+        twoSessions();
+        bridge.blockedSites(() -> limited(true, java.util.List.of("example.net"), false, "explore"));
+        ext.responder = cmd -> FakeExtension.ok(cmd, args());
+        String text = service.call("browser_status", args()).text();
+        assertTrue(text.contains("Security policy: strict profile"), text);
+        assertTrue(text.contains("no screenshots") && text.contains("access up to Explore"), text);
+        assertTrue(text.contains("an authorization lasts at most 480 min") && text.contains("ends after 30 min without a command"), text);
+        assertTrue(text.contains("agents work only on the sites the user allows"), text);
+        assertFalse(text.contains("example.net"), "the list is the user's, and is not given to an agent");
+        // Without a policy the status has no such line.
+        bridge.blockedSites(() -> BlockedSites.Rule.NONE);
+        assertFalse(service.call("browser_status", args()).text().contains("Security policy"));
+    }
+
+    @Test
+    void theExtensionIsToldTheRestrictionsWithTheListOfBlockedSites() throws Exception {
+        bridge.blockedSites(() -> limited(true, java.util.List.of("example.org"), false, "explore"));
+        ext.send("{\"type\":\"ping\"}");
+        for (int i = 0; i < 200 && ext.policies.isEmpty(); i++) {
+            Thread.sleep(10);
+        }
+        JsonNode said = ext.policies.get(ext.policies.size() - 1);
+        assertTrue(said.path("strict").asBoolean());
+        assertEquals("example.org", said.path("allowed").get(0).asString());
+        assertFalse(said.path("screenshots").asBoolean());
+        assertEquals("explore", said.path("maxAccess").asString());
+        assertEquals(480, said.path("sessionMaxMinutes").asInt());
+        assertEquals(30, said.path("sessionIdleMinutes").asInt());
     }
 }

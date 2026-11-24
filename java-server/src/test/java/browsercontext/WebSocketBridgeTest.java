@@ -228,7 +228,8 @@ class WebSocketBridgeTest {
 
     @Test
     void anExtensionSpeakingAnotherProtocolVersionIsRefusedWithAReason() throws Exception {
-        for (int version : new int[] {0, 1, 3}) {
+        // Version 2 among them: an extension of that version would hand an agent's tabs on by its name.
+        for (int version : new int[] {0, 1, 2, Protocol.VERSION + 1}) {
             FakeExtension old = new FakeExtension(port, FakeExtension.ORIGIN, TOKEN);
             old.version = version;
             assertEquals(Protocol.CLOSE_VERSION, closedWith(old), "version " + version);

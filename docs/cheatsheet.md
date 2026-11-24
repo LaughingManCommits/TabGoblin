@@ -30,6 +30,9 @@ folder stands for `java -jar java-server/target/browser-context-mcp.jar` in ever
 | List the options | `java -jar java-server/target/browser-context-mcp.jar --help` |
 | Give your agent the skill for the tools | `java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code`, or `codex`, or `copilot`. Add `--replace` to overwrite one that is there and is not this one |
 | Block a site for every agent | **Edit** next to *Blocked sites* in the server's window opens the settings file. Write `blocked.sites = example.org, intranet.example` and save: it is in force at once |
+| Restrict what every agent may do | The same file: `security.profile = strict`, `allowed.sites = …`, `screenshots = off`, `access.max = explore`, `session.max.minutes = 240`, `session.idle.minutes = 20` |
+| List the agents that have a key of their own | `java -jar java-server/target/browser-context-mcp.jar --list-agents` |
+| Take one agent away | `java -jar java-server/target/browser-context-mcp.jar --revoke-agent <name>`; `--allow-agent <name>` allows it again, as a new agent with no tab |
 | Stop the server | **Stop server** in its window. Without that it ends by itself after its last agent |
 
 *Unknown option: --panel* means that the jar is from before the panel: build the server, then
@@ -38,7 +41,8 @@ run the command again.
 Explained in the installation guide, under
 [pairing](installation.md#6-pair-the-extension-with-the-server), and in the user guide, under
 [the server's panel](user-guide.md#9-the-servers-panel), [stopping](user-guide.md#8-stopping) and
-[blocked sites](user-guide.md#blocked-sites); the skills in [skills](../skills/README.md).
+[blocked sites](user-guide.md#blocked-sites), [the security policy](user-guide.md#the-security-policy) and
+[agents](user-guide.md#agents); the skills in [skills](../skills/README.md).
 
 ## Your agent
 
@@ -46,10 +50,10 @@ Explained in the installation guide, under
 
 | To | Command or setting |
 |---|---|
-| Add the server to Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar` |
-| The same, with the panel | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --panel` |
+| Add the server to Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --agent claude-code` |
+| The same, with the panel | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --agent claude-code --panel` |
 | See what Claude Code has, and how to remove it | `claude mcp get tabgoblin` |
-| Add the server to another agent | Command `java`, arguments `-jar` and the jar's path; `--panel` as a further argument for the panel |
+| Add the server to another agent | Command `java`, arguments `-jar`, the jar's path, `--agent` and a name for that agent; `--panel` as a further argument for the panel |
 | Check the whole chain | Ask the agent: *"Call browser_status."* |
 | Find out what is slow | Ask the agent: *"Call browser_status with diagnostics."* |
 
@@ -77,7 +81,8 @@ started in, and the option wins.
 | `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
 | `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
 | `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself. With neither it comes up only when the browser came with a token that is not the server's |
-| `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is: it names the [blocked sites](user-guide.md#blocked-sites) |
+| `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is: it names the [blocked sites](user-guide.md#blocked-sites) and holds the [security policy](user-guide.md#the-security-policy) |
+| `--agent` | `BCMCP_AGENT` | none | The name of the agent that starts the server: by it the agent has a key of its own and its tabs again after a restart ([agents](user-guide.md#agents)) |
 | none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
 
 Explained in the user guide, under [settings](user-guide.md#10-settings).

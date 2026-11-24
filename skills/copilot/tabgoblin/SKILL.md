@@ -102,6 +102,10 @@ retried for you, and a refusal is never an error to work around.
 | `EXPLORE_NOT_AUTHORIZED`, `WRITE_NOT_AUTHORIZED` | Ask the user to raise the session's access level in the popup, and say what for |
 | `NAVIGATION_BLOCKED` | The address is outside the session's website. Only the user can authorize another site |
 | `SITE_BLOCKED` | The user has blocked that site for every agent. There is no other way to it; tell the user |
+| `SITE_NOT_ALLOWED`, `ACCESS_RESTRICTED`, `SCREENSHOTS_DISABLED` | The user's security policy rules it out: the site, the access level, or a screenshot. There is no other way; tell the user. `browser_status` says what the policy restricts |
+| `AGENT_REVOKED` | The user revoked this agent. No tool works; tell the user and stop |
+| `APPROVAL_STALE` | What would be submitted changed after the user was asked. Nothing was sent. Take a new snapshot, check the content, and submit again |
+| `SCREENSHOT_BLOCKED` | A frame from another site is in view. Scroll it out of view, or read the page as text |
 | `SETTINGS_UNREADABLE` | Tell the user: the server's window says what is wrong with its settings file |
 | `STALE_REF` | Take a new snapshot and use its refs |
 | `SENSITIVE_FIELD` | Passwords and credentials are off limits. The user enters those |

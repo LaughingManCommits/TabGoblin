@@ -65,15 +65,31 @@ test('an answer says how long the command ran, waited for its turn, and waited f
   assert.deepEqual(Object.keys(commandTiming(1, 2, 3, 0)).sort(), ['asked', 'queued', 'ran']);
 });
 
+const NO_LIMITS = { strict: false, allowed: [], screenshots: true, maxAccess: 'write', sessionMaxMinutes: 0, sessionIdleMinutes: 0 };
+
 test('the list of blocked sites is taken whole or not at all', () => {
   assert.deepEqual(parseServerMessage({ type: 'policy', blocked: ['example.org', 'xn--bcher-kva.example', '127.0.0.1', '[::1]'], unreadable: false }),
-    { type: 'policy', blocked: ['example.org', 'xn--bcher-kva.example', '127.0.0.1', '[::1]'], unreadable: false });
-  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: true }), { type: 'policy', blocked: [], unreadable: true });
+    { type: 'policy', blocked: ['example.org', 'xn--bcher-kva.example', '127.0.0.1', '[::1]'], unreadable: false, limits: NO_LIMITS });
+  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: true }), { type: 'policy', blocked: [], unreadable: true, limits: NO_LIMITS });
   // Only a plain yes is a yes.
-  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: 'yes' }), { type: 'policy', blocked: [], unreadable: false });
+  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: 'yes' }), { type: 'policy', blocked: [], unreadable: false, limits: NO_LIMITS });
   // A list with an entry that is no host is no list: a part of it would leave a site open without a word.
   for (const blocked of [undefined, 'example.org', [7], ['example.org', null], ['Example.org'], ['exa mple.org'], ['https://example.org'],
     ['x'.repeat(254)], Array.from({ length: 5001 }, () => 'example.org')]) {
     assert.equal(parseServerMessage({ type: 'policy', blocked, unreadable: false }), null, JSON.stringify(blocked)?.slice(0, 60));
+  }
+});
+
+test('the restrictions of the user\'s policy are taken whole or not at all, and a missing one restricts nothing', () => {
+  const said = { type: 'policy', blocked: [], unreadable: false };
+  assert.deepEqual(parseServerMessage({
+    ...said, strict: true, allowed: ['example.org'], screenshots: false, maxAccess: 'explore', sessionMaxMinutes: 480, sessionIdleMinutes: 30,
+  }), { ...said, limits: { strict: true, allowed: ['example.org'], screenshots: false, maxAccess: 'explore', sessionMaxMinutes: 480, sessionIdleMinutes: 30 } });
+  // Only a plain yes makes it strict, and only a plain no switches screenshots off.
+  assert.deepEqual((parseServerMessage({ ...said, strict: 'true', screenshots: 0 }) as any).limits, NO_LIMITS);
+  // A restriction that is said and cannot be read makes the message no message: it is not taken as "none".
+  for (const bad of [{ allowed: 'example.org' }, { allowed: ['Example.org'] }, { allowed: [7] }, { maxAccess: 'admin' }, { maxAccess: '' },
+    { sessionMaxMinutes: -1 }, { sessionMaxMinutes: 1.5 }, { sessionIdleMinutes: '30' }, { sessionIdleMinutes: 10081 }]) {
+    assert.equal(parseServerMessage({ ...said, ...bad }), null, JSON.stringify(bad));
   }
 });

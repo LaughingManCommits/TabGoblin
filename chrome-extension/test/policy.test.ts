@@ -5,7 +5,8 @@ import {
   ALLOW_LASTS_MS, CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNASKED_PER_MINUTE, UNWELCOME_AFTER, activityLabel, askModeOf,
   checkAsk, checkClick, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
-  judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent,
+  judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent, isLastingAgent,
+  NO_LIMITS, askUnder, capMode, checkLimits, endsAt, outsideAllowed, strictest, type Limits,
   HEARTBEATS_UNANSWERED, badgeFor, serverGone,
   NOTHING_BLOCKED, blockedAmong, blockedBy, checkBlocked, hostOf,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
@@ -123,58 +124,57 @@ test('an agent reaches only its own sessions, and must name one when it has seve
   const mine = session({ id: 's1', clientId: 'c-me' });
   const theirs = session({ id: 's2', clientId: 'c-other', clientName: 'Other', origin: 'https://docs.example' });
   const me = { id: 'c-me', name: 'IDE' };
-  const connected = new Set(['c-me', 'c-other']);
 
-  assert.deepEqual(resolveSession([mine, theirs], me, undefined, connected), { session: mine, claim: false });
-  assert.deepEqual(resolveSession([mine, theirs], me, 's1', connected), { session: mine, claim: false });
-  assert.equal(code(() => resolveSession([mine, theirs], me, 's2', connected)), 'SESSION_NOT_OWNED');
-  assert.equal(code(() => resolveSession([mine, theirs], me, 's9', connected)), 'UNKNOWN_SESSION');
-  assert.equal(code(() => resolveSession([theirs], me, undefined, connected)), 'NOT_AUTHORIZED');
+  assert.deepEqual(resolveSession([mine, theirs], me, undefined), { session: mine, claim: false });
+  assert.deepEqual(resolveSession([mine, theirs], me, 's1'), { session: mine, claim: false });
+  assert.equal(code(() => resolveSession([mine, theirs], me, 's2')), 'SESSION_NOT_OWNED');
+  assert.equal(code(() => resolveSession([mine, theirs], me, 's9')), 'UNKNOWN_SESSION');
+  assert.equal(code(() => resolveSession([theirs], me, undefined)), 'NOT_AUTHORIZED');
 
   const second = session({ id: 's3', clientId: 'c-me', origin: 'https://wiki.example' });
-  assert.equal(code(() => resolveSession([mine, second], me, undefined, connected)), 'SESSION_REQUIRED');
-  assert.deepEqual(resolveSession([mine, second], me, 's3', connected), { session: second, claim: false });
+  assert.equal(code(() => resolveSession([mine, second], me, undefined)), 'SESSION_REQUIRED');
+  assert.deepEqual(resolveSession([mine, second], me, 's3'), { session: second, claim: false });
 });
 
 test('an unclaimed session goes to the first agent that uses it', () => {
   const open = session({ clientId: null, clientName: null });
-  const resolved = resolveSession([open], { id: 'c-me', name: 'IDE' }, undefined, new Set(['c-me']));
+  const resolved = resolveSession([open], { id: 'c-me', name: 'IDE' }, undefined);
   assert.equal(resolved.session, open);
   assert.equal(resolved.claim, true);
 });
 
-test('a restarted agent takes its sessions back, but never those of an agent that is still there', () => {
-  const left = session({ clientId: 'c-old', clientName: 'IDE' });
-  const reborn = { id: 'c-new', name: 'IDE' };
-  // The old server process is gone: the same-named agent continues.
-  assert.deepEqual(resolveSession([left], reborn, 's1', new Set(['c-new'])), { session: left, claim: true });
-  // The owner is still connected: no takeover, even with the same name.
-  assert.equal(code(() => resolveSession([left], reborn, 's1', new Set(['c-new', 'c-old']))), 'SESSION_NOT_OWNED');
-  // A different agent never inherits, and a nameless one matches nobody.
-  assert.equal(code(() => resolveSession([left], { id: 'c-x', name: 'Other' }, 's1', new Set(['c-x']))), 'SESSION_NOT_OWNED');
-  assert.equal(code(() => resolveSession([session({ clientId: 'c-old', clientName: null })], { id: 'c-x', name: '' }, 's1', new Set(['c-x']))), 'SESSION_NOT_OWNED');
+test('an agent is known by its id: a name gives it nothing, whether the owner is there or gone', () => {
+  const left = session({ clientId: 'a-0123456789ab', clientName: 'IDE' });
+  // Another agent that calls itself the same takes nothing, and that whether the owner is
+  // connected or not. This passed once: a session whose owner was gone went to an agent of the same name.
+  assert.equal(code(() => resolveSession([left], { id: 'c-new', name: 'IDE' }, 's1')), 'SESSION_NOT_OWNED');
+  assert.equal(code(() => resolveSession([left], { id: 'a-ba9876543210', name: 'IDE' }, undefined)), 'NOT_AUTHORIZED');
+  // The same agent, started again: its key gives it the same id, and the session is its own. Nothing is claimed.
+  assert.deepEqual(resolveSession([left], { id: 'a-0123456789ab', name: 'Renamed' }, 's1'), { session: left, claim: false });
+  // An id that only looks alike is another id.
+  assert.equal(code(() => resolveSession([left], { id: 'a-0123456789ab~1f2e', name: 'IDE' }, 's1')), 'SESSION_NOT_OWNED');
 });
 
-test('a disconnected agent takes its sessions with it: its own and its former self\'s, and no others', () => {
+test('an id that is the same at every start is told from one made for a start', () => {
+  assert.equal(isLastingAgent('a-0123456789ab'), true);
+  // A second process with the same key, an agent without a key, and what is no id at all.
+  for (const id of ['a-0123456789ab~1f2e', 'c-1a2b3c4d', 'a-0123', 'A-0123456789AB', '', null, undefined]) {
+    assert.equal(isLastingAgent(id), false, String(id));
+  }
+});
+
+test('a disconnected agent takes its own sessions with it, and no others', () => {
   const mine = session({ id: 's1', clientId: 'c-me' });
   const second = session({ id: 's2', clientId: 'c-me', origin: 'https://wiki.example' });
   const theirs = session({ id: 's3', clientId: 'c-other', clientName: 'Other' });
   const open = session({ id: 's4', clientId: null, clientName: null });
-  const left = session({ id: 's5', clientId: 'c-old', clientName: 'IDE' });
-  const leftByAnother = session({ id: 's6', clientId: 'c-gone', clientName: 'Other' });
-  const all = [mine, second, theirs, open, left, leftByAnother];
-  const me = { id: 'c-me', name: 'IDE' };
-  const connected = new Set(['c-me', 'c-other']);
+  const sameName = session({ id: 's5', clientId: 'c-old', clientName: 'IDE' });
+  const all = [mine, second, theirs, open, sameName];
 
-  // What it could use, less what was given to no agent: exactly the tabs it would have after "Allow again".
-  assert.deepEqual(sessionsOfAgent(all, me, connected), [mine, second, left]);
-  // While the agent that left them is still connected, they are that agent's.
-  assert.deepEqual(sessionsOfAgent(all, me, new Set(['c-me', 'c-other', 'c-old'])), [mine, second]);
-  // An agent that is not connected any more, so that its name is not known: what carries its id.
-  assert.deepEqual(sessionsOfAgent(all, { id: 'c-me', name: '' }, new Set(['c-other'])), [mine, second]);
-  // An agent without a name is nobody's former self.
-  assert.deepEqual(sessionsOfAgent([session({ clientId: 'c-old', clientName: null }), open], { id: 'c-x', name: '' }, new Set(['c-x'])), []);
-  assert.deepEqual(sessionsOfAgent(all, { id: 'c-none', name: 'Nobody' }, connected), []);
+  // What carries its id. Not what was given to no agent, and not what an agent of the same name has.
+  assert.deepEqual(sessionsOfAgent(all, { id: 'c-me', name: 'IDE' }), [mine, second]);
+  assert.deepEqual(sessionsOfAgent(all, { id: 'c-me', name: '' }), [mine, second]);
+  assert.deepEqual(sessionsOfAgent(all, { id: 'c-none', name: 'IDE' }), []);
 });
 
 test('navigation resolves relative URLs and stays inside the origin', () => {
@@ -505,9 +505,8 @@ test('the badge says ON only while an agent that may use a tab is connected', ()
   const unclaimed = { ...open, clientId: null, clientName: null };
   assert.equal(badgeFor(false, false, [unclaimed], [other]), 'ON');
   assert.equal(badgeFor(false, false, [unclaimed], []), 'OFF');
-  // An agent that was started again takes up what its former self left, by its name.
-  assert.equal(badgeFor(false, false, [open], [{ id: 'c-new', name: 'Me' }]), 'ON');
-  assert.equal(badgeFor(false, false, [open], [{ id: 'c-new', name: '' }]), 'OFF', 'not before it has said its name');
+  // An agent of the same name is another agent: it cannot act on the tab, so the badge does not say that one can.
+  assert.equal(badgeFor(false, false, [open], [{ id: 'c-new', name: 'Me' }]), 'OFF');
   // One tab that can be acted on is enough for ON.
   const left = { ...open, clientId: 'c-gone', clientName: 'Gone' };
   assert.equal(badgeFor(false, false, [left, open], [me]), 'ON');
@@ -567,4 +566,99 @@ test('a command is refused when the tab, or any site of its session, is blocked;
     (e: unknown) => e instanceof CommandError && e.code === 'SETTINGS_UNREADABLE');
   assert.equal(failureNote('SITE_BLOCKED'), 'site blocked');
   assert.equal(failureNote('SETTINGS_UNREADABLE'), 'settings unreadable');
+});
+
+const limits = (over: Partial<Limits> = {}): Limits => ({ ...NO_LIMITS, ...over });
+
+test('the policy takes away screenshots, the higher access levels and sites outside the allowed ones', () => {
+  const here = ['https://app.example/issues', 'https://app.example'];
+  // No policy: nothing is refused here.
+  for (const action of ['snapshot', 'screenshot', 'click', 'fill', 'submit', 'navigate']) {
+    assert.equal(code(() => checkLimits(NO_LIMITS, action, here)), 'ok', action);
+  }
+  assert.equal(code(() => checkLimits(limits({ screenshots: false }), 'screenshot', here)), 'SCREENSHOTS_DISABLED');
+  assert.equal(code(() => checkLimits(limits({ screenshots: false }), 'snapshot', here)), 'ok');
+
+  const explore = limits({ maxAccess: 'explore' });
+  for (const action of ['fill', 'submit']) assert.equal(code(() => checkLimits(explore, action, here)), 'ACCESS_RESTRICTED', action);
+  for (const action of ['snapshot', 'extract', 'scroll', 'wait_for', 'click', 'press_key', 'navigate']) {
+    assert.equal(code(() => checkLimits(explore, action, here)), 'ok', action);
+  }
+  const read = limits({ maxAccess: 'read' });
+  for (const action of ['click', 'press_key', 'navigate', 'fill', 'submit']) assert.equal(code(() => checkLimits(read, action, here)), 'ACCESS_RESTRICTED', action);
+  assert.equal(code(() => checkLimits(read, 'extract', here)), 'ok');
+  assert.equal(capMode('write', 'explore'), 'explore');
+  assert.equal(capMode('read', 'explore'), 'read');
+  assert.equal(capMode('write', 'write'), 'write');
+
+  const only = limits({ allowed: ['example.org', '10.0.0.7'] });
+  assert.equal(code(() => checkLimits(only, 'snapshot', ['https://docs.example.org/a', 'https://example.org'])), 'ok');
+  assert.equal(code(() => checkLimits(only, 'snapshot', ['http://10.0.0.7:8080/x'])), 'ok');
+  assert.equal(code(() => checkLimits(only, 'snapshot', here)), 'SITE_NOT_ALLOWED');
+  // Every site of the session and the address of its tab: one outside is enough.
+  assert.equal(outsideAllowed(only, ['https://example.org', 'https://evil.example/x']), 'evil.example');
+  assert.equal(outsideAllowed(only, ['https://notexample.org']), 'notexample.org', 'a name that only ends alike is another site');
+  assert.equal(outsideAllowed(only, ['https://example.org.evil.example']), 'example.org.evil.example');
+  assert.equal(outsideAllowed(only, ['http://10.0.0.70']), '10.0.0.70');
+  // An address that names no site is not allowed; one that is not known is left to the other checks.
+  assert.equal(outsideAllowed(only, ['not an address']), 'an address that names no site');
+  assert.equal(outsideAllowed(only, [undefined, null, 'https://example.org']), null);
+  assert.equal(outsideAllowed(NO_LIMITS, ['https://anything.example']), null);
+});
+
+test('under the strict profile a click that may change something is a submission, and every submission is asked about', () => {
+  const button: ClickTarget = { readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Toggle theme' };
+  const link: ClickTarget = { ...button, readSafe: true, label: 'Next page' };
+  const fold: ClickTarget = { ...button, disclosure: true, label: 'Details' };
+  // Without the profile a plain button is clicked.
+  assert.equal(checkClick('write', 'interact', button), 'interact');
+  // With it, it needs the agent's word that a change is meant, and then goes the way of a submission.
+  assert.equal(code(() => checkClick('write', 'interact', button, true)), 'SUBMIT_INTENT_REQUIRED');
+  assert.equal(checkClick('write', 'submit', button, true), 'submit');
+  // What only shows something still passes: a link of the site, an expand or collapse control.
+  assert.equal(checkClick('write', 'interact', link, true), 'interact');
+  assert.equal(checkClick('write', 'interact', fold, true), 'interact');
+  assert.equal(checkClick('explore', 'interact', link, true), 'interact');
+  // And a key that does what a click does follows the same rule.
+  assert.equal(code(() => checkKey('write', 'interact', { submit: null, click: button, label: 'Toggle theme' }, true)), 'SUBMIT_INTENT_REQUIRED');
+  assert.equal(checkKey('write', 'submit', { submit: null, click: button, label: 'Toggle theme' }, true), 'click');
+  assert.equal(checkKey('write', 'interact', { submit: null, click: link, label: 'Next page' }, true), 'press');
+
+  for (const mode of ['always', 'auto', 'never'] as const) {
+    assert.equal(askUnder({ strict: true }, mode), 'always', mode);
+    assert.equal(askUnder({ strict: false }, mode), mode);
+  }
+});
+
+test('an authorization ends at the earliest of the user\'s time, the policy\'s longest and the policy\'s time unused', () => {
+  const minute = 60_000;
+  const at = 1_000_000_000;
+  const session = { expiresAt: null, createdAt: at, lastUsedAt: at + 50 * minute };
+  assert.equal(endsAt(session, NO_LIMITS), null, 'until revoked');
+  assert.equal(endsAt({ ...session, expiresAt: at + 60 * minute }, NO_LIMITS), at + 60 * minute);
+  assert.equal(endsAt(session, limits({ sessionMaxMinutes: 480 })), at + 480 * minute);
+  assert.equal(endsAt(session, limits({ sessionIdleMinutes: 30 })), at + 80 * minute, 'thirty minutes after its last command');
+  assert.equal(endsAt(session, limits({ sessionMaxMinutes: 60, sessionIdleMinutes: 30 })), at + 60 * minute);
+  assert.equal(endsAt({ ...session, expiresAt: at + 10 * minute }, limits({ sessionMaxMinutes: 60, sessionIdleMinutes: 30 })), at + 10 * minute);
+  // A session that was never used is unused since it was given.
+  assert.equal(endsAt({ expiresAt: null, createdAt: at }, limits({ sessionIdleMinutes: 30 })), at + 30 * minute);
+  // One from before these times were noted has only what the user gave it.
+  assert.equal(endsAt({ expiresAt: null }, limits({ sessionMaxMinutes: 60, sessionIdleMinutes: 30 })), null);
+  // And it is this end that the gate looks at.
+  const gated = { origins: [ORIGIN], mode: 'read' as const, paused: false, suspended: false, expiresAt: endsAt(session, limits({ sessionIdleMinutes: 30 })) };
+  assert.equal(code(() => checkGate(gated, 'snapshot', HERE, at + 79 * minute)), 'ok');
+  assert.equal(code(() => checkGate(gated, 'snapshot', HERE, at + 80 * minute)), 'AUTHORIZATION_EXPIRED');
+});
+
+test('of what several servers say, the stricter holds', () => {
+  assert.deepEqual(strictest([]), NO_LIMITS);
+  assert.deepEqual(strictest([NO_LIMITS, NO_LIMITS]), NO_LIMITS);
+  const a = limits({ strict: true, allowed: ['example.org', 'intranet.example'], maxAccess: 'explore', sessionMaxMinutes: 480 });
+  const b = limits({ screenshots: false, allowed: ['docs.example.org', 'other.example'], sessionMaxMinutes: 60, sessionIdleMinutes: 20 });
+  assert.deepEqual(strictest([a, NO_LIMITS, b]), {
+    // A site has to be allowed by every server that limits sites: only what lies inside both lists is left.
+    strict: true, allowed: [], screenshots: false, maxAccess: 'explore', sessionMaxMinutes: 60, sessionIdleMinutes: 20,
+  });
+  assert.deepEqual(strictest([a, limits({ allowed: ['example.org'] })]).allowed, ['example.org']);
+  assert.deepEqual(strictest([a, NO_LIMITS]).allowed, ['example.org', 'intranet.example']);
 });

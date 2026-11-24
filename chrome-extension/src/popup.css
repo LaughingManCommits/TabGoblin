@@ -292,6 +292,8 @@ button.link:hover { color: var(--fg); }
 .callout > select { margin-bottom: 6px; }
 .callout > button { width: 100%; overflow: hidden; text-overflow: ellipsis; }
 /* A site the user has blocked: a statement, with nothing to press. */
+.callout.policy { border-style: solid; }
+.callout.policy p { margin-bottom: 0; }
 .callout.blocked { border-style: solid; border-color: var(--warn-line); background: var(--warn-soft); }
 .callout.blocked p { color: var(--warn); margin-bottom: 0; }
 .session .meta.blocked-note { color: var(--warn); margin-top: -5px; }

@@ -71,7 +71,7 @@ class PanelTest {
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
-                "Stop server", "Kill", "TabGoblin 9.8.7 · protocol 2")) {
+                "Stop server", "Kill", "TabGoblin 9.8.7 · protocol 3")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + all);
         }
         // The log's lines, each with its time; a warning is marked.

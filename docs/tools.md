@@ -37,9 +37,17 @@ user)*. A session with write access that the user set differently says so in its
 the same words: `Submissions need user confirmation in this session: …`. An agent does not need
 to act on either line: a submission is declared the same way under every setting.
 
+The line *This agent* says who the agent is: `identity "…": the same agent at every start` for an
+agent whose program names it with `--agent`, or that it has no identity of its own and its tabs
+do not come back after a restart. Where the user's [security policy](user-guide.md#the-security-policy)
+restricts something, a line `Security policy: …` says what: the strict profile, no screenshots,
+the highest access level, how long an authorization lasts, and that agents work only on the
+sites the user allows. Under the strict profile a click on anything but a link or an
+expand/collapse control answers `SUBMIT_INTENT_REQUIRED`, like a control that submits.
+
 ```text
-Extension: connected (protocol 2)
-This agent: c-1a2b3c4d on port 47821
+Extension: connected (protocol 3)
+This agent: a-1a2b3c4d5e6f on port 47821 (identity "claude-code": the same agent at every start)
 Submissions need user confirmation: yes
 Sessions: 1
 Session s1
@@ -277,6 +285,9 @@ headings it starts.
 | `BLOCKED` | A frame from another origin cannot be read | Nothing; that content is out of reach |
 | `UNKNOWN` | Not scrolled to the end | Scroll to the bottom; watch for `loadedMore` |
 
+What looks like a credential is replaced by `[redacted]` in the text of a snapshot and of an
+extract, and in the addresses that tools report ([security](security.md#what-is-taken-out-before-it-leaves-the-page)).
+
 ## browser_scroll
 
 `direction` (`up`, `down`, `left`, `right`, `top`, `bottom`), `amount` in pixels, `ref` to scroll
@@ -297,6 +308,10 @@ Returns a JPEG of the viewport plus a note such as *"This image shows only the v
 must be the visible tab of its window. TabGoblin's own notice in the page is not in the picture: it
 is taken out first, and the picture is taken when the page has drawn itself again, which on a
 busy page takes a moment.
+
+No picture is taken while a frame of another site is in view: the call answers
+`SCREENSHOT_BLOCKED`, and the frame can be scrolled out of view. Where the user's security
+policy allows no screenshots, it answers `SCREENSHOTS_DISABLED`.
 
 ## browser_wait_for
 
@@ -489,11 +504,16 @@ Every failure is `Error [CODE]: message`.
 | `NAVIGATION_BLOCKED` | The destination is outside the session's sites |
 | `ORIGIN_MISMATCH` | The tab ended up outside them |
 | `SITE_BLOCKED` | The site is on the user's list of [blocked sites](user-guide.md#blocked-sites): the session's own site, a site the user added to it, or the address to go to. The message names that one site. Nothing was sent to the browser. There is no other way to that site through these tools; tell the user |
+| `SITE_NOT_ALLOWED` | The user's [security policy](user-guide.md#the-security-policy) limits agents to certain sites, and this one is not among them. The message names the one site. Nothing was sent to the browser |
+| `ACCESS_RESTRICTED` | The policy allows no session the access level this needs, whatever the session was given. Only the user can change the policy |
+| `SCREENSHOTS_DISABLED` | The policy allows no screenshots. Read the page with `browser_snapshot` or `browser_extract` |
+| `AGENT_REVOKED` | The user revoked this agent on this machine. No tool works. Do not try another way; tell the user |
 | `SETTINGS_UNREADABLE` | The server cannot read its settings file, so it refuses every site until the user has mended the file. The server's window says what is wrong with it |
 | `SUBMIT_INTENT_REQUIRED` | The action submits; state it as a submission |
 | `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer. `SUBMIT_DENIED` also comes without a question: for a request the user declined in the last five minutes, and for a session whose last three requests were declined or not answered. Do not retry; tell the user, who can let the session ask again in the popup. |
 | `CONFIRMATION_PENDING` | The user is being asked about another submission. Try again when that is answered. |
 | `DUPLICATE_SUBMISSION` | Same content as a recent submission |
+| `APPROVAL_STALE` | What would be submitted changed after it was checked and the user was asked. Nothing was sent. Take a new snapshot and submit again; the user is asked again |
 | `FILL_REJECTED` | A field did not keep its text, so nothing was submitted |
 | `STALE_REF` | The element changed or is gone; take a new snapshot |
 | `SENSITIVE_FIELD` | Password or credential field |
@@ -502,7 +522,8 @@ Every failure is `Error [CODE]: message`.
 | `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried. `CONNECTION_LOST` is also what a call answers that was running when the server's process ended: the server is started anew by itself, and the next call goes to it |
 | `CANCELLED`, `INTERRUPTED` | Stopped by the user (pause, revoke, a lower access level). A call the client itself cancels gets no answer at all. |
 | `TAB_NOT_VISIBLE`, `SCREENSHOT_FAILED` | The tab could not be captured |
+| `SCREENSHOT_BLOCKED` | A frame from another site is in view, and a picture would show what is in it. Scroll it out of view, or read the page as text |
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |
-| `RATE_LIMITED`, `DUPLICATE_COMMAND`, `STALE_COMMAND` | Protocol protections |
+| `RATE_LIMITED`, `DUPLICATE_COMMAND`, `STALE_COMMAND` | Protocol protections. `RATE_LIMITED` also when twenty commands are waiting for one tab already: wait for the answers |
 | `INVALID_ARGUMENT`, `INVALID_URL`, `UNKNOWN_TOOL`, `UNSUPPORTED_ACTION` | The request itself is wrong |
 | `PAGE_ERROR`, `EXTENSION_ERROR`, `ERROR` | Something failed that has no code of its own: in the page, in the extension, or in the server. The message says what |

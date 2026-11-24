@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fourteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Fifteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -30,7 +30,9 @@ filed on 2026-11-23, is a performance test between the extension and the server;
 are decided, and it is not started: the owner said not yet. WP-25, filed the same day, is
 release notes that say what changed; it is to come with the next release, and is not started.
 WP-26, filed the same day, is access that ends by itself when it is not used; it is not
-started. New work gets the next number, WP-27.
+started. WP-27, asked for on 2026-11-24, is security hardening and developer features in
+fourteen points, in three priorities; its entry has the gap analysis, the backlog, what was
+built and what was left. New work gets the next number, WP-28.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1506,3 +1508,100 @@ over a restart of the worker; end to end, with a short time set in the real popu
 a session that is not used for the time set is gone from the popup and refused to the agent,
 with the reason said to both; one that is used stays; and with *never* nothing is different
 from today.
+
+## WP-27: Security hardening, and features for developers
+
+Asked for by the owner on 2026-11-24, as one list of fourteen points in three priorities:
+security first (P0), then what saves an agent calls and context (P1), then what makes the
+product easier to live with (P2). The constraints were the repository's own: local, no site
+known to the product, no cookies or script, nothing granted without the user.
+
+### Gap analysis
+
+Read from the source and the documentation as they were at `a06b0ce`, before anything was
+changed. "There" means built and tested; "part" means built in part; "not" means not there.
+
+| # | Point | Was | What was missing |
+|---|---|---|---|
+| 1 | Agent identity | part | An agent's id was made anew at every start, and its tabs came back to it by the name it gave itself: a program that could pair could take that name while the first was away. A Disconnect did not hold over a restart. No credential of an agent's own, and no way to take one agent away on the server |
+| 2 | Authorization and session isolation | part | Checked once, when a command arrived; a command that waited for the page or for the user used what was allowed then. Expiry was a time the user picked, with no limit from a policy and none for a session that is not used (WP-26). No limit on commands waiting for one tab |
+| 3 | Submission approval | part | An answer was for one request, once, within a minute, and a repeat was refused: there. Not bound to the content: what was sent was what the page held at the click, also when that changed while the user was asked |
+| 4 | Strict profile | not | Blocked sites were the only local restriction. Screenshots, the automatic mode, *Any agent* and plain clicks could not be switched off by a policy |
+| 5 | Data and transport | part | Loopback, proofs both ways, origin pinning, sizes, rates, replay, versions: there. A screenshot showed frames of another site. Nothing was redacted. An extension of the older version would have kept the older rule |
+| 6 | Security tests | part | None for impersonation by name with the owner away, for a change between two steps of a command, for a changed content after the prompt, for frames in a picture, for a flood on one tab |
+| 7 | Smart extraction | part | Outline, one section by ref, paging: there. No search, no context, no tables or code blocks alone, one region per call |
+| 8 | Incremental snapshots | there | `diff` on `browser_snapshot`, refs kept, full snapshot as the fallback. Left as it is |
+| 9 | Bounded collection | not | An agent scrolls and reads in separate calls |
+| 10 | Waits and interactions | part | Waiting for text or a ref (visible, gone, enabled, disabled), expand and collapse by click, scrolling to a ref, a fixed set of keys: there. No hover, no waiting for a change |
+| 11 | Workspaces | not | |
+| 12 | Access requests | not | An agent tells the user in its own words what to authorize |
+| 13 | Management interface | part | The popup and the server's window show agents, sessions, activity, prompts, expiry. Not the policy, and not whether an agent is the same at every start |
+| 14 | Corporate readiness | part | Checksums and GitHub's attestation for a release: there. No record on disk, no policy file beyond blocked sites, no SBOM, no scan of dependencies |
+
+### Backlog, in the order it was taken
+
+1. Agent identity by a key of its own; sessions bound to the id; revocation (point 1).
+2. A local security policy in the settings file, with a strict profile; enforced by the server
+   and by the extension (points 4, 2).
+3. Every step that touches the page checked again; a limit on what waits for a tab (point 2).
+4. An approval bound to the content the user was shown (point 3).
+5. Redaction; no picture with a frame of another site in view; a protocol version that refuses
+   the older rule (point 5).
+6. Tests for each of these, in the rules, the worker, the server and the real browser (point 6).
+7. Search and regions in `browser_extract` (point 7).
+8. A record on disk; an SBOM and a scan of dependencies in the workflows (point 14).
+9. The popup says the policy and who an agent is (point 13).
+10. Collection over scrolling and pages; hover; waiting for a change (points 9, 10).
+11. Workspaces; access requests (points 11, 12).
+
+### What was built
+
+Items 1 to 9. What each is, for a user, is in the pages that own it: the
+[security model](docs/security.md) (agents, the security policy, what is checked and when,
+submissions, what is taken out, logging), the [user guide](docs/user-guide.md#the-security-policy),
+the [tool reference](docs/tools.md) and the [protocol](docs/development.md#protocol-reference).
+What was run is in the validation log.
+
+What a setup from before has to know:
+
+- **The protocol version is 3.** The server and the extension have to be of this release
+  together; either one alone is refused by the other.
+- **An agent's tabs come back after a restart only where the agent is named** with
+  `--agent <name>` in the command that starts the server. The setup command prints the line
+  with it. A setup without it works, and its tabs have to be authorized again after each
+  restart: handing tabs on by a name the agent gives itself was the weakness.
+- **A screenshot is refused while a frame of another site is in view.**
+- **Text that looks like a credential reads `[redacted]`** in snapshots, extracts and addresses.
+
+### Decisions the session took, which are the owner's to change
+
+1. **No name, no tabs back.** The alternative was to keep the old rule for agents without a
+   key. It was not kept: it is the rule the point asked to replace.
+2. **The policy is the settings file,** beside the blocked sites, and a value that cannot be
+   read blocks everything, as a slip in that list does.
+3. **What the strict profile sets:** the six things in its row of the security model. Eight
+   hours and thirty minutes are the session's numbers.
+4. **WP-26, access that ends when it is not used, is built as a line of the policy** and is
+   off without it. Its six decisions are still the owner's: this does not make it a default.
+5. **Redaction cannot be switched off.** It goes by shape and has holes; the security model
+   says so.
+6. **A frame smaller than 8 pixels a side does not hold a picture back.**
+7. **Search runs on an automaton of its own, not on the browser's regular expressions,** because
+   those cannot be bounded in time: measured, `.*.*.*x` took 37 seconds on a line of 1,000
+   characters. The price is a subset of the syntax, named in the tool reference.
+
+### Left, and why
+
+- **Items 10 and 11: collection, hover, waiting for a change, workspaces, access requests.**
+  Not started. Each adds a tool or a prompt, which is a change of the public contract in
+  eight places and of what the user is asked; they were not begun in a session that was
+  already changing the protocol.
+- **The server's window does not show the policy or an agent's identity.** It has no display
+  here to be looked at; the popup shows both.
+- **The SBOM and the scan run in the workflows only,** which run on GitHub. They were read as
+  YAML and not run.
+- **Not signed, as before.** A download is verified by its checksum and GitHub's attestation.
+- **What cannot be enforced,** and is said in the security model: one program of the user's
+  against another (keys, token and settings have the protection of the home folder); a secret
+  of no known shape; text typed without a submission under the strict profile; a page that
+  changes something on a plain link.

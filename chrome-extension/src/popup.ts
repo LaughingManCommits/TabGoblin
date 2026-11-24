@@ -3,7 +3,7 @@
 // only shows state and sends requests.
 
 import { agentsSummary, disconnectCost, sessionsSummary, settingsSummary } from './panels.ts';
-import { blockedBy, hostOf } from './policy.ts';
+import { blockedBy, hostOf, type Limits } from './policy.ts';
 
 type Mode = 'read' | 'explore' | 'write';
 
@@ -37,6 +37,9 @@ interface SessionView {
   /** One of its sites is on the list of blocked sites: nothing an agent does in it goes through. */
   blocked: boolean;
   mode: Mode;
+  /** What it has under the user's policy, and whether one of its sites is outside the allowed ones. */
+  access?: Mode;
+  outside?: boolean;
   paused: boolean;
   expiresAt: number | null;
   clientId: string | null;
@@ -56,6 +59,8 @@ interface ClientView {
   port: number;
   /** The tabs a Disconnect would take from this agent. */
   tabs: number;
+  /** Whether it has a key of its own, and so is the same agent at every start. */
+  lasting?: boolean;
 }
 
 interface State {
@@ -71,6 +76,8 @@ interface State {
   blockedClients: string[];
   /** The sites no agent may work on, from the server's settings; `everything` when those cannot be read. */
   blocked: { sites: string[]; everything: boolean };
+  /** What the user's security policy restricts, from the server's settings. */
+  limits: Limits;
   sessions: SessionView[];
   activity: ActivityEntry[];
   pendingConfirm: {
@@ -180,6 +187,18 @@ function connectionText(s: State): string {
   }
 }
 
+/** The user's security policy in one line, or nothing when it restricts nothing. Its words are the extension's own. */
+function policyLine(limits: Limits): string {
+  const parts: string[] = [];
+  if (limits.strict) parts.push('strict: every submission is confirmed by you, and a click that may change something counts as one');
+  if (limits.allowed.length) parts.push(`agents work only on ${limits.allowed.length === 1 ? limits.allowed[0] : `${limits.allowed.length} sites`}`);
+  if (!limits.screenshots) parts.push('no screenshots');
+  if (limits.maxAccess !== 'write') parts.push(`access up to ${limits.maxAccess === 'explore' ? 'Explore' : 'Read'}`);
+  if (limits.sessionMaxMinutes) parts.push(`an authorization lasts at most ${limits.sessionMaxMinutes} min`);
+  if (limits.sessionIdleMinutes) parts.push(`ends after ${limits.sessionIdleMinutes} min without a command`);
+  return parts.length ? `Security policy: ${parts.join('; ')}. It is set in the TabGoblin server's settings file.` : '';
+}
+
 function renderAgents(s: State): void {
   $('agentsSection').hidden = !s.clients.length && !s.blockedClients.length;
   rebuild('agents', [s.clients, s.blockedClients], () => {
@@ -193,7 +212,10 @@ function renderAgents(s: State): void {
       button.title = cost.hint;
       button.addEventListener('click', () => void request({ type: 'disconnectClient', clientId: client.id }));
       const name = el('span', 'name', agentLabel(client, s.clients));
-      name.title = name.textContent ?? '';
+      // Whether this agent is the same agent at every start, or known for this start only.
+      name.title = `${name.textContent ?? ''} · ${client.id} · ${client.lasting
+        ? 'has a key of its own: the same agent at every start'
+        : 'no key of its own: known for this start only, and its tabs do not come back after a restart'}`;
       li.append(name, el('span', 'tabs', cost.beside), el('span', 'muted', `:${client.port}`), button);
       list.append(li);
     }
@@ -239,6 +261,9 @@ function renderSessions(s: State): void {
         : 'Waiting for an agent';
       const parts = [owner];
       if (session.expiresAt) parts.push(`until ${new Date(session.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      // What the session has under the policy, where that is less than what it was given.
+      if (session.access && session.access !== session.mode) parts.push(`policy: ${session.access === 'explore' ? 'Explore' : 'Read'} at most`);
+      if (session.outside) parts.push('not on a site your policy allows');
       if (session.lastSubmission) parts.push(`last submission ${session.lastSubmission.toLowerCase()}`);
 
       const controls = el('div', 'row');
@@ -355,18 +380,27 @@ function renderSessions(s: State): void {
   // With one agent connected it gets the tab; with several the user chooses.
   const agent = $<HTMLSelectElement>('newAgent');
   agent.hidden = s.clients.length < 2 || blockedHere;
-  rebuild('newAgent', s.clients, () => {
+  rebuild('newAgent', [s.clients, s.limits.strict], () => {
     agent.replaceChildren();
-    const any = el('option', '', 'Any agent');
-    any.value = '';
-    agent.append(any);
+    // Under the strict profile a tab is for one named agent: "Any agent" is not offered.
+    if (!s.limits.strict) {
+      const any = el('option', '', 'Any agent');
+      any.value = '';
+      agent.append(any);
+    }
     for (const client of s.clients) {
       const option = el('option', '', agentLabel(client, s.clients));
       option.value = client.id;
       agent.append(option);
     }
-    agent.value = s.clients.length === 1 ? s.clients[0].id : '';
+    agent.value = s.clients.length === 1 || (s.limits.strict && s.clients.length) ? s.clients[0].id : '';
   });
+  // What the policy restricts is said where the user gives access.
+  const policy = policyLine(s.limits);
+  $('policyNote').hidden = !policy;
+  $('policyText').textContent = policy;
+  // Under the strict profile the setting for asking is not the user's to loosen here.
+  $<HTMLSelectElement>('askMode').disabled = s.limits.strict;
 }
 
 function renderActivity(s: State): void {

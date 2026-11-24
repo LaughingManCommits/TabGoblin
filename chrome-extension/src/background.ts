@@ -9,15 +9,16 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, RateLimiter, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope,
+  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, RateLimiter, askUnder, capMode, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
-  type AllowMemory, type AskMemory, type AskMode, type Blocked, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
+  type AllowMemory, type AskMemory, type AskMode, type Blocked, type Limits, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_UNRESPONSIVE, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
   type CommandMessage,
 } from './protocol.ts';
+import { redactUrl } from './redact.ts';
 import type { SubmitBaseline } from './submit.ts';
 
 const DEFAULT_PORT = 47821;
@@ -34,6 +35,8 @@ const VERIFY_WINDOW_MS = 6000;
 const COMMANDS_PER_SECOND = 20;
 const COMMAND_BURST = 40;
 const REF_RANGE_SIZE = 100_000;
+/** How many commands may wait for one tab at a time. One more is refused, and not left waiting where nobody sees it. */
+const QUEUED_PER_SESSION = 20;
 
 interface Config {
   token: string;
@@ -71,6 +74,11 @@ interface SessionRecord extends SessionAuth {
   asks?: AskMemory;
   /** When the user is asked, for this session only. Unset: as the general setting says. */
   ask?: AskMode;
+  /** When the user authorized the tab, and when a command last passed its checks here: for the policy's two limits on how long an authorization lasts. */
+  createdAt?: number;
+  lastUsedAt?: number;
+  /** A name the user gave to a group of tabs that belong to one task. It groups, and gives nothing. */
+  workspace?: string;
 }
 
 interface ActivityEntry {
@@ -109,6 +117,8 @@ interface Client {
   seen: RecentIds;
   /** The sites no agent may work on, as this server last said. */
   blocked: Blocked;
+  /** What else the user's settings restrict, as this server last said. */
+  limits: Limits;
 }
 
 type ConfirmAnswer = 'allow' | 'deny' | 'timeout' | 'cancelled';
@@ -182,7 +192,7 @@ const ready: Promise<void> = (async () => {
   } catch {
     // Older Chrome: content scripts here never read storage anyway.
   }
-  const stored = await chrome.storage.local.get(['token', 'port', 'ask', 'confirmSubmissions', 'indicator', 'folded']);
+  const stored = await chrome.storage.local.get(['token', 'port', 'ask', 'confirmSubmissions', 'indicator', 'folded', 'blockedAgents']);
   config = {
     token: typeof stored.token === 'string' ? stored.token : '',
     port: typeof stored.port === 'number' ? stored.port : DEFAULT_PORT,
@@ -199,6 +209,8 @@ const ready: Promise<void> = (async () => {
       s.refRange ??= i;
       s.origins ??= [s.origin];
       s.suspended ??= false;
+      s.createdAt ??= Date.now();
+      s.lastUsedAt ??= s.createdAt;
     });
     // Anything still "running" or mid-submission belonged to a worker that no longer exists.
     persisted.activity = persisted.activity.filter((a) => a.status !== 'running');
@@ -212,11 +224,20 @@ const ready: Promise<void> = (async () => {
       session.submissions = session.submissions.filter((s) => s.state !== 'PREPARED' && s.state !== 'FILLED');
     }
   }
+  // An agent with a key of its own is the same agent after the browser was started again: the
+  // user's no to it is kept that long as well.
+  const kept = Array.isArray(stored.blockedAgents) ? stored.blockedAgents.filter(isLastingAgent) : [];
+  persisted.blockedClients = [...new Set([...persisted.blockedClients, ...kept])];
   refreshBadge();
 })();
 
 function save(): void {
   void chrome.storage.session.set({ state: persisted });
+}
+
+/** Keeps the user's no to agents that have a key of their own beyond this run of the browser. The newest hundred. */
+function saveBlockedAgents(): void {
+  void chrome.storage.local.set({ blockedAgents: persisted.blockedClients.filter(isLastingAgent).slice(-100) });
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -241,6 +262,11 @@ function blockedNow(): Blocked {
   };
 }
 
+/** What the user's security policy restricts, for the user's own clicks and for what the popup shows: of each server's word the stricter. */
+function limitsNow(): Limits {
+  return strictest([...clients.values()].filter((c) => c.authenticated).map((c) => c.limits));
+}
+
 /** Refuses the user's own click on a blocked site, in words for the popup. */
 function refuseBlockedSite(origin: string): void {
   const host = blockedAmong(blockedNow(), [origin]);
@@ -248,6 +274,8 @@ function refuseBlockedSite(origin: string): void {
     throw new Error('No agent can work in any tab: the TabGoblin server cannot read its settings file. The server\'s window says what is wrong.');
   }
   if (host) throw new Error(`${host} is on your list of blocked sites. No agent can work there.`);
+  const outside = outsideAllowed(limitsNow(), [origin]);
+  if (outside) throw new Error(`${outside} is not among the sites your security policy allows agents to work on.`);
 }
 
 // ---------------------------------------------------------------- activity feed and badge
@@ -324,6 +352,12 @@ async function authorize(tabId: number, mode: Mode, clientId: string | null, min
   refuseBlockedSite(origin);
   const owner = clientId ? [...clients.values()].find((c) => c.authenticated && c.clientId === clientId) : undefined;
   if (clientId && !owner) throw new Error('That agent is no longer connected.');
+  const limits = limitsNow();
+  // Under the strict profile a tab is given to one agent by name, and not to whichever comes first.
+  if (limits.strict && !owner) throw new Error('Your security policy is strict: choose the agent this tab is for.');
+  if (capMode(mode, limits.maxAccess) !== mode) {
+    throw new Error(`Your security policy allows no session more than ${limits.maxAccess === 'explore' ? 'Explore' : 'Read'} access.`);
+  }
   // One authorization per tab: a new one replaces the old.
   const existing = persisted.sessions.find((s) => s.tabId === tabId);
   if (existing) endSession(existing, 'Replaced by a new authorization');
@@ -348,6 +382,8 @@ async function authorize(tabId: number, mode: Mode, clientId: string | null, min
     documentId: null,
     generation: 0,
     submissions: [],
+    createdAt: Date.now(),
+    lastUsedAt: Date.now(),
   };
   persisted.sessions.push(session);
   noteActivity(session.id, `Site authorized (${modeLabel(mode)})`);
@@ -521,7 +557,12 @@ async function page<T>(
   if (!pastSafePoint) checkpoint(op);
   await waitWhileLoading(session.tabId, 10000);
   await ensureContentScript(session);
-  if (!pastSafePoint) checkpoint(op);
+  if (!pastSafePoint) {
+    checkpoint(op);
+    // Immediately before the page is touched: what was allowed when the command began has to be
+    // allowed still. Waiting for the page, or for the user, takes time in which access can end.
+    await recheck(op, session);
+  }
   let reply: PageReply;
   try {
     reply = await sendToPage(session.tabId,
@@ -535,6 +576,32 @@ async function page<T>(
   save();
   if (!reply?.ok) throw pageError(session, reply);
   return reply.result as T;
+}
+
+/**
+ * Checks once more that a command may touch the page, right before it does: the session is
+ * there and the agent's own, not paused, suspended or run out, the tab is on one of its sites,
+ * the access level still covers the action, and the user's policy still allows it. Nothing is
+ * changed here but what a failed check changes anyway.
+ */
+async function recheck(op: Operation, session: SessionRecord): Promise<void> {
+  if (sessionById(op.sessionId) !== session) {
+    throw new CommandError('NOT_AUTHORIZED', 'This session ended while the command was running. Nothing further was done.');
+  }
+  if (session.clientId !== op.client.clientId) {
+    throw new CommandError('SESSION_NOT_OWNED', `Session ${session.id} now belongs to another agent.`);
+  }
+  const tab = await getTab(session.tabId);
+  const limits = op.client.limits;
+  try {
+    checkGate(tab ? { ...session, expiresAt: endsAt(session, limits) } : null, op.action, tab?.url);
+  } catch (e) {
+    if (e instanceof CommandError && e.code === 'ORIGIN_MISMATCH') suspendSession(session);
+    if (e instanceof CommandError && e.code === 'AUTHORIZATION_EXPIRED') endSession(session, 'Authorization expired');
+    throw e;
+  }
+  checkBlocked(op.client.blocked, [tab?.url, ...session.origins]);
+  checkLimits(limits, op.action, [tab?.url, ...session.origins]);
 }
 
 // ---------------------------------------------------------------- commands
@@ -555,17 +622,19 @@ function summarize(session: SessionRecord, client: Client, tab: chrome.tabs.Tab 
     state: session.suspended ? 'suspended' : session.paused ? 'paused' : 'active',
     paused: session.paused,
     // For agents: when the user is asked before a submission in this session. It may differ from the general setting.
-    confirmation: session.ask ?? config.ask,
+    confirmation: askUnder(client.limits, session.ask ?? config.ask),
     owner: session.clientId === client.clientId ? 'you' : 'unclaimed',
-    expiresAt: session.expiresAt,
-    tab: tab ? { title: tab.title ?? '', url: tab.url ?? '' } : null,
+    // When the authorization ends, by the user's word or by the policy's limits, whichever comes first.
+    expiresAt: endsAt(session, client.limits),
+    ...(session.workspace ? { workspace: session.workspace } : {}),
+    // The address without what looks like a credential in it.
+    tab: tab ? { title: tab.title ?? '', url: redactUrl(tab.url ?? '') } : null,
   };
 }
 
 async function sessionsFor(client: Client): Promise<object[]> {
   const identity = { id: client.clientId, name: client.name };
-  const connected = connectedClientIds();
-  const mine = persisted.sessions.filter((s) => canUse(s, identity, connected));
+  const mine = persisted.sessions.filter((s) => canUse(s, identity));
   return Promise.all(mine.map(async (s) => summarize(s, client, await getTab(s.tabId))));
 }
 
@@ -573,8 +642,8 @@ async function statusResult(client: Client, diagnostics: boolean): Promise<objec
   return {
     client: { id: client.clientId, name: client.name, port: client.port },
     // For agents: whether a submission is put to the user. The general setting; a session may differ.
-    confirmSubmissions: config.ask !== 'never',
-    confirmation: config.ask,
+    confirmSubmissions: askUnder(client.limits, config.ask) !== 'never',
+    confirmation: askUnder(client.limits, config.ask),
     sessions: await sessionsFor(client),
     // Only this agent's own operations: what another agent did in its tabs is not this one's to see.
     ...(diagnostics
@@ -596,8 +665,10 @@ async function gate(op: Operation, action: string): Promise<{ session: SessionRe
   }
   const tab = await getTab(session.tabId);
   if (!tab) endSession(session, 'Tab closed: access revoked');
+  const limits = op.client.limits;
   try {
-    checkGate(tab ? session : null, action, tab?.url);
+    // An authorization ends when the user said, and when the policy says: at its longest, or unused.
+    checkGate(tab ? { ...session, expiresAt: endsAt(session, limits) } : null, action, tab?.url);
   } catch (e) {
     if (e instanceof CommandError && e.code === 'ORIGIN_MISMATCH') suspendSession(session);
     if (e instanceof CommandError && e.code === 'AUTHORIZATION_EXPIRED') endSession(session, 'Authorization expired');
@@ -605,6 +676,10 @@ async function gate(op: Operation, action: string): Promise<{ session: SessionRe
   }
   // Where the tab is now, and every site the session spans: none of them may be on the list.
   checkBlocked(op.client.blocked, [tab?.url, ...session.origins]);
+  // And what the user's policy takes away: screenshots, the higher access levels, sites outside the allowed ones.
+  checkLimits(limits, action, [tab?.url, ...session.origins]);
+  // It passed: the session is in use.
+  session.lastUsedAt = Date.now();
   return { session, tab: tab as chrome.tabs.Tab };
 }
 
@@ -662,6 +737,24 @@ async function runCommand(op: Operation, action: string, params: Record<string, 
   }
 }
 
+/**
+ * The access a session has for this agent's command: what the user gave it, and no more than
+ * the policy's highest level. A refusal that only the policy causes says so, and not that the
+ * user could switch the session.
+ */
+function underPolicy<T>(op: Operation, session: SessionRecord, decide: (mode: Mode, strict: boolean) => T): T {
+  const limits = op.client.limits;
+  const mode = capMode(session.mode, limits.maxAccess);
+  try {
+    return decide(mode, limits.strict);
+  } catch (e) {
+    if (mode !== session.mode && e instanceof CommandError && (e.code === 'WRITE_NOT_AUTHORIZED' || e.code === 'EXPLORE_NOT_AUTHORIZED')) {
+      throw restricted(limits);
+    }
+    throw e;
+  }
+}
+
 /** Asks the user, in the extension popup, to allow one submission. */
 function askUser(op: Operation, facts: ConfirmFacts): Promise<ConfirmAnswer> {
   return new Promise<ConfirmAnswer>((resolve) => {
@@ -692,7 +785,8 @@ async function confirmWithUser(
   op: Operation, session: SessionRecord, label: string, how: ConfirmHow = 'click', preview: ConfirmFacts['preview'] = [],
 ): Promise<void> {
   const word = highImpactWord(label);
-  const mode = session.ask ?? config.ask;
+  // Under the strict profile every submission is put to the user, whatever was set before.
+  const mode = askUnder(op.client.limits, session.ask ?? config.ask);
   const key = `${how}:${label}`;
   const origin = originOf((await getTab(session.tabId))?.url);
   if (!needsAsking(mode, word, allows.get(session.id), key, origin, Date.now())) {
@@ -727,7 +821,7 @@ async function confirmWithUser(
   }
   // Access may have been paused, revoked or changed while the question was open.
   const now = await gate(op, 'submit');
-  if (now.session !== session || now.session.mode !== 'write') {
+  if (now.session !== session || capMode(now.session.mode, op.client.limits.maxAccess) !== 'write') {
     throw new CommandError('WRITE_NOT_AUTHORIZED', `Authorization changed while waiting for confirmation. ${nothing}`);
   }
   if (answer !== 'allow') {
@@ -736,7 +830,7 @@ async function confirmWithUser(
   }
   // In the automatic mode what was allowed passes for a while: only if the prompt said so, and
   // only under the setting the session has now.
-  if (lasting && origin !== null && remembersAllow(session.ask ?? config.ask, word, label, origin)) {
+  if (lasting && origin !== null && remembersAllow(askUnder(op.client.limits, session.ask ?? config.ask), word, label, origin)) {
     allows.set(session.id, rememberAllow(allows.get(session.id), key, how, label, origin, Date.now()));
     pushState();
   }
@@ -782,7 +876,7 @@ async function settle(session: SessionRecord, before: { url: string | undefined;
   return {
     navigated: navigation !== 'none',
     navigation,
-    url: tab?.url,
+    url: redactUrl(tab?.url),
     title,
     ...(opened ? { openedNewTab: true } : {}),
     ...(notes.length ? { note: notes.join(' ') } : {}),
@@ -793,7 +887,7 @@ async function click(op: Operation, session: SessionRecord, params: Record<strin
   const intent = params.intent === 'submit' ? 'submit' : 'interact';
   const ref = Number(params.ref);
   const target = await page<ClickTarget>(op, session, 'describe', { ref });
-  const kind = checkClick(session.mode, intent, target);
+  const kind = underPolicy(op, session, (mode, strict) => checkClick(mode, intent, target, strict));
   if (kind === 'submit') {
     return submit(op, session, { ref, fields: [], expectText: undefined, submissionId: undefined, repeat: false });
   }
@@ -804,10 +898,10 @@ async function click(op: Operation, session: SessionRecord, params: Record<strin
 
 async function pressKey(op: Operation, session: SessionRecord, params: Record<string, unknown>): Promise<object> {
   const { key, mode } = parseKey(String(params.key ?? ''));
-  requireMode(session.mode, mode);
+  underPolicy(op, session, (has) => requireMode(has, mode));
   const intent = params.intent === 'submit' ? 'submit' : 'interact';
   const target = await page<KeyTarget>(op, session, 'key_describe', { ref: params.ref, key });
-  const verdict = checkKey(session.mode, intent, target);
+  const verdict = underPolicy(op, session, (has, strict) => checkKey(has, intent, target, strict));
   if (verdict === 'click') {
     // The key would do what a click on this control does, and that click is a submission.
     if (params.ref === undefined || params.ref === null) {
@@ -911,9 +1005,9 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   }
   return {
     navigation,
-    url: after?.url,
+    url: redactUrl(after?.url),
     title: after?.title,
-    ...(requested && strip(after?.url) !== strip(requested) ? { redirected: true, requestedUrl: requested } : {}),
+    ...(requested && strip(after?.url) !== strip(requested) ? { redirected: true, requestedUrl: redactUrl(requested) } : {}),
     ...(unsaved && navigation === 'new-document' ? { discardedInput: unsaved } : {}),
     ...(notes.length ? { note: notes.join(' ') } : {}),
   };
@@ -924,6 +1018,14 @@ async function screenshot(op: Operation, session: SessionRecord): Promise<object
   if (!tab?.active) {
     throw new CommandError('TAB_NOT_VISIBLE',
       'The session\'s tab is not the visible tab of its window, so it cannot be captured. Ask the user to switch to it.');
+  }
+  // A picture shows whatever the tab shows, a frame of another site included, and such a frame is
+  // not the session's to read. Its text is never read; so no picture is taken while one is in view.
+  const frames = await page<{ foreign?: number }>(op, session, 'frames', {}, 5000);
+  if ((frames.foreign ?? 0) > 0) {
+    throw new CommandError('SCREENSHOT_BLOCKED',
+      'A frame from another site is in view, and a picture would show what is in it. Nothing was captured. '
+      + 'Scroll it out of view and try again, or read the page with browser_snapshot or browser_extract.');
   }
   // Nothing of the notice may be in the picture: it is taken away, lines and all, before the capture.
   await setNotice(session, { state: 'off' });
@@ -946,7 +1048,7 @@ async function screenshot(op: Operation, session: SessionRecord): Promise<object
   } catch {
     note = undefined;
   }
-  return { data: dataUrl.slice(comma + 1), mimeType: 'image/jpeg', url: after.url, ...(note ? { note } : {}) };
+  return { data: dataUrl.slice(comma + 1), mimeType: 'image/jpeg', url: redactUrl(after.url), ...(note ? { note } : {}) };
 }
 
 /** What a key press reports when the page itself took Enter, or submitted a form on it: it may have sent something. */
@@ -1016,8 +1118,8 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
     const target = prepared.target;
     // A text box is submitted by Enter in it, anything else by a click on it.
     const byEnter = prepared.by === 'enter';
-    if (byEnter) requireMode(session.mode, 'write');
-    else checkClick(session.mode, 'submit', target);
+    if (byEnter) underPolicy(op, session, (has) => requireMode(has, 'write'));
+    else underPolicy(op, session, (has, strict) => checkClick(has, 'submit', target, strict));
     const repeatOf = prepared.digest === null ? undefined : session.submissions.find((s) =>
       s.id !== id && s.digest === prepared.digest && Date.now() - s.time < DUPLICATE_WINDOW_MS
       && (s.state === 'CONFIRMED' || s.state === 'UNCERTAIN' || s.state === 'SUBMITTING' || s.state === 'VERIFYING'));
@@ -1029,6 +1131,9 @@ async function submit(op: Operation, session: SessionRecord, request: SubmitRequ
     advance('PREPARED');
     // The user decides before a single character is entered: declining leaves the page untouched.
     await confirmWithUser(op, session, byEnter ? prepared.label : target.label, byEnter ? prepared.how : 'click', prepared.preview ?? []);
+    // The answer was for what the user was shown. With its fingerprint the page looks once more,
+    // before anything is entered: if the content is another by now, or the document is, nothing is sent.
+    await page(op, session, 'submit_recheck', { submissionId: id, digest: prepared.digest });
 
     for (const field of request.fields) {
       const filled = await page<{ valueMatches: boolean }>(op, session, 'fill',
@@ -1209,8 +1314,17 @@ async function onCommand(client: Client, command: CommandMessage): Promise<void>
   }
   let session: SessionRecord;
   try {
-    const resolved = resolveSession(persisted.sessions, { id: client.clientId, name: client.name }, command.session, connectedClientIds());
+    const resolved = resolveSession(persisted.sessions, { id: client.clientId, name: client.name }, command.session);
     session = resolved.session;
+    if (resolved.claim && client.limits.strict) {
+      // A tab that was authorized for any agent, before the policy became strict: it is not taken up now.
+      throw new CommandError('NOT_AUTHORIZED',
+        'Under the user\'s strict security profile a tab is authorized for one named agent. Ask the user to authorize the tab again and choose this agent.');
+    }
+    if ([...operations.values()].filter((o) => o.sessionId === session.id).length >= QUEUED_PER_SESSION) {
+      throw new CommandError('RATE_LIMITED',
+        'Too many commands are waiting for this tab already. This one was not taken on. Wait for the answers, then send it again.');
+    }
     if (resolved.claim) {
       session.clientId = client.clientId;
       session.clientName = client.name || null;
@@ -1248,23 +1362,6 @@ function pushState(): void {
   }
 }
 
-/**
- * A server that is started again has a new id and remembers nothing. What its former self left
- * is its own again the moment it is back, by its agent's name, and not only with its first
- * command: until then the popup would name an owner that is gone, and the server would not know
- * of its tabs. It is the extension that says so. A session is the user's grant and is kept here;
- * a server cannot claim one.
- */
-function takeUp(client: Client): void {
-  const identity = { id: client.clientId, name: client.name };
-  for (const session of sessionsOfAgent(persisted.sessions, identity, connectedClientIds())) {
-    if (session.clientId === client.clientId) continue;
-    session.clientId = client.clientId;
-    session.clientName = client.name || null;
-    noteActivity(session.id, 'Session taken up by an agent');
-  }
-}
-
 function dropClient(client: Client, closeCode?: number, reason?: string): void {
   clearInterval(client.keepalive);
   if (clients.get(client.port) === client) clients.delete(client.port);
@@ -1278,7 +1375,7 @@ function connectPort(port: number): void {
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
   const client: Client = {
     port, ws, clientId: '', name: '', authenticated: false, unanswered: 0,
-    limiter: new RateLimiter(COMMANDS_PER_SECOND, COMMAND_BURST), seen: new RecentIds(), blocked: NOTHING_BLOCKED,
+    limiter: new RateLimiter(COMMANDS_PER_SECOND, COMMAND_BURST), seen: new RecentIds(), blocked: NOTHING_BLOCKED, limits: NO_LIMITS,
   };
   clients.set(port, client);
   const token = config.token;
@@ -1314,15 +1411,17 @@ function connectPort(port: number): void {
       else if (msg.type === 'policy') {
         // What this server refuses: checked before each of its commands, and shown in the popup.
         client.blocked = { sites: msg.blocked, everything: msg.unreadable };
+        client.limits = msg.limits;
+        // What passes without a question does not outlast a policy under which everything is asked.
+        if (msg.limits.strict) allows.clear();
+        endExpired();
         pushState();
       } else if (msg.type === 'client') {
         client.name = msg.name;
         for (const session of persisted.sessions) {
           if (session.clientId === client.clientId) session.clientName = msg.name || null;
         }
-        // A name can make sessions this agent's: those its former self left behind. They are its
-        // own from now on, every server is told what it has, and the badge says what is so.
-        takeUp(client);
+        // A name is what the user is shown. It gives an agent nothing: its sessions are those of its id.
         pushState();
       }
     };
@@ -1373,7 +1472,6 @@ function connectPort(port: number): void {
         client.clientId = msg.clientId;
         client.name = msg.clientName;
         client.authenticated = true;
-        takeUp(client);
         pairingFailed = false;
         versionMismatch = false;
         // Regular traffic also keeps the MV3 service worker alive while connected.
@@ -1465,35 +1563,41 @@ interface PopupMessage {
 
 function popupState(): object {
   const connected = connectedClientIds();
-  const agents = [...clients.values()].filter((c) => c.authenticated).map((c) => ({ id: c.clientId, name: c.name }));
   return {
     connection: connectionStatus(),
     port: config.port,
     hasToken: !!config.token,
-    ask: config.ask,
+    ask: askUnder(limitsNow(), config.ask),
     indicator: config.indicator,
     folded: config.folded,
     clients: [...clients.values()].filter((c) => c.authenticated).map((c) => ({
       id: c.clientId, name: c.name, port: c.port,
       // How many tabs a Disconnect would take from this agent, so that the popup can say it beforehand.
-      tabs: sessionsOfAgent(persisted.sessions, { id: c.clientId, name: c.name }, connected).length,
+      tabs: sessionsOfAgent(persisted.sessions, { id: c.clientId, name: c.name }).length,
+      // Whether this agent is the same agent at every start, by a key of its own.
+      lasting: isLastingAgent(c.clientId),
     })),
     blockedClients: persisted.blockedClients,
     // The sites no agent may work on, for the popup to say so where the user would authorize one.
     blocked: blockedNow(),
+    // What the user's security policy restricts, for the popup to say so.
+    limits: limitsNow(),
     sessions: persisted.sessions.map((s) => ({
       blocked: blockedAmong(blockedNow(), s.origins) !== null,
-      id: s.id, tabId: s.tabId, origin: s.origin, mode: s.mode, paused: s.paused, expiresAt: s.expiresAt,
+      id: s.id, tabId: s.tabId, origin: s.origin, mode: s.mode, paused: s.paused, expiresAt: endsAt(s, limitsNow()),
+      // What the session has under the policy, where that is less than what it was given.
+      access: capMode(s.mode, limitsNow().maxAccess),
+      outside: outsideAllowed(limitsNow(), s.origins) !== null,
+      workspace: s.workspace ?? null,
       origins: s.origins, suspended: s.suspended,
-      // Its agent is there when the one that owns it is connected, or one that takes its place: the
-      // same agent started again, by its name.
+      // Its agent is there when the one that owns it is connected: by its id, and by nothing else.
       clientId: s.clientId, clientName: s.clientName,
-      ownerConnected: !!s.clientId && agents.some((agent) => canUse(s, agent, connected)),
+      ownerConnected: !!s.clientId && connected.has(s.clientId),
       lastSubmission: s.submissions.length ? s.submissions[s.submissions.length - 1].state : null,
       // What would not be put to the user right now, so that the popup can say so and offer to lift it.
       notAsked: standingRefusals(s.asks, Date.now()),
       // When the user is asked in this session, and what passes without a question right now.
-      ask: s.ask ?? config.ask,
+      ask: askUnder(limitsNow(), s.ask ?? config.ask),
       passes: standingAllows(allows.get(s.id), Date.now()),
     })),
     activity: persisted.activity,
@@ -1603,10 +1707,11 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
     case 'disconnectClient': {
       if (!msg.clientId) return;
       const client = [...clients.values()].find((c) => c.clientId === msg.clientId);
-      // A no to an agent takes back what it was given. Its tabs do not wait for "Allow again", and
-      // are not there for an agent of the same name to take up: each needs the user's click again.
-      const taken = sessionsOfAgent(persisted.sessions, { id: msg.clientId, name: client?.name ?? '' }, connectedClientIds());
+      // A no to an agent takes back what it was given. Its tabs do not wait for "Allow again": each
+      // needs the user's click again.
+      const taken = sessionsOfAgent(persisted.sessions, { id: msg.clientId, name: client?.name ?? '' });
       if (!persisted.blockedClients.includes(msg.clientId)) persisted.blockedClients.push(msg.clientId);
+      saveBlockedAgents();
       if (client) dropClient(client, CLOSE_USER_DISCONNECTED, 'Disconnected by the user');
       for (const owned of taken) endSession(owned, 'Access revoked: you disconnected its agent');
       const ended = taken.length === 1 ? '; 1 session ended' : taken.length ? `; ${taken.length} sessions ended` : '';
@@ -1617,6 +1722,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
     case 'allowClient':
       persisted.blockedClients = persisted.blockedClients.filter((id) => id !== msg.clientId);
       save();
+      saveBlockedAgents();
       scan(true);
       return;
     case 'setAsk':
@@ -1701,12 +1807,19 @@ chrome.runtime.onMessage.addListener((msg: PopupMessage & { bcmcp?: unknown }, s
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== 'reconnect') return;
   scan(true);
-  void ready.then(() => {
-    for (const session of [...persisted.sessions]) {
-      if (session.expiresAt !== null && Date.now() >= session.expiresAt) endSession(session, 'Authorization expired');
-    }
-  });
+  void ready.then(endExpired);
 });
+
+/** Ends every authorization that has run out: by the time the user gave it, or by the policy's limits on how long one lasts. */
+function endExpired(): void {
+  const limits = limitsNow();
+  for (const session of [...persisted.sessions]) {
+    const ends = endsAt(session, limits);
+    if (ends === null || Date.now() < ends) continue;
+    const unused = session.expiresAt === null || ends < session.expiresAt;
+    endSession(session, unused ? 'Authorization ended by your security policy' : 'Authorization expired');
+  }
+}
 chrome.runtime.onInstalled.addListener(() => scan(true));
 chrome.runtime.onStartup.addListener(() => scan(true));
 void chrome.alarms.create('reconnect', { periodInMinutes: 0.5 });

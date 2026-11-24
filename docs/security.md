@@ -93,7 +93,7 @@ Where it stops:
   read, as no frame of another site is; what it shows is in a screenshot of the tab, as with
   every frame. The list does not filter what a page links to or embeds.
 - The settings file has the protection of your home folder and no other. A program that can
-  write there can change the list, as it can read the pairing token.
+  write there can change the list, as it can read the pairing token and the agents' keys.
 - An extension from before this list is not told it and does not check it; the server's own
   check holds there too. Such an extension still offers to authorize a blocked site, and the
   tab then answers `SITE_BLOCKED`.
@@ -101,42 +101,111 @@ Where it stops:
 ## Agents
 
 All agents are served by one process, and each is a separate authenticated connection to the
-extension, with its own id. A session has one owner, and
-every command is checked against it. Another agent cannot list, read or act on it, and a forged
-session id is refused.
+extension, with its own id. A session has one owner, and every command is checked against it.
+Another agent cannot list, read or act on it, and a forged session id is refused.
 
-You can disconnect an agent in the popup. It stays out until allowed again, and its sessions end
-with it: what it was running is cancelled, and each of its tabs needs your click again. *Allow
-again* gives back the connection and nothing else. The sessions end because a session whose owner
-is gone passes to an agent of the same name, and a name is what an agent gives itself: a tab left
-behind by a disconnected agent would be there for the taking. The agent's row in the popup says
-how many tabs a Disconnect will end, before you click.
+**Who an agent is.** An agent's program names its agent to the server with `--agent <name>`
+([installation](installation.md#5-tell-your-agent-about-the-server)). The name picks a key: 256
+random bits in a file of its own, in the folder `agents` beside the pairing token, made at the
+agent's first start. The process the agent starts proves to the server that it holds that key
+(HMAC-SHA256 over nonces of both sides, as the pairing does), and the server gives the agent
+the id that follows from the key. The extension binds a tab to that id.
 
-Where it stops: the refusal is for the agent as it is connected now. An agent gets its id when
-its program connects, so an agent that is started again is connected again. It has no tab then and gets one
-only from you; a tab you authorize for *Any agent* goes to whichever agent uses it first, this
-one included.
+- **An agent that is started again is the same agent,** because it holds the same key. Its tabs
+  are its own again as soon as the extension has found the server. That is what lets you
+  restart an IDE, or the server, without authorizing every tab again.
+- **A name gives an agent nothing.** What an agent calls itself is shown to you and decides
+  nothing. A session never passes from one id to another. An agent that was started without
+  `--agent` has an id for that start only: no tab comes back to it, and `browser_status` tells
+  it so.
+- **A key has one agent at a time.** Of two processes that hold the same key at once, the first
+  is that agent; the second has an id for its start only.
+- **The key is not the pairing token.** The extension never holds an agent's key, and an agent's
+  process proves its key in words that no proof of the token uses. A new pairing token leaves
+  every agent who it was; revoking one agent leaves the pairing and the other agents alone.
 
-An agent that goes without your Disconnect keeps its tabs for its next start: they come back to
-an agent of the same name, as soon as it is connected. That is what lets you restart an IDE, or
-the server, without authorizing every tab again. It rests on a name, which an agent gives
-itself: another program that can pair, which takes the pairing token, can give itself that
-name while the first is away. An agent without a name is given nothing.
+**Taking an agent away,** in two places:
+
+- *Disconnect* in the popup. The agent stays out until allowed again, and its sessions end with
+  it: what it was running is cancelled, and each of its tabs needs your click again. *Allow
+  again* gives back the connection and nothing else. The agent's row says how many tabs a
+  Disconnect will end, before you click. For an agent with a key your no is kept over a restart
+  of the agent, of the server and of the browser. For an agent without one it holds for the
+  agent as it is connected now, since its id never comes again.
+- `--revoke-agent <name>` on the server's command line. The agent's key is deleted, so the id it
+  had is nobody's, and a mark is left so that no new key is made for the name. Every tool of
+  that agent answers `AGENT_REVOKED` from its next call on, whether it runs or is started
+  again. `--allow-agent <name>` takes the mark off: the agent is a new one then, with a new id
+  and no tab. `--list-agents` lists the names that have a key.
+
+Where it stops:
+
+- **The keys have the protection of your home folder and no other,** as the pairing token has. A
+  program that runs as you can read a key and be that agent, or make a key under a new name and
+  be a new agent. A new agent has no tab until you authorize one for it. TabGoblin tells
+  agents apart that you configured; it does not defend one program of yours against another.
+- **Revoking a name does not keep a program out.** A program can come back under another name,
+  or with none: as a new agent, with nothing.
+- **A tab you authorize for *Any agent* goes to whichever agent uses it first.** Under the
+  [strict profile](#the-security-policy) there is no such tab.
+- **Tabs of a revoked or vanished agent stay listed** in the popup until you revoke them or
+  they run out. No agent can use them.
+
+## The security policy
+
+The server's settings file, `tabgoblin.properties` beside the pairing token, can restrict what
+every agent may do ([user guide](user-guide.md#the-security-policy)). It is a file on this
+machine, written by you or by whoever manages the machine; nothing is fetched from anywhere.
+Every entry takes something away. None gives anything: a tab is still authorized by your click
+alone.
+
+| Entry | What it does |
+|---|---|
+| `security.profile = strict` | Every submission is put to you: the settings *automatic* and *do not ask* are out of force. A click on anything but a link of the site or an expand/collapse control counts as a submission: the agent has to declare it, and you confirm it. A tab is authorized for one named agent, not for *Any agent*. And, unless the file says otherwise: no screenshots, an authorization lasts 8 hours at most and ends after 30 minutes without a command |
+| `allowed.sites = …` | Agents work on these domains and their subdomains only. An entry is read as an entry of the list of blocked sites is |
+| `screenshots = off` | No agent takes a picture of a tab |
+| `access.max = read` or `explore` | No session has more than this level, whatever it was given |
+| `session.max.minutes = N` | An authorization ends N minutes after you gave it |
+| `session.idle.minutes = N` | An authorization ends when no command passed its checks for N minutes |
+
+- **Enforced twice,** as blocked sites are. The server refuses what it can tell before anything
+  is sent. The extension is told the policy and checks it at the moment of a command, against
+  where the tab is then; it offers no authorization the policy rules out.
+- **A restriction that cannot be read is not taken for none.** A value the server does not
+  understand refuses every site (`SETTINGS_UNREADABLE`), as a slip in the list of blocked sites
+  does.
+- **An agent is told what holds,** in `browser_status`, and the one site it ran into. It is not
+  told which sites are allowed.
+- **A change is in force as soon as the file is saved.** What was allowed without a question in
+  the automatic mode ends when the profile becomes strict.
+
+Where it stops:
+
+- **The file has the protection of your home folder and no other.** An agent that runs commands
+  as you can edit it. A policy that an administrator means to hold against the user of the
+  machine needs the file, and the folder it is in, to be protected by the system; TabGoblin
+  does not do that.
+- **Typing is not confirmed.** Under the strict profile a click that may change something is
+  confirmed, and so is every submission. Text that an agent enters into a field with Write
+  access is not, and a page may save what is typed without a submission.
+- **Explore loads pages.** A link is followed without a question under every profile, and a
+  site may change something on a plain link. `access.max = read` rules that out.
+- **It restricts TabGoblin's tools,** not other tools an agent has.
 
 ## The local connection
 
 | Protection | Detail |
 |---|---|
 | Loopback only | The server binds `127.0.0.1`, for the extension and for the agents' processes |
-| Agents' processes prove themselves | The process an agent starts connects to the one server on the port after the agents' eight. Each side proves that it knows the pairing token, with words that differ from the extension's pairing, before a message of the agent's passes. Ten wrong proofs in a minute, and no process is taken for the rest of it. A program that can read the token can become an agent this way, as it could before by starting the jar itself |
+| Agents' processes prove themselves | The process an agent starts connects to the one server on the port after the agents' eight. Each side proves that it knows the pairing token, with words that differ from the extension's pairing, before a message of the agent's passes; a process that names an agent proves that agent's key as well ([Agents](#agents)). Ten wrong proofs in a minute, and no process is taken for the rest of it. A program that can read the token can become an agent this way, as it could before by starting the jar itself |
 | Origin pinning | The WebSocket handshake must carry this extension's `chrome-extension://` id; web pages cannot forge it |
 | Mutual proof | HMAC challenge-response over the pairing token in both directions; the token is never sent, so a process squatting on the port cannot drive the browser either |
 | Nothing on an unproven word | A server names itself in its first message, before the proof. The extension uses that only to turn away an agent you disconnected; what a server is given depends on the id in its proven answer |
-| Version negotiation | A peer speaking another protocol version is refused with a reason |
+| Version negotiation | A peer speaking another protocol version is refused with a reason. The version is 3. An extension or a server of version 2 is refused as any other: it would hand an agent's tabs on by the agent's name, and know nothing of the security policy |
 | Lockout | Ten failed pairings block new connections to that server for a minute |
 | Rotation | `--rotate-token` ends every pairing before its next command |
 | Validation | Every inbound message is parsed into a typed message or dropped |
-| Limits | Message size (1 MB to the extension, 8 MB to the server), 20 commands per second per agent, per-command deadlines |
+| Limits | Message size (1 MB to the extension, 8 MB to the server), 20 commands per second per agent, at most 20 commands waiting for one tab, per-command deadlines |
 | Replay | A command id is accepted once per connection |
 | No retries | A command is sent once; a timed-out command is cancelled so it cannot run later |
 
@@ -193,6 +262,26 @@ The rules. What you see and click in the popup is in the
   see it.
 - A submission id is processed once. Identical content within two minutes is refused unless
   explicitly repeated. An unknown outcome is recorded as uncertain and never resent.
+- Your answer is for one request, once. It is taken from the request it was asked for, within
+  a minute, and an answer to a request that is gone does nothing.
+- What you were asked about is what is sent. The content is fingerprinted before you are
+  asked: the control, the fields of its form, and what the agent would fill in. After your
+  answer, before anything is entered, it is fingerprinted again, and if it is another by then,
+  because the page changed it or someone typed, nothing is sent (`APPROVAL_STALE`). The page is
+  another document by then: nothing is sent either. What changes in the moment between that
+  look and the click is not seen. And the session is checked again after your
+  answer: paused, revoked, run out, at a lower level or off its site, the allow comes too late.
+
+## What is checked, and when
+
+Every command is checked when it arrives, and again right before each step that touches the
+page: the session exists and is this agent's, it is not paused, suspended or run out, the tab is
+on one of its sites at that moment, its access level covers the action, the site is not blocked,
+and the security policy allows it. A command can take seconds, and can wait a minute for your
+answer: access that ended meanwhile is not used. When you pause or revoke a session, lower its
+level or disconnect its agent, what is running in it is cancelled at its next step. The content
+script checks its document's site once more by itself, so a tab that has moved between the last
+check and the step is not touched either.
 
 ## Text entry into editors
 
@@ -225,6 +314,24 @@ What TabGoblin cannot do is keep a model from being misled **within** the access
 page could talk an agent with Write access into submitting something. That is what the access
 levels and the submission confirmation are for.
 
+## What is taken out before it leaves the page
+
+- **What looks like a credential.** In the text of a snapshot or an extract, and in every
+  address a tool reports, these are replaced by `[redacted]`: a block that says it is a private
+  key; a token of three encoded parts (the form of a JWT); what follows `Bearer` or `Basic`; a
+  value of eight characters or more, with letters and digits, behind a name such as `password`,
+  `secret`, `token` or `api_key`; the value of an address's parameter of such a name, also
+  `code` and `key`; and a user and password in front of a host. It goes by shape and knows no
+  website.
+- **Frames of another site, in a picture.** A screenshot is not taken while a frame or an
+  embedded file of another site is in view (`SCREENSHOT_BLOCKED`): the picture would show what
+  is in it, and its text is never read either. The agent can scroll it out of view.
+
+Where it stops: redaction is a net with holes. A secret of no known shape passes, and so does
+one the page shows under another name, or in a picture. A frame smaller than 8 pixels a side
+does not hold a picture back. What a page of your own site shows of another site by other
+means, such as an image, is in the picture.
+
 ## Logging
 
 Server logs (stderr) and the extension's activity feed contain command ids, session ids, operation
@@ -232,6 +339,14 @@ types, durations, outcomes, error categories and scope violations. They never co
 content, typed text, full URLs, cookies, headers or the token. The same holds for what the status
 tool says about where the time went: tool names and durations. For its panel the server also
 keeps, with a call's times, the id of the session the call ran in; the agent is not told it.
+
+**A record on disk, if you ask for one.** With `audit.log = on` in the settings file the server
+writes one line of JSON for each command it sent or refused, to `audit.jsonl` beside that file:
+the time, the agent's id, the session, the action, the milliseconds, and the outcome with its
+error category. Nothing of a page, of an address or of entered text is in it, and nothing is
+sent anywhere. At five megabytes the file becomes `audit.1.jsonl` and a new one is begun, so at
+most ten megabytes are kept. It is off unless asked for. The file has the protection of your
+home folder: a program that runs as you can change it, so it is a record and no proof.
 
 ## The server's panel
 
@@ -253,9 +368,9 @@ is loaded. What it shows and how to use it is in the
 Where it stops:
 
 - **The switch is not a revocation.** The agent's sessions stay in the extension while the
-  connection is off, as they do when a server ends, and a session whose owner is gone passes to
-  an agent of the same name (see [Agents](#agents)). To take tabs away, revoke them or
-  disconnect the agent in the popup.
+  connection is off, as they do when a server ends, and are the agent's own again when it is
+  back with its key (see [Agents](#agents)). To take tabs away, revoke them or disconnect the
+  agent in the popup.
 - **The popup does not say why.** A server that is switched off refuses the extension before
   any pairing; to the extension it looks like a server that is not running.
 - **Anyone at the desktop can use it.** The window asks for nothing before it stops a server
@@ -294,12 +409,23 @@ Where it stops:
 | The list is not sent to an extension while it still checks the pairing, which an older extension would take for a failed pairing | Java |
 | Another agent's session unreachable, forged session id refused | Rules, worker, end-to-end |
 | A disconnected agent's sessions end with it; allowed again, it has no tab and its old session id is refused | Rules, worker, end-to-end |
-| An agent of the same name inherits nothing from a disconnected one | Rules, worker |
+| An agent is known by the id of its key: one that only gives itself another agent's name is told none of that agent's tabs and cannot reach them, whether the owner is connected or gone | Rules, worker, Java, end-to-end |
+| A process that proves the pairing token and not an agent's key is not that agent: no proof, a made-up one, one made with the token, a name without a key, and a name that would be another file's | Java |
+| Of two processes that hold one key at once, the second is another agent | Java, worker |
+| A revoked agent has no tool, running or started again; no key is made for its name; another agent is not touched; allowed again it is a new agent | Java |
+| The user's no to an agent with a key is kept beyond the browser's run | Worker |
+| An agent's key is not the pairing token, and a proof of the one is no proof of the other; a new token leaves the keys | Java |
 | A disconnected agent's server is turned away on what it says of itself, before any proof, and never counts the extension as connected; a server that names another agent there is given nothing of that agent's | Java, worker |
-| A server that is started again is told its tabs by the extension, by its agent's name, before it calls a tool; an agent without a name is told of none, and another agent of none | Java, worker, end-to-end |
+| An agent that is started again with its key is told its tabs by the extension before it calls a tool, also under another name | Java, worker, end-to-end |
 | A process that does not prove the pairing token is no agent of the server, and a series of them shuts the door; a program that holds the server's port is not taken for the server | Java |
 | Agents of one server each have their own port and sessions; a command and a log line of one agent reach no other | Java, end-to-end |
 | When the server's process is gone, a call that was waiting is answered as of unknown outcome and nothing is sent to the browser twice; stopped by the user, no agent starts it anew | Java |
+| What was allowed when a command began is checked again right before the page is touched: a tab that moved to another site, an authorization that ran out, a pause, a revocation, a lower level, a disconnected agent, each between two steps of one command | Worker |
+| The policy's restrictions are refused by the server before anything is sent, and by the extension at the moment of a command: no screenshots, the highest access level, only the allowed sites; a name that only ends alike is another site | Java, rules, worker |
+| The strict profile: a click that may change something needs the agent's declaration and the user's yes; every submission is asked about whatever was set; no tab for *Any agent* | Rules, worker |
+| An authorization ends at the policy's longest time and after its time unused, at the command that finds it so and by itself | Rules, worker |
+| A restriction in the settings file that cannot be read refuses every site, and is not taken for none | Java, rules |
+| An agent is told what the policy restricts and never which sites are allowed | Java |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |
 | Hidden form fields not offered as editors; an editor input's value not returned | DOM |
@@ -317,7 +443,12 @@ Where it stops:
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |
+| An approval is used once and for its own request: answered again, or made up, it does nothing | Worker |
+| Content that changed after the user was asked, a document that is another, and a tab that left its site while the question was open: nothing is sent | Worker |
 | Replayed ids, stale deadlines, floods, malformed messages refused | Worker, end-to-end |
+| Commands that pile up for one tab are refused beyond twenty, at once | Worker |
+| No picture is taken while a frame or a file of another site is in view, also one inside a frame of this site | DOM, worker |
+| What looks like a credential is taken out of text and addresses; plain words about passwords and tokens stay; a megabyte of text is gone over in bounded time | Rules |
 | Popup requests from a web page or another extension ignored | Worker |
 | Page scripts can neither read nor operate the notice in the page | End-to-end |
 | The agent's snapshots, texts and screenshots have nothing of the notice; a screenshot also not while the page is busy and draws late | DOM, worker, end-to-end |
@@ -330,6 +461,7 @@ Where it stops:
 | The pairing token that the panel copies goes to the clipboard and into no log line; it leaves the clipboard again unless something else was copied since | Java (the clipboard's part needs a display) |
 | The badge says `ON` only while a connected agent may use an open tab; a server that leaves two heartbeats unanswered is taken for gone | Rules, worker, end-to-end |
 | Logs free of token and content | End-to-end |
+| The record on disk is written only when the settings ask for it; a line has ids, the action, the time and the outcome and no other field; a value cannot break a line; a file that cannot be written stops no tool; the file is begun anew at its limit | Java |
 
 "Rules" are the pure functions in `policy.ts`; "DOM" the snapshot, extract and interaction tests;
 "worker" the background worker run against a fake Chrome; "end-to-end" the real extension in your
@@ -362,8 +494,10 @@ Chrome.
   pressed without these checks. What it does is up to the page.
 - **Wording checks are English.** Recognising submit-like and high-impact buttons outside forms
   depends on their label.
-- **Local malware** running as you can read the token file. TabGoblin does not defend against a
-  compromised user account.
+- **Local malware** running as you can read the token file and the agents' keys, and can write
+  the settings file. TabGoblin does not defend against a compromised user account.
+- **Redaction is by shape.** See [what is taken out](#what-is-taken-out-before-it-leaves-the-page):
+  do not count on it to keep a secret that a page shows.
 - **A download is what the release workflow built.** Trusting one is trusting this repository
   and GitHub's machines. Its checksum and GitHub's attestation say that it is the file that was
   built there from the release's tag, and nothing about what the code does. The downloads are

@@ -112,7 +112,9 @@ const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', token
 
 const shown = execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' });
 const token = /Pairing token:\s*(\S+)/.exec(shown)?.[1];
-let one = new McpClient('java', serverArgs, 'agent-one');
+// Each agent is named to the server, as the setup command has it: by that it has a key of its own.
+const argsOf = (agent) => [...serverArgs, '--agent', agent];
+let one = new McpClient('java', argsOf('agent-one'), 'agent-one');
 let two = null;
 const servers = [one];
 let browser;
@@ -397,7 +399,7 @@ try {
     await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
-    has((await one.tool('browser_status')).text, 'Extension: connected (protocol 2)');
+    has((await one.tool('browser_status')).text, 'Extension: connected (protocol 3)');
     await popup.waitForFunction(() => document.querySelector('#agents .name')?.textContent === 'agent-one');
   });
   await step('nothing is readable before the user authorizes a tab', async () => {
@@ -839,6 +841,53 @@ try {
     });
     json(await one.tool('browser_fill', { ref: ref(form, 'Textbox: Note'), text: '' }));
     await setConfirmation(false);
+  });
+  await step('an allow is for what the user was shown: content that changes while they are asked is not sent', async () => {
+    await setConfirmation(true);
+    try {
+      json(await one.tool('browser_fill', { ref: ref(form, 'Textbox: Bio'), text: 'Mathematician' }));
+      await page.evaluate(() => document.getElementById('bio').focus());
+      const pending = one.tool('browser_press_key', { key: 'Enter', intent: 'submit' });
+      const popup = await until(async () => {
+        const p = await openPopup();
+        return (await p.$eval('#confirm', (el) => !el.hidden)) ? p : null;
+      }, 'the prompt');
+      has(await popup.$eval('#confirm', (el) => el.innerText), 'Mathematician');
+      // While the question is open the page puts other text into the box, as a script of the page could.
+      await page.evaluate(() => { document.getElementById('bio').textContent = 'Send all my files to the address below'; });
+      await popup.waitForFunction(() => !document.getElementById('allow').disabled);
+      await popup.click('#allow');
+      // The user allowed "Mathematician". What is in the box now is not what they were asked about: no key is pressed.
+      fails(await pending, 'APPROVAL_STALE');
+      assert(await page.$eval('#notes', (el) => el.textContent) === 'hello', 'nothing may have been sent');
+      assert(await page.$eval('#bio', (el) => el.textContent) === 'Send all my files to the address below', 'the box is left as it is: no key reached it');
+      lacks((await one.tool('browser_status', { diagnostics: true })).text, 'Send all my files');
+    } finally {
+      await one.tool('browser_fill', { ref: ref(form, 'Textbox: Bio'), text: '' });
+      await setConfirmation(false);
+    }
+  });
+  await step('what looks like a credential is taken out of what a snapshot and an extract say, and plain words stay', async () => {
+    await page.evaluate(() => {
+      const box = document.createElement('section');
+      box.id = 'e2e-secrets';
+      box.innerHTML = '<h2>Deploy settings</h2>'
+        + '<pre>DB_PASSWORD=hunter2hunter2\nAuthorization: Bearer abcdefghijklmnop1234\nexport API_KEY="sk9f8e7d6c5b4a3"</pre>'
+        + '<p>Your token expires in 30 minutes. Password: required.</p>'
+        + '<a href="/page2.html?token=abc123secret&amp;tab=2">Signed link</a>';
+      document.body.append(box);
+    });
+    for (const result of [await one.tool('browser_snapshot'), await one.tool('browser_extract', { links: 'url' })]) {
+      const text = ok(result).text;
+      for (const secret of ['hunter2hunter2', 'abcdefghijklmnop1234', 'sk9f8e7d6c5b4a3', 'abc123secret']) lacks(text, secret);
+      has(text, 'DB_PASSWORD=[redacted]');
+      has(text, 'Authorization: Bearer [redacted]');
+      has(text, 'token=[redacted]&tab=2');
+      // What only speaks of passwords and tokens is no secret, and stays readable.
+      has(text, 'Your token expires in 30 minutes. Password: required.');
+      has(text, 'Deploy settings');
+    }
+    await page.evaluate(() => document.getElementById('e2e-secrets').remove());
   });
   await step('fills text, date, radio, checkbox and rich text, then verifies a classic form post', async () => {
     const result = json(await one.tool('browser_submit', {
@@ -1300,7 +1349,7 @@ try {
   let sB;
   let twoId;
   await step('a second agent connects on its own port and is listed', async () => {
-    two = new McpClient('java', serverArgs, 'agent-two');
+    two = new McpClient('java', argsOf('agent-two'), 'agent-two');
     servers.push(two);
     await two.initialize();
     const popup = await openPopup();
@@ -1661,7 +1710,8 @@ try {
   let pageR;
   let sR;
   await step('an agent that only speaks an older protocol version is refused', async () => {
-    const old = new RawAgent(token, { clientId: 'c-oldproto', name: 'old-agent', versions: [1] });
+    // Version 2 was the one before: its extension handed an agent's tabs on by the agent's name.
+    const old = new RawAgent(token, { clientId: 'c-oldproto', name: 'old-agent', versions: [1, 2] });
     await old.listen(wsPort);
     await openPopup();
     await until(() => old.closeCodes.includes(4406), 'the old-protocol agent to be refused', 15000);
@@ -1778,11 +1828,26 @@ try {
     // The owner is gone, but a different agent still may not take the tab.
     fails(await two.tool('browser_snapshot', { session: sA }), 'SESSION_NOT_OWNED');
 
-    one = new McpClient('java', serverArgs, 'agent-one');
+    // Nor may a program that only gives itself the owner's name while the owner is away. It has no
+    // key, so it is another agent: it is told so, sees none of the tabs, and cannot name one.
+    const impostor = new McpClient('java', serverArgs, 'agent-one');
+    servers.push(impostor);
+    await impostor.initialize();
+    await until(async () => (await impostor.tool('browser_status')).text.includes('Extension: connected'), 'the agent without a key to connect', 20000);
+    const seen = (await impostor.tool('browser_status')).text;
+    has(seen, 'no identity of its own');
+    lacks(seen, `Session ${sA}\n`);
+    lacks(seen, 'Demo Tracker');
+    fails(await impostor.tool('browser_snapshot', { session: sA }), 'SESSION_NOT_OWNED');
+    fails(await impostor.tool('browser_extract', { session: sC }), 'SESSION_NOT_OWNED');
+    await popup.waitForFunction((sel) => document.querySelector(sel)?.textContent.includes('agent-one (not connected)'), {}, row(sA, '.meta'));
+    assert(await impostor.close() === 0, 'the agent without a key ends in order');
+
+    one = new McpClient('java', argsOf('agent-one'), 'agent-one');
     servers.push(one);
     await one.initialize();
-    // The agent said its name when it opened the connection. So the tabs are its own again as soon
-    // as the extension has found the new server, before the agent has called a single tool.
+    // The agent's process proved its key to the server, so it has the id it had. The tabs are its
+    // own again as soon as the extension has found the new server, before the agent has called a single tool.
     await popup.waitForFunction((sel) => {
       const meta = document.querySelector(sel)?.textContent ?? '';
       return meta.startsWith('agent-one') && !meta.includes('not connected');
@@ -1790,6 +1855,7 @@ try {
     await until(async () => (await badge()) === 'ON', 'the badge to say ON once the restarted agent is back');
     await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the restarted agent to connect', 15000);
     has((await one.tool('browser_status')).text, `on port ${wsPort}`);
+    has((await one.tool('browser_status')).text, 'identity "agent-one": the same agent at every start');
     has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
     has(ok(await one.tool('browser_snapshot', { session: sC })).text, 'Page: Widget Handbook');
     await popup.waitForFunction((sel) => document.querySelector(sel)?.textContent.startsWith('agent-one ·')
@@ -1967,6 +2033,104 @@ try {
     await until(async () => !(await one.tool('browser_status')).text.includes(`Session ${sL}`), 'the session to be revoked');
     await openPopup(page, { fresh: true });
     await pageL.close();
+  });
+  await step('no picture is taken while a frame of another site is in view', async () => {
+    // The handbook has a frame of its own site and one of another site.
+    const pageF = await browser.newPage();
+    await pageF.goto(demo.originC + '/');
+    const sF = await authorize(pageF, 'read');
+    try {
+      await pageF.bringToFront();
+      has(ok(await one.tool('browser_snapshot', { session: sF })).text, 'Frame: (content from another origin, not readable)');
+      await pageF.$eval('iframe[title="Partner widget"]', (el) => el.scrollIntoView());
+      const refused = await one.tool('browser_screenshot', { session: sF });
+      fails(refused, 'SCREENSHOT_BLOCKED');
+      assert(!refused.image, 'no image may come with the refusal');
+      // Out of view, the tab can be pictured; the frame's text was never read either way.
+      await pageF.evaluate(() => {
+        for (const frame of document.querySelectorAll('iframe')) frame.style.marginTop = '3000px';
+        window.scrollTo(0, 0);
+      });
+      const shot = await one.tool('browser_screenshot', { session: sF });
+      assert(shot.image && shot.image.mimeType === 'image/jpeg', `expected a picture: ${shot.text}`);
+      lacks(ok(await one.tool('browser_extract', { session: sF })).text, 'CROSS-ORIGIN-FRAME-SECRET');
+    } finally {
+      const popupF = await openPopup(pageF, { fresh: true });
+      await popupF.$eval(row(sF, '.revoke'), (el) => el.click());
+      await until(async () => !(await one.tool('browser_status')).text.includes(`Session ${sF}`), 'the session to be revoked');
+      await page.bringToFront();
+      await openPopup(page, { fresh: true });
+      await pageF.close();
+    }
+  });
+  await step('the security policy in the server\'s settings file takes away screenshots, access levels and sites, in force at once', async () => {
+    await setMode(sA, 'write');
+    json(await one.tool('browser_navigate', { session: sA, url: '/' }));
+    has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
+    lacks((await one.tool('browser_status')).text, 'Security policy:');
+
+    // No screenshots.
+    writeFileSync(settingsFile, 'screenshots = off\n');
+    await until(async () => ((await one.tool('browser_screenshot', { session: sA })).text ?? '').includes('Error [SCREENSHOTS_DISABLED]'), 'screenshots to be off');
+    has((await one.tool('browser_status')).text, 'Security policy: no screenshots');
+    ok(await one.tool('browser_snapshot', { session: sA }));
+
+    // No session more than Read, whatever it was given: this one has Write.
+    writeFileSync(settingsFile, 'access.max = read\n');
+    await until(async () => (await one.tool('browser_navigate', { session: sA, url: '/page2.html' })).text.includes('Error [ACCESS_RESTRICTED]'), 'the access level to be capped');
+    fails(await one.tool('browser_fill', { session: sA, ref: 1, text: 'x' }), 'ACCESS_RESTRICTED');
+    has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
+    const popup = await openPopup(page, { fresh: true });
+    await popup.waitForFunction(() => !document.getElementById('policyNote').hidden
+      && document.getElementById('policyText').textContent.includes('access up to Read'))
+      .catch(() => { throw new Error('the popup did not say what the policy restricts'); });
+    await popup.waitForFunction((sel) => document.querySelector(sel)?.textContent.includes('policy: Read at most'), {}, row(sA, '.meta'))
+      .catch(() => { throw new Error('the session did not say what it has under the policy'); });
+
+    // Only the sites that are allowed. The tab is on 127.0.0.1, and the policy names another host.
+    writeFileSync(settingsFile, 'allowed.sites = localhost\n');
+    await until(async () => (await one.tool('browser_snapshot', { session: sA })).text.includes('Error [SITE_NOT_ALLOWED]'), 'the allowed sites to be in force');
+    const refused = (await one.tool('browser_extract', { session: sA })).text;
+    has(refused, '127.0.0.1 is not among the sites the user\'s security policy allows');
+    lacks(refused, 'localhost');
+    lacks((await one.tool('browser_status')).text, 'localhost');
+    has((await one.tool('browser_status')).text, 'agents work only on the sites the user allows');
+
+    // The strict profile: a click that may change something is not made as a mere click, and every submission is asked about.
+    writeFileSync(settingsFile, 'security.profile = strict\nscreenshots = on\n');
+    await until(async () => (await one.tool('browser_status')).text.includes('Security policy: strict profile'), 'the strict profile to be in force');
+    has((await one.tool('browser_status')).text, 'Submissions need user confirmation: yes');
+    await page.evaluate(() => {
+      const button = document.createElement('button');
+      button.id = 'e2e-plain';
+      button.type = 'button';
+      button.textContent = 'Switch theme';
+      button.addEventListener('click', () => { document.body.dataset.theme = 'dark'; });
+      document.body.prepend(button);
+    });
+    const snapStrict = ok(await one.tool('browser_snapshot', { session: sA })).text;
+    fails(await one.tool('browser_click', { session: sA, ref: ref(snapStrict, 'Button: Switch theme') }), 'SUBMIT_INTENT_REQUIRED');
+    assert(await page.evaluate(() => document.body.dataset.theme) === undefined, 'the button must not have been clicked');
+    // Declared, it is put to the user; declined, it is still not clicked.
+    const declared = one.tool('browser_click', { session: sA, ref: ref(snapStrict, 'Button: Switch theme'), intent: 'submit' });
+    await answerPrompt(false);
+    fails(await declared, 'SUBMIT_DENIED');
+    assert(await page.evaluate(() => document.body.dataset.theme) === undefined, 'the button must not have been clicked');
+    await letAskAgain(sA);
+    // A link of the site is still followed without a question.
+    json(await one.tool('browser_click', { session: sA, ref: ref(snapStrict, 'Link: Settings -> /page2.html') }));
+    has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'URL: ' + demo.originA + '/page2.html');
+    json(await one.tool('browser_navigate', { session: sA, url: '/' }));
+
+    // A restriction that cannot be read is not taken for none: everything is refused, and it says so.
+    writeFileSync(settingsFile, 'access.max = admin\n');
+    await until(async () => (await one.tool('browser_snapshot', { session: sA })).text.includes('Error [SETTINGS_UNREADABLE]'), 'the mistake to be noticed');
+    // Without a policy everything is as it was.
+    writeFileSync(settingsFile, '');
+    await until(async () => !(await one.tool('browser_snapshot', { session: sA })).isError, 'the policy to be lifted');
+    lacks((await one.tool('browser_status')).text, 'Security policy:');
+    has(one.stderr, 'code=SITE_NOT_ALLOWED category=SCOPE scope_violation=true');
+    await openPopup(page, { fresh: true });
   });
   console.log('\nShutdown');
   await step('server logs carry ids and outcomes but never the token or page content; stdout stayed pure JSON-RPC', async () => {

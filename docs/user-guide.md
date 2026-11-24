@@ -428,6 +428,9 @@ panel is built is in the [architecture](architecture.md#the-servers-panel).
 | First port | *Connection…* in the popup; `--port` on the server | 47821 |
 | Token file | `--token-file` / `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` |
 | Blocked sites | `blocked.sites` in the settings file; **Edit** in the server's panel opens it | none |
+| Security policy | Six entries in the same file: see [the security policy](#the-security-policy) | no restriction |
+| A record of what agents did | `audit.log = on` in the same file: one line of JSON per command in `audit.jsonl` beside it, with ids, actions, times and outcomes, and nothing of a page ([security](security.md#logging)) | off |
+| Who an agent is | `--agent <name>` / `BCMCP_AGENT` in the command that starts the server for that agent: see [agents](#agents) | no name: known for one start |
 | Settings file | `--settings` / `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file |
 | Log level | `BCMCP_LOG` = `debug`, `info`, `warn`, `off` | `info` |
 
@@ -459,6 +462,63 @@ blocked.sites = example.org, intranet.example
 The list is for every agent of the server. An agent is told that the site it tried is blocked,
 and never what else is on the list. What the list holds back and what it does not is in the
 [security model](security.md#blocked-sites).
+
+### The security policy
+
+The same file can restrict what every agent may do. Each line takes something away; none gives
+an agent anything, and a tab is still authorized by your click alone. A change is in force as
+soon as the file is saved.
+
+```properties
+security.profile = strict
+allowed.sites = example.org, ci.intranet.example
+screenshots = off
+access.max = explore
+session.max.minutes = 240
+session.idle.minutes = 20
+```
+
+| Line | What it does |
+|---|---|
+| `security.profile = strict` | You are asked about every submission: *automatic* and *do not ask* are out of force, and the setting in the popup is greyed out. A click on anything but a link of the site or an expand/collapse control counts as a submission, which you confirm. A tab is authorized for one agent you name; *Any agent* is not offered. And, unless a line says otherwise: no screenshots, an authorization lasts 8 hours at most, and ends after 30 minutes without a command |
+| `allowed.sites` | Agents work on these domains and their subdomains only. The popup offers no authorization elsewhere |
+| `screenshots = off` | No agent takes a picture of a tab. `on` allows it under the strict profile |
+| `access.max` | `read` or `explore`: no session has more, whatever you give it. The session's row says *policy: Explore at most* |
+| `session.max.minutes` | An authorization ends this many minutes after you gave it |
+| `session.idle.minutes` | An authorization ends when no command came for this many minutes. `0` switches a limit off |
+
+- **The popup says what is in force,** in a line above the sessions, and each session shows
+  when it ends.
+- **An agent is told what holds** when it asks for its status, and the one site it ran into. It
+  is not told which sites are allowed.
+- **A value that cannot be read blocks every site,** as a mistake in the list of blocked sites
+  does, so that a restriction you meant is not silently off.
+
+What the policy holds back and what it does not is in the
+[security model](security.md#the-security-policy).
+
+### Agents
+
+An agent that is named to the server has a key of its own, and is the same agent each time it
+starts: after you restart your IDE or the server, its tabs are its own again. The name is in the
+command that starts the server for that agent, which `--setup` prints for you:
+
+```text
+java -jar <folder>/browser-context-mcp.jar --agent claude-code
+```
+
+- **An agent without a name** works, and is known for one start only: after a restart its tabs
+  have to be authorized again. Its status says so. Setups from before this option are like
+  that until `--agent <name>` is added to them.
+- **Use a different name for each agent.** Two agents that run at once under one name are not
+  one agent: the second is known for its start only.
+- **Point at an agent's name in the popup** to see its id and whether it has a key.
+- **To take an agent away for good,** disconnect it in the popup, which is kept over restarts for
+  an agent with a key; or run the server's jar with `--revoke-agent <name>`, which deletes its
+  key. `--allow-agent <name>` allows it again, as a new agent with no tab, and `--list-agents`
+  lists the names.
+
+The rules, and where they stop, are in the [security model](security.md#agents).
 
 **Edit** was tried on Windows, where it opens Notepad. On Linux it asks `xdg-open` for an
 editor and on macOS `open -t`; neither was tried. Where no editor starts, the panel's log says

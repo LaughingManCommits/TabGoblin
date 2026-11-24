@@ -48,6 +48,8 @@ final class Hub {
         private final LineOut out;
         private final AtomicBoolean gone = new AtomicBoolean();
         private volatile Agent agent;
+        /** The id this agent has by its key, which no other has while it is here; null for an id of this start. */
+        private volatile String byKey;
 
         private Member(Socket socket, LineOut out) {
             this.socket = socket;
@@ -122,6 +124,8 @@ final class Hub {
     private final ObjectMapper json = new ObjectMapper();
     private final List<Member> members = new CopyOnWriteArrayList<>();
     private final Deque<Long> failedProofs = new ArrayDeque<>();
+    /** The ids of the agents that are here by a key: a key has one agent at a time. */
+    private final java.util.Set<String> present = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final BiConsumer<String, String> logTo = this::passOn;
     private volatile boolean standing;
     private volatile boolean held;
@@ -251,6 +255,7 @@ final class Hub {
     private void welcome(Socket socket) {
         boolean kept = false;
         Member joining = null;
+        String byKey = null;
         try {
             socket.setSoTimeout(5000);
             socket.setTcpNoDelay(true);
@@ -297,6 +302,15 @@ final class Hub {
                 line(to, answer);
                 return;
             }
+            // Who the agent is, before anything is said to it: a key that is not proven is no agent of this server.
+            AgentKeys.Identity identity = identify(ask, nonce, linkNonce);
+            if (identity == null) {
+                noteFailedProof();
+                Log.warn("link rejected reason=agent_proof");
+                refuse(to, "agent_proof");
+                return;
+            }
+            byKey = identity.persistent() ? identity.id() : null;
             answer.put("type", "attached");
             line(to, answer);
             if (ask.path("panel").asBoolean(false)) {
@@ -307,16 +321,20 @@ final class Hub {
             Member member = new Member(socket, out);
             // In the list before it is served: its first lines in the log are passed on to it.
             joining = member;
+            member.byKey = byKey;
             members.add(member);
             emptySince = 0;
             boolean quiet = ask.path("quiet").asBoolean(false);
-            member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet));
+            member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet), identity);
             member.agent.announce();
             kept = true;
         } catch (IOException | RuntimeException e) {
             // Not a link, or one that went away at once.
         } finally {
             if (!kept) {
+                if (byKey != null) {
+                    present.remove(byKey);
+                }
                 close(socket);
                 // One that was taken into the list and could not be served is not kept there: a server
                 // that counts an agent it does not have never ends.
@@ -325,6 +343,53 @@ final class Hub {
                 }
             }
         }
+    }
+
+    /**
+     * Who the agent of a process is. A process that names a label has to prove that it holds the
+     * label's key, and is then the agent that the key says, at every start. One that names none
+     * has an id for this start. Null for a label that is none, or a proof that is none.
+     *
+     * <p>A label the user revoked is served without a key: every tool then says that it is
+     * revoked. And of two processes that hold the same key at once, the second has an id for
+     * this start: a tab has one agent, and the first is the one that has the key's tabs.
+     */
+    private AgentKeys.Identity identify(JsonNode ask, String nonce, String linkNonce) {
+        java.nio.file.Path keys = settings.agentKeys();
+        if (!ask.hasNonNull("agent") || keys == null) {
+            return AgentKeys.Identity.ephemeral();
+        }
+        String label = AgentKeys.label(ask.path("agent").asString(""));
+        if (label == null) {
+            return null;
+        }
+        if (AgentKeys.revoked(keys, label)) {
+            Log.warn("agent revoked label=" + label);
+            return AgentKeys.Identity.revoked(keys, label);
+        }
+        String key = AgentKeys.read(keys, label);
+        if (key.isEmpty()
+                || !Pairing.constantTimeEquals(ask.path("agentProof").asString(""), AgentKeys.proof(key, nonce, linkNonce))) {
+            return null;
+        }
+        String id = AgentKeys.idOf(key);
+        // An agent that is started again may be here before its former process has been let go: that
+        // is given a moment, so that the agent is itself again and not taken for a second one.
+        boolean free = present.add(id);
+        for (int i = 0; !free && i < 20; i++) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            free = present.add(id);
+        }
+        if (!free) {
+            Log.warn("agent label=" + label + " is connected already: this one has an id for this start only");
+            return new AgentKeys.Identity(id + "~" + Pairing.randomHex(2), label, false, () -> AgentKeys.revoked(keys, label));
+        }
+        return new AgentKeys.Identity(id, label, true, () -> AgentKeys.revoked(keys, label));
     }
 
     private void refuse(OutputStream to, String reason) throws IOException {
@@ -381,6 +446,9 @@ final class Hub {
             if (agent != null) {
                 Log.of(agent.bridge().clientId()).info("agent left client=" + agent.bridge().clientId());
                 agent.close();
+            }
+            if (member.byKey != null) {
+                present.remove(member.byKey);
             }
             members.remove(member);
             close(member.socket);

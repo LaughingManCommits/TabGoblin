@@ -41,7 +41,11 @@ public final class McpMain {
             one agent. You can only act on your sessions and only on their origin. browser_status lists them; \
             pass session=<id> to every tool when you have more than one. The user can block sites for all \
             agents: a tool then answers SITE_BLOCKED. There is no other way to such a site through these tools; \
-            tell the user.
+            tell the user. The user's security policy can take away more: screenshots, access levels, every \
+            site but the allowed ones. browser_status says what holds; SITE_NOT_ALLOWED, ACCESS_RESTRICTED and \
+            SCREENSHOTS_DISABLED mean that the policy rules it out. Under its strict profile a click on anything \
+            but a link or an expand/collapse control needs intent="submit" and the user's confirmation. Where a \
+            result says [redacted], a credential was taken out; it is not available through these tools.
             Pairing: when a tool says the extension is not connected, tell the user what it says they have to \
             do, and go on once they have done it. No tool pairs the browser.
             Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
@@ -126,6 +130,29 @@ public final class McpMain {
             mcpOut.println("Running servers stop accepting the old token. Pair the extension again.");
             return;
         }
+        Path agentKeys = AgentKeys.folder(tokenFile);
+        if (options.revokeAgent() != null) {
+            // The user's own command. The agent's key is gone at once; a server that runs refuses its tools from its next call on.
+            AgentKeys.revoke(agentKeys, options.revokeAgent());
+            mcpOut.println("Agent \"" + options.revokeAgent() + "\" is revoked: its key is deleted, and its tools answer "
+                    + "AGENT_REVOKED from now on.");
+            mcpOut.println("Tabs it had stay listed in the extension's popup until you revoke them there; no agent can use them.");
+            mcpOut.println("To allow it again: --allow-agent " + options.revokeAgent() + ". It is a new agent then, with no tab.");
+            return;
+        }
+        if (options.allowAgent() != null) {
+            boolean was = AgentKeys.allow(agentKeys, options.allowAgent());
+            mcpOut.println(was
+                    ? "Agent \"" + options.allowAgent() + "\" is allowed again. It gets a new key at its next start: a new agent, with no tab."
+                    : "Agent \"" + options.allowAgent() + "\" was not revoked.");
+            return;
+        }
+        if (options.listAgents()) {
+            java.util.List<String> known = AgentKeys.list(agentKeys);
+            mcpOut.println(known.isEmpty() ? "No agent has a key yet. An agent gets one when its program starts this server with --agent <name>."
+                    : String.join(System.lineSeparator(), known));
+            return;
+        }
         String token = Pairing.loadOrCreateToken(tokenFile);
         if (options.showToken()) {
             mcpOut.println("Pairing token: " + token);
@@ -135,7 +162,7 @@ public final class McpMain {
 
         Supplier<String> tokens = Pairing.tokenSource(tokenFile, token);
         // One list of blocked sites for the server, read again when its file changes.
-        Agent.Settings settings = new Agent.Settings(port, tokens, extensionOrigin, BlockedSites.source(options.settings()));
+        Agent.Settings settings = new Agent.Settings(port, tokens, extensionOrigin, BlockedSites.source(options.settings()), agentKeys);
         // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
         Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
 
@@ -161,7 +188,7 @@ public final class McpMain {
         // An agent's program started this process. There is one server for all agents: this process
         // passes its agent's messages on to it, and starts it first if there is none.
         Link link = new Link(System.in, mcpOut, System.err, tokens, Link.port(port), options.panel(), options.quiet(),
-                () -> startServer(options, false));
+                () -> startServer(options, false), options.agent(), agentKeys);
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
             return;
@@ -241,7 +268,7 @@ public final class McpMain {
                 window.run();
             }
             return new BrowserService.Unpaired(false, refused, up.get());
-        });
+        }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();
         RUNNING.add(agent::close);
@@ -249,6 +276,26 @@ public final class McpMain {
             window.run();
         }
         Thread.currentThread().join();
+    }
+
+    /**
+     * Who the agent of a process is that serves it alone: it holds its key itself, so there is no
+     * one to prove it to.
+     */
+    static AgentKeys.Identity identityAlone(String label, Path agentKeys) {
+        if (label == null || agentKeys == null) {
+            return AgentKeys.Identity.ephemeral();
+        }
+        if (AgentKeys.revoked(agentKeys, label)) {
+            return AgentKeys.Identity.revoked(agentKeys, label);
+        }
+        try {
+            return new AgentKeys.Identity(AgentKeys.idOf(AgentKeys.loadOrCreate(agentKeys, label)), label, true,
+                    () -> AgentKeys.revoked(agentKeys, label));
+        } catch (java.io.IOException e) {
+            Log.warn("the agent's key could not be read or made: this agent has an id for this start only");
+            return AgentKeys.Identity.ephemeral();
+        }
     }
 
     /**
@@ -453,11 +500,21 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --install-skill <agent>
                                                                  put the skill that tells an agent how to use the tools where
                                                                  that agent looks for skills: claude-code, codex or copilot
+              java -jar browser-context-mcp.jar --list-agents    the agents that have a key of their own, each with its id
+              java -jar browser-context-mcp.jar --revoke-agent <name>
+                                                                 take one agent's key away: its tools answer AGENT_REVOKED,
+                                                                 the other agents and the pairing stay as they are
+              java -jar browser-context-mcp.jar --allow-agent <name>
+                                                                 allow a revoked agent again, as a new agent with no tab
               java -jar browser-context-mcp.jar --help           this text
 
             What your agent runs (this goes into the agent's MCP settings, you do not run it):
-              java -jar browser-context-mcp.jar                  add --panel to have the window open whenever that agent runs,
+              java -jar browser-context-mcp.jar --agent <name>   add --panel to have the window open whenever that agent runs,
                                                                  or --no-panel to never have it come up by itself
+
+            Agents: --agent <name> gives an agent a key of its own, kept in the folder agents beside the pairing
+            token. By it the agent is the same agent at every start, and has its tabs again after a restart.
+            An agent that is started without it has an id for that start only, and no tab comes back to it.
 
             There is one server for all your agents. The first agent that needs it starts it, and it ends
             by itself when the last agent has gone. To stop it yourself, press Stop server in its window.
@@ -473,6 +530,7 @@ public final class McpMain {
             Edit in the server's window opens it. A change is in force as soon as the file is saved.
 
             Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
+                      --agent <name>  who the agent is that starts this server (or BCMCP_AGENT)
                       --settings <path of the settings file>
                       --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one""";
 
@@ -802,7 +860,7 @@ public final class McpMain {
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
             boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace, boolean quiet,
-            Skills.Agent setup) {
+            Skills.Agent setup, String agent, String revokeAgent, String allowAgent, boolean listAgents) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -824,6 +882,10 @@ public final class McpMain {
             boolean noPanel = false;
             boolean hub = false;
             boolean standing = false;
+            String agent = null;
+            String revokeAgent = null;
+            String allowAgent = null;
+            boolean listAgents = false;
             for (int i = 0; i < args.length; i++) {
                 String arg = args[i];
                 switch (arg) {
@@ -836,7 +898,9 @@ public final class McpMain {
                     // The two that this program gives itself when it starts the one server: not for a command line.
                     case "--hub" -> hub = true;
                     case "--standing" -> standing = true;
-                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill", "--setup" -> {
+                    case "--list-agents" -> listAgents = true;
+                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill", "--setup",
+                            "--agent", "--revoke-agent", "--allow-agent" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
                         }
@@ -851,6 +915,12 @@ public final class McpMain {
                             skill = value;
                         } else if (arg.equals("--setup")) {
                             setUp = value;
+                        } else if (arg.equals("--agent")) {
+                            agent = value;
+                        } else if (arg.equals("--revoke-agent")) {
+                            revokeAgent = value;
+                        } else if (arg.equals("--allow-agent")) {
+                            allowAgent = value;
                         } else {
                             origin = value;
                         }
@@ -896,10 +966,26 @@ public final class McpMain {
             // The settings are beside the token that is in use, unless they are named: a server with a token
             // of its own does not read the list of another.
             String list = firstSet(settings, environment.apply("BCMCP_SETTINGS"), "");
+            String fromEnvironment = environment.apply("BCMCP_AGENT");
+            // Named on the command line it has to be a name; an empty variable names none.
+            String agentLabel = agent != null ? agentLabel("--agent", agent)
+                    : fromEnvironment == null || fromEnvironment.isBlank() ? null : agentLabel("BCMCP_AGENT", fromEnvironment);
             return new Options(help, showToken, rotateToken, number, token,
                     firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
                     fromStart, hub, standing,
-                    list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup);
+                    list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup,
+                    agentLabel, revokeAgent == null ? null : agentLabel("--revoke-agent", revokeAgent),
+                    allowAgent == null ? null : agentLabel("--allow-agent", allowAgent), listAgents);
+        }
+
+        /** A label for an agent's key, or the reason it is none. */
+        private static String agentLabel(String option, String given) throws UsageException {
+            String label = AgentKeys.label(given);
+            if (label == null) {
+                throw new UsageException(option + " takes a short name of letters, digits, dot, dash or underscore, such as "
+                        + "claude-code, not \"" + given + "\".");
+            }
+            return label;
         }
 
         /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */

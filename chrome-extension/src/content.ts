@@ -4,10 +4,11 @@
 
 import { extractPage, type LinkStyle } from './extract.ts';
 import {
-  clickElement, describeClickTarget, describeKeyTarget, fill, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
+  clickElement, describeClickTarget, describeKeyTarget, fill, foreignFramesInView, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
 import { applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice, whenDrawn, type Notice, type NoticeMount } from './notice.ts';
+import { redactText } from './redact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
 import {
   captureBaseline, contentDigest, observeSubmission, submissionPreview, submittedTexts, validationProblems, type SubmitBaseline,
@@ -35,7 +36,7 @@ const signals = new Map<string, { cancelled: boolean }>();
  * is a text box. `named` is false when the control is whatever had the keyboard, not a ref.
  */
 const submissions = new Map<string, {
-  control: Element; fields: Element[]; submitted: string[]; by: 'click' | 'enter'; named: boolean;
+  control: Element; fields: Element[]; intended: (string | undefined)[]; submitted: string[]; by: 'click' | 'enter'; named: boolean;
 }>();
 
 function optionalRef(msg: Request, state: PageState): Element | undefined {
@@ -168,6 +169,9 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         state);
     case 'coverage':
       return { text: viewportCoverage(document) };
+    case 'frames':
+      // For a screenshot: whether a picture of the tab would show a frame of another site.
+      return { foreign: foreignFramesInView(document) };
     case 'quiet':
       return { ...(await waitForQuiet(document, 300, Math.min(Number(msg.maxMs) || 3000, 5000))), title: document.title };
     case 'unsaved':
@@ -209,7 +213,7 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         fields.push(control);
         intended.push(undefined);
       }
-      submissions.set(String(msg.submissionId), { control, fields, submitted: [], by, named });
+      submissions.set(String(msg.submissionId), { control, fields, intended, submitted: [], by, named });
       const key = describeKeyTarget(control, 'Enter');
       return {
         target: describeClickTarget(control),
@@ -222,6 +226,20 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         // The beginning of it, for the question to the user.
         preview: submissionPreview(fields, intended),
       };
+    }
+    case 'submit_recheck': {
+      // What the user was asked about is what is sent. The fingerprint was taken before they were
+      // asked; if the content is another now (the page changed it, or someone typed), nothing is
+      // sent. It is looked at before the agent's own texts are filled in: filling one field can
+      // change another, as one choice of a group unchecks the others.
+      const entry = submissions.get(String(msg.submissionId));
+      if (!entry) throw new DomError('STALE_REF', 'The page changed while the submission was being prepared. Take a new snapshot.');
+      if (typeof msg.digest === 'string' && contentDigest(entry.control, entry.fields, entry.intended) !== msg.digest) {
+        submissions.delete(String(msg.submissionId));
+        throw new DomError('APPROVAL_STALE',
+          'What would be submitted changed after it was checked and the user was asked. Nothing was sent. Take a new snapshot and submit again; the user is asked again.');
+      }
+      return {};
     }
     case 'submit_baseline': {
       const entry = submissions.get(String(msg.submissionId));
@@ -272,6 +290,13 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
   }
 }
 
+/** A result with its text freed of what looks like a credential. */
+function withoutSecrets(result: unknown): unknown {
+  if (typeof result !== 'object' || result === null) return result;
+  const text = (result as { text?: unknown }).text;
+  return typeof text === 'string' ? { ...result, text: redactText(text) } : result;
+}
+
 if (!scope[LOADED]) {
   scope[LOADED] = true;
   const state = new PageState();
@@ -281,7 +306,8 @@ if (!scope[LOADED]) {
       ...body, highestRef: state.registry.highest, docId: state.docId, generation: state.generation, url: location.href,
     });
     handle(msg, state).then(
-      (result) => reply({ ok: true, result }),
+      // What a snapshot or an extract says goes to the agent: what looks like a credential is taken out here, before it leaves the page.
+      (result) => reply({ ok: true, result: msg.op === 'snapshot' || msg.op === 'extract' ? withoutSecrets(result) : result }),
       (err: unknown) => reply(err instanceof DomError
         ? { ok: false, code: err.code, message: err.message }
         : { ok: false, code: 'PAGE_ERROR', message: `The page operation failed: ${err instanceof Error ? err.message : String(err)}` }),

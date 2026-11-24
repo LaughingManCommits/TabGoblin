@@ -77,6 +77,9 @@ final class Link {
     private final int port;
     private final boolean panel;
     private final Starter starter;
+    /** The label of this agent's key and the folder the keys are in; null for an agent that has none. */
+    private final String agent;
+    private final java.nio.file.Path agentKeys;
     private final ObjectMapper json = new ObjectMapper();
 
     /** What the agent is waiting for an answer to, by the request's id as it was written: whether it is a tool call. */
@@ -107,6 +110,17 @@ final class Link {
      */
     Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, int port, boolean panel, boolean quiet,
             Starter starter) {
+        this(in, out, err, token, port, panel, quiet, starter, null, null);
+    }
+
+    /**
+     * @param agent     the label of this agent's key, as its program names it with --agent; null for none
+     * @param agentKeys the folder the agents' keys are in
+     */
+    Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, int port, boolean panel, boolean quiet,
+            Starter starter, String agent, java.nio.file.Path agentKeys) {
+        this.agent = agentKeys == null ? null : agent;
+        this.agentKeys = agentKeys;
         this.quiet = quiet;
         this.in = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
         this.out = out;
@@ -218,6 +232,20 @@ final class Link {
             ask.put("link", VERSION);
             ask.put("panel", panel);
             ask.put("quiet", quiet);
+            if (what.equals("attach") && agent != null) {
+                // Who this agent is: the label of its key, and the proof that this process holds the
+                // key. A label the user revoked is named without a proof: no key is made for it.
+                ask.put("agent", agent);
+                if (!AgentKeys.revoked(agentKeys, agent)) {
+                    try {
+                        ask.put("agentProof", AgentKeys.proof(AgentKeys.loadOrCreate(agentKeys, agent), serverNonce, nonce));
+                    } catch (IOException e) {
+                        // Without a key there is nothing to prove: the agent is served as one without a label.
+                        say("the agent's key could not be read or made: this agent has an id for this start only");
+                        ask.remove("agent");
+                    }
+                }
+            }
             to.write((json.writeValueAsString(ask) + "\n").getBytes(StandardCharsets.UTF_8));
             to.flush();
             JsonNode answer = message(from.readLine());

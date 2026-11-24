@@ -118,6 +118,8 @@ final class Log {
     }
 
     private static void command(String agent, String id, String session, String action, long millis, String errorCode) {
+        // The record of what agents did, where the user's settings ask for one. The same facts as the line below.
+        Audit.command(agent, session, action, millis, errorCode);
         StringBuilder line = new StringBuilder("command id=").append(id)
                 .append(" session=").append(session == null ? "-" : session)
                 .append(" action=").append(action).append(" ms=").append(millis);

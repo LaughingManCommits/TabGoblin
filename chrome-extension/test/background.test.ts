@@ -36,6 +36,11 @@ const intervals: { fn: () => void; ms: number }[] = [];
 const notices: { tab: number; state: unknown; text?: unknown; ended?: unknown }[] = [];
 /** When each picture of a tab was taken. */
 const captures: number[] = [];
+/** Operations a fake page holds its answer to, by name, until a test lets them go: the moment in which access can change. */
+const holdNext = new Set<string>();
+const held = new Map<string, () => void>();
+/** The last message a fake page was sent for each operation. */
+const pageSaid = new Map<string, any>();
 /** How long a fake page takes to answer that its notice is gone: a real one answers when it has drawn again. */
 let drawsAfterMs = 0;
 /** When a fake page last answered that. */
@@ -73,7 +78,13 @@ function pageAnswer(tabId: number, msg: any): Promise<object> | object {
     waits.delete(msg.opId);
     return { ok: true, result: {}, ...meta };
   }
-  const told = pageResults.get(msg.op);
+  pageSaid.set(msg.op, msg);
+  const told = pageResults.get(msg.op) as { fails?: string } | undefined;
+  // A page that refuses: what a real one answers when its own check of the operation fails.
+  if (told?.fails) return { ok: false, code: told.fails, message: 'refused by the page', ...meta };
+  if (holdNext.delete(msg.op)) {
+    return new Promise((resolve) => held.set(msg.op, () => resolve({ ok: true, result: told ?? { op: msg.op }, ...meta })));
+  }
   return { ok: true, result: told ?? (msg.op === 'snapshot' ? { text: `snapshot of tab ${tabId}` } : { op: msg.op }), ...meta };
 }
 
@@ -142,7 +153,7 @@ class FakeServer {
   readonly name: string;
   readonly versions: number[];
 
-  constructor(clientId: string, name: string, versions = [2]) {
+  constructor(clientId: string, name: string, versions = [3]) {
     this.clientId = clientId;
     this.announced = clientId;
     this.name = name;
@@ -173,7 +184,7 @@ class FakeServer {
     } else if (msg.type === 'auth') {
       this.proofs += 1;
       assert.equal(msg.proof, await clientProof(TOKEN, this.nonce, msg.nonce), 'the extension must prove it knows the token');
-      this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: 2, clientId: this.clientId, clientName: this.name });
+      this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: 3, clientId: this.clientId, clientName: this.name });
       this.paired = true;
       if (this.eager) this.eagerAnswers.push(this.command('status'));
     } else if (msg.type === 'event') {
@@ -1122,7 +1133,7 @@ test('a server that stops answering is taken for gone, and the badge says ON onl
   assert.equal(badges.at(-1), '', 'no tab is authorized: the badge says nothing');
 });
 
-test('a server that is started again is told its tabs at once, by its agent\'s name', async () => {
+test('an agent that is started again has its tabs by its id, and an agent of the same name has none of them', async () => {
   for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
   const port = BASE_PORT + 6;
   const has = async (id: string): Promise<boolean> => (await state()).clients.some((c: any) => c.id === id);
@@ -1141,11 +1152,13 @@ test('a server that is started again is told its tabs at once, by its agent\'s n
     .some((e) => e.event === 'sessions' && e.data.sessions.some((x: any) => x.session === session));
   const row = async (session: string): Promise<any> => (await state()).sessions.find((x: any) => x.id === session);
 
-  // An agent's server, with a tab of its own.
-  const first = new FakeServer('c-first', 'restarting-agent');
+  // An agent with a key of its own, and a tab of its own.
+  const KEYED = 'a-0123456789ab';
+  const first = new FakeServer(KEYED, 'restarting-agent');
   await arrive(first);
+  assert.equal((await state()).clients.find((c: any) => c.id === KEYED).lasting, true, 'the popup is told that this agent is the same at every start');
   tabs.set(9, { id: 9, url: 'https://restart.example/board', status: 'complete', active: false, windowId: 1, title: 'Board' });
-  const reply = await popup({ type: 'authorize', tabId: 9, mode: 'read', clientId: 'c-first' });
+  const reply = await popup({ type: 'authorize', tabId: 9, mode: 'read', clientId: KEYED });
   assert.equal(reply.ok, true);
   const sid = reply.state.sessions.at(-1).id;
   await until(() => told(first, sid), 'the first server to be told its tab');
@@ -1156,45 +1169,61 @@ test('a server that is started again is told its tabs at once, by its agent\'s n
   await sleep(30);
   assert.equal(badges.at(-1), 'OFF');
 
-  // It is started again: a new id, the same name, known when it pairs. It is told its tab right
-  // behind the pairing, without asking for anything, and the popup and the badge say that the
-  // tab's agent is there. Before, the server heard of the tab only with its first command.
-  const again = new FakeServer('c-again', 'restarting-agent');
+  // An agent that calls itself the same comes while the first is away. It has another id, so it
+  // is another agent: it is told nothing of the tab and cannot reach it, with a session named or
+  // without. This passed once: a tab whose agent was gone went to an agent of the same name.
+  const impostor = new FakeServer('c-impostor', 'restarting-agent');
+  await arrive(impostor);
+  await sleep(100);
+  assert.equal(told(impostor, sid), false, 'a name gives an agent nothing');
+  assert.equal(code(await impostor.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
+  assert.equal(code(await impostor.command('snapshot')), 'NOT_AUTHORIZED');
+  assert.deepEqual((await impostor.command('status')).result.sessions, []);
+  assert.equal((await row(sid)).clientId, KEYED, 'the tab stays with the agent that is gone');
+  assert.equal((await row(sid)).ownerConnected, false);
+  // Saying the name again, as an agent does with its opening message, changes nothing.
+  impostor.deliver({ type: 'client', name: 'restarting-agent' });
+  await sleep(100);
+  assert.equal(code(await impostor.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
+  assert.equal(badges.at(-1), 'OFF', 'nobody is there who may act on the tab');
+  await leave(impostor);
+
+  // The agent itself is started again: the same id, proven to its server by its key. It is told
+  // its tab right behind the pairing, without asking, and under another name as well.
+  const again = new FakeServer(KEYED, 'renamed-agent');
   await arrive(again);
   await until(() => told(again, sid), 'the restarted server to be told its tab');
   assert.equal((await row(sid)).ownerConnected, true);
-  // It is the new server's own, and not one it may take up with a command some time: everything
-  // that names the tab's agent names the one that is there.
-  assert.equal((await row(sid)).clientId, 'c-again');
+  assert.equal((await row(sid)).clientId, KEYED);
   assert.equal((await again.command('status')).result.sessions[0].owner, 'you');
   await sleep(30);
   assert.equal(badges.at(-1), 'ON');
   assert.equal(code(await again.command('snapshot', { session: sid })), 'ok');
 
-  // Started once more, by an agent that says its name only later: nothing is its own before it
-  // has said it, and all of it the moment it does.
-  await leave(again);
-  const late = new FakeServer('c-late', '');
-  await arrive(late);
-  await sleep(100);
-  assert.equal(told(late, sid), false, 'an agent without a name is given nothing');
-  assert.equal((await row(sid)).ownerConnected, false);
-  assert.equal((await row(sid)).clientId, 'c-again', 'the tab stays with the server that is gone');
-  assert.equal(code(await late.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
-  late.deliver({ type: 'client', name: 'restarting-agent' });
-  await until(() => told(late, sid), 'the server to be told its tab once it has said its name');
-  assert.equal((await row(sid)).ownerConnected, true);
-  assert.equal((await row(sid)).clientId, 'c-late');
-  await sleep(30);
-  assert.equal(badges.at(-1), 'ON');
+  // A second process that holds the same key at the same time is given an id of its own by the
+  // server, which only looks alike: the tab is not its own.
+  const second = new FakeServer(`${KEYED}~1f2e`, 'restarting-agent');
+  servers.set(BASE_PORT + 5, second);
+  for (let i = 0; i < 120 && !(await has(second.clientId)); i++) await sleep(50);
+  assert.equal((await state()).clients.find((c: any) => c.id === second.clientId).lasting, false);
+  assert.equal(code(await second.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
+  servers.delete(BASE_PORT + 5);
+  second.socket?.close();
 
-  // Another agent, with another name, is told nothing of it and cannot reach it.
-  assert.equal(told(one, sid), false);
-  assert.equal(code(await one.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
+  // The user's no to an agent with a key is kept beyond this run of the browser; one to an agent
+  // that has an id for one start only is not, because that id never comes again.
+  await popup({ type: 'disconnectClient', clientId: KEYED });
+  assert.deepEqual(storageLocal.blockedAgents, [KEYED]);
+  assert.equal(await row(sid), undefined, 'its tab went with it');
+  await popup({ type: 'disconnectClient', clientId: 'c-one' });
+  assert.deepEqual(storageLocal.blockedAgents, [KEYED]);
+  await popup({ type: 'allowClient', clientId: 'c-one' });
+  await popup({ type: 'allowClient', clientId: KEYED });
+  assert.deepEqual(storageLocal.blockedAgents, []);
+  await until(async () => (await has('c-one')) && (await has(KEYED)), 'both agents to be allowed back');
 
-  await popup({ type: 'revoke', session: sid });
   tabs.delete(9);
-  await leave(late);
+  await leave(again);
 });
 
 test('a site on the user\'s list of blocked sites: no command runs there, no tab is authorized there, and the popup is told', async () => {
@@ -1311,4 +1340,355 @@ test('a site on the user\'s list of blocked sites: no command runs there, no tab
   assert.deepEqual((await state()).blocked, { sites: [], everything: false });
   for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
   for (const id of [10, 11, 12, 13]) tabs.delete(id);
+});
+
+test('the user\'s security policy is enforced at the moment of a command: screenshots, access, sites, the strict profile, and how long access lasts', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  const port = BASE_PORT + 6;
+  const ID = 'a-9a9a9a9a9a9a';
+  const has = async (id: string): Promise<boolean> => (await state()).clients.some((c: any) => c.id === id);
+  const guard = new FakeServer(ID, 'policed-agent');
+  servers.set(port, guard);
+  for (let i = 0; i < 120 && !(await has(ID)); i++) await sleep(50);
+  assert.ok(await has(ID), 'the server is found');
+  const NONE = { strict: false, allowed: [] as string[], screenshots: true, maxAccess: 'write', sessionMaxMinutes: 0, sessionIdleMinutes: 0 };
+  const say = async (limits: Partial<typeof NONE>): Promise<void> => {
+    const wanted = { ...NONE, ...limits };
+    guard.deliver({ type: 'policy', blocked: [], unreadable: false, ...wanted });
+    await until(async () => JSON.stringify((await state()).limits) === JSON.stringify(wanted), 'the policy to be known');
+  };
+  const row = async (session: string): Promise<any> => (await state()).sessions.find((x: any) => x.id === session);
+  tabs.set(21, { id: 21, url: 'https://work.example.org/board', status: 'complete', active: true, windowId: 1, title: 'Board' });
+  tabs.set(22, { id: 22, url: 'https://elsewhere.example.net/', status: 'complete', active: false, windowId: 1, title: 'Elsewhere' });
+  const granted = await popup({ type: 'authorize', tabId: 21, mode: 'write', clientId: ID });
+  assert.equal(granted.ok, true);
+  const sid = granted.state.sessions.at(-1).id;
+  const run = (action: string, params: object = {}): Promise<any> => guard.command(action, { session: sid, params });
+  const reached = (op: string): number => pageLog.filter((entry) => entry === `21:${op}`).length;
+  assert.deepEqual((await state()).limits, NONE, 'a server that says nothing restricts nothing');
+
+  // No screenshots: none is taken, and the page is not even asked what is in view. Reading goes on.
+  await say({ screenshots: false });
+  const taken = captures.length;
+  const asked = reached('frames');
+  assert.equal(code(await run('screenshot')), 'SCREENSHOTS_DISABLED');
+  assert.equal(captures.length, taken);
+  assert.equal(reached('frames'), asked);
+  assert.equal(code(await run('snapshot')), 'ok');
+  await say({});
+  assert.equal(code(await run('screenshot')), 'ok');
+
+  // A picture is not taken either while a frame of another site is in view, whatever the policy.
+  pageResults.set('frames', { foreign: 1 });
+  const before = captures.length;
+  assert.equal(code(await run('screenshot')), 'SCREENSHOT_BLOCKED');
+  assert.equal(captures.length, before, 'nothing was captured');
+  pageResults.delete('frames');
+
+  // The highest access level. The session keeps what the user gave it, and has less: a refusal says
+  // that it is the policy's, and nothing reaches the page.
+  await say({ maxAccess: 'explore' });
+  const fills = reached('fill');
+  const refused = await run('fill', { ref: 1, text: 'x' });
+  assert.equal(code(refused), 'ACCESS_RESTRICTED');
+  assert.match(refused.error.message, /security policy allows no session more than Explore/);
+  assert.equal(reached('fill'), fills);
+  assert.deepEqual([(await row(sid)).mode, (await row(sid)).access], ['write', 'explore']);
+  // A link is followed; a button is not pressed, and that is the policy's doing too.
+  pageResults.set('describe', { readSafe: true, disclosure: false, externalLink: false, submit: null, label: 'Next' });
+  assert.equal(code(await run('click', { ref: 1 })), 'ok');
+  pageResults.set('describe', { readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Toggle' });
+  const clicks = reached('click');
+  assert.equal(code(await run('click', { ref: 1 })), 'ACCESS_RESTRICTED');
+  assert.equal(reached('click'), clicks);
+  assert.equal(code(await run('press_key', { key: 'x' })), 'ACCESS_RESTRICTED');
+  // And no new session is given more than that.
+  const tooMuch = await popup({ type: 'authorize', tabId: 22, mode: 'write', clientId: ID });
+  assert.equal(tooMuch.ok, false);
+  assert.match(tooMuch.error, /no session more than Explore/);
+  await say({ maxAccess: 'read' });
+  assert.equal(code(await run('navigate', { url: '/x' })), 'ACCESS_RESTRICTED');
+  assert.equal(code(await run('extract')), 'ok');
+
+  // Only the sites the policy allows. A session elsewhere is refused and marked; none is given there.
+  await say({ allowed: ['example.net'] });
+  assert.equal(code(await run('snapshot')), 'SITE_NOT_ALLOWED');
+  assert.equal(code(await guard.command('status')), 'ok');
+  assert.equal((await row(sid)).outside, true);
+  await say({ allowed: ['example.org'] });
+  assert.equal(code(await run('snapshot')), 'ok');
+  assert.equal((await row(sid)).outside, false);
+  const elsewhere = await popup({ type: 'authorize', tabId: 22, mode: 'read', clientId: ID });
+  assert.equal(elsewhere.ok, false);
+  assert.match(elsewhere.error, /^elsewhere\.example\.net is not among the sites your security policy allows/);
+  // A site that only ends alike is another site.
+  tabs.get(22)!.url = 'https://notexample.org/';
+  assert.equal((await popup({ type: 'authorize', tabId: 22, mode: 'read', clientId: ID })).ok, false);
+
+  // The strict profile. A tab is for one named agent.
+  await popup({ type: 'setAsk', session: sid, value: 'never' });
+  assert.equal((await row(sid)).ask, 'never');
+  await say({ strict: true });
+  tabs.get(22)!.url = 'https://other.example.org/';
+  const forAny = await popup({ type: 'authorize', tabId: 22, mode: 'read', clientId: null });
+  assert.equal(forAny.ok, false);
+  assert.match(forAny.error, /choose the agent this tab is for/);
+  // Every submission is put to the user, whatever was set: the session said "never".
+  assert.equal((await row(sid)).ask, 'always');
+  assert.equal((await guard.command('status')).result.sessions[0].confirmation, 'always');
+  // A click that may change something is not made as a mere click.
+  pageResults.set('describe', { readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Toggle theme' });
+  const pressed = reached('click') + reached('submit_fire');
+  assert.equal(code(await run('click', { ref: 1 })), 'SUBMIT_INTENT_REQUIRED');
+  assert.equal(reached('click') + reached('submit_fire'), pressed);
+  // Declared, it goes the way of a submission: the user is asked, and without their yes nothing is clicked.
+  pageResults.set('submit_prepare', {
+    target: { readSafe: false, disclosure: false, externalLink: false, submit: null, label: 'Toggle theme' }, by: 'click', how: 'click',
+    label: 'Toggle theme', digest: 'abc-3', preview: [],
+  });
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  pageResults.set('submit_fire', { dispatched: true });
+  pageResults.set('submit_observe', {
+    expectSeen: false, submittedSeen: false, newAlerts: [], invalidFields: [], newStatuses: ['Theme changed'], formGone: false, fieldsCleared: false,
+    urlChanged: false, documentChanged: false,
+  });
+  const declined = run('click', { ref: 1, intent: 'submit' });
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked under the strict profile');
+  await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: false });
+  assert.equal(code(await declined), 'SUBMIT_DENIED');
+  assert.equal(reached('click') + reached('submit_fire'), pressed);
+  await popup({ type: 'askAgain', session: sid });
+  // A link still is a click.
+  pageResults.set('describe', { readSafe: true, disclosure: false, externalLink: false, submit: null, label: 'Next' });
+  assert.equal(code(await run('click', { ref: 1 })), 'ok');
+
+  // How long an authorization lasts: at its longest, and unused. Told to the agent and to the popup as its end.
+  await say({ sessionMaxMinutes: 60, sessionIdleMinutes: 10 });
+  const realNow = Date.now;
+  try {
+    assert.equal(code(await run('snapshot')), 'ok');
+    const used = realNow();
+    const ends = (await row(sid)).expiresAt;
+    assert.ok(Math.abs(ends - (used + 10 * 60_000)) < 5000, 'ten minutes after its last command');
+    assert.ok(Math.abs((await guard.command('status')).result.sessions[0].expiresAt - ends) < 5000);
+    // Nine minutes later it is used, and has ten more.
+    Date.now = () => realNow() + 9 * 60_000;
+    assert.equal(code(await run('snapshot')), 'ok');
+    Date.now = () => realNow() + 18 * 60_000;
+    assert.equal(code(await run('snapshot')), 'ok');
+    // Left alone for ten minutes it ends, at the command that finds it so, and the page is not touched.
+    const read = reached('snapshot');
+    Date.now = () => realNow() + 29 * 60_000;
+    assert.equal(code(await run('snapshot')), 'AUTHORIZATION_EXPIRED');
+    assert.equal(reached('snapshot'), read);
+    assert.equal(await row(sid), undefined, 'the session is gone');
+    assert.ok((await state()).activity.some((a: any) => a.label === 'Authorization expired'));
+  } finally {
+    Date.now = realNow;
+  }
+  // The longest it may last holds also for one that is used all the time, and ends it without a command: at the worker's next look.
+  const longer = (await popup({ type: 'authorize', tabId: 21, mode: 'read', clientId: ID })).state.sessions.at(-1).id;
+  await say({ sessionMaxMinutes: 60 });
+  try {
+    Date.now = () => realNow() + 61 * 60_000;
+    for (const listener of fakeChrome.alarms.onAlarm.listeners) listener({ name: 'reconnect' });
+    await until(async () => (await row(longer)) === undefined, 'the authorization to end by itself');
+    assert.ok((await state()).activity.some((a: any) => a.label === 'Authorization ended by your security policy'));
+  } finally {
+    Date.now = realNow;
+  }
+
+  for (const op of ['describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
+  await say({});
+  servers.delete(port);
+  guard.socket?.close();
+  await until(async () => !(await has(ID)), 'the server to be gone');
+  assert.deepEqual((await state()).limits, NONE, 'a server that leaves takes its policy with it');
+  for (const id of [21, 22]) tabs.delete(id);
+});
+
+test('what was allowed when a command began is checked again right before the page is touched', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  tabs.set(31, { id: 31, url: 'https://race.example/list', status: 'complete', active: true, windowId: 1, title: 'List' });
+  const reached = (op: string): number => pageLog.filter((entry) => entry === `31:${op}`).length;
+  const authorize = async (): Promise<string> => (await popup({ type: 'authorize', tabId: 31, mode: 'write', clientId: 'c-one' })).state.sessions.at(-1).id;
+  pageResults.set('describe', { readSafe: true, disclosure: false, externalLink: false, submit: null, label: 'Next' });
+  /** Starts a click and holds it between its two steps in the page: after the element was looked at, before it is clicked. */
+  const clickHeld = async (session: string): Promise<{ answer: Promise<any> }> => {
+    holdNext.add('describe');
+    const running = one.command('click', { session, params: { ref: 1 } });
+    await until(() => held.has('describe'), 'the click to be in its first step');
+    // In an object: a promise that an async function returns would be waited for by its caller.
+    return { answer: running };
+  };
+  const letGo = (): void => { held.get('describe')?.(); held.delete('describe'); };
+
+  // The tab moves to another site in that moment, and the browser has not said so yet: no event
+  // has come. The click is not made, nothing of the new page is asked, and the session is suspended.
+  let sid = await authorize();
+  let clicks = reached('click');
+  let running = await clickHeld(sid);
+  tabs.get(31)!.url = 'https://elsewhere.example/landing';
+  letGo();
+  assert.equal(code(await running.answer), 'ORIGIN_MISMATCH');
+  assert.equal(reached('click'), clicks, 'the click did not reach the page');
+  assert.equal((await state()).sessions.find((x: any) => x.id === sid).suspended, true);
+  tabs.get(31)!.url = 'https://race.example/list';
+  await popup({ type: 'revoke', session: sid });
+
+  // The authorization runs out in that moment.
+  sid = (await popup({ type: 'authorize', tabId: 31, mode: 'write', clientId: 'c-one', minutes: 1 })).state.sessions.at(-1).id;
+  clicks = reached('click');
+  running = await clickHeld(sid);
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 2 * 60_000;
+    letGo();
+    assert.equal(code(await running.answer), 'AUTHORIZATION_EXPIRED');
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(reached('click'), clicks);
+  assert.equal((await state()).sessions.some((x: any) => x.id === sid), false, 'the session ended');
+
+  // The user revokes, pauses, or takes the access level down in that moment.
+  for (const [what, change, expected] of [
+    ['revoked', (id: string) => popup({ type: 'revoke', session: id }), 'CANCELLED'],
+    ['paused', (id: string) => popup({ type: 'pause', session: id }), 'CANCELLED'],
+    // The level is looked at again between the two steps, before the cancellation is: either way nothing is clicked.
+    ['reduced to read', (id: string) => popup({ type: 'setMode', session: id, mode: 'read' }), 'EXPLORE_NOT_AUTHORIZED'],
+  ] as const) {
+    sid = await authorize();
+    clicks = reached('click');
+    running = await clickHeld(sid);
+    await change(sid);
+    letGo();
+    assert.equal(code(await running.answer), expected, what);
+    assert.equal(reached('click'), clicks, `${what}: the click did not reach the page`);
+    if ((await state()).sessions.some((x: any) => x.id === sid)) await popup({ type: 'revoke', session: sid });
+  }
+
+  // Its agent is disconnected by the user in that moment: the session ends with it.
+  sid = await authorize();
+  clicks = reached('click');
+  running = await clickHeld(sid);
+  await popup({ type: 'disconnectClient', clientId: 'c-one' });
+  letGo();
+  await sleep(50);
+  assert.equal(reached('click'), clicks, 'the click did not reach the page');
+  assert.equal((await state()).sessions.some((x: any) => x.id === sid), false);
+  await popup({ type: 'allowClient', clientId: 'c-one' });
+  await until(async () => (await state()).clients.some((c: any) => c.id === 'c-one'), 'the agent to be allowed back');
+
+  pageResults.delete('describe');
+  tabs.delete(31);
+});
+
+test('an approval is for the content the user was shown, once: a page that says it changed gets nothing sent', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  tabs.set(41, { id: 41, url: 'https://forms.example/new', status: 'complete', active: true, windowId: 1, title: 'New' });
+  const sid = (await popup({ type: 'authorize', tabId: 41, mode: 'write', clientId: 'c-one' })).state.sessions.at(-1).id;
+  const fired = (): number => pageLog.filter((entry) => entry === '41:submit_fire').length;
+  pageResults.set('submit_prepare', {
+    target: { readSafe: false, disclosure: false, externalLink: false, submit: 'form', label: 'Save' }, by: 'click', how: 'click',
+    label: 'Save', digest: '5f3a-17', preview: [{ field: 'Title', text: 'Quarterly numbers' }],
+  });
+  pageResults.set('submit_fire', { dispatched: true });
+  pageResults.set('submit_observe', {
+    expectSeen: false, submittedSeen: false, newAlerts: [], invalidFields: [], newStatuses: ['Saved'], formGone: true, fieldsCleared: false,
+    urlChanged: false, documentChanged: false,
+  });
+  const answer = async (allow: boolean): Promise<string> => {
+    await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
+    const id = (await state()).pendingConfirm.id;
+    await popup({ type: 'confirm', id, allow });
+    return id;
+  };
+
+  // The page is told the fingerprint of what the user was shown, right after their answer and before anything is entered.
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  const sent = one.command('submit', { session: sid, params: { ref: 1, submissionId: 'first' } });
+  const approval = await answer(true);
+  assert.equal((await sent).result.state, 'CONFIRMED');
+  assert.equal(pageSaid.get('submit_recheck').digest, '5f3a-17');
+  const once = fired();
+
+  // The approval was for that one request. Answering it again does nothing, and neither does an answer nobody asked for.
+  await popup({ type: 'confirm', id: approval, allow: true });
+  await popup({ type: 'confirm', id: 'made-up', allow: true });
+  await sleep(30);
+  assert.equal(fired(), once);
+  assert.equal((await state()).pendingConfirm, null);
+  // The same submission id is answered from memory and not sent again; so is the same content under a new id.
+  const replay = await one.command('submit', { session: sid, params: { ref: 1, submissionId: 'first' } });
+  assert.equal(replay.result.dispatched, false);
+  assert.equal(code(await one.command('submit', { session: sid, params: { ref: 1, submissionId: 'second' } })), 'DUPLICATE_SUBMISSION');
+  assert.equal(fired(), once);
+
+  // The page finds that the content is another than the user was shown: nothing is clicked, and
+  // the request can be made anew, with a new question.
+  (pageResults.get('submit_prepare') as any).digest = '9c11-20';
+  pageResults.set('submit_recheck', { fails: 'APPROVAL_STALE' });
+  const stale = one.command('submit', { session: sid, params: { ref: 1, submissionId: 'third' } });
+  await answer(true);
+  assert.equal(code(await stale), 'APPROVAL_STALE');
+  assert.equal(fired(), once, 'nothing was sent');
+  assert.equal((await state()).sessions.find((x: any) => x.id === sid).lastSubmission, 'CONFIRMED', 'no submission is recorded for it');
+  pageResults.delete('submit_recheck');
+  const anew = one.command('submit', { session: sid, params: { ref: 1, submissionId: 'third' } });
+  await answer(true);
+  assert.equal((await anew).result.state, 'CONFIRMED');
+  assert.equal(fired(), once + 1);
+
+  // The document is another by the time the user answers: the session is on its site still, and
+  // the page no longer knows the submission. Nothing is sent.
+  (pageResults.get('submit_prepare') as any).digest = '77aa-9';
+  pageResults.set('submit_recheck', { fails: 'STALE_REF' });
+  const moved = one.command('submit', { session: sid, params: { ref: 1, submissionId: 'fourth' } });
+  await answer(true);
+  assert.equal(code(await moved), 'STALE_REF');
+  assert.equal(fired(), once + 1);
+
+  // The tab leaves the session's site while the question is open: the allow comes too late.
+  pageResults.delete('submit_recheck');
+  (pageResults.get('submit_prepare') as any).digest = '31bb-4';
+  const left = one.command('submit', { session: sid, params: { ref: 1, submissionId: 'fifth' } });
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
+  tabs.get(41)!.url = 'https://phish.example/new';
+  await popup({ type: 'confirm', id: (await state()).pendingConfirm.id, allow: true });
+  assert.equal(code(await left), 'ORIGIN_MISMATCH');
+  assert.equal(fired(), once + 1);
+
+  for (const op of ['submit_prepare', 'submit_baseline', 'submit_recheck', 'submit_fire', 'submit_observe']) pageResults.delete(op);
+  for (const remaining of (await state()).sessions) await popup({ type: 'revoke', session: remaining.id });
+  tabs.delete(41);
+});
+
+test('commands that pile up for one tab are refused beyond a limit, and not left waiting', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  const port = BASE_PORT + 6;
+  const flood = new FakeServer('c-flood', 'flooding-agent');
+  servers.set(port, flood);
+  await until(async () => (await state()).clients.some((c: any) => c.id === 'c-flood'), 'the server to be found');
+  tabs.set(51, { id: 51, url: 'https://busy.example/', status: 'complete', active: true, windowId: 1, title: 'Busy' });
+  const sid = (await popup({ type: 'authorize', tabId: 51, mode: 'read', clientId: 'c-flood' })).state.sessions.at(-1).id;
+
+  // One command holds the tab, and thirty more come behind it.
+  const first = flood.command('wait_for', { id: 'hold', session: sid, params: { text: 'never', timeoutMs: 20000 } });
+  await until(() => waits.has(`${port}:hold`), 'the wait to reach the page');
+  const behind = Array.from({ length: 30 }, () => flood.command('snapshot', { session: sid }));
+  const refusedAtOnce = await Promise.race([Promise.all(behind.slice(19)), sleep(500).then(() => null)]);
+  assert.ok(refusedAtOnce, 'what is beyond the limit is answered at once');
+  assert.deepEqual([...new Set(refusedAtOnce.map(code))], ['RATE_LIMITED']);
+  // Twenty are taken on, the one that runs among them: the nineteen behind it run when it ends.
+  flood.deliver({ type: 'cancel', id: 'hold' });
+  assert.equal(code(await first), 'CANCELLED');
+  assert.deepEqual((await Promise.all(behind.slice(0, 19))).map(code), Array(19).fill('ok'));
+  // And then there is room again.
+  assert.equal(code(await flood.command('snapshot', { session: sid })), 'ok');
+
+  await popup({ type: 'revoke', session: sid });
+  servers.delete(port);
+  flood.socket?.close();
+  tabs.delete(51);
 });

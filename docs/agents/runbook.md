@@ -38,7 +38,7 @@ mvn -B -f java-server/pom.xml test -Dtest=PairingTest         # one Java test cl
 
 Success: `ℹ fail 0`, or `BUILD SUCCESS`.
 
-An extension test that waits for something that never comes is ended after 60 seconds and
+An extension test that waits for something that never comes is ended after 120 seconds and
 reported as failed, with its name (`--test-timeout` in `chrome-extension/package.json`). Give the
 option yourself when you run one file as above.
 
@@ -94,6 +94,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
 | Nothing personal | `node --test docs/agents/check-personal.test.mjs`; `node docs/agents/check-personal.mjs` |
+| Dependencies | `npm audit --audit-level=high` in `chrome-extension` and in `e2e`; the same in `e2e/editors`, whose result does not fail the job. The review of a pull request runs on GitHub only |
 
 CI runs on pushes to `main`, on pull requests, and by hand. A push to another branch without a
 pull request runs nothing. `npm ci` deletes `node_modules` first; use `npm install` when you only

@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   clickElement, describeClickTarget, describeKeyTarget, fillElement, pressKey, waitFor,
+  foreignFramesInView,
 } from '../src/interact.ts';
 import { DomError, PageState, takeSnapshot } from '../src/snapshot.ts';
-import { page, refOf } from './helpers.ts';
+import { layout, page, refOf } from './helpers.ts';
 
 function errorCode(fn: () => unknown): string {
   try {
@@ -374,4 +375,35 @@ test('wait_for resolves on text, visibility and enabled state, is bounded, and c
   await assert.rejects(waitFor(doc, registry, { text: 'never shown', condition: 'visible', timeoutMs: 20000, signal }),
     (e: unknown) => e instanceof DomError && e.code === 'CANCELLED');
   assert.ok(Date.now() - started < 2000, 'a cancelled wait stops promptly');
+});
+
+test('a frame of another site that is in view is counted, so that no picture is taken of it', () => {
+  const { doc } = page(`<p>Outer</p>
+    <iframe id="same" title="Help"></iframe>
+    <iframe id="other" src="https://other.example/"></iframe>
+    <iframe id="pixel" data-zero src="https://tracker.example/p"></iframe>
+    <iframe id="hidden" style="display:none" src="https://other.example/x"></iframe>
+    <embed id="file" src="https://files.example/report.pdf">
+    <object id="own" data="/own.svg"></object>
+    <object id="empty"></object>`);
+  const foreign = (id: string): void => { Object.defineProperty(doc.getElementById(id), 'contentDocument', { get: () => null }); };
+  // jsdom loads no frame of another site; make them look like ones this page may not read.
+  for (const id of ['other', 'pixel', 'hidden']) foreign(id);
+  const same = doc.getElementById('same') as HTMLIFrameElement;
+  layout(same.contentWindow as Window);
+  (same.contentDocument as Document).body.innerHTML = '<p>Inside</p>';
+
+  // The frame of another site and the file from another site. Not the frame of this site, the file of
+  // this site, the one without an address, the one that shows nothing, and the one that is not shown.
+  assert.equal(foreignFramesInView(doc), 2);
+
+  // A frame of another site inside a frame of this site is in the picture as well.
+  (same.contentDocument as Document).body.innerHTML = '<iframe id="nested" src="https://third.example/"></iframe>';
+  Object.defineProperty((same.contentDocument as Document).getElementById('nested'), 'contentDocument', { get: () => null });
+  assert.equal(foreignFramesInView(doc), 3);
+
+  // Gone from the page, they are gone from the count.
+  for (const id of ['other', 'file', 'same']) doc.getElementById(id)?.remove();
+  assert.equal(foreignFramesInView(doc), 0);
+  assert.equal(foreignFramesInView(page('<p>No frame at all</p>').doc), 0);
 });
