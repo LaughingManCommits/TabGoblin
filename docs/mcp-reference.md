@@ -747,6 +747,8 @@ Page 3 of 3. Previous Resolve all
 
 **Limits**
 
+- With `next`, a page that still shows the one before is read again for up to three seconds, for
+  a site that swaps its list in without a new document. The link is pressed once.
 - It stops at the first of: the end; no further page; a page that showed nothing new;
   `max_steps`; `max_ms`; `max_chars`; the tab leaving the session's sites; a cancellation.
 - One reading takes in at most 5,000 lines; the result says when a page had more.

@@ -14,23 +14,43 @@
   <p id="pager"></p>
   <footer><p>Demo Tracker</p></footer>
   <script>
+    // With ?soft=1 the list is swapped in without a new document, as many sites do it: a click on
+    // the link fetches for a while first, and only then the address and the list change.
     const PAGES = 3;
-    const page = Math.min(PAGES, Math.max(1, Number(new URLSearchParams(location.search).get('page')) || 1));
+    const query = new URLSearchParams(location.search);
+    const soft = query.get('soft') === '1';
     const items = document.getElementById('items');
-    items.start = (page - 1) * 4 + 1;
-    for (let n = 1; n <= 4; n++) {
-      const number = (page - 1) * 4 + n;
-      const item = document.createElement('li');
-      item.textContent = `comment ${number}: ${number === 7 ? 'please rename this method' : 'looks good'}`;
-      items.append(item);
-    }
     const pager = document.getElementById('pager');
-    pager.append(`Page ${page} of ${PAGES}. `);
-    if (page > 1) pager.insertAdjacentHTML('beforeend', `<a href="?page=${page - 1}">Previous</a> `);
-    if (page < PAGES) pager.insertAdjacentHTML('beforeend', `<a href="?page=${page + 1}">Next</a>`);
-    // A control of the same kind that is no link to a page: it would delete something.
-    pager.insertAdjacentHTML('beforeend', ' <button type="button" id="resolve">Resolve all</button>');
-    document.getElementById('resolve').addEventListener('click', () => { document.title = 'RESOLVED'; });
+    const address = (page) => (soft ? `?soft=1&page=${page}` : `?page=${page}`);
+    function show(page) {
+      items.replaceChildren();
+      items.start = (page - 1) * 4 + 1;
+      for (let n = 1; n <= 4; n++) {
+        const number = (page - 1) * 4 + n;
+        const item = document.createElement('li');
+        item.textContent = `comment ${number}: ${number === 7 ? 'please rename this method' : 'looks good'}`;
+        items.append(item);
+      }
+      pager.replaceChildren();
+      pager.append(`Page ${page} of ${PAGES}. `);
+      if (page > 1) pager.insertAdjacentHTML('beforeend', `<a href="${address(page - 1)}">Previous</a> `);
+      if (page < PAGES) pager.insertAdjacentHTML('beforeend', `<a href="${address(page + 1)}">Next</a>`);
+      // A control of the same kind that is no link to a page: it would delete something.
+      pager.insertAdjacentHTML('beforeend', ' <button type="button" id="resolve">Resolve all</button>');
+      document.getElementById('resolve').addEventListener('click', () => { document.title = 'RESOLVED'; });
+    }
+    show(Math.min(PAGES, Math.max(1, Number(query.get('page')) || 1)));
+    if (soft) {
+      pager.addEventListener('click', (event) => {
+        const link = event.target.closest('a');
+        if (!link) return;
+        event.preventDefault();
+        setTimeout(() => {
+          history.pushState(null, '', link.getAttribute('href'));
+          show(Number(new URLSearchParams(link.getAttribute('href')).get('page')));
+        }, 900);
+      });
+    }
   </script>
 </body>
 </html>

@@ -1849,8 +1849,28 @@ test('collecting page after page follows only a link an agent may click, needs E
   assert.equal((await state()).sessions.find((x: any) => x.id === sid).suspended, true);
   tabs.get(62)!.url = 'https://list.example/results?page=1';
 
-  // A control that leads nowhere new is not pressed again and again.
+  // A site that swaps its list in without a new document: right after the click the page shows
+  // what it showed. The page is read again until the next one is there; the link is pressed once a page.
   await popup({ type: 'revoke', session: sid });
+  const slow = (await popup({ type: 'authorize', tabId: 62, mode: 'explore', clientId: 'c-one' })).state.sessions.at(-1).id;
+  let shownPage = 1;
+  let readsSinceClick = 0;
+  pageNo = 1;
+  pageResults.set('collect_read', () => {
+    if (pageNo > shownPage && ++readsSinceClick > 2) shownPage = pageNo;
+    return { lines: ['Results', `item ${shownPage}a`, `item ${shownPage}b`, 'Next', 'Imprint'], cut: false };
+  });
+  pageResults.set('collect_next', () => (pageNo < 3 ? { ref: 5, target: link } : { ref: null }));
+  pageResults.set('click', () => { pageNo++; readsSinceClick = 0; return { dispatched: true }; });
+  clicks = reached('click');
+  const late = (await one.command('collect', { session: slow, params: { next: 'Next', maxSteps: 10 } })).result.text as string;
+  assert.deepEqual(body(late), ['Results', 'item 1a', 'item 1b', 'Next', 'Imprint', 'item 2a', 'item 2b', 'item 3a', 'item 3b']);
+  assert.match(late, /^Collected: 9 lines in 3 readings/);
+  assert.match(late, /Stopped: there is no further page/);
+  assert.equal(reached('click') - clicks, 2);
+
+  // A control that leads nowhere new is not pressed again and again.
+  await popup({ type: 'revoke', session: slow });
   const again = (await popup({ type: 'authorize', tabId: 62, mode: 'explore', clientId: 'c-one' })).state.sessions.at(-1).id;
   pageResults.set('collect_read', { lines: ['Results', 'item', 'Next'], cut: false });
   pageResults.set('collect_next', { ref: 5, target: link });
