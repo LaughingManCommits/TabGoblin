@@ -428,4 +428,26 @@ class PanelModelTest {
         // It showed that nothing was logged yet.
         assertEquals(4, PanelModel.newer(lines, "Nothing logged yet."));
     }
+
+    @Test
+    void theWindowSaysThatASecurityPolicyIsInForceAndUnderTheMouseWhatItRestricts() {
+        var facts = List.of(new PanelModel.Facts("claude-code", "a-0123456789ab", 47821, null, true, 0, 0, List.of(),
+                new Timings.Shares(0, 0, 0, 0, 0), Map.of()));
+        String file = "/somewhere/tabgoblin.properties";
+        var strict = new BlockedSites.Rule(List.of("example.org"), null,
+                new BlockedSites.Limits(true, List.of("ci.example"), false, BlockedSites.Access.EXPLORE, 240, 20));
+        PanelModel.Blocked shown = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, strict, file).blocked();
+        assertEquals("example.org" + PanelModel.Blocked.POLICY_IN_FORCE, shown.summary());
+        String under = shown.explained();
+        for (String part : List.of("Security policy:", "strict profile", "agents work only on ci.example", "no screenshots",
+                "access up to Explore", "an authorization lasts at most 240 min", "ends after 20 min without a command")) {
+            assertTrue(under.contains(part), part + " in: " + under);
+        }
+        assertTrue(under.endsWith(file));
+        // Without a policy the line and the text are as they were.
+        PanelModel.Blocked plain = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+                new BlockedSites.Rule(List.of("example.org"), null), file).blocked();
+        assertEquals("example.org", plain.summary());
+        assertFalse(plain.explained().contains("Security policy"));
+    }
 }

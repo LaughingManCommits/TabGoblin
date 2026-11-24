@@ -37,7 +37,7 @@ export class CommandError extends Error {
 
 export const ACTIONS = [
   'status', 'snapshot', 'extract', 'click', 'fill', 'press_key', 'scroll', 'navigate', 'screenshot',
-  'wait_for', 'submit', 'hover', 'collect',
+  'wait_for', 'submit', 'hover', 'collect', 'request_access',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
@@ -227,6 +227,122 @@ export function endsAt(
 /** When the user is asked under the policy: under the strict profile about every submission, whatever was set. */
 export function askUnder(limits: Pick<Limits, 'strict'>, mode: AskMode): AskMode {
   return limits.strict ? 'always' : mode;
+}
+
+/** The longest name a workspace may have. */
+export const WORKSPACE_NAME_MAX = 40;
+
+/**
+ * A workspace is a name the user gives to tabs that belong to one task. It groups them in the
+ * popup, and gives nothing: each tab has its own authorization, agent, access level and end,
+ * as without the name. The name as it is kept: without control characters, blanks folded, cut
+ * to a length; null for none.
+ */
+export function workspaceName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  // eslint-disable-next-line no-control-regex
+  const name = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, WORKSPACE_NAME_MAX).trim();
+  return name || null;
+}
+
+/** The workspaces among these sessions, by name, each with its sessions' ids. Sessions without one are not listed. */
+export function workspacesOf<T extends { id: string; workspace?: string | null }>(sessions: readonly T[]): { name: string; sessions: string[] }[] {
+  const byName = new Map<string, string[]>();
+  for (const session of sessions) {
+    if (!session.workspace) continue;
+    byName.set(session.workspace, [...(byName.get(session.workspace) ?? []), session.id]);
+  }
+  return [...byName.entries()].map(([name, ids]) => ({ name, sessions: ids })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** How long a request for access waits for the user before it is dropped. */
+export const REQUEST_LASTS_MS = 10 * 60_000;
+/** The longest reason an agent may give with a request. It is shown to the user as the agent's words. */
+export const REQUEST_REASON_MAX = 200;
+
+/**
+ * An agent's request for access, as it is put to the user. It grants nothing: a higher level on
+ * a session is given by the user's Allow in the popup, and a tab on another site by their click
+ * on that tab, as always.
+ */
+export interface AccessRequest {
+  id: string;
+  clientId: string;
+  /** `raise`: a higher level on a session the agent has. `site`: a tab on a site it has none on. */
+  kind: 'raise' | 'site';
+  /** The session to raise; absent for a site. */
+  session?: string;
+  /** The site: the session's own, or the one asked for. */
+  origin: string;
+  level: Mode;
+  /** The agent's own words on why, cut short; never the extension's. */
+  reason: string;
+  at: number;
+}
+
+/** What tells one request from another, for a no that stands: who asks, for what, where. */
+export function requestKey(request: Pick<AccessRequest, 'clientId' | 'kind' | 'origin' | 'level'>): string {
+  return `${request.clientId}|${request.kind}|${request.origin}|${request.level}`;
+}
+
+/** An agent's reason as it is shown: one line, cut short. */
+export function requestReason(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  // eslint-disable-next-line no-control-regex
+  return value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, REQUEST_REASON_MAX);
+}
+
+/**
+ * Decides whether a request for access may be put to the user, and what exactly it asks. It is
+ * refused where it could never be granted (a site that is blocked or not allowed, a level above
+ * the policy's), where the agent has one waiting already, and where the user said no to the same
+ * a few minutes ago: asking has a cost of its own.
+ *
+ * @param session the agent's own session to raise, or null when a site is asked for
+ */
+export function checkAccessRequest(
+  client: ClientIdentity,
+  asked: { level: unknown; site?: unknown },
+  session: Pick<SessionAuth, 'id' | 'origin' | 'mode'> | null,
+  limits: Limits,
+  blocked: Blocked,
+  waiting: readonly AccessRequest[],
+  declined: readonly { key: string; at: number }[],
+  now: number,
+): Pick<AccessRequest, 'kind' | 'session' | 'origin' | 'level'> {
+  const level = asked.level === 'read' || asked.level === 'explore' || asked.level === 'write' ? asked.level : null;
+  if (!level) throw new CommandError('INVALID_ARGUMENT', 'level must be one of read, explore, write.');
+  let request: Pick<AccessRequest, 'kind' | 'session' | 'origin' | 'level'>;
+  if (session) {
+    if (RANK[level] <= RANK[session.mode]) {
+      throw new CommandError('INVALID_ARGUMENT', `Session ${session.id} has that access already.`);
+    }
+    request = { kind: 'raise', session: session.id, origin: session.origin, level };
+  } else {
+    const origin = originOf(typeof asked.site === 'string' ? asked.site.trim() : null);
+    if (!origin) {
+      throw new CommandError('INVALID_ARGUMENT', 'site must be the address of a website, such as https://example.org.');
+    }
+    request = { kind: 'site', origin, level };
+  }
+  // What the policy rules out is not put to the user: they could not give it.
+  if (RANK[level] > RANK[limits.maxAccess]) throw restricted(limits);
+  checkBlocked(blocked, [request.origin]);
+  const outside = outsideAllowed(limits, [request.origin]);
+  if (outside) {
+    throw new CommandError('SITE_NOT_ALLOWED',
+      `${outside} is not among the sites the user's security policy allows agents to work on. Only the user can change that, in the settings of the TabGoblin server.`);
+  }
+  if (waiting.some((w) => w.clientId === client.id && now - w.at < REQUEST_LASTS_MS)) {
+    throw new CommandError('ACCESS_REQUEST_PENDING',
+      'The user is being asked about another request of this agent. Nothing was asked. Wait for their answer; browser_status shows what is waiting.');
+  }
+  const key = requestKey({ clientId: client.id, ...request });
+  if (declined.some((d) => d.key === key && now - d.at < NO_STANDS_MS)) {
+    throw new CommandError('ACCESS_REQUEST_DENIED',
+      'The user declined this request a few minutes ago and is not asked again so soon. Do not retry: tell the user what you need and why.');
+  }
+  return request;
 }
 
 function needs(mode: Mode): CommandError {
@@ -768,7 +884,9 @@ export class RateLimiter {
   }
 
   tryTake(now: number = Date.now()): boolean {
-    this.tokens = Math.min(this.burst, this.tokens + ((now - this.last) / 1000) * this.perSecond);
+    // A clock that was set back gives no time that passed: it must not take away what is there.
+    const passed = Math.max(0, now - this.last);
+    this.tokens = Math.min(this.burst, this.tokens + (passed / 1000) * this.perSecond);
     this.last = now;
     if (this.tokens < 1) return false;
     this.tokens -= 1;
@@ -817,6 +935,7 @@ export function activityLabel(action: string, intent?: string): { running: strin
     case 'submit': return { running: 'Submitting', done: 'Submitted' };
     case 'hover': return { running: 'Pointing at element', done: 'Pointed at element' };
     case 'collect': return { running: 'Collecting content', done: 'Collected content' };
+    case 'request_access': return { running: 'Asking you for access', done: 'Asked you for access' };
     default: return { running: 'Working', done: 'Done' };
   }
 }
@@ -859,6 +978,8 @@ export function failureNote(code: string): string {
     case 'SCREENSHOTS_DISABLED': return 'screenshots are off in your policy';
     case 'SCREENSHOT_BLOCKED': return 'a frame of another site is in view';
     case 'APPROVAL_STALE': return 'changed after you were asked';
+    case 'ACCESS_REQUEST_PENDING': return 'another request was waiting for you';
+    case 'ACCESS_REQUEST_DENIED': return 'you declined';
     case 'STALE_REF': return 'page changed';
     case 'STALE_COMMAND': return 'arrived too late';
     case 'DUPLICATE_COMMAND': return 'duplicate command';

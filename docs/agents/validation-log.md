@@ -3,6 +3,32 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, workspaces and requests for access
+
+On the owner's "continue with p2", after the two entries below. Workspaces, a fourteenth tool,
+`browser_request_access`, and the security policy in the model of the server's window. In the
+same container. Pushed to that branch, as the owner said for it; nothing to `main`.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 179 tests, 15 skipped for lack of a display, and the 8 of the conformance check, which counts fourteen tools and nine that give an object |
+| `npm run check` in `chrome-extension` | 205 tests, with the type-check and the build. Five are new: the rules for a workspace's name and for a request, a clock that is set back, and the two in the worker |
+| `cd e2e && node run.mjs` | 102 passed, 0 failed. One step is new; it drives the real popup: a request declined, one allowed, a tab on another site given by the click on that tab with the request offered there, a workspace's two buttons |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+A picture of the popup with a request in it was taken in that step and looked at: the card says
+who asks, for which level, in which session and on which site, the agent's reason in quotation
+marks, and has Deny before Allow. The field for a workspace had the browser's own look in the
+first picture and was given the popup's.
+
+Found on the way, and mended: an agent was locked out for as long as the system's clock had
+been set back, because its allowance per second was reckoned with the time that had passed,
+which was then less than none (`RateLimiter` in `policy.ts`). A test moved the clock and showed
+it.
+
+Not run: Windows; the editor lab; the workflows; the server's window, whose new line is in its
+model and its test only; a real agent by hand.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, collecting and hovering
 
 On the owner's "continue with p1", after the entry below. Two tools, `browser_collect` and

@@ -463,6 +463,32 @@ The list is for every agent of the server. An agent is told that the site it tri
 and never what else is on the list. What the list holds back and what it does not is in the
 [security model](security.md#blocked-sites).
 
+### Workspaces
+
+When several tabs belong to one task (the ticket, the pull request, the pipeline, the
+documentation), give them one name: type it into *Workspace* when you authorize a tab, or in a
+session's row later. The popup then lists those tabs together under the name, with **Pause
+all** (or **Resume all**) and **Revoke all** for them.
+
+A workspace is a name and nothing else. Every tab in it is still authorized by your click on
+it, for its own agent, with its own access level and its own end. An agent is told the name
+with its own tabs, and learns nothing of the others in it.
+
+### When an agent asks for access
+
+An agent that needs more than it has can ask you. The request appears at the top of the
+popup's sessions, and the toolbar badge shows `?`:
+
+- **A higher level on a tab it has:** *agent asks for Read / Write access in s1, on site*, with
+  its reason in quotation marks. **Allow** gives that level; **Deny** leaves everything as it is.
+- **A tab on another site:** this cannot be given from the popup. Open the site in a tab and
+  click the TabGoblin icon there: the popup says who asked, with the agent and the level already
+  chosen. Change them if you want to give less, then **Authorize**. Or press **Dismiss**.
+
+Asking gives an agent nothing, and it is told nothing of a site before you authorize a tab
+there. A request you declined is not put to you again for five minutes, and one that is not
+answered goes away after ten.
+
 ### The security policy
 
 The same file can restrict what every agent may do. Each line takes something away; none gives

@@ -6,7 +6,7 @@ import {
   checkAsk, checkClick, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent, isLastingAgent,
-  NO_LIMITS, askUnder, capMode, checkLimits, endsAt, outsideAllowed, strictest, type Limits,
+  NO_LIMITS, REQUEST_LASTS_MS, checkAccessRequest, requestKey, requestReason, workspaceName, workspacesOf, askUnder, capMode, checkLimits, endsAt, outsideAllowed, strictest, type Limits,
   HEARTBEATS_UNANSWERED, badgeFor, serverGone,
   NOTHING_BLOCKED, blockedAmong, blockedBy, checkBlocked, hostOf,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
@@ -661,4 +661,66 @@ test('of what several servers say, the stricter holds', () => {
   });
   assert.deepEqual(strictest([a, limits({ allowed: ['example.org'] })]).allowed, ['example.org']);
   assert.deepEqual(strictest([a, NO_LIMITS]).allowed, ['example.org', 'intranet.example']);
+});
+
+test('a workspace is a name and nothing more: kept short, on one line, and listed with its tabs', () => {
+  assert.equal(workspaceName('  PROJ-512   login  bug '), 'PROJ-512 login bug');
+  assert.equal(workspaceName('a\nb\tc\u0000d'), 'a b c d');
+  assert.equal(workspaceName('x'.repeat(60))?.length, 40);
+  for (const none of ['', '   ', '\n', null, undefined, 7, {}]) assert.equal(workspaceName(none), null);
+  assert.deepEqual(workspacesOf([
+    { id: 's1', workspace: 'Release' }, { id: 's2', workspace: null }, { id: 's3', workspace: 'Bug 12' }, { id: 's4', workspace: 'Release' }, { id: 's5' },
+  ]), [{ name: 'Bug 12', sessions: ['s3'] }, { name: 'Release', sessions: ['s1', 's4'] }]);
+  assert.deepEqual(workspacesOf([]), []);
+});
+
+test('a request for access is put to the user only where they could grant it, one at a time, and not again after a no', () => {
+  const me = { id: 'a-0123456789ab', name: 'IDE' };
+  const mine = { id: 's1', origin: 'https://app.example', mode: 'read' as const };
+  const ask = (asked: object, own: typeof mine | null = null, over: Partial<Limits> = {}, waiting: any[] = [], declined: any[] = [], now = 1_000_000) =>
+    checkAccessRequest(me, asked as any, own, limits(over), NOTHING_BLOCKED, waiting, declined, now);
+
+  // A higher level on a session of its own: on that session's site, and nothing else.
+  assert.deepEqual(ask({ level: 'write' }, mine), { kind: 'raise', session: 's1', origin: 'https://app.example', level: 'write' });
+  assert.equal(code(() => ask({ level: 'read' }, mine)), 'INVALID_ARGUMENT', 'it has that already');
+  assert.equal(code(() => ask({ level: 'admin' }, mine)), 'INVALID_ARGUMENT');
+  // A tab on a site: the site is taken down to its origin; what is no website is no request.
+  assert.deepEqual(ask({ level: 'read', site: ' https://ci.example:8443/job/7?token=x ' }), { kind: 'site', origin: 'https://ci.example:8443', level: 'read' });
+  for (const site of [undefined, '', 'ci.example', 'file:///etc/passwd', 'chrome://settings', 'javascript:alert(1)', 7]) {
+    assert.equal(code(() => ask({ level: 'read', site })), 'INVALID_ARGUMENT', String(site));
+  }
+
+  // What the user could not grant is not put to them.
+  assert.equal(code(() => ask({ level: 'write' }, mine, { maxAccess: 'explore' })), 'ACCESS_RESTRICTED');
+  assert.equal(code(() => ask({ level: 'read', site: 'https://other.example' }, null, { allowed: ['app.example'] })), 'SITE_NOT_ALLOWED');
+  assert.equal(code(() => checkAccessRequest(me, { level: 'read', site: 'https://mail.example.org' }, null, NO_LIMITS,
+    { sites: ['example.org'], everything: false }, [], [], 0)), 'SITE_BLOCKED');
+  assert.equal(code(() => checkAccessRequest(me, { level: 'read', site: 'https://x.example' }, null, NO_LIMITS,
+    { sites: [], everything: true }, [], [], 0)), 'SETTINGS_UNREADABLE');
+
+  // One request of an agent waits at a time; another agent's does not stand in the way; an old one has run out.
+  const waits = { id: 'r1', clientId: me.id, kind: 'site' as const, origin: 'https://x.example', level: 'read' as const, reason: '', at: 1_000_000 };
+  assert.equal(code(() => ask({ level: 'write' }, mine, {}, [waits])), 'ACCESS_REQUEST_PENDING');
+  assert.equal(code(() => ask({ level: 'write' }, mine, {}, [{ ...waits, clientId: 'c-other' }])), 'ok');
+  assert.equal(code(() => ask({ level: 'write' }, mine, {}, [waits], [], 1_000_000 + REQUEST_LASTS_MS)), 'ok');
+
+  // A no stands for a while, for the same request: who asks, for what, where. Another request is another.
+  const no = [{ key: requestKey({ clientId: me.id, kind: 'raise', origin: 'https://app.example', level: 'write' }), at: 1_000_000 }];
+  assert.equal(code(() => ask({ level: 'write' }, mine, {}, [], no, 1_000_000 + 60_000)), 'ACCESS_REQUEST_DENIED');
+  assert.equal(code(() => ask({ level: 'explore' }, mine, {}, [], no, 1_000_000 + 60_000)), 'ok');
+  assert.equal(code(() => ask({ level: 'write' }, mine, {}, [], no, 1_000_000 + NO_STANDS_MS)), 'ok');
+
+  // The agent's reason is its own words: one line, cut short.
+  assert.equal(requestReason('  need it\nto post\tthe fix  '), 'need it to post the fix');
+  assert.equal(requestReason('x'.repeat(500)).length, 200);
+  assert.equal(requestReason(undefined), '');
+});
+
+test('a clock that is set back does not lock an agent out', () => {
+  const limiter = new RateLimiter(20, 40, 1_000_000);
+  assert.equal(limiter.tryTake(1_000_000 + 360_000), true);
+  // The system's clock goes back six minutes, as after a correction of the time. A command still passes.
+  for (let i = 0; i < 39; i++) assert.equal(limiter.tryTake(1_000_000), true, `command ${i}`);
+  assert.equal(limiter.tryTake(1_000_000), false, 'the burst is still the limit');
+  assert.equal(limiter.tryTake(1_000_000 + 100), true, 'and it fills up again as time goes on');
 });

@@ -9,10 +9,10 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, RateLimiter, askUnder, capMode, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent,
+  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
-  type AllowMemory, type AskMemory, type AskMode, type Blocked, type Limits, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
+  type AccessRequest, type AllowMemory, type AskMemory, type AskMode, type Blocked, type Limits, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
   CLOSE_UNAUTHORIZED, CLOSE_UNRESPONSIVE, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
@@ -181,6 +181,21 @@ interface ConfirmFacts {
   lasts: number | null;
 }
 
+/**
+ * What agents asked the user for and have no answer to yet, and what the user said no to lately.
+ * Kept here and nowhere else: a request does not outlast the worker, and grants nothing by being there.
+ */
+let accessRequests: AccessRequest[] = [];
+let declinedRequests: { key: string; at: number }[] = [];
+
+/** The requests that still wait: not run out, their agent connected, and for a raise its session still there. */
+function waitingRequests(): AccessRequest[] {
+  const connected = connectedClientIds();
+  accessRequests = accessRequests.filter((r) => Date.now() - r.at < REQUEST_LASTS_MS && connected.has(r.clientId)
+    && (r.kind === 'site' || persisted.sessions.some((s) => s.id === r.session && s.clientId === r.clientId)));
+  return accessRequests;
+}
+
 const pendingConfirms = new Map<string, ConfirmFacts & { id: string; session: string; finish: (a: ConfirmAnswer) => void }>();
 const newTabs = new Map<number, number>();
 let pairingFailed = false;
@@ -316,7 +331,8 @@ function pushActivity(entry: ActivityEntry): void {
 function refreshBadge(): void {
   const running = persisted.activity.some((a) => a.status === 'running');
   const connected = [...clients.values()].filter((c) => c.authenticated).map((c) => ({ id: c.clientId, name: c.name }));
-  const text = badgeFor(pendingConfirms.size > 0, running, persisted.sessions, connected);
+  // The user is asked: about a submission, or for access.
+  const text = badgeFor(pendingConfirms.size > 0 || waitingRequests().length > 0, running, persisted.sessions, connected);
   const color = { '?': '#d97706', RUN: '#2563eb', ON: '#15803d', OFF: '#5f6368', II: '#5f6368', '': '#5f6368' }[text];
   void chrome.action.setBadgeText({ text });
   void chrome.action.setBadgeBackgroundColor({ color });
@@ -344,7 +360,7 @@ async function getTab(tabId: number): Promise<chrome.tabs.Tab | undefined> {
   }
 }
 
-async function authorize(tabId: number, mode: Mode, clientId: string | null, minutes: number | null): Promise<void> {
+async function authorize(tabId: number, mode: Mode, clientId: string | null, minutes: number | null, workspace: string | null = null): Promise<void> {
   const tab = await getTab(tabId);
   const origin = originOf(tab?.url);
   if (!origin) {
@@ -386,8 +402,11 @@ async function authorize(tabId: number, mode: Mode, clientId: string | null, min
     submissions: [],
     createdAt: Date.now(),
     lastUsedAt: Date.now(),
+    ...(workspace ? { workspace } : {}),
   };
   persisted.sessions.push(session);
+  // What an agent asked for on this site is answered by this click: the request is not kept beside the grant.
+  accessRequests = accessRequests.filter((r) => !(r.kind === 'site' && r.origin === origin && (!owner || r.clientId === owner.clientId)));
   noteActivity(session.id, `Site authorized (${modeLabel(mode)})`);
   pushState();
 }
@@ -647,6 +666,9 @@ async function statusResult(client: Client, diagnostics: boolean): Promise<objec
     confirmSubmissions: askUnder(client.limits, config.ask) !== 'never',
     confirmation: askUnder(client.limits, config.ask),
     sessions: await sessionsFor(client),
+    // What this agent asked the user for and has no answer to yet. Its own only.
+    requests: waitingRequests().filter((r) => r.clientId === client.clientId)
+      .map((r) => ({ kind: r.kind, level: r.level, origin: r.origin, ...(r.session ? { session: r.session } : {}) })),
     // Only this agent's own operations: what another agent did in its tabs is not this one's to see.
     ...(diagnostics
       ? { diagnostics: persisted.diagnostics.filter((d) => d.client === client.clientId).slice(-20).map(({ client: _, ...rest }) => rest) }
@@ -1453,6 +1475,16 @@ async function onCommand(client: Client, command: CommandMessage): Promise<void>
     respond(client, { id: command.id, success: true, result, timing: unqueued() });
     return;
   }
+  if (command.action === 'request_access') {
+    try {
+      respond(client, { id: command.id, success: true, result: requestAccess(client, command), timing: unqueued() });
+    } catch (e) {
+      const error = e instanceof CommandError ? e : new CommandError('EXTENSION_ERROR', String(e));
+      noteActivity(command.session ?? null, `${activityLabel(command.action).running} blocked (${failureNote(error.code)})`);
+      refuse(error.code, error.message);
+    }
+    return;
+  }
   let session: SessionRecord;
   try {
     const resolved = resolveSession(persisted.sessions, { id: client.clientId, name: client.name }, command.session);
@@ -1489,6 +1521,38 @@ async function onCommand(client: Client, command: CommandMessage): Promise<void>
   void next.finally(() => {
     if (queues.get(session.id) === next) queues.delete(session.id);
   });
+}
+
+/**
+ * Puts an agent's request for access to the user, in the popup. Nothing is granted by it and
+ * nothing of a tab is told: the agent learns that the user was asked, and no more. A higher level
+ * on a session is the user's Allow there; a tab on another site is their click on that tab.
+ */
+function requestAccess(client: Client, command: CommandMessage): object {
+  const identity = { id: client.clientId, name: client.name };
+  const params = command.params;
+  // Without a site it is about one of the agent's own sessions: the one it names, or its only one.
+  const session = params.site === undefined || params.site === null
+    ? resolveSession(persisted.sessions.filter((s) => s.clientId === client.clientId), identity, command.session).session
+    : null;
+  const asked = checkAccessRequest(identity, { level: params.level, site: params.site }, session, client.limits, client.blocked,
+    waitingRequests(), declinedRequests, Date.now());
+  const request: AccessRequest = {
+    ...asked, id: crypto.randomUUID(), clientId: client.clientId, reason: requestReason(params.reason), at: Date.now(),
+  };
+  accessRequests.push(request);
+  noteActivity(request.session ?? null, 'An agent asked you for access');
+  pushState();
+  return {
+    asked: true,
+    kind: request.kind,
+    level: request.level,
+    origin: request.origin,
+    ...(request.session ? { session: request.session } : {}),
+    note: request.kind === 'raise'
+      ? 'The user is asked in the TabGoblin popup. Nothing is granted yet: go on with what the session may do, and look at browser_status later.'
+      : 'The user is asked in the TabGoblin popup. Nothing is granted yet, and nothing of that site can be read. A tab there is given by the user\'s click on it; browser_status lists it once it is.',
+  };
 }
 
 // ---------------------------------------------------------------- connections to the Java servers
@@ -1700,6 +1764,7 @@ interface PopupMessage {
   panel?: string;
   id?: string;
   allow?: boolean;
+  workspace?: string;
 }
 
 function popupState(): object {
@@ -1723,6 +1788,11 @@ function popupState(): object {
     blocked: blockedNow(),
     // What the user's security policy restricts, for the popup to say so.
     limits: limitsNow(),
+    // What agents ask for, for the user to answer. The reason is the agent's own words.
+    requests: waitingRequests().map((r) => ({
+      id: r.id, kind: r.kind, level: r.level, origin: r.origin, session: r.session ?? null, reason: r.reason,
+      clientId: r.clientId, clientName: [...clients.values()].find((c) => c.clientId === r.clientId)?.name ?? '',
+    })),
     sessions: persisted.sessions.map((s) => ({
       blocked: blockedAmong(blockedNow(), s.origins) !== null,
       id: s.id, tabId: s.tabId, origin: s.origin, mode: s.mode, paused: s.paused, expiresAt: endsAt(s, limitsNow()),
@@ -1782,8 +1852,50 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       return;
     case 'authorize':
       await authorize(Number(msg.tabId), modeOf(msg.mode), msg.clientId ?? null,
-        typeof msg.minutes === 'number' && msg.minutes > 0 ? msg.minutes : null);
+        typeof msg.minutes === 'number' && msg.minutes > 0 ? msg.minutes : null, workspaceName(msg.workspace));
       return;
+    case 'setWorkspace':
+      // A name for the task the tab belongs to. It changes how the popup lists the tab, and nothing else.
+      if (session) {
+        const name = workspaceName(msg.workspace);
+        if (name) session.workspace = name;
+        else delete session.workspace;
+        pushState();
+      }
+      return;
+    case 'pauseWorkspace':
+    case 'resumeWorkspace':
+    case 'revokeWorkspace': {
+      // The same as the button of each of its tabs, pressed for all of them. Never more than that.
+      const name = workspaceName(msg.workspace);
+      if (!name) return;
+      const each = msg.type === 'pauseWorkspace' ? 'pause' : msg.type === 'resumeWorkspace' ? 'resume' : 'revoke';
+      for (const member of persisted.sessions.filter((s) => s.workspace === name)) {
+        await handlePopup({ type: each, session: member.id });
+      }
+      return;
+    }
+    case 'answerRequest': {
+      const asked = waitingRequests().find((r) => r.id === msg.id);
+      if (!asked) return;
+      accessRequests = accessRequests.filter((r) => r !== asked);
+      const target = asked.session ? sessionById(asked.session) : undefined;
+      if (msg.allow === true && asked.kind === 'raise' && target) {
+        // The user's own word, as if they had chosen the level in the session's row: and no more than the policy allows.
+        if (capMode(asked.level, limitsNow().maxAccess) !== asked.level) {
+          throw new Error(`Your security policy allows no session more than ${limitsNow().maxAccess === 'explore' ? 'Explore' : 'Read'} access.`);
+        }
+        target.mode = asked.level;
+        forgetAllows(target.id);
+        noteActivity(target.id, `Access changed to ${modeLabel(target.mode)}, as its agent asked`);
+      } else {
+        // A no stands for a while: the same request is not put to the user again so soon.
+        declinedRequests = declinedRequests.filter((d) => Date.now() - d.at < NO_STANDS_MS).concat({ key: requestKey(asked), at: Date.now() });
+        noteActivity(asked.session ?? null, 'Request for access declined by you');
+      }
+      pushState();
+      return;
+    }
     case 'setMode':
       if (session) {
         session.mode = modeOf(msg.mode);

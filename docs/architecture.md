@@ -197,6 +197,15 @@ its sessions are its own without anything being handed over: the extension tells
 sessions the moment it pairs. A session is the user's grant and is kept in the extension; a
 server cannot claim one. An agent without a key has a new id and no session.
 
+**Workspaces and requests.** A session may carry a name, its workspace, which the user gives
+it; `workspaceName` in `policy.ts` keeps it to one short line, and the popup's three buttons for
+a workspace call each session's own pause, resume or revoke. An agent's request for access
+(`request_access`) is decided by `checkAccessRequest` in `policy.ts`, kept in the worker's
+memory only, shown by the popup and answered there (`answerRequest`). It is handled before a
+session is looked for, as the status is, because a request for a tab on another site has no
+session. A grant is made by the paths that existed: the session's level by the user's word in
+the popup, a new session by `authorize` on the user's click on the tab.
+
 **Disconnect.** When the user disconnects an agent in the popup, the sessions that carry its id
 end with it (`sessionsOfAgent` in `policy.ts`). A session no agent has taken up yet stays. An
 agent that goes away by itself keeps its sessions, as above. The id of an agent with a key is

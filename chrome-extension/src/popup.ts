@@ -40,6 +40,8 @@ interface SessionView {
   /** What it has under the user's policy, and whether one of its sites is outside the allowed ones. */
   access?: Mode;
   outside?: boolean;
+  /** The name of the task the user filed the tab under, if any. */
+  workspace?: string | null;
   paused: boolean;
   expiresAt: number | null;
   clientId: string | null;
@@ -78,6 +80,10 @@ interface State {
   blocked: { sites: string[]; everything: boolean };
   /** What the user's security policy restricts, from the server's settings. */
   limits: Limits;
+  /** What agents ask the user for. The reason is the agent's own words. */
+  requests: {
+    id: string; kind: 'raise' | 'site'; level: Mode; origin: string; session: string | null; reason: string; clientId: string; clientName: string;
+  }[];
   sessions: SessionView[];
   activity: ActivityEntry[];
   pendingConfirm: {
@@ -229,18 +235,88 @@ function renderAgents(s: State): void {
   });
 }
 
+const LEVELS: Record<Mode, string> = { read: 'Read', explore: 'Explore', write: 'Read / Write' };
+
+/**
+ * What agents ask for. A higher level on a session is the user's to allow here. A tab on another
+ * site cannot be given here: that takes the user's click on that tab, where the request is offered.
+ */
+function renderRequests(s: State): void {
+  $('requests').hidden = !s.requests.length;
+  rebuild('requests', [s.requests, s.clients], () => {
+    const box = $('requests');
+    box.replaceChildren();
+    for (const asked of s.requests) {
+      const row = el('div', 'request');
+      row.dataset.request = asked.id;
+      const who = agentLabel({ name: asked.clientName, id: asked.clientId }, s.clients);
+      const what = asked.kind === 'raise'
+        ? `${who} asks for ${LEVELS[asked.level]} access in ${asked.session}, on ${displayOrigin(asked.origin)}.`
+        : `${who} asks for ${LEVELS[asked.level]} access to ${displayOrigin(asked.origin)}.`;
+      row.append(el('p', 'what', what));
+      // The agent's own words, set apart as a quotation: they are not the extension's.
+      if (asked.reason) row.append(el('p', 'reason', `Its reason: \u201c${asked.reason}\u201d`));
+      if (asked.kind === 'site') {
+        row.append(el('p', 'how', 'To give it: open that site in a tab and click the TabGoblin icon there. Nothing of the site is read before.'));
+      }
+      const buttons = el('div', 'row');
+      const deny = el('button', 'deny-request', asked.kind === 'raise' ? 'Deny' : 'Dismiss');
+      deny.addEventListener('click', () => void request({ type: 'answerRequest', id: asked.id, allow: false }));
+      buttons.append(deny);
+      if (asked.kind === 'raise') {
+        const allow = el('button', 'primary allow-request', `Allow ${LEVELS[asked.level]}`);
+        allow.addEventListener('click', () => void request({ type: 'answerRequest', id: asked.id, allow: true }));
+        buttons.append(allow);
+      }
+      row.append(buttons);
+      box.append(row);
+    }
+  });
+}
+
 function renderSessions(s: State): void {
+  renderRequests(s);
   // What the policy restricts is said above the sessions, whatever tab the popup is opened on.
   const policy = policyLine(s.limits);
   $('policyNote').hidden = !policy;
   $('policyText').textContent = policy;
   // Under the strict profile the setting for asking is not the user's to loosen here.
   $<HTMLSelectElement>('askMode').disabled = s.limits.strict;
+  rebuild('workspaceNames', s.sessions.map((x) => x.workspace ?? ''), () => {
+    const names = [...new Set(s.sessions.map((x) => x.workspace).filter((x): x is string => !!x))].sort();
+    $('workspaceNames').replaceChildren(...names.map((name) => {
+      const option = el('option');
+      option.value = name;
+      return option;
+    }));
+  });
   rebuild('sessions', [s.sessions, currentTab?.id, s.clients], () => {
     const box = $('sessions');
     box.replaceChildren();
     if (!s.sessions.length) box.append(el('div', 'empty', 'No tab is authorized'));
-    for (const session of s.sessions) {
+    // Tabs of one task stand together under the task's name; those without one come first.
+    const ordered = [...s.sessions].sort((a, b) => (a.workspace ?? '').localeCompare(b.workspace ?? ''));
+    let headed: string | null = null;
+    for (const session of ordered) {
+      if (session.workspace && session.workspace !== headed) {
+        headed = session.workspace;
+        const members = ordered.filter((x) => x.workspace === headed);
+        const head = el('div', 'workspace');
+        head.dataset.workspace = headed;
+        const title = el('span', 'name', headed);
+        title.title = `Workspace ${headed}: a name for these tabs. Each tab keeps its own agent, access and end.`;
+        head.append(title, el('span', 'muted', `${members.length} tab${members.length === 1 ? '' : 's'}`));
+        const name = headed;
+        const all = (label: string, cls: string, type: string): void => {
+          const button = el('button', `link ${cls}`, label);
+          button.addEventListener('click', () => void request({ type, workspace: name }));
+          head.append(button);
+        };
+        if (members.some((x) => !x.paused)) all('Pause all', 'pause-all', 'pauseWorkspace');
+        else all('Resume all', 'resume-all', 'resumeWorkspace');
+        all('Revoke all', 'revoke-all', 'revokeWorkspace');
+        box.append(head);
+      }
       const row = el('div', 'session');
       row.dataset.session = session.id;
 
@@ -295,6 +371,18 @@ function renderSessions(s: State): void {
         row.append(el('div', 'meta blocked-note', 'Blocked: this site is on your list of blocked sites.'));
       }
       row.append(controls);
+      // The task this tab is filed under. A name only: it changes where the tab is listed.
+      const filing = el('div', 'row ws');
+      const workspace = el('input', 'workspace-name');
+      workspace.type = 'text';
+      workspace.maxLength = 40;
+      workspace.placeholder = 'Workspace';
+      workspace.setAttribute('list', 'workspaceNames');
+      workspace.setAttribute('aria-label', `Workspace of ${session.id}`);
+      workspace.value = session.workspace ?? '';
+      workspace.addEventListener('change', () => void request({ type: 'setWorkspace', session: session.id, workspace: workspace.value }));
+      filing.append(el('span', 'caption', 'Workspace'), workspace);
+      row.append(filing);
       // Asking is a matter of submitting, which only a session with write access can do.
       if (session.mode === 'write') {
         const asking = el('div', 'row asking');
@@ -401,6 +489,17 @@ function renderSessions(s: State): void {
     }
     agent.value = s.clients.length === 1 || (s.limits.strict && s.clients.length) ? s.clients[0].id : '';
   });
+  // An agent asked for a tab on this very site: its request is offered here, where the click that gives it is made.
+  const wanted = s.requests.find((r) => r.kind === 'site' && r.origin === here && s.clients.some((c) => c.id === r.clientId));
+  rebuild('offered', wanted?.id ?? '', () => {
+    if (!wanted) return;
+    $<HTMLSelectElement>('newAccess').value = wanted.level;
+    agent.value = wanted.clientId;
+  });
+  if (wanted && !blockedHere) {
+    $('authorizeHint').textContent = `${agentLabel({ name: wanted.clientName, id: wanted.clientId }, s.clients)} asked for ${LEVELS[wanted.level]} access to this site.`
+      + ' Authorize gives it as chosen below; change the choices first if you want less.';
+  }
 
 }
 
@@ -580,6 +679,7 @@ $('authorize').addEventListener('click', () => {
     mode: $<HTMLSelectElement>('newAccess').value,
     clientId: $<HTMLSelectElement>('newAgent').value || null,
     minutes: Number($<HTMLSelectElement>('newExpiry').value) || null,
+    workspace: $<HTMLInputElement>('newWorkspace').value,
   });
 });
 const sessionOfThisTab = (): string | undefined => state?.sessions.find((x) => x.tabId === currentTab?.id)?.id;

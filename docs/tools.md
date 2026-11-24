@@ -1,13 +1,13 @@
 # Tool reference
 
-Thirteen generic tools. Every tool except `browser_status` takes an optional `session`; it is
+Fourteen generic tools. Every tool except `browser_status` takes an optional `session`; it is
 required as soon as the agent has more than one. The outputs shown here are real, from the demo
 sites. Longer ones are shortened on this page; the complete outputs are in
 [`examples/`](examples/). Each tool also has a title for display, such as *Page snapshot* or
 *Fill in a field*, which a client may show in its list of tools.
 
 The tools whose result is an object (`browser_click`, `browser_hover`, `browser_fill`, `browser_press_key`,
-`browser_scroll`, `browser_navigate`, `browser_wait_for`, `browser_submit`) give it twice: as the
+`browser_scroll`, `browser_navigate`, `browser_wait_for`, `browser_submit`, `browser_request_access`) give it twice: as the
 JSON text shown on this page, and as structured content for clients that take that. Both say the
 same. A client that sends a progress token with a call is told every three seconds that the call
 is still running; a call it cancels is stopped and not answered.
@@ -27,6 +27,7 @@ is still running; a call it cancels is stopped and not answered.
 | [`browser_press_key`](#browser_press_key) | Explore / Write | One key |
 | [`browser_fill`](#browser_fill) | Write | Enter content into a control |
 | [`browser_submit`](#browser_submit) | Write | Fill, submit once, verify |
+| [`browser_request_access`](#browser_request_access) | – | Ask the user for a higher level, or for a tab on another site |
 
 ## browser_status
 
@@ -693,6 +694,38 @@ then also has `key` and `effect`, as a key press does.
 { "ref": 14, "fields": [{ "ref": 14, "text": "Standup moved to ten" }], "expect_text": "Standup moved to ten" }
 ```
 
+## browser_request_access
+
+Puts a request to the user, in the popup. It grants nothing and returns at once.
+
+| Argument | |
+|---|---|
+| `level` | `read`, `explore` or `write` |
+| `session` | The session to raise. Optional while the agent has one |
+| `site` | Instead of a session: the website to ask a tab for, such as `https://example.org`. Taken down to its origin |
+| `reason` | A few words on why, at most 200 characters. Shown to the user as the agent's own words |
+
+```json
+{ "asked": true, "kind": "raise", "level": "write", "origin": "http://127.0.0.1:8931", "session": "s1",
+  "note": "The user is asked in the TabGoblin popup. Nothing is granted yet: go on with what the session may do, and look at browser_status later." }
+```
+
+- **A higher level** is given by the user's Allow in the popup, and is then in `browser_status`.
+- **A tab on another site** cannot be given in the popup: it takes the user's click on that tab,
+  where the request is offered with the agent and the level chosen. Until then nothing of the
+  site, or of a tab that is open there, is told to the agent.
+- **One request of an agent waits at a time** (`ACCESS_REQUEST_PENDING`), for ten minutes at most.
+  `browser_status` lists it: `Access requested, waiting for the user: write on session s1`.
+- **A no stands for five minutes** for the same request (`ACCESS_REQUEST_DENIED`). Do not ask
+  again; tell the user.
+- **What could never be granted is not asked:** a level above the user's security policy
+  (`ACCESS_RESTRICTED`), a blocked site (`SITE_BLOCKED`), a site outside the allowed ones
+  (`SITE_NOT_ALLOWED`).
+
+Where the user filed a tab under a workspace, `browser_status` has it in the session's block:
+`Workspace: PROJ-512 login bug`. It is a name for the tabs of one task, and gives an agent
+nothing: each session has its own site, level and end.
+
 ## Errors
 
 Every failure is `Error [CODE]: message`.
@@ -720,6 +753,8 @@ Every failure is `Error [CODE]: message`.
 | `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer. `SUBMIT_DENIED` also comes without a question: for a request the user declined in the last five minutes, and for a session whose last three requests were declined or not answered. Do not retry; tell the user, who can let the session ask again in the popup. |
 | `CONFIRMATION_PENDING` | The user is being asked about another submission. Try again when that is answered. |
 | `DUPLICATE_SUBMISSION` | Same content as a recent submission |
+| `ACCESS_REQUEST_PENDING` | The user is being asked about another request of this agent. Wait for their answer |
+| `ACCESS_REQUEST_DENIED` | The user declined this request a few minutes ago. Do not ask again; tell the user what is needed and why |
 | `APPROVAL_STALE` | What would be submitted changed after it was checked and the user was asked. Nothing was sent. Take a new snapshot and submit again; the user is asked again |
 | `FILL_REJECTED` | A field did not keep its text, so nothing was submitted |
 | `STALE_REF` | The element changed or is gone; take a new snapshot |

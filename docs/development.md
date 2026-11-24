@@ -267,6 +267,10 @@ two times in minutes, 0 for none. A field that is missing restricts nothing; one
 and cannot be read makes the message no message. The server's side is `Limits` in
 `BlockedSites.java`, the extension's `Limits` and `checkLimits` in `policy.ts`.
 
+A command's `action` is one of `ACTIONS` in `policy.ts`. Two of them need no session and are
+answered before one is looked for: `status`, and `request_access`, an agent's request to the
+user, which may be for a site it has no session on.
+
 `clientId` in `challenge` is who the server says it is before anything is proven. The
 extension uses it for one thing: the server of an agent the user disconnected is closed there
 with 4403, without a proof being sent, so that server never counts the extension as connected

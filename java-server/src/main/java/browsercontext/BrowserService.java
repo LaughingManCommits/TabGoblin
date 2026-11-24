@@ -3,6 +3,7 @@ package browsercontext;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
@@ -243,6 +244,7 @@ public final class BrowserService {
                 case "browser_scroll" -> scroll(a);
                 case "browser_hover" -> hover(a);
                 case "browser_collect" -> collect(a);
+                case "browser_request_access" -> requestAccess(a);
                 case "browser_navigate" -> navigate(a);
                 case "browser_screenshot" -> screenshot(a);
                 case "browser_wait_for" -> waitFor(a);
@@ -461,6 +463,10 @@ public final class BrowserService {
             if (!own.equals(asking) && session.path("mode").asString("").equals("write")) {
                 sb.append("  Submissions need user confirmation in this session: ").append(describeAsking(own)).append('\n');
             }
+            if (session.path("workspace").isString()) {
+                // A name the user filed the tab under. It groups tabs of one task, and gives nothing.
+                sb.append("  Workspace: ").append(session.path("workspace").asString()).append('\n');
+            }
             if (session.path("origins").size() > 1) {
                 sb.append("  All authorized sites of this session:");
                 for (JsonNode origin : session.path("origins")) {
@@ -485,6 +491,12 @@ public final class BrowserService {
                 sb.append("  Tab: ").append(tab.path("title").asString("")).append('\n');
                 sb.append("  URL: ").append(tab.path("url").asString("")).append('\n');
             }
+        }
+        for (JsonNode asked : s.path("requests")) {
+            // What this agent asked the user for and has no answer to yet.
+            sb.append("Access requested, waiting for the user: ").append(asked.path("level").asString("?")).append(" on ")
+                    .append(asked.path("session").isString() ? "session " + asked.path("session").asString() : asked.path("origin").asString("?"))
+                    .append('\n');
         }
         if (optBool(a, "diagnostics", false)) {
             // Measured here, because only the server sees the agent, itself and the extension.
@@ -687,6 +699,60 @@ public final class BrowserService {
             p.put("ref", requireInt(a, "ref"));
         }
         return render(send("scroll", a, p, defaultTimeout));
+    }
+
+    static final int MAX_REASON_CHARS = 200;
+
+    /**
+     * Puts a request for access to the user: a higher level on a session of this agent's, or a tab
+     * on a site it has none on. Nothing is granted by the call, and it returns at once.
+     */
+    private ToolResult requestAccess(JsonNode a) {
+        String level = requireString(a, "level").trim().toLowerCase(Locale.ROOT);
+        if (BlockedSites.Access.of(level) == null) {
+            throw new BrowserException("INVALID_ARGUMENT", "level must be one of read, explore, write.");
+        }
+        ObjectNode p = json.createObjectNode();
+        p.put("level", level);
+        String site = null;
+        if (a.hasNonNull("site")) {
+            site = requireString(a, "site").trim();
+            if (site.isEmpty() || site.length() > MAX_URL_CHARS || !site.matches("(?i)^https?://[^/\\s].*")) {
+                throw new BrowserException("INVALID_ARGUMENT", "site must be the address of a website, such as https://example.org.");
+            }
+            if (a.hasNonNull("session")) {
+                throw new BrowserException("INVALID_ARGUMENT", "Give site for a tab on another site, or session for a higher level on one you have: not both.");
+            }
+            p.put("site", site);
+        }
+        if (a.hasNonNull("reason")) {
+            String reason = requireString(a, "reason").trim();
+            if (reason.length() > MAX_REASON_CHARS) {
+                throw new BrowserException("INVALID_ARGUMENT", "reason must be at most " + MAX_REASON_CHARS + " characters.");
+            }
+            p.put("reason", reason);
+        }
+        // What the user's settings rule out is refused here, before the user is troubled with it.
+        BlockedSites.Rule rule = bridge.blocked();
+        if (rule.everything()) {
+            throw new BrowserException("SETTINGS_UNREADABLE", SETTINGS_UNREADABLE);
+        }
+        if (!rule.limits().allows(BlockedSites.Access.of(level))) {
+            throw new BrowserException("ACCESS_RESTRICTED", "The user's security policy allows no session more than "
+                    + rule.limits().maxAccess().label() + " access. Nothing was asked. Only the user can change the policy, in "
+                    + "the settings of the TabGoblin server.");
+        }
+        if (site != null) {
+            String blocked = rule.among(List.of(site));
+            if (blocked != null) {
+                throw new BrowserException("SITE_BLOCKED", blockedMessage(blocked));
+            }
+            String outside = rule.outside(List.of(site));
+            if (outside != null) {
+                throw new BrowserException("SITE_NOT_ALLOWED", notAllowedMessage(outside));
+            }
+        }
+        return render(bridge.send("request_access", site == null ? session(a) : null, p, defaultTimeout));
     }
 
     private ToolResult hover(JsonNode a) {

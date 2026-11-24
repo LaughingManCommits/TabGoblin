@@ -51,6 +51,8 @@ public final class McpMain {
             Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
             browser_fill / browser_press_key / browser_scroll / browser_navigate -> take a new snapshot to see \
             the result. Refs go stale when the page changes; take a new snapshot when told so.
+            Asking for access: browser_request_access puts a request to the user, for a higher level on a session \
+            or for a tab on another site. It grants nothing; go on with what you may do, or tell the user.
             Access levels: Read looks at the current page; Explore also navigates, follows links, hovers and expands \
             sections; Write also presses buttons and enters text. A blocked action names the level it needs.
             Long content: browser_collect reads a page that loads on scrolling, or a list in pages, in one \
@@ -732,6 +734,18 @@ public final class McpMain {
                         "find":{"type":"string","description":"Return only lines that contain this text (case-insensitive), with context."}""", """
                         "regex":{"type":"boolean","description":"Treat find as a regular expression, as browser_extract does."}""", """
                         "context_lines":{"type":"integer","description":"Lines shown before and after a matching line (default 2, max 20)."}""")));
+        specs.add(tool(service, mapper, cancellations, "browser_request_access", false,
+                "Ask the user for access you do not have: a higher level on one of your sessions (give level, and "
+                        + "session if you have several), or a tab on another website (give site and level). The user is "
+                        + "asked in the TabGoblin popup; nothing is granted by this call, and it returns at once. A tab "
+                        + "on another site is given by the user's click on that tab, and nothing of the site can be read "
+                        + "before. Give a short reason: it is shown to the user as your words. One request waits at a "
+                        + "time, and a request the user declined is not put to them again for a few minutes. "
+                        + "browser_status shows what is waiting and what you have.",
+                schema("\"level\"", """
+                        "level":{"type":"string","enum":["read","explore","write"],"description":"The access level asked for."}""", """
+                        "site":{"type":"string","description":"The website to ask a tab for, such as https://example.org. Leave out to ask for a higher level on a session you have."}""", """
+                        "reason":{"type":"string","description":"Why, in a few words (at most 200 characters). Shown to the user."}""")));
         specs.add(tool(service, mapper, cancellations, "browser_navigate", false,
                 "Navigate the session's tab: to an absolute or relative URL, or back, forward or reload. Needs "
                         + "Explore access. The destination must stay on the authorized origin; anything else is "
@@ -782,6 +796,7 @@ public final class McpMain {
             java.util.Map.entry("browser_press_key", "Press a key"),
             java.util.Map.entry("browser_scroll", "Scroll"),
             java.util.Map.entry("browser_hover", "Hover"),
+            java.util.Map.entry("browser_request_access", "Ask the user for access"),
             java.util.Map.entry("browser_collect", "Collect over scrolling or pages"),
             java.util.Map.entry("browser_navigate", "Navigate"),
             java.util.Map.entry("browser_screenshot", "Screenshot"),
@@ -789,7 +804,7 @@ public final class McpMain {
             java.util.Map.entry("browser_submit", "Submit"));
 
     /** Tools whose result is an object. They say so with an output schema, and give the object next to its text. */
-    static final java.util.Set<String> STRUCTURED = java.util.Set.of("browser_click", "browser_fill", "browser_press_key", "browser_hover",
+    static final java.util.Set<String> STRUCTURED = java.util.Set.of("browser_click", "browser_fill", "browser_press_key", "browser_hover", "browser_request_access",
             "browser_scroll", "browser_navigate", "browser_wait_for", "browser_submit");
 
     /**

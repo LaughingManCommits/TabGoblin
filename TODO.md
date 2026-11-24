@@ -1558,8 +1558,9 @@ changed. "There" means built and tested; "part" means built in part; "not" means
 
 Items 1 to 10: of item 10 the waiting for a change (`condition: "changed"` of
 `browser_wait_for`) on 2026-11-24, and collecting and hovering as two tools, `browser_collect`
-and `browser_hover`, after the owner's "continue with p1". There are thirteen tools now. What
-each is, for a user, is in the pages that own it: the
+and `browser_hover`, after the owner's "continue with p1". And item 11, after the owner's
+"continue with p2": workspaces, requests for access (`browser_request_access`), and the
+security policy in the server's window. There are fourteen tools now. What each is, for a user, is in the pages that own it: the
 [security model](docs/security.md) (agents, the security policy, what is checked and when,
 submissions, what is taken out, logging), the [user guide](docs/user-guide.md#the-security-policy),
 the [tool reference](docs/tools.md) and the [protocol](docs/development.md#protocol-reference).
@@ -1595,10 +1596,13 @@ What a setup from before has to know:
 
 ### Left, and why
 
-- **Item 11: workspaces and access requests.** Not started. Each adds a prompt or a grouping
-  to the popup, which changes what the user is asked. One thing to settle before they are: an
-  access request can be shown to the user, but a tab is still given by their click on that
-  tab, which is Chrome's rule and not ours.
+- **What a request for access cannot do.** It can be shown to the user, and a higher level on
+  a tab can be given in the popup. A tab on another site is still given by the user's click on
+  that tab, which is Chrome's rule and not ours: the popup says so, and offers the request
+  there. The popup does not open by itself for a request; the badge says `?`.
+- **What a workspace is not.** It is a name on tabs, kept with the sessions for the browser's
+  run. It is not saved over a restart of the browser, has no settings of its own, and is not
+  shown in the server's window.
 - **What collecting and hovering do not do.** A hover made by script does not set the browser's
   own hover state: it opens what a page opens by script, and not what a style rule alone
   shows. Collecting reads downwards from where the page is, and by pages only through a
@@ -1606,8 +1610,10 @@ What a setup from before has to know:
   access, as a click on that button would be; "load more" buttons are not pressed by it.
 - **The editor lab was not run.** `editor.ts` was not touched; what a snapshot and an extract
   say now passes through the redaction, which the lab's checks read.
-- **The server's window does not show the policy or an agent's identity.** It has no display
-  here to be looked at; the popup shows both.
+- **The server's window says that a policy is in force, and under the mouse what it
+  restricts.** That is in the window's model and tested there. The window itself was not
+  seen: there is no display here. It does not show whether an agent has a key, nor requests
+  and workspaces; the popup shows all three.
 - **The SBOM and the scan run in the workflows only,** which run on GitHub. They were read as
   YAML and not run.
 - **Not signed, as before.** A download is verified by its checksum and GitHub's attestation.

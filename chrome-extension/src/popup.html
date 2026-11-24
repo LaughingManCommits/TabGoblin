@@ -77,6 +77,7 @@
       <div id="blockedAll" class="callout blocked" hidden>
         <p>No agent can work in any tab: the TabGoblin server cannot read its settings file, so it treats every site as blocked. The server's window says what is wrong.</p>
       </div>
+      <div id="requests" class="requests" hidden></div>
       <div id="policyNote" class="callout policy" hidden>
         <p id="policyText"></p>
       </div>
@@ -103,6 +104,8 @@
           </select>
         </div>
         <select id="newAgent" aria-label="Agent" hidden></select>
+        <input id="newWorkspace" type="text" maxlength="40" list="workspaceNames" placeholder="Workspace (optional)" aria-label="Workspace: a name for the task this tab belongs to">
+        <datalist id="workspaceNames"></datalist>
         <button id="authorize" class="primary">Authorize</button>
       </div>
       </div>

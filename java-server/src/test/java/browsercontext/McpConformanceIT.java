@@ -149,7 +149,7 @@ class McpConformanceIT {
             assertTrue(server.request(2, "ping", null).path("result").isObject(), "ping is answered with an empty result");
 
             JsonNode tools = server.request(3, "tools/list", null).path("result").path("tools");
-            assertEquals(13, tools.size());
+            assertEquals(14, tools.size());
             for (JsonNode tool : tools) {
                 String name = tool.path("name").asString();
                 assertTrue(name.matches("browser_[a-z_]+"), name);
@@ -235,7 +235,7 @@ class McpConformanceIT {
                     declared++;
                 }
             }
-            assertEquals(8, declared);
+            assertEquals(9, declared);
 
             browser.responder = command -> FakeExtension.ok(command,
                     JSON.readTree("{\"dispatched\":true,\"navigated\":false,\"navigation\":\"none\"}"));

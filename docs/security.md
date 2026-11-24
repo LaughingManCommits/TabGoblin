@@ -151,6 +151,35 @@ Where it stops:
 - **Tabs of a revoked or vanished agent stay listed** in the popup until you revoke them or
   they run out. No agent can use them.
 
+## Workspaces and requests for access
+
+**A workspace is a name.** You can file tabs that belong to one task under a name, in the
+popup ([user guide](user-guide.md#workspaces)). The name groups them there and is told to an
+agent with its own sessions. It gives nothing: each tab keeps its own authorization, its one
+agent, its sites, its access level and its end, and an agent reaches no tab of another agent
+because both are filed together. *Pause all* and *Revoke all* do what each tab's own button
+does, for the tabs of that name.
+
+**A request for access grants nothing.** An agent can ask you for a higher level on a session
+it has, or for a tab on another site (`browser_request_access`).
+
+- It is shown in the popup with the agent, the level, the site and the agent's reason. The
+  reason is the agent's own words, cut to 200 characters and set apart as a quotation.
+- A higher level is given by your Allow there, and is never more than the security policy
+  allows. A tab on another site cannot be given in the popup at all: it takes your click on
+  that tab, as every authorization does. There the request is offered, and you can give less
+  than was asked.
+- The agent is told that you were asked, and nothing else. Nothing of the site, and nothing of
+  a tab that is open there, is read or reported before you authorize it.
+- One request of an agent waits at a time, for ten minutes. A no stands for five minutes for
+  the same request. What you could not grant is not put to you: a blocked site, a site outside
+  the allowed ones, a level above the policy's.
+- Only the popup answers a request. A page, another extension and the agent cannot.
+
+Where it stops: a request is words on your screen, written in part by an agent that a page may
+have misled. Read what is asked, not only the reason. And the popup does not open by itself for
+a request, as it does for a submission: the badge says `?`.
+
 ## The security policy
 
 The server's settings file, `tabgoblin.properties` beside the pairing token, can restrict what
@@ -426,6 +455,8 @@ Where it stops:
 | An authorization ends at the policy's longest time and after its time unused, at the command that finds it so and by itself | Rules, worker |
 | A restriction in the settings file that cannot be read refuses every site, and is not taken for none | Java, rules |
 | An agent is told what the policy restricts and never which sites are allowed | Java |
+| Asking for access grants nothing: the session has what it had, no session comes of it, and nothing of a tab on the site asked for is told; only the popup answers; a no stands; one request waits at a time; what the policy rules out is not asked | Rules, worker, Java, end-to-end |
+| A workspace gives nothing: an agent reaches no tab of another agent in the same workspace, each tab keeps its level, and its buttons do what each tab's own does, for the tabs of that name only | Rules, worker, end-to-end |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |
 | Hidden form fields not offered as editors; an editor input's value not returned | DOM |

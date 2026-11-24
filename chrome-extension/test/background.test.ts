@@ -1862,3 +1862,156 @@ test('collecting page after page follows only a link an agent may click, needs E
   await popup({ type: 'revoke', session: again });
   tabs.delete(62);
 });
+
+test('an agent may ask for access, and the user gives it or does not: nothing is granted by the asking', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  tabs.set(71, { id: 71, url: 'https://tracker.example/issue/7', status: 'complete', active: true, windowId: 1, title: 'Issue 7' });
+  tabs.set(72, { id: 72, url: 'https://ci.example/job/9', status: 'complete', active: false, windowId: 1, title: 'SECRET PIPELINE TITLE' });
+  const sid = (await popup({ type: 'authorize', tabId: 71, mode: 'read', clientId: 'c-one' })).state.sessions.at(-1).id;
+  const ask = (params: object, session?: string): Promise<any> => one.command('request_access', { params, ...(session ? { session } : {}) });
+  const requests = async (): Promise<any[]> => (await state()).requests;
+  const reached = pageLog.length;
+
+  // A higher level on its own session. The agent is told that the user is asked, and has what it had.
+  const asked = await ask({ level: 'write', reason: 'to post the fix\nas you said' });
+  assert.equal(code(asked), 'ok');
+  assert.deepEqual([asked.result.asked, asked.result.kind, asked.result.level, asked.result.session], [true, 'raise', 'write', sid]);
+  assert.match(asked.result.note, /Nothing is granted yet/);
+  assert.equal(code(await one.command('fill', { session: sid, params: { ref: 1, text: 'x' } })), 'WRITE_NOT_AUTHORIZED');
+  assert.equal((await state()).sessions[0].mode, 'read');
+  // The user sees who asks, for what, where, and the agent's reason as its own words on one line.
+  let shown = await requests();
+  assert.equal(shown.length, 1);
+  assert.deepEqual([shown[0].clientName, shown[0].kind, shown[0].level, shown[0].session, shown[0].origin, shown[0].reason],
+    ['agent-one', 'raise', 'write', sid, 'https://tracker.example', 'to post the fix as you said']);
+  await sleep(30);
+  assert.equal(badges.at(-1), '?', 'the badge says that the user is asked');
+  // The agent's status has it as waiting; another agent's has nothing of it.
+  assert.deepEqual((await one.command('status')).result.requests, [{ kind: 'raise', level: 'write', origin: 'https://tracker.example', session: sid }]);
+  assert.deepEqual((await two.command('status')).result.requests, []);
+  // One request of an agent waits at a time.
+  assert.equal(code(await ask({ level: 'read', site: 'https://ci.example' })), 'ACCESS_REQUEST_PENDING');
+
+  // Only the popup answers. A page, another extension, the agent itself: none of them can.
+  assert.equal(await popup({ type: 'answerRequest', id: shown[0].id, allow: true }, { id: EXTENSION_ID, url: 'https://tracker.example/', tab: { id: 71 } }), undefined);
+  assert.equal(code(await one.command('answerRequest', { params: { id: shown[0].id, allow: true } })), 'UNSUPPORTED_ACTION');
+  assert.equal((await state()).sessions[0].mode, 'read');
+
+  // Declined: nothing changes, and the same is not asked again so soon. Something else may be asked.
+  await popup({ type: 'answerRequest', id: shown[0].id, allow: false });
+  assert.deepEqual(await requests(), []);
+  assert.equal((await state()).sessions[0].mode, 'read');
+  assert.equal(code(await ask({ level: 'write' })), 'ACCESS_REQUEST_DENIED');
+  assert.deepEqual(await requests(), [], 'the user is not asked again');
+  assert.equal(code(await ask({ level: 'explore' })), 'ok');
+  shown = await requests();
+  // Allowed: the session has that level, by the user's word, and the request is gone. Answered twice, nothing more happens.
+  await popup({ type: 'answerRequest', id: shown[0].id, allow: true });
+  assert.equal((await state()).sessions[0].mode, 'explore');
+  await popup({ type: 'answerRequest', id: shown[0].id, allow: true });
+  await popup({ type: 'answerRequest', id: 'made-up', allow: true });
+  assert.equal((await state()).sessions[0].mode, 'explore');
+  assert.deepEqual(await requests(), []);
+  assert.equal(code(await ask({ level: 'explore' })), 'INVALID_ARGUMENT', 'it has that already');
+  // Another agent cannot ask for more on a session that is not its own: to it there is no such session.
+  assert.equal(code(await two.command('request_access', { session: sid, params: { level: 'write' } })), 'UNKNOWN_SESSION');
+  assert.deepEqual(await requests(), []);
+
+  // A tab on another site. The agent learns that the user is asked, and nothing of the tab that is open there.
+  const site = await ask({ level: 'read', site: 'https://ci.example/job/9?token=abc', reason: 'to read the failing job' });
+  assert.equal(code(site), 'ok');
+  assert.deepEqual([site.result.kind, site.result.origin, site.result.session], ['site', 'https://ci.example', undefined]);
+  assert.ok(!JSON.stringify(site).includes('SECRET PIPELINE TITLE') && !JSON.stringify(site).includes('token=abc'));
+  assert.ok(!JSON.stringify(await one.command('status')).includes('SECRET PIPELINE TITLE'));
+  assert.equal(code(await one.command('snapshot')), 'ok', 'its own tab, as before');
+  assert.equal((await state()).sessions.length, 1, 'no session came of asking');
+  // An Allow in the popup cannot give a tab: that takes the user's click on that tab. Dismissed, it counts as a no.
+  shown = await requests();
+  await popup({ type: 'answerRequest', id: shown[0].id, allow: true });
+  assert.equal((await state()).sessions.length, 1);
+  assert.equal(code(await ask({ level: 'read', site: 'https://ci.example' })), 'ACCESS_REQUEST_DENIED');
+  // Asked for another level, and then given by the user's click on that tab: the request is answered by it.
+  assert.equal(code(await ask({ level: 'explore', site: 'https://ci.example' })), 'ok');
+  assert.equal((await requests()).length, 1);
+  assert.equal((await popup({ type: 'authorize', tabId: 72, mode: 'read', clientId: 'c-one' })).ok, true);
+  assert.deepEqual(await requests(), [], 'the grant took the request with it');
+  assert.equal((await state()).sessions.at(-1).mode, 'read', 'the user gave less than was asked, and that is what it has');
+
+  // What could never be granted is not put to the user.
+  for (const [params, expected] of [
+    [{ level: 'admin' }, 'INVALID_ARGUMENT'], [{ level: 'read', site: 'chrome://settings' }, 'INVALID_ARGUMENT'],
+    [{ level: 'read', site: 'file:///etc/passwd' }, 'INVALID_ARGUMENT'],
+  ] as const) {
+    assert.equal(code(await ask(params, sid)), expected, JSON.stringify(params));
+  }
+  assert.deepEqual(await requests(), []);
+
+  // A request does not outlive its session. (Six minutes on: the no to this one has run out.)
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 6 * 60_000;
+    assert.equal(code(await ask({ level: 'write' }, sid)), 'ok');
+    assert.equal((await requests()).length, 1);
+    await popup({ type: 'revoke', session: sid });
+    assert.deepEqual(await requests(), []);
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(pageLog.filter((entry, i) => i >= reached && entry.startsWith('72:')).length, 0, 'the other tab was never touched for a request');
+
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  for (const id of [71, 72]) tabs.delete(id);
+});
+
+test('a workspace groups tabs under a name and gives nothing: each tab keeps its agent, its level and its end', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  tabs.set(81, { id: 81, url: 'https://tracker.example/issue/7', status: 'complete', active: true, windowId: 1, title: 'Issue' });
+  tabs.set(82, { id: 82, url: 'https://ci.example/job/9', status: 'complete', active: false, windowId: 1, title: 'Job' });
+  tabs.set(83, { id: 83, url: 'https://wiki.example/page', status: 'complete', active: false, windowId: 1, title: 'Wiki' });
+  const give = async (tabId: number, mode: string, clientId: string, workspace?: string): Promise<string> =>
+    (await popup({ type: 'authorize', tabId, mode, clientId, workspace })).state.sessions.at(-1).id;
+  const issue = await give(81, 'read', 'c-one', '  PROJ-512\nlogin bug ');
+  const job = await give(82, 'explore', 'c-two', 'PROJ-512 login bug');
+  const wiki = await give(83, 'read', 'c-one');
+  const row = async (id: string): Promise<any> => (await state()).sessions.find((x: any) => x.id === id);
+
+  // The name as it is kept: one line. Told to the agent with its own tabs, and with those only.
+  assert.equal((await row(issue)).workspace, 'PROJ-512 login bug');
+  assert.equal((await row(wiki)).workspace, null);
+  const mine = (await one.command('status')).result.sessions;
+  assert.deepEqual(mine.map((x: any) => [x.session, x.workspace]), [[issue, 'PROJ-512 login bug'], [wiki, undefined]]);
+  assert.deepEqual((await two.command('status')).result.sessions.map((x: any) => x.session), [job]);
+
+  // Filed together, an agent still reaches only its own: the other's tab in the same workspace is not its own.
+  assert.equal(code(await one.command('snapshot', { session: job })), 'SESSION_NOT_OWNED');
+  assert.equal(code(await two.command('snapshot', { session: issue })), 'SESSION_NOT_OWNED');
+  // And each tab has the level it was given, not the highest of the group.
+  assert.equal(code(await one.command('navigate', { session: issue, params: { url: '/x' } })), 'EXPLORE_NOT_AUTHORIZED');
+  assert.deepEqual([(await row(issue)).mode, (await row(job)).mode], ['read', 'explore']);
+
+  // Filing a tab later, and taking it out again.
+  await popup({ type: 'setWorkspace', session: wiki, workspace: 'PROJ-512 login bug' });
+  assert.equal((await row(wiki)).workspace, 'PROJ-512 login bug');
+  assert.equal(code(await one.command('navigate', { session: wiki, params: { url: '/x' } })), 'EXPLORE_NOT_AUTHORIZED', 'filing gave it nothing');
+  await popup({ type: 'setWorkspace', session: wiki, workspace: '   ' });
+  assert.equal((await row(wiki)).workspace, null);
+
+  // Pause all, resume all: what each tab's own button does, for the tabs of that name and no other.
+  await popup({ type: 'pauseWorkspace', workspace: 'PROJ-512 login bug' });
+  assert.deepEqual([(await row(issue)).paused, (await row(job)).paused, (await row(wiki)).paused], [true, true, false]);
+  assert.equal(code(await one.command('snapshot', { session: issue })), 'PAUSED');
+  assert.equal(code(await one.command('snapshot', { session: wiki })), 'ok');
+  await popup({ type: 'resumeWorkspace', workspace: 'PROJ-512 login bug' });
+  assert.equal(code(await two.command('snapshot', { session: job })), 'ok');
+  // Revoke all ends them, and the tab outside the workspace stays.
+  await popup({ type: 'revokeWorkspace', workspace: 'PROJ-512 login bug' });
+  assert.deepEqual((await state()).sessions.map((x: any) => x.id), [wiki]);
+  assert.equal(code(await one.command('snapshot', { session: issue })), 'UNKNOWN_SESSION');
+  // A name that no tab has does nothing, and neither does none.
+  await popup({ type: 'revokeWorkspace', workspace: 'Nothing' });
+  await popup({ type: 'revokeWorkspace', workspace: '' });
+  assert.deepEqual((await state()).sessions.map((x: any) => x.id), [wiki]);
+
+  await popup({ type: 'revoke', session: wiki });
+  for (const id of [81, 82, 83]) tabs.delete(id);
+});

@@ -27,7 +27,7 @@ const JAR = resolve(HERE, '../java-server/target/browser-context-mcp.jar');
 const EXTENSION = resolve(HERE, '../chrome-extension/dist');
 const EXTENSION_ID = 'hipkpjlbggddmiognhmjnfihcgimjfop';
 const ENTERED_TEXT = 'Reproduced on build 512 - e2e-unique-comment';
-const TOOLS = ['browser_click', 'browser_collect', 'browser_extract', 'browser_fill', 'browser_hover', 'browser_navigate', 'browser_press_key',
+const TOOLS = ['browser_click', 'browser_collect', 'browser_extract', 'browser_fill', 'browser_hover', 'browser_navigate', 'browser_press_key', 'browser_request_access',
   'browser_screenshot', 'browser_scroll', 'browser_snapshot', 'browser_status', 'browser_submit', 'browser_wait_for'];
 
 for (const [what, path] of [['Java server jar', JAR], ['extension build', join(EXTENSION, 'manifest.json')]]) {
@@ -2216,6 +2216,99 @@ try {
       await openPopup(page, { fresh: true });
       await pageF.close();
     }
+  });
+  await step('an agent asks for access and the user answers; a workspace groups tabs and gives nothing', async () => {
+    await setMode(sA, 'read');
+    const sessionsOfOne = async () => (await one.tool('browser_status')).text;
+
+    // A higher level on its own tab. The agent is told that the user is asked, and has what it had.
+    const asked = json(await one.tool('browser_request_access', { session: sA, level: 'write', reason: 'to post the fix' }));
+    assert(asked.asked === true && asked.kind === 'raise' && asked.session === sA, JSON.stringify(asked));
+    has(await sessionsOfOne(), `Access requested, waiting for the user: write on session ${sA}`);
+    has(await sessionsOfOne(), 'Access: read only');
+    fails(await one.tool('browser_fill', { session: sA, ref: 1, text: 'x' }), 'WRITE_NOT_AUTHORIZED');
+    fails(await one.tool('browser_request_access', { session: sA, level: 'explore' }), 'ACCESS_REQUEST_PENDING');
+    // The popup says who asks, for what, where, and the agent's reason as a quotation. The badge says that the user is asked.
+    let popup = await openPopup(page, { fresh: true });
+    await popup.waitForSelector('.request');
+    const words = await popup.$eval('.request', (el) => el.innerText.replace(/\s+/g, ' '));
+    has(words, `agent-one asks for Read / Write access in ${sA}, on ${demo.originA}.`);
+    has(words, 'Its reason: “to post the fix”');
+    assert(await badge() === '?', `the badge says ${await badge()}`);
+    // Declined: nothing changes, and the same is not asked again.
+    await popup.click('.request .deny-request');
+    await popup.waitForFunction(() => !document.querySelector('.request'));
+    has(await sessionsOfOne(), 'Access: read only');
+    lacks(await sessionsOfOne(), 'Access requested');
+    fails(await one.tool('browser_request_access', { session: sA, level: 'write' }), 'ACCESS_REQUEST_DENIED');
+    // Another level, allowed: the session has it, by the user's click.
+    json(await one.tool('browser_request_access', { session: sA, level: 'explore' }));
+    popup = await openPopup(page, { fresh: true });
+    await popup.waitForSelector('.request .allow-request');
+    await popup.click('.request .allow-request');
+    await until(async () => (await sessionsOfOne()).includes('Access: explore'), 'the level to be raised by the user');
+    lacks(await sessionsOfOne(), 'Access requested');
+
+    // A tab on another site: here the same demo site under another host name. A tab is open there already.
+    const portA = new URL(demo.originA).port;
+    const other = `http://localhost:${portA}`;
+    const pageO = await browser.newPage();
+    await pageO.goto(`${other}/page2.html`);
+    const site = json(await one.tool('browser_request_access', { site: `${other}/page2.html?token=abc`, level: 'read', reason: 'to read the settings' }));
+    assert(site.kind === 'site' && site.origin === other && site.session === undefined, JSON.stringify(site));
+    // Nothing of that tab is the agent's: not in its status, and not behind a session it could name.
+    const before = await sessionsOfOne();
+    lacks(before, 'Demo Tracker: Settings');
+    assert((before.match(/^Session s/gm) ?? []).length === (await sessionsOfOne()).match(/^Session s/gm).length, 'no session came of asking');
+    has(before, `Access requested, waiting for the user: read on ${other}`);
+    // In the popup there is no Allow for it: it says how it is given.
+    popup = await openPopup(page, { fresh: true });
+    await popup.waitForSelector('.request');
+    has(await popup.$eval('.request', (el) => el.innerText.replace(/\s+/g, ' ')), `agent-one asks for Read access to ${other}.`);
+    has(await popup.$eval('.request', (el) => el.innerText), 'open that site in a tab and click the TabGoblin icon there');
+    assert(await popup.$('.request .allow-request') === null, 'a tab cannot be given from another tab\'s popup');
+    // On that tab the request is offered, with the agent and the level chosen. The user files it under a workspace and authorizes.
+    popup = await openPopup(pageO, { fresh: true });
+    await popup.waitForFunction(() => document.getElementById('authorizeHint').textContent.includes('asked for Read access to this site'));
+    assert(await popup.$eval('#newAccess', (el) => el.value) === 'read', 'the level asked for is chosen');
+    await popup.type('#newWorkspace', 'Bug 512');
+    await popup.click('#authorize');
+    await popup.waitForFunction(() => document.getElementById('authorizeBox').hidden);
+    const sO = await popup.evaluate(() => [...document.querySelectorAll('.session')]
+      .find((r) => [...r.querySelectorAll('.chip')].some((c) => c.textContent === 'this tab')).dataset.session);
+    await until(async () => (await sessionsOfOne()).includes(`Session ${sO}`), 'the new tab to be the agent\'s');
+    has(await sessionsOfOne(), '  Workspace: Bug 512');
+    lacks(await sessionsOfOne(), 'Access requested');
+    has(ok(await one.tool('browser_snapshot', { session: sO })).text, 'Page: Demo Tracker: Settings');
+
+    // The first tab is filed under the same name: the popup lists both under it, and its buttons act on both.
+    await popup.$eval(row(sA, '.workspace-name'), (el) => {
+      el.value = 'Bug 512';
+      el.dispatchEvent(new Event('change'));
+    });
+    await popup.waitForFunction(() => document.querySelector('.workspace[data-workspace="Bug 512"]')?.textContent.includes('2 tabs'));
+    // Filing gave it nothing: it has the level it had, and the other tab is no more reachable than before for another agent.
+    has(await sessionsOfOne(), 'Access: explore');
+    fails(await two.tool('browser_snapshot', { session: sO }), 'SESSION_NOT_OWNED');
+    await popup.click('.workspace[data-workspace="Bug 512"] .pause-all');
+    await until(async () => ((await sessionsOfOne()).match(/Paused: yes/g) ?? []).length >= 2, 'both tabs of the workspace to be paused');
+    fails(await one.tool('browser_snapshot', { session: sO }), 'PAUSED');
+    await popup.waitForSelector('.workspace[data-workspace="Bug 512"] .resume-all');
+    await popup.click('.workspace[data-workspace="Bug 512"] .resume-all');
+    await until(async () => !(await sessionsOfOne()).includes('Paused: yes'), 'both tabs to be resumed');
+
+    // Put back: the new tab revoked, the first one out of the workspace.
+    await popup.$eval(row(sO, '.revoke'), (el) => el.click());
+    await until(async () => !(await sessionsOfOne()).includes(`Session ${sO}`), 'the session to be revoked');
+    popup = await openPopup(page, { fresh: true });
+    await popup.$eval(row(sA, '.workspace-name'), (el) => {
+      el.value = '';
+      el.dispatchEvent(new Event('change'));
+    });
+    await until(async () => !(await sessionsOfOne()).includes('Workspace:'), 'the workspace to be gone');
+    await pageO.close();
+    await page.bringToFront();
+    await openPopup(page, { fresh: true });
   });
   await step('the security policy in the server\'s settings file takes away screenshots, access levels and sites, in force at once', async () => {
     await setMode(sA, 'write');

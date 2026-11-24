@@ -7,9 +7,10 @@ argument-hint: What to do in the browser tab
 # TabGoblin
 
 TabGoblin lets you work in tabs of the user's own Chrome, with the user's own logins. You get
-thirteen tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_collect`,
+fourteen tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_collect`,
 `browser_click`, `browser_hover`, `browser_fill`, `browser_press_key`, `browser_scroll`,
-`browser_navigate`, `browser_screenshot`, `browser_wait_for` and `browser_submit`. You never get cookies, tokens
+`browser_navigate`, `browser_screenshot`, `browser_wait_for`, `browser_submit` and
+`browser_request_access`. You never get cookies, tokens
 or a way to run code in the page. The user decides which tab you may use, on which website, and
 how much you may do there.
 
@@ -117,7 +118,8 @@ retried for you, and a refusal is never an error to work around.
 | `SESSION_REQUIRED` | Pass `session`; `browser_status` lists the ids |
 | `SESSION_SUSPENDED`, `ORIGIN_MISMATCH` | The tab left its website. Ask the user to click the TabGoblin icon on that tab and resume |
 | `PAUSED` | The user paused the session. Wait for them |
-| `EXPLORE_NOT_AUTHORIZED`, `WRITE_NOT_AUTHORIZED` | Ask the user to raise the session's access level in the popup, and say what for |
+| `EXPLORE_NOT_AUTHORIZED`, `WRITE_NOT_AUTHORIZED` | The session's level is too low. If the task needs more, call `browser_request_access` with the level and a short reason, tell the user that you asked, and go on with what you may do. Do not ask again when it is declined |
+| `ACCESS_REQUEST_PENDING`, `ACCESS_REQUEST_DENIED` | A request of yours is waiting, or the user declined this one. Do not ask again; tell the user what you need and why |
 | `NAVIGATION_BLOCKED` | The address is outside the session's website. Only the user can authorize another site |
 | `SITE_BLOCKED` | The user has blocked that site for every agent. There is no other way to it; tell the user |
 | `SITE_NOT_ALLOWED`, `ACCESS_RESTRICTED`, `SCREENSHOTS_DISABLED` | The user's security policy rules it out: the site, the access level, or a screenshot. There is no other way; tell the user. `browser_status` says what the policy restricts |

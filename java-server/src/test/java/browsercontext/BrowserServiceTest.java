@@ -547,7 +547,7 @@ class BrowserServiceTest {
     void mcpLayerExposesExactlyTheGenericToolsAndRoutesCalls() {
         List<SyncToolSpecification> specs = McpMain.toolSpecs(service, McpJsonDefaults.getMapper());
         assertEquals(List.of("browser_status", "browser_snapshot", "browser_extract", "browser_click",
-                "browser_fill", "browser_press_key", "browser_scroll", "browser_hover", "browser_collect", "browser_navigate", "browser_screenshot",
+                "browser_fill", "browser_press_key", "browser_scroll", "browser_hover", "browser_collect", "browser_request_access", "browser_navigate", "browser_screenshot",
                 "browser_wait_for", "browser_submit"),
                 specs.stream().map(s -> s.tool().name()).toList());
 
@@ -892,5 +892,52 @@ class BrowserServiceTest {
         // Scrolling and reading is what Read access has.
         ext.responder = cmd -> FakeExtension.ok(cmd, args().put("text", "Collected: 3 lines"));
         assertEquals("Collected: 3 lines", service.call("browser_collect", args().put("session", "s1")).text());
+    }
+
+    @Test
+    void aRequestForAccessIsPassedOnAsAskedAndWhatCouldNeverBeGrantedIsRefusedBeforeTheUserIsAsked() throws Exception {
+        service.call("browser_request_access", args().put("level", "Write").put("session", "s1").put("reason", " to post the fix "));
+        assertEquals("request_access", lastCommand().path("action").asString());
+        assertEquals("s1", lastCommand().path("session").asString());
+        assertEquals("write", lastParams().path("level").asString());
+        assertEquals("to post the fix", lastParams().path("reason").asString());
+        assertTrue(lastParams().path("site").isMissingNode());
+        service.call("browser_request_access", args().put("level", "read").put("site", "https://ci.example/job/7"));
+        assertEquals("https://ci.example/job/7", lastParams().path("site").asString());
+        assertTrue(lastCommand().path("session").isMissingNode(), "a tab on another site is no session's");
+
+        int sent = ext.commands.size();
+        for (ObjectNode bad : java.util.List.of(args(), args().put("level", "admin"), args().put("level", "read").put("site", "ci.example"),
+                args().put("level", "read").put("site", "file:///etc/passwd"), args().put("level", "read").put("site", "javascript:alert(1)"),
+                args().put("level", "read").put("site", "https://ci.example").put("session", "s1"),
+                args().put("level", "write").put("reason", "x".repeat(201)))) {
+            assertTrue(service.call("browser_request_access", bad).text().startsWith("Error [INVALID_ARGUMENT]"), bad.toString());
+        }
+        // The user's settings rule it out: they are not asked for what they could not give.
+        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null,
+                new BlockedSites.Limits(false, java.util.List.of(), true, BlockedSites.Access.EXPLORE, 0, 0)));
+        assertTrue(service.call("browser_request_access", args().put("level", "write")).text().startsWith("Error [ACCESS_RESTRICTED]"));
+        assertTrue(service.call("browser_request_access", args().put("level", "read").put("site", "https://mail.example.org/"))
+                .text().startsWith("Error [SITE_BLOCKED]: mail.example.org"));
+        bridge.blockedSites(() -> limited(false, java.util.List.of("example.net"), true, "write"));
+        assertTrue(service.call("browser_request_access", args().put("level", "read").put("site", "https://elsewhere.example"))
+                .text().startsWith("Error [SITE_NOT_ALLOWED]: elsewhere.example"));
+        assertEquals(sent, ext.commands.size(), "none of them reached the browser");
+    }
+
+    @Test
+    void theStatusNamesATabsWorkspaceAndWhatTheAgentAskedForAndHasNoAnswerTo() {
+        ext.responder = cmd -> {
+            ObjectNode result = args();
+            ObjectNode session = result.putArray("sessions").addObject();
+            session.put("session", "s1").put("origin", "https://app.example").put("mode", "read").put("workspace", "PROJ-512 login bug");
+            result.putArray("requests").addObject().put("kind", "raise").put("level", "write").put("session", "s1").put("origin", "https://app.example");
+            result.withArray("requests").addObject().put("kind", "site").put("level", "read").put("origin", "https://ci.example");
+            return FakeExtension.ok(cmd, result);
+        };
+        String text = service.call("browser_status", args()).text();
+        assertTrue(text.contains("  Workspace: PROJ-512 login bug\n"), text);
+        assertTrue(text.contains("Access requested, waiting for the user: write on session s1"), text);
+        assertTrue(text.contains("Access requested, waiting for the user: read on https://ci.example"), text);
     }
 }

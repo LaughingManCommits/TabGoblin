@@ -108,7 +108,7 @@ class SkillsTest {
         WebSocketBridge bridge = new WebSocketBridge(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
         Set<String> tools = new TreeSet<>();
         McpMain.toolSpecs(new BrowserService(bridge, null), McpJsonDefaults.getMapper()).forEach(spec -> tools.add(spec.tool().name()));
-        assertEquals(13, tools.size());
+        assertEquals(14, tools.size());
 
         // Every word in capitals that the tool reference sets in code: error codes, how complete a
         // result is, how a submission ended.
