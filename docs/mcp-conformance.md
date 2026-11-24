@@ -43,7 +43,7 @@ it and the server only has to use it as intended.
 | `ping` is answered | Met | SDK |
 | A cancelled request stops, and is not answered (`notifications/cancelled`) | Met | By hand, in `StdinTap`: this API of the SDK has no handler for it. The call is stopped in the browser, and no answer is sent for it. |
 | Progress for long requests (optional) | Met | `Progress`: a client that sent a progress token is told every three seconds that the call is still running, with the time it has run. Nothing is sent after the call ended, and nothing to a client that did not ask. |
-| Structured results with an output schema (optional) | Met | The seven tools whose result is an object declare an output schema and give the object next to its text, which is unchanged. The schema says no more than "an object": the fields differ from case to case, and the SDK refuses a result that does not fit a declared schema. |
+| Structured results with an output schema (optional) | Met | The nine tools whose result is an object declare an output schema and give the object next to its text, which is unchanged. The schema says no more than "an object": the fields differ from case to case, and the SDK refuses a result that does not fit a declared schema. |
 | Log messages to the client (optional) | Not used | The SDK declares the `logging` capability by itself; the server sends nothing through it. See below. |
 
 ## A client of the newer generation

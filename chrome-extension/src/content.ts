@@ -2,12 +2,14 @@
 // It answers a fixed set of operations from the background worker. There is no eval, no access to
 // cookies or storage, and nothing here is reachable from page scripts (isolated world).
 
-import { extractPage, type LinkStyle } from './extract.ts';
+import { MAX_LINES_PER_READ } from './collect.ts';
+import { MAX_ROOTS, extractPage, visibleText, type ExtractOptions, type LinkStyle, type RegionKind } from './extract.ts';
 import {
-  clickElement, describeClickTarget, describeKeyTarget, fill, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
+  clickElement, controlNamed, describeClickTarget, describeKeyTarget, fill, foreignFramesInView, hoverElement, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
-import { applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice, whenDrawn, type Notice, type NoticeMount } from './notice.ts';
+import { applyUpdate, byTheUser, mountNotice, noticeUpdateOf, noticeView, paintNotice, whenDrawn, type Notice, type NoticeMount } from './notice.ts';
+import { redactText } from './redact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
 import {
   captureBaseline, contentDigest, observeSubmission, submissionPreview, submittedTexts, validationProblems, type SubmitBaseline,
@@ -35,11 +37,26 @@ const signals = new Map<string, { cancelled: boolean }>();
  * is a text box. `named` is false when the control is whatever had the keyboard, not a ref.
  */
 const submissions = new Map<string, {
-  control: Element; fields: Element[]; submitted: string[]; by: 'click' | 'enter'; named: boolean;
+  control: Element; fields: Element[]; intended: (string | undefined)[]; submitted: string[]; by: 'click' | 'enter'; named: boolean;
 }>();
 
 function optionalRef(msg: Request, state: PageState): Element | undefined {
   return msg.ref === undefined || msg.ref === null ? undefined : state.registry.resolve(Number(msg.ref));
+}
+
+/** Several refs for one reading: a ref that is stale is reported in its place and does not fail the others. */
+function optionalRefs(msg: Request, state: PageState): ExtractOptions['roots'] {
+  if (!Array.isArray(msg.refs)) return undefined;
+  // One more than is allowed, so that too many are refused and not silently dropped.
+  return msg.refs.slice(0, MAX_ROOTS + 1).map((value) => {
+    const ref = Number(value);
+    try {
+      return { ref, el: state.registry.resolve(ref) };
+    } catch (e) {
+      if (e instanceof DomError) return { ref, error: `${e.code}: ${e.message}` };
+      throw e;
+    }
+  });
 }
 
 interface NavigationApi {
@@ -94,10 +111,12 @@ function showNotice(): void {
     return;
   }
   if (!noticeMount || !noticeMount.host.isConnected) {
-    noticeMount = mountNotice(document, (event) => {
-      // Only a real user click counts; a page cannot produce a trusted event.
-      if (event.isTrusted) void chrome.runtime.sendMessage({ bcmcp: 'indicator-pause' });
-    });
+    // Only a real user click counts; a page cannot produce a trusted event. Pause can only
+    // restrict. The other button asks the worker to bring the popup up, and can do no more:
+    // nothing is answered from inside a page.
+    noticeMount = mountNotice(document,
+      byTheUser(() => void chrome.runtime.sendMessage({ bcmcp: 'indicator-pause' })),
+      byTheUser(() => void chrome.runtime.sendMessage({ bcmcp: 'indicator-show' })));
   }
   paintNotice(noticeMount, view);
   // A little late rather than early: a timer that fires before the moment would find nothing changed.
@@ -134,6 +153,13 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         outline: msg.outline === true,
         mainOnly: msg.mainOnly === true,
         root: optionalRef(msg, state),
+        roots: optionalRefs(msg, state),
+        find: typeof msg.find === 'string' ? msg.find : undefined,
+        regex: msg.regex === true,
+        contextLines: typeof msg.contextLines === 'number' ? Math.min(20, Math.max(0, Math.floor(msg.contextLines))) : undefined,
+        maxMatches: typeof msg.maxMatches === 'number' ? Math.min(200, Math.max(1, Math.floor(msg.maxMatches))) : undefined,
+        // One that is not known is refused there.
+        kind: typeof msg.kind === 'string' ? msg.kind as RegionKind : undefined,
       });
     case 'describe':
       return describeClickTarget(registry.resolve(ref));
@@ -166,8 +192,25 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         typeof msg.amount === 'number' ? msg.amount : undefined,
         optionalRef(msg, state) ?? null,
         state);
+    case 'hover':
+      return hoverElement(registry.resolve(ref));
+    case 'collect_read': {
+      // What is shown now, as lines, by the reader an extract uses: nothing it leaves out is in
+      // here. What looks like a credential is taken out before it leaves the page.
+      const root = optionalRef(msg, state) ?? document.body;
+      const lines = root ? redactText(visibleText(root)).split('\n') : [];
+      return { lines: lines.slice(0, MAX_LINES_PER_READ), cut: lines.length > MAX_LINES_PER_READ, title: document.title };
+    }
+    case 'collect_next': {
+      // The control that leads on, looked for anew on every page: a ref does not outlast its document.
+      const control = controlNamed(document, String(msg.name ?? ''));
+      return control ? { ref: registry.assign(control), target: describeClickTarget(control) } : { ref: null };
+    }
     case 'coverage':
       return { text: viewportCoverage(document) };
+    case 'frames':
+      // For a screenshot: whether a picture of the tab would show a frame of another site.
+      return { foreign: foreignFramesInView(document) };
     case 'quiet':
       return { ...(await waitForQuiet(document, 300, Math.min(Number(msg.maxMs) || 3000, 5000))), title: document.title };
     case 'unsaved':
@@ -182,7 +225,7 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         return await waitFor(document, registry, {
           text: typeof msg.text === 'string' ? msg.text : undefined,
           ref: msg.ref === undefined || msg.ref === null ? undefined : ref,
-          condition: (['visible', 'gone', 'enabled', 'disabled'].includes(String(msg.condition)) ? msg.condition : 'visible') as WaitCondition,
+          condition: (['visible', 'gone', 'enabled', 'disabled', 'changed'].includes(String(msg.condition)) ? msg.condition : 'visible') as WaitCondition,
           timeoutMs: Number(msg.timeoutMs) || 5000,
           signal,
         });
@@ -209,7 +252,7 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         fields.push(control);
         intended.push(undefined);
       }
-      submissions.set(String(msg.submissionId), { control, fields, submitted: [], by, named });
+      submissions.set(String(msg.submissionId), { control, fields, intended, submitted: [], by, named });
       const key = describeKeyTarget(control, 'Enter');
       return {
         target: describeClickTarget(control),
@@ -222,6 +265,20 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         // The beginning of it, for the question to the user.
         preview: submissionPreview(fields, intended),
       };
+    }
+    case 'submit_recheck': {
+      // What the user was asked about is what is sent. The fingerprint was taken before they were
+      // asked; if the content is another now (the page changed it, or someone typed), nothing is
+      // sent. It is looked at before the agent's own texts are filled in: filling one field can
+      // change another, as one choice of a group unchecks the others.
+      const entry = submissions.get(String(msg.submissionId));
+      if (!entry) throw new DomError('STALE_REF', 'The page changed while the submission was being prepared. Take a new snapshot.');
+      if (typeof msg.digest === 'string' && contentDigest(entry.control, entry.fields, entry.intended) !== msg.digest) {
+        submissions.delete(String(msg.submissionId));
+        throw new DomError('APPROVAL_STALE',
+          'What would be submitted changed after it was checked and the user was asked. Nothing was sent. Take a new snapshot and submit again; the user is asked again.');
+      }
+      return {};
     }
     case 'submit_baseline': {
       const entry = submissions.get(String(msg.submissionId));
@@ -272,6 +329,13 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
   }
 }
 
+/** A result with its text freed of what looks like a credential. */
+function withoutSecrets(result: unknown): unknown {
+  if (typeof result !== 'object' || result === null) return result;
+  const text = (result as { text?: unknown }).text;
+  return typeof text === 'string' ? { ...result, text: redactText(text) } : result;
+}
+
 if (!scope[LOADED]) {
   scope[LOADED] = true;
   const state = new PageState();
@@ -281,7 +345,8 @@ if (!scope[LOADED]) {
       ...body, highestRef: state.registry.highest, docId: state.docId, generation: state.generation, url: location.href,
     });
     handle(msg, state).then(
-      (result) => reply({ ok: true, result }),
+      // What a snapshot or an extract says goes to the agent: what looks like a credential is taken out here, before it leaves the page.
+      (result) => reply({ ok: true, result: msg.op === 'snapshot' || msg.op === 'extract' ? withoutSecrets(result) : result }),
       (err: unknown) => reply(err instanceof DomError
         ? { ok: false, code: err.code, message: err.message }
         : { ok: false, code: 'PAGE_ERROR', message: `The page operation failed: ${err instanceof Error ? err.message : String(err)}` }),

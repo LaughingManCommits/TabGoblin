@@ -1,7 +1,14 @@
 // Typed messages of the WebSocket protocol between the Java server and this extension, and the
 // validation applied to everything that arrives. Mirrors java-server Protocol.java.
 
-export const PROTOCOL_VERSION = 2;
+import type { Limits } from './policy.ts';
+
+/**
+ * Version 3: an agent is known by the id of its key, and no session passes to an agent by its
+ * name; a server tells its security policy. A peer of version 2 is refused: it would bring the
+ * older, weaker rule with it.
+ */
+export const PROTOCOL_VERSION = 3;
 
 export const CLOSE_UNAUTHORIZED = 4401;
 export const CLOSE_USER_DISCONNECTED = 4403;
@@ -27,7 +34,7 @@ export type ServerMessage =
   | { type: 'cancel'; id: string }
   | { type: 'client'; name: string }
   /** The sites no agent may work on, as the server's settings have them; `unreadable` when they cannot be read and everything is refused. */
-  | { type: 'policy'; blocked: string[]; unreadable: boolean }
+  | { type: 'policy'; blocked: string[]; unreadable: boolean; limits: Limits }
   | { type: 'command'; command: CommandMessage };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -68,7 +75,26 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       // A list with an entry that is no host is not taken in part: it is not a list.
       const blocked = raw.blocked.map((v) => str(v, 253));
       if (blocked.some((v) => v === null || !/^[a-z0-9.\-:[\]]+$/.test(v))) return null;
-      return { type: 'policy', blocked: blocked as string[], unreadable: raw.unreadable === true };
+      // What else the user's settings restrict. A restriction that is not said is not there; one
+      // that is said and cannot be read makes the message no message, as with the list.
+      const allowedRaw = raw.allowed === undefined ? [] : raw.allowed;
+      if (!Array.isArray(allowedRaw) || allowedRaw.length > 5000) return null;
+      const allowed = allowedRaw.map((v) => str(v, 253));
+      if (allowed.some((v) => v === null || !/^[a-z0-9.\-:[\]]+$/.test(v))) return null;
+      const maxAccess = raw.maxAccess === undefined ? 'write' : raw.maxAccess;
+      if (maxAccess !== 'read' && maxAccess !== 'explore' && maxAccess !== 'write') return null;
+      const minutes = (v: unknown): number | null =>
+        (v === undefined ? 0 : typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 10080 ? v : null);
+      const sessionMaxMinutes = minutes(raw.sessionMaxMinutes);
+      const sessionIdleMinutes = minutes(raw.sessionIdleMinutes);
+      if (sessionMaxMinutes === null || sessionIdleMinutes === null) return null;
+      return {
+        type: 'policy', blocked: blocked as string[], unreadable: raw.unreadable === true,
+        limits: {
+          strict: raw.strict === true, allowed: allowed as string[], screenshots: raw.screenshots !== false,
+          maxAccess, sessionMaxMinutes, sessionIdleMinutes,
+        },
+      };
     }
     case undefined: {
       const id = str(raw.id, 64);

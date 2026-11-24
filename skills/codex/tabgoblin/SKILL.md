@@ -6,9 +6,10 @@ description: Read and operate the browser tabs the user has authorized in their 
 # TabGoblin
 
 TabGoblin lets you work in tabs of the user's own Chrome, with the user's own logins. You get
-eleven tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_click`,
-`browser_fill`, `browser_press_key`, `browser_scroll`, `browser_navigate`,
-`browser_screenshot`, `browser_wait_for` and `browser_submit`. You never get cookies, tokens
+fourteen tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_collect`,
+`browser_click`, `browser_hover`, `browser_fill`, `browser_press_key`, `browser_scroll`,
+`browser_navigate`, `browser_screenshot`, `browser_wait_for`, `browser_submit` and
+`browser_request_access`. You never get cookies, tokens
 or a way to run code in the page. The user decides which tab you may use, on which website, and
 how much you may do there.
 
@@ -46,6 +47,13 @@ reach another site from it, and you cannot widen it yourself.
 - **Text:** `browser_extract`. On a long page ask for `outline: true` first: it lists the
   sections with a ref and a size each, and `ref` then reads one of them. Otherwise follow the
   "continue with offset" line of a result. `main_only: true` leaves out navigation and footers.
+- **Parts of a long page:** do not read a long log or listing whole to find a few lines in it.
+  `find` returns only the lines that contain a text, with `context_lines` around each
+  (`regex: true` takes it as a pattern); `kind` returns only the `tables`, the `code` blocks or
+  the `articles`; `refs` reads several sections in one call. Every place comes with its line,
+  the heading above it and an `offset`: a plain `browser_extract` with that `offset` reads on
+  from there. When more matches exist than are shown, the last line says with which `offset`
+  to repeat the call. No match is not proof of absence: the completeness line still applies.
 - **Controls:** `browser_snapshot` lists the page with numbered refs like `[12]`.
   `interactive_only: true` lists only what can be operated, `viewport_only: true` only what is
   in view, `ref` one section, `start_line` continues a long one, `diff: true` shows what
@@ -74,7 +82,18 @@ to the page it came from: after a navigation or a change, `STALE_REF` asks for a
 - `browser_press_key`: Escape, Tab and the keys that move through a page with Explore; other
   keys need Read / Write.
 - `browser_scroll` scrolls the page or one element. `browser_wait_for` waits, for a limited
-  time, for a text or an element to appear or to go.
+  time, for a text or an element to appear or to go, or for an element to change
+  (`condition: "changed"`): use that for a status or a build that moves on, and do not read the
+  page again and again.
+- `browser_collect` reads, in one call, a page that shows more as it is scrolled (a feed, a
+  log, a long discussion, a list that draws only the rows in view), or a list in pages when you
+  give it the name of the link to the next page (`next: "Next"`). It leaves out what it read
+  before, and stops at the end or at a limit. Read its `Stopped:` and `Completeness:` lines:
+  `TRUNCATED` means there is more, and a further call goes on from where the page is now. With
+  `find` it returns only the matching lines and their context. Prefer it to a loop of scrolling
+  and reading.
+- `browser_hover` moves the pointer over an element, for a menu or a tooltip that a page shows
+  on hovering. Nothing is clicked. Take a snapshot with `diff: true` afterwards.
 
 ## Submit
 
@@ -99,9 +118,14 @@ retried for you, and a refusal is never an error to work around.
 | `SESSION_REQUIRED` | Pass `session`; `browser_status` lists the ids |
 | `SESSION_SUSPENDED`, `ORIGIN_MISMATCH` | The tab left its website. Ask the user to click the TabGoblin icon on that tab and resume |
 | `PAUSED` | The user paused the session. Wait for them |
-| `EXPLORE_NOT_AUTHORIZED`, `WRITE_NOT_AUTHORIZED` | Ask the user to raise the session's access level in the popup, and say what for |
+| `EXPLORE_NOT_AUTHORIZED`, `WRITE_NOT_AUTHORIZED` | The session's level is too low. If the task needs more, call `browser_request_access` with the level and a short reason, tell the user that you asked, and go on with what you may do. Do not ask again when it is declined |
+| `ACCESS_REQUEST_PENDING`, `ACCESS_REQUEST_DENIED` | A request of yours is waiting, or the user declined this one. Do not ask again; tell the user what you need and why |
 | `NAVIGATION_BLOCKED` | The address is outside the session's website. Only the user can authorize another site |
 | `SITE_BLOCKED` | The user has blocked that site for every agent. There is no other way to it; tell the user |
+| `SITE_NOT_ALLOWED`, `ACCESS_RESTRICTED`, `SCREENSHOTS_DISABLED` | The user's security policy rules it out: the site, the access level, or a screenshot. There is no other way; tell the user. `browser_status` says what the policy restricts |
+| `AGENT_REVOKED` | The user revoked this agent. No tool works; tell the user and stop |
+| `APPROVAL_STALE` | What would be submitted changed after the user was asked. Nothing was sent. Take a new snapshot, check the content, and submit again |
+| `SCREENSHOT_BLOCKED` | A frame from another site is in view. Scroll it out of view, or read the page as text |
 | `SETTINGS_UNREADABLE` | Tell the user: the server's window says what is wrong with its settings file |
 | `STALE_REF` | Take a new snapshot and use its refs |
 | `SENSITIVE_FIELD` | Passwords and credentials are off limits. The user enters those |

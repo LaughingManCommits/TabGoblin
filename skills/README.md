@@ -51,7 +51,7 @@ agent has to know TabGoblin's MCP server first
 The three say the same about TabGoblin. That part begins at "Start with the status" and is word
 for word the same in all of them; a test of the server's suite (`SkillsTest`) fails when one of
 them drifts from the others, when a skill names a tool the server does not have or leaves one
-out, and when it names an error code that the [tool reference](../docs/tools.md#errors) does
+out, and when it names an error code that the [tool reference](../docs/mcp-reference.md#errors) does
 not know. What differs is each one's head:
 
 - **Claude Code:** the tools' names as Claude Code has them, and what to ask the user for when
@@ -68,10 +68,10 @@ The places and the fields are from each agent's own documentation, read on 2026-
 command was run with the built jar on Windows, against a home folder made for the purpose:
 each of the three skills went to its place, file for file. None of the three skills has been
 loaded in its agent yet. What an agent then does with it was not
-tried either. How the server is added to Codex and to Copilot could not be read from their
-documentation that day; the installation guide's general row applies: a command, `java`, with
-the arguments `-jar` and the path of the jar.
+tried either. The lines `--setup` prints for adding the server to Codex and
+to Copilot follow their documentation as read on 2026-11-23 and were not run; the line for
+Claude Code was.
 
-The skills say what the tools do in fewer words than the [tool reference](../docs/tools.md),
+The skills say what the tools do in fewer words than the [tool reference](../docs/mcp-reference.md),
 which stays the place where each tool's text is written down. Where the two differ, the tool
 reference is right and the skill has to be mended.

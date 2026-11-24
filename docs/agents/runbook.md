@@ -38,7 +38,7 @@ mvn -B -f java-server/pom.xml test -Dtest=PairingTest         # one Java test cl
 
 Success: `ℹ fail 0`, or `BUILD SUCCESS`.
 
-An extension test that waits for something that never comes is ended after 60 seconds and
+An extension test that waits for something that never comes is ended after 120 seconds and
 reported as failed, with its name (`--test-timeout` in `chrome-extension/package.json`). Give the
 option yourself when you run one file as above.
 
@@ -94,6 +94,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
 | Nothing personal | `node --test docs/agents/check-personal.test.mjs`; `node docs/agents/check-personal.mjs` |
+| Dependencies | `npm audit --audit-level=high` in `chrome-extension` and in `e2e`; the same in `e2e/editors`, whose result does not fail the job. The review of a pull request runs on GitHub only |
 
 CI runs on pushes to `main`, on pull requests, and by hand. A push to another branch without a
 pull request runs nothing. `npm ci` deletes `node_modules` first; use `npm install` when you only
@@ -129,7 +130,7 @@ ends by itself three seconds after its last agent has gone, and by **Stop server
 window. The process an agent starts is a pipe to it and ends when the agent closes it; run in a
 terminal without an option it waits on its input and looks like a hang, and Ctrl+C ends it. Ending
 the server's process is no stop: agents that still run start it again. Finding it by its ports
-is in the [user guide](../user-guide.md#8-stopping).
+is in the [developer guide](../developer-guide.md#stopping).
 
 ## Regenerate screenshots and examples
 
@@ -189,13 +190,17 @@ cd java-server
 java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
 ```
 
-On Linux and macOS the separator in the class path is `:`. Success: seventeen pictures at
+On Linux and macOS the separator in the class path is `:`. On a machine without a display, put
+`xvfb-run -a` in front of the `java` command, and of `mvn` for the window's tests. Success: nineteen pictures at
 double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
 screen, the server without an agent, with two agents, the first and the second tab clicked, an
 agent clicked, sites blocked with a tab on one of them, and a settings file with a mistake in
-it, the log held, and a browser that came with another token. In the two of the blocked sites the Control card names what is blocked, or says that every site is refused,
+it, the log held, a browser that came with another token, and a security policy with a blocked
+site and without one. In the two of the policy the Control card's heading reads *Blocked sites
+and security policy*, and a line *Policy: …* under the blocked sites says in short what it
+restricts, whole, on two lines at most. In the two of the blocked sites the Control card names what is blocked, or says that every site is refused,
 and the tab says *blocked*; with the mistake an amber box under the status names it. In the last, a green box under the status says *Pair the browser with this server* and has the
 button **Copy token**; no other picture has that box, also not the second, where no browser has
 come. The sixteenth

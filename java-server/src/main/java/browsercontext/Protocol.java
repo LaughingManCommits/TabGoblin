@@ -8,9 +8,9 @@ import tools.jackson.databind.node.ObjectNode;
  * Typed messages of the Java-to-extension WebSocket protocol. Independent of MCP.
  *
  * <pre>
- * server: {"type":"challenge","nonce":"..","versions":[2],"clientId":"c-1a2b3c4d"}
- * ext:    {"type":"auth","nonce":"..","proof":"..","version":2}
- * server: {"type":"auth_ok","proof":"..","version":2,"clientId":"c-1a2b3c4d","clientName":".."}
+ * server: {"type":"challenge","nonce":"..","versions":[3],"clientId":"a-1a2b3c4d5e6f"}
+ * ext:    {"type":"auth","nonce":"..","proof":"..","version":3}
+ * server: {"type":"auth_ok","proof":"..","version":3,"clientId":"a-1a2b3c4d5e6f","clientName":".."}
  * server: {"id":"17","action":"click","session":"s2","params":{..},"deadline":1700000000000}
  * ext:    {"id":"17","success":true,"result":{..},"session":"s2"}  |  {"id":"17","success":false,"error":{"code":"..","message":".."}}
  * server: {"type":"cancel","id":"17"}
@@ -19,8 +19,12 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class Protocol {
 
-    /** Version this server speaks. Negotiated in the handshake; a peer without it is refused. */
-    static final int VERSION = 2;
+    /**
+     * Version this server speaks. Negotiated in the handshake; a peer without it is refused.
+     * Version 3: an agent is known by the id of its key, and the server tells its security policy.
+     * An extension of version 2 would hand an agent's tabs on by its name, so it is not let in.
+     */
+    static final int VERSION = 3;
 
     static final int CLOSE_UNAUTHORIZED = 4401;
     static final int CLOSE_USER_DISCONNECTED = 4403;
@@ -143,8 +147,8 @@ final class Protocol {
         return switch (code) {
             case "NOT_AUTHORIZED", "PAUSED", "WRITE_NOT_AUTHORIZED", "EXPLORE_NOT_AUTHORIZED", "SESSION_NOT_OWNED",
                     "SESSION_REQUIRED", "UNKNOWN_SESSION", "AUTHORIZATION_EXPIRED", "SESSION_SUSPENDED", "SUBMIT_INTENT_REQUIRED",
-                    "SUBMIT_DENIED", "SUBMIT_NOT_CONFIRMED", "SETTINGS_UNREADABLE" -> "AUTHORIZATION";
-            case "ORIGIN_MISMATCH", "NAVIGATION_BLOCKED", "SITE_BLOCKED" -> "SCOPE";
+                    "SUBMIT_DENIED", "SUBMIT_NOT_CONFIRMED", "SETTINGS_UNREADABLE", "AGENT_REVOKED", "ACCESS_RESTRICTED", "SCREENSHOTS_DISABLED", "ACCESS_REQUEST_DENIED" -> "AUTHORIZATION";
+            case "ORIGIN_MISMATCH", "NAVIGATION_BLOCKED", "SITE_BLOCKED", "SITE_NOT_ALLOWED" -> "SCOPE";
             case "STALE_REF", "STALE_COMMAND", "DUPLICATE_COMMAND", "DUPLICATE_SUBMISSION" -> "STALE";
             case "INVALID_ARGUMENT", "INVALID_URL", "UNKNOWN_TOOL", "UNSUPPORTED_ACTION", "UNSUPPORTED_ELEMENT",
                     "OPTION_NOT_FOUND", "SENSITIVE_FIELD", "ELEMENT_DISABLED" -> "INPUT";

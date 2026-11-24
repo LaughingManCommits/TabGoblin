@@ -1,6 +1,6 @@
 # Current state and handoff
 
-Last updated: 2026-11-23. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-24. Claims here go stale; check the date, then `git status` and `git log`.
 
 ## Where the code is
 
@@ -22,6 +22,19 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   filing of WP-26 is on this branch as well.
   One commit, made on the owner's word. Not pushed and not merged. Whether the longer guides
   get the same is the owner's to say once these two have been read.
+- Branch `claude/tabgoblin-security-features-ncxa9m`, made from `a06b0ce` (the merge of
+  `simpler-front-pages`) on 2026-11-24, in a session that ran in the cloud: WP-27, security
+  hardening and features for developers. Committed there by the session, and pushed to that
+  branch on the owner's word ("Push to development branch your work"). Nothing went to `main`, and no pull request was opened. Not merged. It carries a branch `smart-extract`, merged into it.
+  The documentation was rewritten there on 2026-11-24, on the owner's word: three pages have
+  new names (`docs/security-model.md`, `docs/developer-guide.md`, `docs/mcp-reference.md`),
+  three are new (`docs/corporate-assessment.md`, `SECURITY.md`, `CONTRIBUTING.md`), and two
+  are gone, their content folded into others (`docs/README.md`, `docs/cheatsheet.md`). The
+  owner has not read them yet. Two sentences in `SECURITY.md` speak for the owner and want
+  their yes: that only the latest release is maintained, and that a confirmed vulnerability
+  is described in a release's notes. Whether GitHub's private reporting is switched on for
+  the repository was not looked at; the page says what to do if it is not. Release 0.2.0's
+  notes link to `docs/installation.md`, which is where it was.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -29,6 +42,8 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 
 | Item | Status | Authoritative source |
 |---|---|---|
+| WP-28, ports that the system keeps back | Filed on 2026-11-24, not started. The message is mended and merged; a way around a reserved range is proposed, and four decisions wait for the owner | [TODO.md](../../TODO.md) |
+| WP-27, security hardening and features for developers | Built on 2026-11-24 for all eleven of its backlog items, and waits for the owner's review. Pushed to its branch on the owner's word; not merged, and not to be merged to `main` by a session. An agent is known by a key of its own (`--agent`), and no tab passes by a name; a security policy in the settings file, with a strict profile; every step that touches the page checked again; an approval bound to the content shown; redaction; no picture with a frame of another site in view; protocol version 3; search and regions in `browser_extract`; waiting for a change; three new tools, `browser_collect`, `browser_hover` and `browser_request_access`, which makes fourteen; workspaces; a record on disk; SBOM and a dependency scan in the workflows. Seven decisions the session took are listed for the owner. Left: what its entry lists under "Left, and why", none of it started work | [TODO.md](../../TODO.md) |
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
 | WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
@@ -45,6 +60,32 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 | WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
+
+- **The default ports can be kept back by Windows, and then no server has a port.** Found on
+  the owner's machine on 2026-11-24: Windows had the range 47749 to 47848 reserved for its own
+  networking, which holds the server's eight ports and the one after them. The server now says
+  that this is the cause and how to list the ranges, and the window says that it has no port;
+  the owner runs with `--port 39821`. What does not exist yet is a way around it without the
+  user: it is filed as WP-28, and waits for the owner's decisions.
+- **A real agent has used WP-27 by hand, in part.** With the real extension on Windows and the
+  owner at the popup: reading, a click on a link, hovering, collecting, a screenshot, three
+  refusals, a request for access that was allowed, a fill, Enter in a search field, and a
+  submission that was confirmed. Not yet by hand: a Deny of a question; pause, revoke and
+  disconnect; a workspace; a policy; the notice's **Answer** button.
+
+- **WP-27 changes what an existing setup does,** in four ways that its entry lists: the server
+  and the extension have to be of the same release (protocol 3); tabs come back after a restart
+  only to an agent that is named with `--agent`; a screenshot is refused while a frame of
+  another site is in view; and text that looks like a credential reads `[redacted]`.
+- **WP-27 has run on Linux and on Windows.** In a container, with its Chromium and Java 21:
+  the three suites, and the window's tests and pictures on a virtual display. On Windows 11, by
+  a second session at `41248d7`: the three suites with none skipped, and the editor lab with
+  the tab in front, 222 of 225 as before WP-27. Not run: the two workflows, which run on GitHub
+  only; the editor lab with `BACKGROUND=1`; the live window on a desktop with a policy in
+  force; a real agent with a real extension by hand.
+- **The editor lab's packages carry two advisories of high severity** (`npm audit` in
+  `e2e/editors`): fixed versions of other people's editors, loaded in a test page and never
+  shipped. The new CI job lists them and does not fail on them.
 
 - **Release 0.2.0 is published, and nobody has used it.** Read from GitHub on 2026-11-23: run
   #2 of *Release*, for the tag `v0.2.0` on `fde041c`, succeeded; the release has the three
@@ -208,7 +249,7 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   high-contrast colours.
 - **Disconnect holds for one run of an agent's server.** The agent is refused by an id that its
   server makes when it starts; started again, it is connected again, without a tab.
-  [security.md](../security.md#agents) says so.
+  [security-model.md](../security-model.md#agent-identity-and-authentication) says so.
 - **The tree's `chrome-extension/dist` was built on 2026-11-22 at 15:47,** by the owner, and
   has everything of `by-hand-panel`. One thing came after: an answer names the session its
   command ran in, without which a call that names no session is in no tab's metrics.

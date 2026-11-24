@@ -76,10 +76,13 @@ const STATES = [
   { name: '09-box-fading', steps: [[0, { state: 'idle', ended: ok('Read page') }]], at: 100, then: STAYS + 10 },
   { name: '10-pause-under-pointer', steps: [
     [0, { state: 'idle', ended: ok('Read page') }], [300, { state: 'working', text: 'Entering text' }]], at: 400, pointer: true },
+  // The user's answer is needed, and the pointer rests on the way to it: the button beside Pause.
+  { name: '12-show-under-pointer', steps: [
+    [0, { state: 'idle', ended: ok('Entered text') }], [300, { state: 'asking' }]], at: 400, pointer: 120 },
   { name: '11-arriving', steps: [
     [0, { state: 'idle', ended: ok('Read page') }], [300, { state: 'working', text: 'Entering text' }]], at: 400, frames: 4 },
 ];
-const NARROW = ['05-longest-line', '06-asking'];
+const NARROW = ['05-longest-line', '06-asking', '12-show-under-pointer'];
 
 const browser = await puppeteer.launch({
   ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),
@@ -115,7 +118,8 @@ async function picture(tab, state, file, clip) {
     await draw(null, state.then);
     await sleep(500);
   }
-  if (state.pointer) await tab.mouse.move(box.x + box.width - 34, box.y + box.height - 18);
+  // The pointer on Pause, at the bar's end, or as far from that end as the state says.
+  if (state.pointer) await tab.mouse.move(box.x + box.width - (state.pointer === true ? 34 : state.pointer), box.y + box.height - 18);
   else await tab.mouse.move(5, 5);
   await sleep(120);
   await tab.screenshot({ path: join(OUT, file), ...(clip ? { clip: clip(box) } : {}) });

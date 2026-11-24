@@ -135,14 +135,14 @@ final class PanelPictures {
                 new State("2-waiting", model("", null, false, false, 0, 0, List.of(), none, log.subList(0, 2)), false),
                 new State("3-switched-off", model("IntelliJ IDEA", null, false, true, 0, 1001, List.of(), times, log), false),
                 new State("4-no-port", model("claude-code",
-                        "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
+                        Agent.noPort(47821, 0),
                         false, false, 0, 0, List.of(), none, List.of()), false),
                 new State("5-armed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions.subList(0, 1), times, log), true),
                 new State("6-framed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false, true),
                 new State("7-many-tabs", model("claude-code", null, true, false, NOW - 498_000, 0, many(9), times, log), false),
                 // The most there is to show, on a screen 768 pixels high with a taskbar: everything has to stay inside.
                 new State("8-low-screen", model("claude-code",
-                        "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
+                        Agent.noPort(47821, 0),
                         true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680),
                 // The one server before any agent has connected: started by the user, it waits and says so.
                 new State("9-no-agent", PanelModel.of(List.of(), 47829, McpMain.version(), false,
@@ -160,6 +160,12 @@ final class PanelPictures {
                 // A settings file with a mistake in it: every tab is blocked, and the window says what is wrong.
                 new State("15-settings-unreadable", blocked(sessions, times, log, new BlockedSites.Rule(List.of(),
                         "\"exam_ple.org\" in blocked.sites is no domain")), false),
+                // A security policy with a blocked site, and one without: the heading names the policy, and a
+                // second line says in short what it restricts. The Control card is one line higher for it.
+                new State("18-policy", blocked(sessions, times, log, new BlockedSites.Rule(List.of("docs.example.org"), null,
+                        new BlockedSites.Limits(true, List.of("ci.example.org"), false, BlockedSites.Access.EXPLORE, 240, 20))), false),
+                new State("19-policy-alone", blocked(sessions, times, log, new BlockedSites.Rule(List.of(), null,
+                        new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0))), false),
                 // Someone reads in the log, scrolled up to its first line, and seven lines have come since:
                 // it stands still, and its corner says so, with the way to the newest line.
                 connected.held("16-log-held", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, later(log))),

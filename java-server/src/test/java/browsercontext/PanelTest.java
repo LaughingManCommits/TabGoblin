@@ -71,7 +71,7 @@ class PanelTest {
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
-                "Stop server", "Kill", "TabGoblin 9.8.7 · protocol 2")) {
+                "Stop server", "Kill", "TabGoblin 9.8.7 · protocol 3")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + all);
         }
         // The log's lines, each with its time; a warning is marked.
@@ -302,13 +302,13 @@ class PanelTest {
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
             view.show(PanelModel.of("", "c-1a2b3c4d", 47821, "9.8.7",
-                    "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
+                    Agent.noPort(47821, 0),
                     false, false, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), List.of(), ZoneId.of("UTC")));
             return view.words();
         });
         for (String shown : List.of("Agent c-1a2b3c4d  ·  port 47821",
-                "Not connected: waiting for the extension",
-                "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
+                "Not connected: this server has no port to listen on",
+                Agent.noPort(47821, 0),
                 "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));
         }

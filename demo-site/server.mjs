@@ -9,6 +9,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildLogPage } from './build-log.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
@@ -41,6 +42,12 @@ function serve(dir, port, otherPort) {
       res.end(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Profile saved</title></head>`
         + `<body><h1>Profile saved</h1><p role="status">Your changes were stored.</p><ul>${rows}</ul>`
         + `<a href="/form.html">Edit again</a></body></html>`);
+      return;
+    }
+    // A page far too long to read whole: a build log, made on request. No other page links to it.
+    if (dir === 'site-a' && url.pathname === '/build-log.html') {
+      res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' });
+      res.end(buildLogPage());
       return;
     }
     const relative = normalize(url.pathname === '/' ? '/index.html' : url.pathname).replace(/^([/\\])+/, '');

@@ -3,6 +3,7 @@ package browsercontext;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
@@ -89,13 +90,20 @@ public final class BrowserService {
             + "seconds, or at once when the user opens the TabGoblin popup. Try again then.";
 
     private final java.util.function.Supplier<Unpaired> unpaired;
+    /** Who this agent is: by a key of its own, or for this start only. */
+    private final AgentKeys.Identity identity;
 
     public BrowserService(WebSocketBridge bridge, String startupProblem) {
         this(bridge, startupProblem, () -> Unpaired.NOTHING_KNOWN);
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, java.util.function.Supplier<Unpaired> unpaired) {
-        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired);
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired, null);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, java.util.function.Supplier<Unpaired> unpaired,
+            AgentKeys.Identity identity) {
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired, identity);
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout) {
@@ -108,6 +116,14 @@ public final class BrowserService {
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace,
             java.util.function.Supplier<Unpaired> unpaired) {
+        this(bridge, startupProblem, defaultTimeout, connectGrace, unpaired, null);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace,
+            java.util.function.Supplier<Unpaired> unpaired, AgentKeys.Identity identity) {
+        // Without a word on who the agent is, it is the bridge's id for this start.
+        this.identity = identity != null ? identity
+                : new AgentKeys.Identity(bridge.clientId(), null, false, () -> false);
         this.unpaired = unpaired;
         this.bridge = bridge;
         this.json = bridge.json();
@@ -169,6 +185,26 @@ public final class BrowserService {
         return json;
     }
 
+    /** What an agent is told when the user has revoked it on this machine. Only the user can undo it. */
+    private String revokedMessage() {
+        return "The user revoked this agent (\"" + identity.label() + "\") on this machine, so it has no tool. Nothing "
+                + "was done. Do not try another way: tell the user, who can allow it again by running the server's jar "
+                + "with --allow-agent " + identity.label() + " and starting this agent again.";
+    }
+
+    /** Who this agent is, in the words of the status: whether its tabs are its own again after a restart. */
+    private String identityLine() {
+        if (identity.persistent()) {
+            return " (identity \"" + identity.label() + "\": the same agent at every start)";
+        }
+        if (identity.label() != null) {
+            return " (another agent with the identity \"" + identity.label() + "\" is connected: this one has an id "
+                    + "for this start only, and its tabs do not come back after a restart)";
+        }
+        return " (no identity of its own: its tabs do not come back after a restart. The user gives it one by "
+                + "adding --agent <name> to the command that starts this server)";
+    }
+
     /** Records who the MCP client is, for the extension's activity panel. */
     public void noteClient(String name) {
         bridge.setClientName(name);
@@ -189,6 +225,11 @@ public final class BrowserService {
 
     private ToolResult run(String tool, JsonNode args) {
         JsonNode a = args == null || !args.isObject() ? json.createObjectNode() : args;
+        // An agent the user revoked is told so by every tool, before anything is looked at or sent.
+        if (identity.revoked().getAsBoolean()) {
+            bridge.refused(null, tool, "AGENT_REVOKED");
+            return ToolResult.error("Error [AGENT_REVOKED]: " + revokedMessage());
+        }
         long asked = System.nanoTime();
         awaitExtension();
         bridge.timings().waited(System.nanoTime() - asked);
@@ -201,6 +242,9 @@ public final class BrowserService {
                 case "browser_fill" -> fill(a);
                 case "browser_press_key" -> pressKey(a);
                 case "browser_scroll" -> scroll(a);
+                case "browser_hover" -> hover(a);
+                case "browser_collect" -> collect(a);
+                case "browser_request_access" -> requestAccess(a);
                 case "browser_navigate" -> navigate(a);
                 case "browser_screenshot" -> screenshot(a);
                 case "browser_wait_for" -> waitFor(a);
@@ -219,8 +263,16 @@ public final class BrowserService {
     }
 
     private JsonNode send(String action, JsonNode a, ObjectNode params, Duration timeout) {
+        return send(action, action, a, params, timeout);
+    }
+
+    /**
+     * @param checkedAs the action whose access level this command needs, where that depends on its
+     *                  arguments: collecting by pages needs what a click on a link needs
+     */
+    private JsonNode send(String action, String checkedAs, JsonNode a, ObjectNode params, Duration timeout) {
         String session = session(a);
-        refuseIfBlocked(action, session, null);
+        refuseIfBlocked(checkedAs, session, null);
         return bridge.send(action, session, params, timeout);
     }
 
@@ -249,7 +301,21 @@ public final class BrowserService {
             bridge.refused(session, action, "SETTINGS_UNREADABLE");
             throw new BrowserException("SETTINGS_UNREADABLE", SETTINGS_UNREADABLE);
         }
-        if (rule.domains().isEmpty()) {
+        // What the user's policy takes away from every agent, as far as it can be told before anything is sent.
+        BlockedSites.Limits limits = rule.limits();
+        if (action.equals("screenshot") && !limits.screenshots()) {
+            bridge.refused(session, action, "SCREENSHOTS_DISABLED");
+            throw new BrowserException("SCREENSHOTS_DISABLED", "The user's security policy allows no screenshots. Nothing was "
+                    + "captured. Read the page with browser_snapshot or browser_extract instead.");
+        }
+        BlockedSites.Access needs = NEEDS.getOrDefault(action, BlockedSites.Access.READ);
+        if (!limits.allows(needs)) {
+            bridge.refused(session, action, "ACCESS_RESTRICTED");
+            throw new BrowserException("ACCESS_RESTRICTED", "The user's security policy allows no session more than "
+                    + limits.maxAccess().label() + " access, and this needs " + needs.label() + ". Nothing was done. Only the user can change the policy, "
+                    + "in the settings of the TabGoblin server.");
+        }
+        if (rule.domains().isEmpty() && limits.allowed().isEmpty()) {
             return;
         }
         java.util.List<String> addresses = new java.util.ArrayList<>();
@@ -286,6 +352,23 @@ public final class BrowserService {
             bridge.refused(id, action, "SITE_BLOCKED");
             throw new BrowserException("SITE_BLOCKED", blockedMessage(host));
         }
+        String outside = rule.outside(addresses);
+        if (outside != null) {
+            bridge.refused(id, action, "SITE_NOT_ALLOWED");
+            throw new BrowserException("SITE_NOT_ALLOWED", notAllowedMessage(outside));
+        }
+    }
+
+    /** The least access each action needs: what the extension's rules have, said here to refuse ahead of sending. */
+    private static final Map<String, BlockedSites.Access> NEEDS = Map.of(
+            "navigate", BlockedSites.Access.EXPLORE, "click", BlockedSites.Access.EXPLORE,
+            "press_key", BlockedSites.Access.EXPLORE, "hover", BlockedSites.Access.EXPLORE,
+            "fill", BlockedSites.Access.WRITE, "submit", BlockedSites.Access.WRITE);
+
+    /** What an agent is told of a site outside the ones the user limits agents to. It names the one site, and never the list. */
+    static String notAllowedMessage(String host) {
+        return host + " is not among the sites the user's security policy allows agents to work on. Only the user "
+                + "can change that, in the settings of the TabGoblin server.";
     }
 
     /** Whether an address names a site of its own, and is not one within the site the tab is on. */
@@ -347,12 +430,16 @@ public final class BrowserService {
         BlockedSites.Rule rule = bridge.blocked();
         if (rule.everything()) {
             sb.append("Blocked sites: ").append(SETTINGS_UNREADABLE).append('\n');
+        } else if (!rule.limits().equals(BlockedSites.Limits.NONE)) {
+            // What the user's settings take away from every agent. The sites it is limited to are not listed to it.
+            sb.append("Security policy: ").append(policyLine(rule.limits())).append('\n');
         }
         ObjectNode p = json.createObjectNode();
         p.put("diagnostics", optBool(a, "diagnostics", false));
         JsonNode s = bridge.send("status", null, p, defaultTimeout);
         sb.append("Extension: connected (protocol ").append(Protocol.VERSION).append(")\n");
-        sb.append("This agent: ").append(bridge.clientId()).append(" on port ").append(bridge.getPort()).append('\n');
+        sb.append("This agent: ").append(bridge.clientId()).append(" on port ").append(bridge.getPort())
+                .append(identityLine()).append('\n');
         // The general setting. Older extensions say only yes or no.
         String asking = s.path("confirmation").asString(s.path("confirmSubmissions").asBoolean(true) ? "always" : "never");
         sb.append("Submissions need user confirmation: ").append(describeAsking(asking)).append('\n');
@@ -376,6 +463,10 @@ public final class BrowserService {
             if (!own.equals(asking) && session.path("mode").asString("").equals("write")) {
                 sb.append("  Submissions need user confirmation in this session: ").append(describeAsking(own)).append('\n');
             }
+            if (session.path("workspace").isString()) {
+                // A name the user filed the tab under. It groups tabs of one task, and gives nothing.
+                sb.append("  Workspace: ").append(session.path("workspace").asString()).append('\n');
+            }
             if (session.path("origins").size() > 1) {
                 sb.append("  All authorized sites of this session:");
                 for (JsonNode origin : session.path("origins")) {
@@ -392,12 +483,20 @@ public final class BrowserService {
             }
             if (blockedIn(rule, session) != null) {
                 sb.append("  Blocked: ").append(blockedMessage(blockedIn(rule, session))).append('\n');
+            } else if (rule.outside(addressesOf(session)) != null) {
+                sb.append("  Not allowed: ").append(notAllowedMessage(rule.outside(addressesOf(session)))).append('\n');
             }
             JsonNode tab = session.path("tab");
             if (tab.isObject()) {
                 sb.append("  Tab: ").append(tab.path("title").asString("")).append('\n');
                 sb.append("  URL: ").append(tab.path("url").asString("")).append('\n');
             }
+        }
+        for (JsonNode asked : s.path("requests")) {
+            // What this agent asked the user for and has no answer to yet.
+            sb.append("Access requested, waiting for the user: ").append(asked.path("level").asString("?")).append(" on ")
+                    .append(asked.path("session").isString() ? "session " + asked.path("session").asString() : asked.path("origin").asString("?"))
+                    .append('\n');
         }
         if (optBool(a, "diagnostics", false)) {
             // Measured here, because only the server sees the agent, itself and the extension.
@@ -413,6 +512,17 @@ public final class BrowserService {
             }
         }
         return ToolResult.ok(sb.toString().stripTrailing());
+    }
+
+    /** The user's restrictions as an agent is told them: what holds, and not which sites are allowed. */
+    private static String policyLine(BlockedSites.Limits limits) {
+        BlockedSites.Limits shown = new BlockedSites.Limits(limits.strict(), List.of(), limits.screenshots(), limits.maxAccess(),
+                limits.sessionMaxMinutes(), limits.sessionIdleMinutes());
+        String said = shown.summary();
+        if (!limits.allowed().isEmpty()) {
+            said = (said.isEmpty() ? "" : said + "; ") + "agents work only on the sites the user allows";
+        }
+        return said;
     }
 
     /** When the user is asked before a submission, in the words agents read. */
@@ -445,6 +555,10 @@ public final class BrowserService {
         return render(send("snapshot", a, p, defaultTimeout));
     }
 
+    private static final int MAX_FIND_CHARS = 200;
+    private static final int MAX_EXTRACT_REFS = 10;
+    private static final Set<String> EXTRACT_KINDS = Set.of("tables", "code", "articles");
+
     private ToolResult extract(JsonNode a) {
         String links = optString(a, "links", "ref");
         if (!Set.of("none", "ref", "url").contains(links)) {
@@ -459,7 +573,64 @@ public final class BrowserService {
         if (a.hasNonNull("ref")) {
             p.put("ref", requireInt(a, "ref"));
         }
+        extractParts(a, p);
         return render(send("extract", a, p, defaultTimeout));
+    }
+
+    /**
+     * The arguments that return parts of a page: matching lines, regions of one kind, several refs.
+     * Whether a regular expression is one that can be run is decided where it is run, in the page.
+     */
+    private static void extractParts(JsonNode a, ObjectNode p) {
+        boolean outline = p.path("outline").asBoolean();
+        if (a.hasNonNull("find")) {
+            String find = requireString(a, "find");
+            if (find.isEmpty() || find.length() > MAX_FIND_CHARS) {
+                throw new BrowserException("INVALID_ARGUMENT", "find must be 1-" + MAX_FIND_CHARS + " characters.");
+            }
+            if (outline) {
+                throw new BrowserException("INVALID_ARGUMENT", "find cannot be combined with outline.");
+            }
+            p.put("find", find);
+            p.put("regex", optBool(a, "regex", false));
+            p.put("contextLines", range(optInt(a, "context_lines", 2), "context_lines", 0, 20));
+            p.put("maxMatches", range(optInt(a, "max_matches", 20), "max_matches", 1, 200));
+        } else if (optBool(a, "regex", false)) {
+            throw new BrowserException("INVALID_ARGUMENT", "regex needs find: the text to search for.");
+        }
+        if (a.hasNonNull("kind")) {
+            String kind = requireString(a, "kind");
+            if (!EXTRACT_KINDS.contains(kind)) {
+                throw new BrowserException("INVALID_ARGUMENT", "kind must be one of tables, code, articles.");
+            }
+            if (outline) {
+                throw new BrowserException("INVALID_ARGUMENT", "kind cannot be combined with outline.");
+            }
+            p.put("kind", kind);
+        }
+        if (a.hasNonNull("refs")) {
+            JsonNode refs = a.path("refs");
+            if (!refs.isArray() || refs.isEmpty() || refs.size() > MAX_EXTRACT_REFS) {
+                throw new BrowserException("INVALID_ARGUMENT", "refs must be an array of 1-" + MAX_EXTRACT_REFS + " refs.");
+            }
+            if (p.has("ref")) {
+                throw new BrowserException("INVALID_ARGUMENT", "Provide ref or refs, not both.");
+            }
+            if (outline) {
+                throw new BrowserException("INVALID_ARGUMENT", "refs cannot be combined with outline.");
+            }
+            if (p.path("offset").asInt() > 0) {
+                throw new BrowserException("INVALID_ARGUMENT",
+                        "offset cannot be combined with refs: continue one region with ref and offset.");
+            }
+            ArrayNode list = p.putArray("refs");
+            for (JsonNode ref : refs) {
+                if (!ref.isIntegralNumber() || !ref.canConvertToInt()) {
+                    throw new BrowserException("INVALID_ARGUMENT", "refs must hold integers: refs from an outline or a snapshot.");
+                }
+                list.add(ref.intValue());
+            }
+        }
     }
 
     private ToolResult click(JsonNode a) {
@@ -530,6 +701,109 @@ public final class BrowserService {
         return render(send("scroll", a, p, defaultTimeout));
     }
 
+    static final int MAX_REASON_CHARS = 200;
+
+    /**
+     * Puts a request for access to the user: a higher level on a session of this agent's, or a tab
+     * on a site it has none on. Nothing is granted by the call, and it returns at once.
+     */
+    private ToolResult requestAccess(JsonNode a) {
+        String level = requireString(a, "level").trim().toLowerCase(Locale.ROOT);
+        if (BlockedSites.Access.of(level) == null) {
+            throw new BrowserException("INVALID_ARGUMENT", "level must be one of read, explore, write.");
+        }
+        ObjectNode p = json.createObjectNode();
+        p.put("level", level);
+        String site = null;
+        if (a.hasNonNull("site")) {
+            site = requireString(a, "site").trim();
+            if (site.isEmpty() || site.length() > MAX_URL_CHARS || !site.matches("(?i)^https?://[^/\\s].*")) {
+                throw new BrowserException("INVALID_ARGUMENT", "site must be the address of a website, such as https://example.org.");
+            }
+            if (a.hasNonNull("session")) {
+                throw new BrowserException("INVALID_ARGUMENT", "Give site for a tab on another site, or session for a higher level on one you have: not both.");
+            }
+            p.put("site", site);
+        }
+        if (a.hasNonNull("reason")) {
+            String reason = requireString(a, "reason").trim();
+            if (reason.length() > MAX_REASON_CHARS) {
+                throw new BrowserException("INVALID_ARGUMENT", "reason must be at most " + MAX_REASON_CHARS + " characters.");
+            }
+            p.put("reason", reason);
+        }
+        // What the user's settings rule out is refused here, before the user is troubled with it.
+        BlockedSites.Rule rule = bridge.blocked();
+        if (rule.everything()) {
+            throw new BrowserException("SETTINGS_UNREADABLE", SETTINGS_UNREADABLE);
+        }
+        if (!rule.limits().allows(BlockedSites.Access.of(level))) {
+            throw new BrowserException("ACCESS_RESTRICTED", "The user's security policy allows no session more than "
+                    + rule.limits().maxAccess().label() + " access. Nothing was asked. Only the user can change the policy, in "
+                    + "the settings of the TabGoblin server.");
+        }
+        if (site != null) {
+            String blocked = rule.among(List.of(site));
+            if (blocked != null) {
+                throw new BrowserException("SITE_BLOCKED", blockedMessage(blocked));
+            }
+            String outside = rule.outside(List.of(site));
+            if (outside != null) {
+                throw new BrowserException("SITE_NOT_ALLOWED", notAllowedMessage(outside));
+            }
+        }
+        return render(bridge.send("request_access", site == null ? session(a) : null, p, defaultTimeout));
+    }
+
+    private ToolResult hover(JsonNode a) {
+        ObjectNode p = json.createObjectNode();
+        p.put("ref", requireInt(a, "ref"));
+        return render(send("hover", a, p, defaultTimeout));
+    }
+
+    static final int MAX_COLLECT_STEPS = 20;
+    static final int MAX_COLLECT_MS = 30_000;
+
+    /**
+     * Reads what a tab shows over several steps in one call: scrolled down, or page after page by
+     * a link the agent names. Bounded by steps, time and size; the extension stops at the first.
+     */
+    private ToolResult collect(JsonNode a) {
+        ObjectNode p = json.createObjectNode();
+        p.put("maxSteps", range(optInt(a, "max_steps", 5), "max_steps", 1, MAX_COLLECT_STEPS));
+        int maxMs = range(optInt(a, "max_ms", 15_000), "max_ms", 500, MAX_COLLECT_MS);
+        p.put("maxMs", maxMs);
+        p.put("maxChars", range(optInt(a, "max_chars", 12_000), "max_chars", 100, 100_000));
+        boolean paged = a.hasNonNull("next");
+        if (paged) {
+            String next = requireString(a, "next").trim();
+            if (next.isEmpty() || next.length() > 80) {
+                throw new BrowserException("INVALID_ARGUMENT", "next must be the name of the link to the next page, 1-80 characters.");
+            }
+            p.put("next", next);
+        }
+        if (a.hasNonNull("ref")) {
+            if (paged) {
+                throw new BrowserException("INVALID_ARGUMENT", "ref goes with scrolling, not with next: a ref does not outlast its page.");
+            }
+            p.put("ref", requireInt(a, "ref"));
+        }
+        if (a.hasNonNull("find")) {
+            String find = requireString(a, "find");
+            if (find.isEmpty() || find.length() > 200) {
+                throw new BrowserException("INVALID_ARGUMENT", "find must be 1-200 characters.");
+            }
+            p.put("find", find);
+            p.put("regex", optBool(a, "regex", false));
+            p.put("contextLines", range(optInt(a, "context_lines", 2), "context_lines", 0, 20));
+        } else if (optBool(a, "regex", false) || a.hasNonNull("context_lines")) {
+            throw new BrowserException("INVALID_ARGUMENT", "regex and context_lines go with find.");
+        }
+        // Following a link takes Explore: refused here already where the user's policy allows no session
+        // that much. Each step has its own time in the extension; the whole has the caller's on top.
+        return render(send("collect", paged ? "click" : "collect", a, p, defaultTimeout.plusMillis(maxMs)));
+    }
+
     private ToolResult navigate(JsonNode a) {
         boolean hasUrl = a.hasNonNull("url");
         boolean hasHistory = a.hasNonNull("history");
@@ -574,8 +848,8 @@ public final class BrowserService {
             throw new BrowserException("INVALID_ARGUMENT", "Provide exactly one of text or ref.");
         }
         String condition = optString(a, "condition", optBool(a, "gone", false) ? "gone" : "visible");
-        if (!Set.of("visible", "gone", "enabled", "disabled").contains(condition)) {
-            throw new BrowserException("INVALID_ARGUMENT", "condition must be one of visible, gone, enabled, disabled.");
+        if (!Set.of("visible", "gone", "enabled", "disabled", "changed").contains(condition)) {
+            throw new BrowserException("INVALID_ARGUMENT", "condition must be one of visible, gone, enabled, disabled, changed.");
         }
         if (hasText && !condition.equals("visible") && !condition.equals("gone")) {
             throw new BrowserException("INVALID_ARGUMENT", "For text, condition must be visible or gone.");

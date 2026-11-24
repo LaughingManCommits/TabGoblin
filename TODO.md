@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fourteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Sixteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -30,7 +30,11 @@ filed on 2026-11-23, is a performance test between the extension and the server;
 are decided, and it is not started: the owner said not yet. WP-25, filed the same day, is
 release notes that say what changed; it is to come with the next release, and is not started.
 WP-26, filed the same day, is access that ends by itself when it is not used; it is not
-started. New work gets the next number, WP-27.
+started. WP-27, asked for on 2026-11-24, is security hardening and developer features in
+fourteen points, in three priorities; its entry has the gap analysis, the backlog, what was
+built and what was left. WP-28, filed on 2026-11-24, is the ports that Windows can keep back, so
+that no server has one; what it says is mended, and a way around it is proposed and not
+started. New work gets the next number, WP-29.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -68,14 +72,14 @@ says that it ends them all when there are several. The third was left as it is, 
 word of 2026-11-21 ("leave 3"): a control stays known by its name on its site, so that "Save"
 on another page of the site passes too. Narrowing it to the address of the page would make a
 chat ask again in every conversation. The limit is stated in
-[docs/security.md](docs/security.md) and in the user guide.
+[docs/security-model.md](docs/security-model.md) and in the developer guide.
 
 WP-9 was built as proposed, with the proposals taken for its three points after the owner's
 "after that" of 2026-11-21: the extension gives three numbers with each answer (how long the
 command ran, waited for its turn, and waited for the user); the report is in `browser_status`
 with `diagnostics: true` and in the server's log at `debug`, with no file and no new tool; and
 the extension's part is not split into worker and page. What the report cannot tell is in
-[docs/tools.md](docs/tools.md#where-the-time-went): the model from the agent's program, and the
+[docs/mcp-reference.md](docs/mcp-reference.md#where-the-time-went): the model from the agent's program, and the
 extension from the page.
 
 WP-10 was asked for by the owner on 2026-11-21 ("i can disconnect agent but then his
@@ -91,7 +95,7 @@ command. And a reason was found that the filing did not have: a session whose ow
 connected passes to an agent of the same name, so the tab of a disconnected agent could be
 taken by a second instance of the same program. That was run against the source as it was: the
 second agent got the page. What Disconnect still does not do is hold over a new start of the
-agent's server; that is in WP-17. The rule is in [docs/security.md](docs/security.md#agents).
+agent's server; that is in WP-17. The rule is in [docs/security-model.md](docs/security-model.md#agent-identity-and-authentication).
 
 WP-11 was asked for by the owner on 2026-11-21 ("the notification on the bottom disapears to
 quickly we shoul let it slowly fade and allow them to stack maybe we should think redesign for
@@ -195,7 +199,7 @@ animations, a pure function from an action to its animation with a test, `backgr
 sending the kind of action with the state. A check in `test/agnostic.test.ts` terms: no library name comes in. End to end: a
 scroll shows the goblin with the scroll's animation and a click another; it is gone from a
 screenshot taken meanwhile; a page script can neither read nor operate it; switched off, it
-does not appear. Then pictures for the user guide, each one opened and looked at. No tool's
+does not appear. Then pictures for the developer guide, each one opened and looked at. No tool's
 text changes.
 
 ## WP-13: A panel for the server
@@ -209,8 +213,8 @@ pro java developer that knows the latest tech". Goal: a server can be looked at 
 from a small window of its own; without that window it runs as it did.
 
 **Built on 2026-11-22, on the branch `server-panel`. Not merged; it waits for the owner's
-review.** What the user sees is in the [user guide](docs/user-guide.md#9-the-servers-panel),
-the rules in [security.md](docs/security.md#the-servers-panel), the build in
+review.** What the user sees is in the [developer guide](docs/developer-guide.md#the-servers-panel),
+the rules in [security-model.md](docs/security-model.md#the-servers-panel), the build in
 [architecture.md](docs/architecture.md#the-servers-panel).
 
 ### What is there
@@ -239,7 +243,7 @@ the rules in [security.md](docs/security.md#the-servers-panel), the build in
    switched on again, and the agent is told why. It is still no revocation: see below.
 3. **A tool's text changed**, where the filing expected none: `browser_status` and the
    `NOT_CONNECTED` error say that the user switched the connection off, and where.
-   `docs/tools.md` has it, and the end-to-end suite was run.
+   `docs/mcp-reference.md` has it, and the end-to-end suite was run.
 4. **Two kinds of window.** Without a frame on Windows, in the system's frame elsewhere,
    because the frameless one drew nothing on Linux. The owner saw that before the session did.
 
@@ -297,7 +301,7 @@ On the owner's "do wp-14", with the proposal taken for each point that had one. 
 found are not repeated here.
 
 - **The examples.** The folder of the owner's checkout is out of the four configuration
-  examples (`README.md`, `docs/installation.md` twice, `docs/user-guide.md`). They say
+  examples (`README.md`, `docs/installation.md` twice, `docs/developer-guide.md`). They say
   `<folder>`, and a sentence beside them says what to write there.
 - **The pictures.** All thirteen in `docs/images` were opened. They show the popup, the notice
   in a demo page and Chrome's extensions page with TabGoblin alone: loopback addresses, the
@@ -534,7 +538,7 @@ Read from the documentation on 2026-11-22.
   driver of our own end-to-end suite.
 - **What sets TabGoblin apart is said in pieces, and never against anything:** the first
   paragraph and "Limits worth knowing" of the root `README.md`, and "What is never exposed"
-  and "What remains your risk" in [docs/security.md](docs/security.md).
+  and "What remains your risk" in [docs/security-model.md](docs/security-model.md).
 - **Diagrams.** Seven, all in Mermaid: the idea in one picture in `docs/README.md`, and six in
   `docs/architecture.md`. The root `README.md` has the idea as two lines of text. The thirteen
   pictures in `docs/images` are captures of the popup and of Chrome; none is drawn.
@@ -717,9 +721,9 @@ validation log:
   reference; and the panel's new tests, which had the version written into them and so broke
   the runbook's check for a change of version.
 - **Said once now, with links from the rest:** how to install and pair (the installation
-  guide; the user guide had both again), what the popup's messages mean (the user guide; the
+  guide; the developer guide had both again), what the popup's messages mean (the developer guide; the
   installation guide had three of them again), and the server's panel, which stood at length in
-  four pages: what the user sees in the user guide, the rules in the security model, the build
+  four pages: what the user sees in the developer guide, the rules in the security model, the build
   in the architecture, the commands in the runbook.
 - **New:** a section in `docs/development.md`, "Documentation", that says which page owns what.
   `AGENTS.md` points to it instead of listing the owners itself.
@@ -727,7 +731,7 @@ validation log:
   a user needs before the window is there and when it puzzles. A jar from before the panel does
   not start at all with `--panel`; what each sentence of the line with the dot means; several
   agents, several windows; two rows of troubleshooting.
-- **Looked at and left:** the user guide and the security model both state the rules for
+- **Looked at and left:** the developer guide and the security model both state the rules for
   submissions, one for the user and one as rules; they now point to each other and were not
   merged. Two sentences in `docs/editors.md` speak of "the fourteen" editors; what they count
   could not be checked without a run of the lab.
@@ -767,7 +771,7 @@ was run is in the validation log.
 
 - **A simple command for the panel, and a page of commands.** "how do i run with single command
   the server with ui panel", then "we need like cheat sheet md with all the important
-  commands". The user guide's section on the panel opens with the command now, and
+  commands". The developer guide's section on the panel opens with the command now, and
   `docs/cheatsheet.md` has the important commands on one line each, with the page that
   explains each under its table.
 - **The panel can copy the pairing token.** "the server pannel should means to copy access
@@ -808,7 +812,7 @@ was run is in the validation log.
   `by-hand-panel`. The panel of such a server now has a box under its status line that says no
   agent talks to it and where an agent's tabs and tool calls are; its two cards say *for this
   server* and *no agent talks to this server*, and under a tab that is authorized for it,
-  that no agent can use the tab. The user guide and the cheat sheet say that the command is
+  that no agent can use the tab. The developer guide and the cheat sheet say that the command is
   for looking at the panel, and how to have it on the agent's server.
 - **A disconnected agent's server is left alone.** Seen in the same panel: its log filled with
   `extension connected` and `extension disconnected … code=4403`, a pair every few seconds,
@@ -997,7 +1001,7 @@ address; the server's process is ended and a connector takes over, with the tabs
 and the running call reported as unknown; run by the user with a server running, the jar ends
 and the window is up. End to end: the suite's two agents through one server, and every step
 that ends or restarts a server. Then `docs/architecture.md` (processes, how a server ends),
-`docs/security.md` (the local connection, the panel's rules, what remains your risk), the user
+`docs/security-model.md` (the local connection, the panel's rules, what remains your risk), the user
 guide's sections on stopping and on the panel, the cheat sheet, the diagram in the two
 READMEs, and the conformance check, which starts the jar as an agent does.
 
@@ -1042,7 +1046,7 @@ Read from the source on 2026-11-22 (`BrowserService.java`, `Agent.java`; `summar
   would cost every agent its tools.
 - **A file the user can edit, an agent that runs commands as the user can edit.** The list is a
   guard against a wrong click and a wandering agent, and none against an agent with a shell.
-  That belongs in `docs/security.md`, under what remains your risk, in so many words.
+  That belongs in `docs/security-model.md`, under what remains your risk, in so many words.
 - **A screenshot shows what is on the screen.** A page on a site that is not blocked may embed
   a frame from one that is; its text is not read, since frames of another site never are, and
   its pixels are in the picture. That is so today for every frame of another site.
@@ -1134,7 +1138,7 @@ on macOS; this server with an extension from before this change, with real parts
 
 ### Tasks and acceptance
 
-A new error code and a new line in a tool's text: `docs/tools.md` and the suite end to end.
+A new error code and a new line in a tool's text: `docs/mcp-reference.md` and the suite end to end.
 The server: the file and its re-reading (`Settings`, beside `Pairing`), the rule as a pure
 function of a host and a list, the check in `BrowserService.send` and in `navigate`, the list
 to the extension after pairing (`Protocol.java`, `WebSocketBridge.java`), the window
@@ -1147,8 +1151,8 @@ blocked address is refused before it is sent; a changed file is in force at the 
 an unreadable file refuses everything; the agent's answer names the site it tried and no
 other; the extension refuses what an older server would have let through. End to end, with the
 demo sites: one of them blocked in a settings file, the agent's calls there refused, the popup
-on that tab without Authorize, the other site working. Then `docs/security.md` (what an agent
-can reach, what is verified, what remains your risk), the user guide, the cheat sheet, the
+on that tab without Authorize, the other site working. Then `docs/security-model.md` (what an agent
+can reach, what is verified, what remains your risk), the developer guide, the cheat sheet, the
 help text, and the protocol reference.
 
 ## WP-21: What the first test on the public repository showed
@@ -1176,7 +1180,7 @@ refuse was refused. It showed three faults, none of which a suite had found.
   seconds.
 - **The window's log stood still and did not say so.** It had nine lines and ended before the
   test, with fifty calls counted beside it in Metrics. It holds while someone reads in it, as
-  the user guide says; it had been scrolled up. Tried in a real window: untouched, it follows,
+  the developer guide says; it had been scrolled up. Tried in a real window: untouched, it follows,
   also while the window is put away. So the fault was the silence, not the holding.
 
 ### What was built
@@ -1499,10 +1503,196 @@ It is the first thing to settle, and the request does not say.
 Per the task map: "Change what is allowed" for the rule (`policy.ts`); "Change sessions,
 pairing or the connection" for the time in a session's record and the half-minute check
 (`background.ts`); "Change the popup" for the setting and the row. The tool's text changes, so
-`docs/tools.md` and the end-to-end suite; the user guide for sessions and its table of
-settings; and the table of what is tested in `docs/security.md`. Tests: the rule, with the
+`docs/mcp-reference.md` and the end-to-end suite; the developer guide for sessions and its table of
+settings; and the table of what is tested in `docs/security-model.md`. Tests: the rule, with the
 clock given; the worker, that a command renews a session and that one left alone ends, also
 over a restart of the worker; end to end, with a short time set in the real popup. Acceptance:
 a session that is not used for the time set is gone from the popup and refused to the agent,
 with the reason said to both; one that is used stays; and with *never* nothing is different
 from today.
+
+## WP-27: Security hardening, and features for developers
+
+Asked for by the owner on 2026-11-24, as one list of fourteen points in three priorities:
+security first (P0), then what saves an agent calls and context (P1), then what makes the
+product easier to live with (P2). The constraints were the repository's own: local, no site
+known to the product, no cookies or script, nothing granted without the user.
+
+### Gap analysis
+
+Read from the source and the documentation as they were at `a06b0ce`, before anything was
+changed. "There" means built and tested; "part" means built in part; "not" means not there.
+
+| # | Point | Was | What was missing |
+|---|---|---|---|
+| 1 | Agent identity | part | An agent's id was made anew at every start, and its tabs came back to it by the name it gave itself: a program that could pair could take that name while the first was away. A Disconnect did not hold over a restart. No credential of an agent's own, and no way to take one agent away on the server |
+| 2 | Authorization and session isolation | part | Checked once, when a command arrived; a command that waited for the page or for the user used what was allowed then. Expiry was a time the user picked, with no limit from a policy and none for a session that is not used (WP-26). No limit on commands waiting for one tab |
+| 3 | Submission approval | part | An answer was for one request, once, within a minute, and a repeat was refused: there. Not bound to the content: what was sent was what the page held at the click, also when that changed while the user was asked |
+| 4 | Strict profile | not | Blocked sites were the only local restriction. Screenshots, the automatic mode, *Any agent* and plain clicks could not be switched off by a policy |
+| 5 | Data and transport | part | Loopback, proofs both ways, origin pinning, sizes, rates, replay, versions: there. A screenshot showed frames of another site. Nothing was redacted. An extension of the older version would have kept the older rule |
+| 6 | Security tests | part | None for impersonation by name with the owner away, for a change between two steps of a command, for a changed content after the prompt, for frames in a picture, for a flood on one tab |
+| 7 | Smart extraction | part | Outline, one section by ref, paging: there. No search, no context, no tables or code blocks alone, one region per call |
+| 8 | Incremental snapshots | there | `diff` on `browser_snapshot`, refs kept, full snapshot as the fallback. Left as it is |
+| 9 | Bounded collection | not | An agent scrolls and reads in separate calls |
+| 10 | Waits and interactions | part | Waiting for text or a ref (visible, gone, enabled, disabled), expand and collapse by click, scrolling to a ref, a fixed set of keys: there. No hover, no waiting for a change |
+| 11 | Workspaces | not | |
+| 12 | Access requests | not | An agent tells the user in its own words what to authorize |
+| 13 | Management interface | part | The popup and the server's window show agents, sessions, activity, prompts, expiry. Not the policy, and not whether an agent is the same at every start |
+| 14 | Corporate readiness | part | Checksums and GitHub's attestation for a release: there. No record on disk, no policy file beyond blocked sites, no SBOM, no scan of dependencies |
+
+### Backlog, in the order it was taken
+
+1. Agent identity by a key of its own; sessions bound to the id; revocation (point 1).
+2. A local security policy in the settings file, with a strict profile; enforced by the server
+   and by the extension (points 4, 2).
+3. Every step that touches the page checked again; a limit on what waits for a tab (point 2).
+4. An approval bound to the content the user was shown (point 3).
+5. Redaction; no picture with a frame of another site in view; a protocol version that refuses
+   the older rule (point 5).
+6. Tests for each of these, in the rules, the worker, the server and the real browser (point 6).
+7. Search and regions in `browser_extract` (point 7).
+8. A record on disk; an SBOM and a scan of dependencies in the workflows (point 14).
+9. The popup says the policy and who an agent is (point 13).
+10. Collection over scrolling and pages; hover; waiting for a change (points 9, 10).
+11. Workspaces; access requests (points 11, 12).
+
+### What was built
+
+Items 1 to 10: of item 10 the waiting for a change (`condition: "changed"` of
+`browser_wait_for`) on 2026-11-24, and collecting and hovering as two tools, `browser_collect`
+and `browser_hover`, after the owner's "continue with p1". And item 11, after the owner's
+"continue with p2": workspaces, requests for access (`browser_request_access`), and the
+security policy in the server's window. There are fourteen tools now. What each is, for a user, is in the pages that own it: the
+[security model](docs/security-model.md) (agents, the security policy, what is checked and when,
+submissions, what is taken out, logging), the [developer guide](docs/developer-guide.md#the-security-policy),
+the [tool reference](docs/mcp-reference.md) and the [protocol](docs/development.md#protocol-reference).
+What was run is in the validation log.
+
+What a setup from before has to know:
+
+- **The protocol version is 3.** The server and the extension have to be of this release
+  together; either one alone is refused by the other.
+- **An agent's tabs come back after a restart only where the agent is named** with
+  `--agent <name>` in the command that starts the server. The setup command prints the line
+  with it. A setup without it works, and its tabs have to be authorized again after each
+  restart: handing tabs on by a name the agent gives itself was the weakness.
+- **A screenshot is refused while a frame of another site is in view.**
+- **Text that looks like a credential reads `[redacted]`** in snapshots, extracts and addresses.
+
+### Decisions the session took, which are the owner's to change
+
+1. **No name, no tabs back.** The alternative was to keep the old rule for agents without a
+   key. It was not kept: it is the rule the point asked to replace.
+2. **The policy is the settings file,** beside the blocked sites, and a value that cannot be
+   read blocks everything, as a slip in that list does.
+3. **What the strict profile sets:** the six things in its row of the security model. Eight
+   hours and thirty minutes are the session's numbers.
+4. **WP-26, access that ends when it is not used, is built as a line of the policy** and is
+   off without it. Its six decisions are still the owner's: this does not make it a default.
+5. **Redaction cannot be switched off.** It goes by shape and has holes; the security model
+   says so.
+6. **A frame smaller than 8 pixels a side does not hold a picture back.**
+7. **Search runs on an automaton of its own, not on the browser's regular expressions,** because
+   those cannot be bounded in time: measured, `.*.*.*x` took 37 seconds on a line of 1,000
+   characters. The price is a subset of the syntax, named in the tool reference.
+
+### Left, and why
+
+- **What a request for access cannot do.** It can be shown to the user, and a higher level on
+  a tab can be given in the popup. A tab on another site is still given by the user's click on
+  that tab, which is Chrome's rule and not ours: the popup says so, and offers the request
+  there. The popup opens by itself for a request, on the owner's word, with the pause and the
+  order of buttons that a question about a submission has.
+- **What a workspace is not.** It is a name on tabs, kept with the sessions for the browser's
+  run. It is not saved over a restart of the browser, has no settings of its own, and is not
+  shown in the server's window.
+- **What collecting and hovering do not do.** A hover made by script does not set the browser's
+  own hover state: it opens what a page opens by script, and not what a style rule alone
+  shows. Collecting reads downwards from where the page is, and by pages only through a
+  control with an exact name; a list that is paged by a button is followed only with Write
+  access, as a click on that button would be; "load more" buttons are not pressed by it.
+- **The editor lab was not run.** `editor.ts` was not touched; what a snapshot and an extract
+  say now passes through the redaction, which the lab's checks read.
+- **The server's window names a security policy** in the heading of its settings' row, says in
+  short what it restricts in a line of its own, and in full under the mouse. Drawn and looked
+  at in two pictures; the live window was not. It does not show whether an agent has a key,
+  nor requests and workspaces; the popup shows all three.
+- **The SBOM and the scan run in the workflows only,** which run on GitHub. They were read as
+  YAML and not run.
+- **Not signed, as before.** A download is verified by its checksum and GitHub's attestation.
+- **What cannot be enforced,** and is said in the security model: one program of the user's
+  against another (keys, token and settings have the protection of the home folder); a secret
+  of no known shape; text typed without a submission under the strict profile; a page that
+  changes something on a plain link.
+
+## WP-28: Ports that the system keeps back
+
+Found by the owner's second session on 2026-11-24, in use on Windows 11. Goal: a machine on
+which Windows has reserved the server's ports still gets a working TabGoblin without the user
+having to find out why, pick a port and set it in two places.
+
+### What happens today
+
+- **The server takes the first free port of eight from a fixed first one,** 47821 unless
+  `--port` or `BCMCP_PORT` says otherwise (`Agent.serve`), and the one server listens for the
+  agents' processes on the port after those eight (`Link.port`). The extension looks at the
+  same eight ports from the first port in its settings (`scan` in `background.ts`).
+- **Windows can keep a range of ports back** for its own networking, as Hyper-V, WSL and
+  Docker have it done. It takes them in blocks of a hundred from the dynamic range, anew at a
+  start. By default that range begins at 49152; on the owner's machine it begins at 1024, so a
+  block can lie anywhere. That day it was 47749 to 47848: all nine of TabGoblin's ports.
+- **A port that is kept back cannot be told from one that is held** by what Java says. Since
+  `1b4d35a` the server counts which of the eight answer a connection, and says from that whether
+  they are taken, kept back, or some of each, with the command that lists the ranges; since
+  `8b7656d` the window says that the server has no port, and the log has one short line.
+- **The way out is the user's:** start the server with `--port` and another first port, in each
+  agent's settings, and set the same first port in the popup under *Connection*.
+
+### What it runs into
+
+- **The extension cannot be told a port.** It finds a server only by trying addresses: it has
+  no file to read and nobody to ask. So whatever the server falls back to has to be a port the
+  extension tries by itself.
+- **No port is safe** on a machine whose dynamic range begins at 1024: any block may be taken at
+  the next start. A second fixed range lowers the chance of both being gone; it does not end it.
+- **Everything hangs on one first port:** the agents' eight, and the port of the one server
+  after them. A fallback has to move all nine together, and every agent's process has to find
+  the server on the same one.
+- **Each port the extension tries and finds nobody on** is a failed connection, every half
+  minute while no server is found.
+
+### Proposal
+
+1. **A short list of first ports that both sides know,** two or three, far apart: the one of
+   today first. The server takes the first of them on which it can listen at all; the process
+   an agent starts looks for the server on each in turn before it starts one; the extension
+   looks at each range, and stays with the one where it found a server.
+2. **`--port` and the popup's field stay,** and mean what they mean now: one first port, and no
+   list. A setup that names a port is not changed by this.
+3. **The message keeps the command** that lists the reserved ranges, and adds the one that
+   keeps a range for TabGoblin, for whoever may run it as an administrator: a range that an
+   administrator has excluded is not given to the system's own networking. To be tried on a
+   machine before it is written into a page: it is from memory.
+4. **The status says which first port is in use** when it is not the first of the list, so
+   that an agent can tell the user.
+
+### Decisions for the owner
+
+1. Whether a fallback is wanted at all, or the message and `--port` are enough.
+2. Which first ports, and how many. More of them make it likelier that one is free, and make
+   the extension try more addresses where no server runs.
+3. Whether the extension tries all ranges every time, or the others only when the first has
+   nobody (proposal: the others only then).
+4. Whether the first port of today stays the first of the list (proposal: yes, so that nothing
+   changes for a machine where it works).
+
+### Tasks and acceptance
+
+Per the task map: "Change how the one server and the agents' processes find, prove and leave
+each other" and "Change sessions, pairing or the connection". Tests: a server that cannot
+listen on the first range takes the second, and its agents' processes find it there (`HubTest`,
+with a range made unusable by holding it); the extension finds a server on the second range and
+does not go on trying the first while it has one (`test/background.test.ts`); end to end with
+the first range held by another program. Acceptance, on a Windows machine with the first range
+reserved: an agent is started without `--port`, the popup is left as it is, and
+`browser_status` says connected. The tool's text changes where the status names the port.

@@ -428,4 +428,44 @@ class PanelModelTest {
         // It showed that nothing was logged yet.
         assertEquals(4, PanelModel.newer(lines, "Nothing logged yet."));
     }
+
+    @Test
+    void theWindowNamesASecurityPolicyInItsHeadingSaysInShortWhatItRestrictsAndInFullUnderTheMouse() {
+        var facts = List.of(new PanelModel.Facts("claude-code", "a-0123456789ab", 47821, null, true, 0, 0, List.of(),
+                new Timings.Shares(0, 0, 0, 0, 0), Map.of()));
+        String file = "/somewhere/tabgoblin.properties";
+        var limits = new BlockedSites.Limits(true, List.of("ci.example"), false, BlockedSites.Access.EXPLORE, 240, 20);
+        PanelModel.Blocked shown = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+                new BlockedSites.Rule(List.of("example.org"), null, limits), file).blocked();
+        assertEquals("Blocked sites and security policy", shown.heading());
+        assertEquals("example.org", shown.summary(), "the line of the blocked sites says the blocked sites");
+        assertEquals("Policy: strict, 1 site allowed, no screenshots, up to Explore, ends by itself", shown.policyLine());
+        String under = shown.explained();
+        for (String part : List.of("Security policy:", "strict profile", "agents work only on ci.example", "no screenshots",
+                "access up to Explore", "an authorization lasts at most 240 min", "ends after 20 min without a command")) {
+            assertTrue(under.contains(part), part + " in: " + under);
+        }
+        assertTrue(under.endsWith(file));
+
+        // A policy and no blocked site: the heading says that there is a policy, and each line says its own.
+        PanelModel.Blocked alone = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+                new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0)), file).blocked();
+        assertEquals("Blocked sites and security policy", alone.heading());
+        assertEquals("No site is blocked", alone.summary());
+        assertEquals("Policy: no screenshots", alone.policyLine());
+
+        // Without a policy the heading, the line and the text are as they were, and there is no second line.
+        PanelModel.Blocked plain = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+                new BlockedSites.Rule(List.of("example.org"), null), file).blocked();
+        assertEquals("Blocked sites", plain.heading());
+        assertEquals("example.org", plain.summary());
+        assertEquals("", plain.policyLine());
+        assertFalse(plain.restricts());
+        assertFalse(plain.explained().contains("Security policy"));
+        // A file that cannot be read refuses everything: that is what the window says, and not a policy.
+        PanelModel.Blocked broken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+                new BlockedSites.Rule(List.of(), "\"admin\" in access.max is none of read, explore, write", limits), file).blocked();
+        assertEquals("Blocked sites", broken.heading());
+        assertFalse(broken.restricts());
+    }
 }

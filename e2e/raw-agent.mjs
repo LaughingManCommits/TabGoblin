@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 const hmac = (token, message) => createHmac('sha256', token).update(message).digest('hex');
 
 export class RawAgent {
-  constructor(token, { clientId = 'c-rawagent', name = 'raw-agent', versions = [2] } = {}) {
+  constructor(token, { clientId = 'c-rawagent', name = 'raw-agent', versions = [3] } = {}) {
     this.token = token;
     this.clientId = clientId;
     this.name = name;
@@ -97,7 +97,7 @@ export class RawAgent {
     if (msg.type === 'auth') {
       if (msg.proof !== hmac(this.token, `client:${this.nonce}:${msg.nonce}`)) return;
       this.send({
-        type: 'auth_ok', proof: hmac(this.token, `server:${this.nonce}:${msg.nonce}`), version: 2,
+        type: 'auth_ok', proof: hmac(this.token, `server:${this.nonce}:${msg.nonce}`), version: 3,
         clientId: this.clientId, clientName: this.name,
       });
       this.paired = true;

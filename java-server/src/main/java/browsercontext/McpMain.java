@@ -41,16 +41,26 @@ public final class McpMain {
             one agent. You can only act on your sessions and only on their origin. browser_status lists them; \
             pass session=<id> to every tool when you have more than one. The user can block sites for all \
             agents: a tool then answers SITE_BLOCKED. There is no other way to such a site through these tools; \
-            tell the user.
+            tell the user. The user's security policy can take away more: screenshots, access levels, every \
+            site but the allowed ones. browser_status says what holds; SITE_NOT_ALLOWED, ACCESS_RESTRICTED and \
+            SCREENSHOTS_DISABLED mean that the policy rules it out. Under its strict profile a click on anything \
+            but a link or an expand/collapse control needs intent="submit" and the user's confirmation. Where a \
+            result says [redacted], a credential was taken out; it is not available through these tools.
             Pairing: when a tool says the extension is not connected, tell the user what it says they have to \
             do, and go on once they have done it. No tool pairs the browser.
             Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
             browser_fill / browser_press_key / browser_scroll / browser_navigate -> take a new snapshot to see \
             the result. Refs go stale when the page changes; take a new snapshot when told so.
-            Access levels: Read looks at the current page; Explore also navigates, follows links and expands \
+            Asking for access: browser_request_access puts a request to the user, for a higher level on a session \
+            or for a tab on another site. It grants nothing; go on with what you may do, or tell the user.
+            Access levels: Read looks at the current page; Explore also navigates, follows links, hovers and expands \
             sections; Write also presses buttons and enters text. A blocked action names the level it needs.
+            Long content: browser_collect reads a page that loads on scrolling, or a list in pages, in one \
+            call and within limits, and says why it stopped. browser_hover opens what a page shows on hovering.
             Reading: browser_extract returns the text of the loaded page whatever the scroll position; follow its \
-            "continue with offset" line, or use outline=true and read one section by ref. Each result states its \
+            "continue with offset" line, or use outline=true and read one section by ref. On a long page, \
+            find returns only the matching lines with the lines around them, and kind only the tables, code \
+            blocks or articles; each place comes with the offset to read on from. Each result states its \
             Completeness: COMPLETE, PARTIAL (collapsed or unread parts remain), TRUNCATED (continue with the \
             given offset), BLOCKED (parts cannot be read) or UNKNOWN (the page may load more when scrolled). \
             Before concluding something is absent, expand, scroll and read again.
@@ -126,6 +136,29 @@ public final class McpMain {
             mcpOut.println("Running servers stop accepting the old token. Pair the extension again.");
             return;
         }
+        Path agentKeys = AgentKeys.folder(tokenFile);
+        if (options.revokeAgent() != null) {
+            // The user's own command. The agent's key is gone at once; a server that runs refuses its tools from its next call on.
+            AgentKeys.revoke(agentKeys, options.revokeAgent());
+            mcpOut.println("Agent \"" + options.revokeAgent() + "\" is revoked: its key is deleted, and its tools answer "
+                    + "AGENT_REVOKED from now on.");
+            mcpOut.println("Tabs it had stay listed in the extension's popup until you revoke them there; no agent can use them.");
+            mcpOut.println("To allow it again: --allow-agent " + options.revokeAgent() + ". It is a new agent then, with no tab.");
+            return;
+        }
+        if (options.allowAgent() != null) {
+            boolean was = AgentKeys.allow(agentKeys, options.allowAgent());
+            mcpOut.println(was
+                    ? "Agent \"" + options.allowAgent() + "\" is allowed again. It gets a new key at its next start: a new agent, with no tab."
+                    : "Agent \"" + options.allowAgent() + "\" was not revoked.");
+            return;
+        }
+        if (options.listAgents()) {
+            java.util.List<String> known = AgentKeys.list(agentKeys);
+            mcpOut.println(known.isEmpty() ? "No agent has a key yet. An agent gets one when its program starts this server with --agent <name>."
+                    : String.join(System.lineSeparator(), known));
+            return;
+        }
         String token = Pairing.loadOrCreateToken(tokenFile);
         if (options.showToken()) {
             mcpOut.println("Pairing token: " + token);
@@ -135,7 +168,7 @@ public final class McpMain {
 
         Supplier<String> tokens = Pairing.tokenSource(tokenFile, token);
         // One list of blocked sites for the server, read again when its file changes.
-        Agent.Settings settings = new Agent.Settings(port, tokens, extensionOrigin, BlockedSites.source(options.settings()));
+        Agent.Settings settings = new Agent.Settings(port, tokens, extensionOrigin, BlockedSites.source(options.settings()), agentKeys);
         // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
         Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
 
@@ -161,7 +194,7 @@ public final class McpMain {
         // An agent's program started this process. There is one server for all agents: this process
         // passes its agent's messages on to it, and starts it first if there is none.
         Link link = new Link(System.in, mcpOut, System.err, tokens, Link.port(port), options.panel(), options.quiet(),
-                () -> startServer(options, false));
+                () -> startServer(options, false), options.agent(), agentKeys);
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
             return;
@@ -241,7 +274,7 @@ public final class McpMain {
                 window.run();
             }
             return new BrowserService.Unpaired(false, refused, up.get());
-        });
+        }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();
         RUNNING.add(agent::close);
@@ -249,6 +282,26 @@ public final class McpMain {
             window.run();
         }
         Thread.currentThread().join();
+    }
+
+    /**
+     * Who the agent of a process is that serves it alone: it holds its key itself, so there is no
+     * one to prove it to.
+     */
+    static AgentKeys.Identity identityAlone(String label, Path agentKeys) {
+        if (label == null || agentKeys == null) {
+            return AgentKeys.Identity.ephemeral();
+        }
+        if (AgentKeys.revoked(agentKeys, label)) {
+            return AgentKeys.Identity.revoked(agentKeys, label);
+        }
+        try {
+            return new AgentKeys.Identity(AgentKeys.idOf(AgentKeys.loadOrCreate(agentKeys, label)), label, true,
+                    () -> AgentKeys.revoked(agentKeys, label));
+        } catch (java.io.IOException e) {
+            Log.warn("the agent's key could not be read or made: this agent has an id for this start only");
+            return AgentKeys.Identity.ephemeral();
+        }
     }
 
     /**
@@ -453,11 +506,21 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --install-skill <agent>
                                                                  put the skill that tells an agent how to use the tools where
                                                                  that agent looks for skills: claude-code, codex or copilot
+              java -jar browser-context-mcp.jar --list-agents    the agents that have a key of their own, each with its id
+              java -jar browser-context-mcp.jar --revoke-agent <name>
+                                                                 take one agent's key away: its tools answer AGENT_REVOKED,
+                                                                 the other agents and the pairing stay as they are
+              java -jar browser-context-mcp.jar --allow-agent <name>
+                                                                 allow a revoked agent again, as a new agent with no tab
               java -jar browser-context-mcp.jar --help           this text
 
             What your agent runs (this goes into the agent's MCP settings, you do not run it):
-              java -jar browser-context-mcp.jar                  add --panel to have the window open whenever that agent runs,
+              java -jar browser-context-mcp.jar --agent <name>   add --panel to have the window open whenever that agent runs,
                                                                  or --no-panel to never have it come up by itself
+
+            Agents: --agent <name> gives an agent a key of its own, kept in the folder agents beside the pairing
+            token. By it the agent is the same agent at every start, and has its tabs again after a restart.
+            An agent that is started without it has an id for that start only, and no tab comes back to it.
 
             There is one server for all your agents. The first agent that needs it starts it, and it ends
             by itself when the last agent has gone. To stop it yourself, press Stop server in its window.
@@ -473,6 +536,7 @@ public final class McpMain {
             Edit in the server's window opens it. A change is in force as soon as the file is saved.
 
             Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
+                      --agent <name>  who the agent is that starts this server (or BCMCP_AGENT)
                       --settings <path of the settings file>
                       --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one""";
 
@@ -581,13 +645,22 @@ public final class McpMain {
         specs.add(tool(service, mapper, cancellations, "browser_extract", true,
                 "Read the visible content of the page as structured text: headings, paragraphs, lists, tables and "
                         + "nested replies keep their structure, and links carry their ref. Bounded: continue with "
-                        + "offset, or use outline=true to list sections and then ref to read one. States how "
-                        + "complete the result is.",
+                        + "offset, or use outline=true to list sections and then ref to read one. To take the "
+                        + "relevant parts out of a long page (the errors in a log, the tables), use find, which "
+                        + "returns only the matching lines with the lines around them, or kind; refs reads "
+                        + "several sections at once. Every match and region says its line, the offset to read on "
+                        + "from, and the heading above it. States how complete the result is.",
                 schema("", """
                         "max_chars":{"type":"integer","description":"Maximum characters to return (default 12000, max 100000)."}""", """
                         "offset":{"type":"integer","description":"Character offset to continue from (default 0)."}""", """
                         "outline":{"type":"boolean","description":"Return only the section outline (headings with refs and sizes)."}""", """
                         "ref":{"type":"integer","description":"Read only this section: a heading ref from the outline, or a section, list or table ref from a snapshot."}""", """
+                        "refs":{"type":"array","items":{"type":"integer"},"minItems":1,"maxItems":10,"description":"Read several sections in one result, each under its own header, sharing max_chars. A stale ref is reported in its place. Not together with ref, offset or outline."}""", """
+                        "find":{"type":"string","minLength":1,"maxLength":200,"description":"Return only the lines that contain this text (case is ignored), with context_lines around each. Works with ref, refs, main_only and kind; not with outline. With offset, the search starts there."}""", """
+                        "regex":{"type":"boolean","description":"Treat find as a regular expression, tested against one line at a time. Supported: literals, . [ ] classes, \\\\d \\\\w \\\\s \\\\b, ^ $, groups, |, and * + ? {n,m}. Not supported: backreferences, lookaround, and a repetition inside a repeated group."}""", """
+                        "context_lines":{"type":"integer","description":"Lines shown before and after each matching line (default 2, 0-20)."}""", """
+                        "max_matches":{"type":"integer","description":"Matching lines to show (default 20, 1-200). The result says how many match in all and how to get the rest."}""", """
+                        "kind":{"type":"string","enum":["tables","code","articles"],"description":"Return only the regions of this kind, each under a header with its lines and offset: tables, blocks of code or preformatted text, or articles (posts, comments, feed entries). With find, only these are searched."}""", """
                         "main_only":{"type":"boolean","description":"Leave out navigation, banners and footers when the page marks its main content."}""", """
                         "links":{"type":"string","enum":["none","ref","url"],"description":"How links appear: plain text, text with {ref} (default), or with destination and {ref}."}""")));
         specs.add(tool(service, mapper, cancellations, "browser_click", false,
@@ -638,6 +711,41 @@ public final class McpMain {
                         "direction":{"type":"string","enum":["up","down","left","right","top","bottom"],"description":"Default down."}""", """
                         "amount":{"type":"integer","description":"Pixels to scroll (default: most of one viewport)."}""", """
                         "ref":{"type":"integer","description":"Optional element ref to scroll instead of the page."}""")));
+        specs.add(tool(service, mapper, cancellations, "browser_hover", false,
+                "Move the pointer over an element, to open what a page shows on hovering: a menu, a tooltip, a row's "
+                        + "actions. Needs Explore access. Nothing is clicked. Take a snapshot with diff=true afterwards. It "
+                        + "sends the events a page listens for; what a page shows by a hover style alone does not appear.",
+                schema("\"ref\"", """
+                        "ref":{"type":"integer","description":"Element ref from the latest snapshot."}""")));
+        specs.add(tool(service, mapper, cancellations, "browser_collect", false,
+                "Read what a page shows over several steps, in one call, with what was read before left out: a feed "
+                        + "or log that loads on scrolling, a list that draws only the rows in view, or a list in pages. "
+                        + "By default it scrolls down from where the page is, each step, and reads (Read access). With "
+                        + "next it follows the link of that name from page to page instead (Explore access; only a link "
+                        + "or control that an ordinary click may press). It stops at the end, or at the first limit: "
+                        + "max_steps, max_ms, max_chars. The result says why it stopped and how complete it is. With find "
+                        + "only matching lines and their context are returned, however much was gone through.",
+                schema("", """
+                        "max_steps":{"type":"integer","description":"Scrolls or pages after the first reading (default 5, max 20)."}""", """
+                        "max_ms":{"type":"integer","description":"Longest time in milliseconds (default 15000, max 30000)."}""", """
+                        "max_chars":{"type":"integer","description":"Most characters returned (default 12000, max 100000)."}""", """
+                        "ref":{"type":"integer","description":"Scroll and read inside this scrollable element instead of the page. Not with next."}""", """
+                        "next":{"type":"string","description":"The exact name of the link or button to the next page, such as Next or Older. It is looked for anew on every page."}""", """
+                        "find":{"type":"string","description":"Return only lines that contain this text (case-insensitive), with context."}""", """
+                        "regex":{"type":"boolean","description":"Treat find as a regular expression, as browser_extract does."}""", """
+                        "context_lines":{"type":"integer","description":"Lines shown before and after a matching line (default 2, max 20)."}""")));
+        specs.add(tool(service, mapper, cancellations, "browser_request_access", false,
+                "Ask the user for access you do not have: a higher level on one of your sessions (give level, and "
+                        + "session if you have several), or a tab on another website (give site and level). The user is "
+                        + "asked in the TabGoblin popup; nothing is granted by this call, and it returns at once. A tab "
+                        + "on another site is given by the user's click on that tab, and nothing of the site can be read "
+                        + "before. Give a short reason: it is shown to the user as your words. One request waits at a "
+                        + "time, and a request the user declined is not put to them again for a few minutes. "
+                        + "browser_status shows what is waiting and what you have.",
+                schema("\"level\"", """
+                        "level":{"type":"string","enum":["read","explore","write"],"description":"The access level asked for."}""", """
+                        "site":{"type":"string","description":"The website to ask a tab for, such as https://example.org. Leave out to ask for a higher level on a session you have."}""", """
+                        "reason":{"type":"string","description":"Why, in a few words (at most 200 characters). Shown to the user."}""")));
         specs.add(tool(service, mapper, cancellations, "browser_navigate", false,
                 "Navigate the session's tab: to an absolute or relative URL, or back, forward or reload. Needs "
                         + "Explore access. The destination must stay on the authorized origin; anything else is "
@@ -653,11 +761,13 @@ public final class McpMain {
                 schema("")));
         specs.add(tool(service, mapper, cancellations, "browser_wait_for", true,
                 "Wait (bounded) for a UI condition: visible text to appear or disappear, or an element ref to become "
-                        + "visible, gone, enabled or disabled. Provide exactly one of text or ref.",
+                        + "visible, gone, enabled or disabled, or to change (its text, value or state is other than "
+                        + "when the wait began: a status that moves on, a counter, a log that grows). Provide exactly "
+                        + "one of text or ref.",
                 schema("", """
                         "text":{"type":"string","description":"Visible text to wait for (case-insensitive substring)."}""", """
                         "ref":{"type":"integer","description":"Element ref to wait for."}""", """
-                        "condition":{"type":"string","enum":["visible","gone","enabled","disabled"],"description":"Default visible."}""", """
+                        "condition":{"type":"string","enum":["visible","gone","enabled","disabled","changed"],"description":"Default visible. changed is for a ref only."}""", """
                         "gone":{"type":"boolean","description":"Same as condition=\\"gone\\"."}""", """
                         "timeout_ms":{"type":"integer","description":"Maximum wait in milliseconds (default 5000, max 30000)."}""")));
         specs.add(tool(service, mapper, cancellations, "browser_submit", false,
@@ -685,13 +795,16 @@ public final class McpMain {
             java.util.Map.entry("browser_fill", "Fill in a field"),
             java.util.Map.entry("browser_press_key", "Press a key"),
             java.util.Map.entry("browser_scroll", "Scroll"),
+            java.util.Map.entry("browser_hover", "Hover"),
+            java.util.Map.entry("browser_request_access", "Ask the user for access"),
+            java.util.Map.entry("browser_collect", "Collect over scrolling or pages"),
             java.util.Map.entry("browser_navigate", "Navigate"),
             java.util.Map.entry("browser_screenshot", "Screenshot"),
             java.util.Map.entry("browser_wait_for", "Wait for the page"),
             java.util.Map.entry("browser_submit", "Submit"));
 
     /** Tools whose result is an object. They say so with an output schema, and give the object next to its text. */
-    static final java.util.Set<String> STRUCTURED = java.util.Set.of("browser_click", "browser_fill", "browser_press_key",
+    static final java.util.Set<String> STRUCTURED = java.util.Set.of("browser_click", "browser_fill", "browser_press_key", "browser_hover", "browser_request_access",
             "browser_scroll", "browser_navigate", "browser_wait_for", "browser_submit");
 
     /**
@@ -802,7 +915,7 @@ public final class McpMain {
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
             boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace, boolean quiet,
-            Skills.Agent setup) {
+            Skills.Agent setup, String agent, String revokeAgent, String allowAgent, boolean listAgents) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -824,6 +937,10 @@ public final class McpMain {
             boolean noPanel = false;
             boolean hub = false;
             boolean standing = false;
+            String agent = null;
+            String revokeAgent = null;
+            String allowAgent = null;
+            boolean listAgents = false;
             for (int i = 0; i < args.length; i++) {
                 String arg = args[i];
                 switch (arg) {
@@ -836,7 +953,9 @@ public final class McpMain {
                     // The two that this program gives itself when it starts the one server: not for a command line.
                     case "--hub" -> hub = true;
                     case "--standing" -> standing = true;
-                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill", "--setup" -> {
+                    case "--list-agents" -> listAgents = true;
+                    case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill", "--setup",
+                            "--agent", "--revoke-agent", "--allow-agent" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
                         }
@@ -851,6 +970,12 @@ public final class McpMain {
                             skill = value;
                         } else if (arg.equals("--setup")) {
                             setUp = value;
+                        } else if (arg.equals("--agent")) {
+                            agent = value;
+                        } else if (arg.equals("--revoke-agent")) {
+                            revokeAgent = value;
+                        } else if (arg.equals("--allow-agent")) {
+                            allowAgent = value;
                         } else {
                             origin = value;
                         }
@@ -896,10 +1021,26 @@ public final class McpMain {
             // The settings are beside the token that is in use, unless they are named: a server with a token
             // of its own does not read the list of another.
             String list = firstSet(settings, environment.apply("BCMCP_SETTINGS"), "");
+            String fromEnvironment = environment.apply("BCMCP_AGENT");
+            // Named on the command line it has to be a name; an empty variable names none.
+            String agentLabel = agent != null ? agentLabel("--agent", agent)
+                    : fromEnvironment == null || fromEnvironment.isBlank() ? null : agentLabel("BCMCP_AGENT", fromEnvironment);
             return new Options(help, showToken, rotateToken, number, token,
                     firstSet(origin, environment.apply("BCMCP_EXTENSION_ORIGIN"), DEFAULT_EXTENSION_ORIGIN),
                     fromStart, hub, standing,
-                    list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup);
+                    list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup,
+                    agentLabel, revokeAgent == null ? null : agentLabel("--revoke-agent", revokeAgent),
+                    allowAgent == null ? null : agentLabel("--allow-agent", allowAgent), listAgents);
+        }
+
+        /** A label for an agent's key, or the reason it is none. */
+        private static String agentLabel(String option, String given) throws UsageException {
+            String label = AgentKeys.label(given);
+            if (label == null) {
+                throw new UsageException(option + " takes a short name of letters, digits, dot, dash or underscore, such as "
+                        + "claude-code, not \"" + given + "\".");
+            }
+            return label;
         }
 
         /** A switch in the environment: 1, true, yes or on for on; 0, false, no, off or nothing for off. */

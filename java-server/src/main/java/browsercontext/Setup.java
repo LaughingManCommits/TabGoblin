@@ -92,9 +92,10 @@ final class Setup {
     static String registration(Skills.Agent agent, Self self) {
         return switch (agent) {
             // For the user, and so for every project: without the scope it would be for the folder the command is run in.
-            case CLAUDE_CODE -> "claude mcp add --scope user " + NAME + " -- " + self.command();
-            case CODEX -> "codex mcp add " + NAME + " -- " + self.command();
-            case COPILOT -> "copilot mcp add " + NAME + " -- " + self.command();
+            // Each agent is named to the server: by that it has a key of its own, and its tabs again after a restart.
+            case CLAUDE_CODE -> "claude mcp add --scope user " + NAME + " -- " + self.command() + " --agent " + agent.id();
+            case CODEX -> "codex mcp add " + NAME + " -- " + self.command() + " --agent " + agent.id();
+            case COPILOT -> "copilot mcp add " + NAME + " -- " + self.command() + " --agent " + agent.id();
         };
     }
 

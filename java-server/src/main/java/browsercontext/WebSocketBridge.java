@@ -54,9 +54,9 @@ public class WebSocketBridge extends WebSocketServer {
     private final String allowedOrigin;
     private final long authTimeoutMs;
     private final long lockoutMs;
-    private final String clientId = "c-" + Pairing.randomHex(4);
+    private final String clientId;
     /** This agent's lines in the log: they carry its id, and go to its own log and to no other agent's. */
-    private final Log.Scope log = Log.of(clientId);
+    private final Log.Scope log;
     private volatile String clientName = "";
     /** The sites no agent may work on, as they are now. */
     private volatile Supplier<BlockedSites.Rule> blocked = () -> BlockedSites.Rule.NONE;
@@ -65,8 +65,8 @@ public class WebSocketBridge extends WebSocketServer {
     /** Whether the list is looked at for changes yet: once is enough, however often it is given. */
     private final java.util.concurrent.atomic.AtomicBoolean watchingBlocked = new java.util.concurrent.atomic.AtomicBoolean();
     private final ObjectMapper json = new ObjectMapper();
-    private final Timings timings = new Timings(log);
-    private final ExtensionConnection connection = new ExtensionConnection(json, timings, log);
+    private final Timings timings;
+    private final ExtensionConnection connection;
     private final CompletableFuture<Void> started = new CompletableFuture<>();
     private final Deque<Long> failedPairings = new ArrayDeque<>();
     /** Held while a connection becomes the paired one and is answered, and while the agent's name is passed on. */
@@ -99,12 +99,29 @@ public class WebSocketBridge extends WebSocketServer {
     }
 
     WebSocketBridge(int port, Supplier<String> token, String allowedOrigin, long authTimeoutMs, long lockoutMs) {
+        this(port, token, allowedOrigin, authTimeoutMs, lockoutMs, "c-" + Pairing.randomHex(4));
+    }
+
+    /** A bridge for an agent that is known: the extension is told this id, and binds the agent's tabs to it. */
+    public WebSocketBridge(int port, Supplier<String> token, String allowedOrigin, String clientId) {
+        this(port, token, allowedOrigin, 5000, 60_000, clientId);
+    }
+
+    /**
+     * @param clientId who this agent is to the extension: the id of its key, which is the same at
+     *                 every start, or an id made for this start
+     */
+    WebSocketBridge(int port, Supplier<String> token, String allowedOrigin, long authTimeoutMs, long lockoutMs, String clientId) {
         super(new InetSocketAddress(loopback(), port), 1, List.<Draft>of(new Draft_6455(
                 Collections.emptyList(), Collections.singletonList(new org.java_websocket.protocols.Protocol("")), MAX_MESSAGE_BYTES)));
         this.token = token;
         this.allowedOrigin = allowedOrigin;
         this.authTimeoutMs = authTimeoutMs;
         this.lockoutMs = lockoutMs;
+        this.clientId = clientId;
+        this.log = Log.of(clientId);
+        this.timings = new Timings(log);
+        this.connection = new ExtensionConnection(json, timings, log);
         setDaemon(true);
         setReuseAddr(true);
     }
@@ -243,6 +260,16 @@ public class WebSocketBridge extends WebSocketServer {
             var sites = msg.putArray("blocked");
             rule.domains().forEach(sites::add);
             msg.put("unreadable", rule.everything());
+            // What else the user's settings restrict. The extension enforces it at the moment of a
+            // command; the server refuses what it can tell beforehand.
+            BlockedSites.Limits limits = rule.limits();
+            msg.put("strict", limits.strict());
+            var allowed = msg.putArray("allowed");
+            limits.allowed().forEach(allowed::add);
+            msg.put("screenshots", limits.screenshots());
+            msg.put("maxAccess", limits.maxAccess().wire());
+            msg.put("sessionMaxMinutes", limits.sessionMaxMinutes());
+            msg.put("sessionIdleMinutes", limits.sessionIdleMinutes());
             try {
                 conn.send(json.writeValueAsString(msg));
                 peer.told = rule;

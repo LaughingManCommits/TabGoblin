@@ -5,7 +5,7 @@ else of your browser.
 
 What is in this folder
 
-  tabgoblin, tabgoblin.cmd   starts the server for you: setup, the server's window, the token
+  tabgoblin                  (tabgoblin.cmd on Windows) starts the server for you: setup, the server's window, the token
   browser-context-mcp.jar    the server
   runtime                    the Java the server runs on; nothing has to be installed
   extension                  the Chrome extension, to be loaded unpacked
@@ -37,5 +37,5 @@ Update
 More
 
   tabgoblin --help                          every command
-  The installation guide and the user guide:
+  The installation guide and the developer guide:
   https://github.com/LaughingManCommits/TabGoblin/blob/main/docs/installation.md

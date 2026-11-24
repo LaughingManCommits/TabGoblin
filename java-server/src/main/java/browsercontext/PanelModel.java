@@ -37,9 +37,33 @@ record PanelModel(String agent, String identity, int port, String version, Strin
      * @param unreadable why the settings file could not be taken as a list, or null; while it is so, every site is refused
      * @param file       where the settings file is
      */
-    record Blocked(List<String> sites, String unreadable, String file) {
+    /**
+     * @param policy      what else the settings restrict, in full, for under the mouse; empty for nothing
+     * @param policyShort the same in one short line, for the window itself
+     */
+    record Blocked(List<String> sites, String unreadable, String file, String policy, String policyShort) {
+
+        /** Blocked sites alone, where the settings restrict nothing else. */
+        Blocked(List<String> sites, String unreadable, String file) {
+            this(sites, unreadable, file, "", "");
+        }
 
         static final Blocked NONE = new Blocked(List.of(), null, "");
+
+        /** What stands over the two lines: the heading says so when the settings restrict more than sites. */
+        String heading() {
+            return restricts() ? "Blocked sites and security policy" : "Blocked sites";
+        }
+
+        /** Whether a security policy is in force: not while the file cannot be read, when everything is refused anyway. */
+        boolean restricts() {
+            return unreadable == null && !policy.isEmpty();
+        }
+
+        /** The policy's line in the window: what it restricts, in short. Empty when there is none. */
+        String policyLine() {
+            return restricts() ? "Policy: " + policyShort : "";
+        }
 
         /** How many names the line under "Blocked sites" has room for; the rest are counted. */
         static final int NAMED = 2;
@@ -71,6 +95,10 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             } else if (!sites.isEmpty()) {
                 text.append("\n\nBlocked now:");
                 sites.forEach(site -> text.append("\n  ").append(site));
+            }
+            if (restricts()) {
+                // What else the same file takes away from every agent. It is the user's window: the allowed sites are named.
+                text.append("\n\nSecurity policy:\n  ").append(policy.replace("; ", "\n  "));
             }
             if (!file.isEmpty()) {
                 text.append("\n\n").append(file);
@@ -214,7 +242,9 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             // An agent says its name when it opens its connection. Until then it goes by its id, as in the popup.
             boolean named = facts.name() != null && !facts.name().isBlank();
             members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), facts.port(), facts.connected(),
-                    connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
+                    // Without a port no browser can come: that, and not a browser that is waited for.
+                    facts.problem() != null && !facts.connected() && !switchedOff ? NO_PORT
+                            : connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
                     facts.sessions().size()));
             for (Protocol.Session session : facts.sessions()) {
                 // A tab on a blocked site is that before it is anything else: nothing an agent does in it goes through.
@@ -238,7 +268,8 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         }
         List<String> sites = new ArrayList<>(inTheWay);
         rule.domains().stream().filter(site -> !inTheWay.contains(site)).forEach(sites::add);
-        Blocked blocked = new Blocked(List.copyOf(sites), rule.unreadable(), settingsFile);
+        Blocked blocked = new Blocked(List.copyOf(sites), rule.unreadable(), settingsFile, rule.limits().summary(),
+                rule.limits().inShort());
         if (problem == null && rule.everything()) {
             problem = blocked.mistake();
         }
@@ -312,6 +343,9 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             default -> "Not connected: waiting for the extension";
         };
     }
+
+    /** The line of an agent whose server could open no port: the reason is in the box under it. */
+    static final String NO_PORT = "Not connected: this server has no port to listen on";
 
     /** The same for no agent, or for several: how many of them the extension is connected to. */
     static String connection(List<Member> agents, boolean switchedOff) {

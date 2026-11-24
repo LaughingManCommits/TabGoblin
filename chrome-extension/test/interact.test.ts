@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   clickElement, describeClickTarget, describeKeyTarget, fillElement, pressKey, waitFor,
+  controlNamed, foreignFramesInView, hoverElement,
 } from '../src/interact.ts';
 import { DomError, PageState, takeSnapshot } from '../src/snapshot.ts';
-import { page, refOf } from './helpers.ts';
+import { layout, page, refOf } from './helpers.ts';
 
 function errorCode(fn: () => unknown): string {
   try {
@@ -374,4 +375,87 @@ test('wait_for resolves on text, visibility and enabled state, is bounded, and c
   await assert.rejects(waitFor(doc, registry, { text: 'never shown', condition: 'visible', timeoutMs: 20000, signal }),
     (e: unknown) => e instanceof DomError && e.code === 'CANCELLED');
   assert.ok(Date.now() - started < 2000, 'a cancelled wait stops promptly');
+});
+
+test('a frame of another site that is in view is counted, so that no picture is taken of it', () => {
+  const { doc } = page(`<p>Outer</p>
+    <iframe id="same" title="Help"></iframe>
+    <iframe id="other" src="https://other.example/"></iframe>
+    <iframe id="pixel" data-zero src="https://tracker.example/p"></iframe>
+    <iframe id="hidden" style="display:none" src="https://other.example/x"></iframe>
+    <embed id="file" src="https://files.example/report.pdf">
+    <object id="own" data="/own.svg"></object>
+    <object id="empty"></object>`);
+  const foreign = (id: string): void => { Object.defineProperty(doc.getElementById(id), 'contentDocument', { get: () => null }); };
+  // jsdom loads no frame of another site; make them look like ones this page may not read.
+  for (const id of ['other', 'pixel', 'hidden']) foreign(id);
+  const same = doc.getElementById('same') as HTMLIFrameElement;
+  layout(same.contentWindow as Window);
+  (same.contentDocument as Document).body.innerHTML = '<p>Inside</p>';
+
+  // The frame of another site and the file from another site. Not the frame of this site, the file of
+  // this site, the one without an address, the one that shows nothing, and the one that is not shown.
+  assert.equal(foreignFramesInView(doc), 2);
+
+  // A frame of another site inside a frame of this site is in the picture as well.
+  (same.contentDocument as Document).body.innerHTML = '<iframe id="nested" src="https://third.example/"></iframe>';
+  Object.defineProperty((same.contentDocument as Document).getElementById('nested'), 'contentDocument', { get: () => null });
+  assert.equal(foreignFramesInView(doc), 3);
+
+  // Gone from the page, they are gone from the count.
+  for (const id of ['other', 'file', 'same']) doc.getElementById(id)?.remove();
+  assert.equal(foreignFramesInView(doc), 0);
+  assert.equal(foreignFramesInView(page('<p>No frame at all</p>').doc), 0);
+});
+
+test('wait_for changed is met when an element shows something else, and not while it stays as it is', async () => {
+  const { doc } = page('<p id="status" role="status">Build running</p><input id="count" aria-label="Count" value="1"><button id="go">Go</button><input id="pw" type="password" aria-label="Password" value="a">');
+  const state = new PageState('d1');
+  const snap = takeSnapshot(doc, state).text;
+  const registry = state.registry;
+  const go = refOf(snap, 'Button: Go');
+  const count = refOf(snap, 'Count');
+  // Nothing changes: bounded, and it says so.
+  await assert.rejects(waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 250 }),
+    (e: unknown) => e instanceof DomError && e.code === 'WAIT_TIMEOUT' && /did not change/.test(e.message));
+  // Its text is another.
+  setTimeout(() => { (doc.getElementById('go') as HTMLElement).textContent = 'Going'; }, 100);
+  assert.equal((await waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  // Its value is another, or one of its states.
+  setTimeout(() => { (doc.getElementById('count') as HTMLInputElement).value = '2'; }, 100);
+  assert.equal((await waitFor(doc, registry, { ref: count, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  setTimeout(() => doc.getElementById('go')?.setAttribute('aria-busy', 'true'), 100);
+  assert.equal((await waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  // It is gone: that is a change too.
+  setTimeout(() => doc.getElementById('go')?.remove(), 100);
+  assert.equal((await waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  // What is typed into a password field is not looked at: a change of it is none here.
+  const pw = refOf(snap, 'Password');
+  setTimeout(() => { (doc.getElementById('pw') as HTMLInputElement).value = 'another'; }, 50);
+  await assert.rejects(waitFor(doc, registry, { ref: pw, condition: 'changed', timeoutMs: 300 }),
+    (e: unknown) => e instanceof DomError && e.code === 'WAIT_TIMEOUT');
+});
+
+test('hover sends the pointer events a page listens for, and presses nothing', () => {
+  const { doc } = page('<button id="menu">Account</button><p id="tip" hidden>Signed in</p>');
+  const menu = doc.getElementById('menu') as HTMLElement;
+  const seen: string[] = [];
+  for (const type of ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove', 'mousedown', 'mouseup', 'click', 'focus']) {
+    menu.addEventListener(type, () => seen.push(type));
+  }
+  menu.addEventListener('mouseenter', () => { (doc.getElementById('tip') as HTMLElement).hidden = false; });
+  const result = hoverElement(menu);
+  assert.equal(result.dispatched, true);
+  assert.deepEqual(seen, ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove']);
+  assert.equal((doc.getElementById('tip') as HTMLElement).hidden, false, 'what the page opens on hovering is open');
+  assert.notEqual(doc.activeElement, menu, 'the keyboard did not move');
+});
+
+test('the control to a next page is found by its exact name, and only one that can be pressed', () => {
+  const { doc } = page(`<a id="n1" href="/p/2">Next</a><a href="/p/9">Next page of comments</a>
+    <button id="older" aria-label="Older posts">›</button><button disabled>Disabled</button>
+    <a href="/x" style="display:none">Hidden</a><span role="button" aria-disabled="true">Off</span><p>Next</p>`);
+  assert.equal(controlNamed(doc, 'next'), doc.getElementById('n1'));
+  assert.equal(controlNamed(doc, ' Older  posts '), doc.getElementById('older'));
+  for (const none of ['Disabled', 'Hidden', 'Off', 'Nex', 'comments', '']) assert.equal(controlNamed(doc, none), null, none);
 });

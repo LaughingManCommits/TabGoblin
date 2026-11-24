@@ -72,9 +72,10 @@ class SetupTest {
         Setup.Self self = Setup.Self.at(folder.resolve("runtime").resolve("bin").resolve("java"), folder.resolve("browser-context-mcp.jar"), "Linux");
         String server = " tabgoblin -- " + self.command();
         // For the user, and so for every project.
-        assertEquals("claude mcp add --scope user" + server, Setup.registration(Skills.Agent.CLAUDE_CODE, self));
-        assertEquals("codex mcp add" + server, Setup.registration(Skills.Agent.CODEX, self));
-        assertEquals("copilot mcp add" + server, Setup.registration(Skills.Agent.COPILOT, self));
+        // And each is named to the server, so that it is the same agent at every start.
+        assertEquals("claude mcp add --scope user" + server + " --agent claude-code", Setup.registration(Skills.Agent.CLAUDE_CODE, self));
+        assertEquals("codex mcp add" + server + " --agent codex", Setup.registration(Skills.Agent.CODEX, self));
+        assertEquals("copilot mcp add" + server + " --agent copilot", Setup.registration(Skills.Agent.COPILOT, self));
     }
 
     @Test

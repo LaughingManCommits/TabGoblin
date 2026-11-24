@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';
 import {
-  DRAWN_WITHIN_MS, FRAMES_UNTIL_DRAWN, LINE_FADES_MS, LINE_STAYS_MS, MAX_LINES, NOTICE_TAG, applyUpdate, mountNotice, noticeUpdateOf, noticeView,
+  DRAWN_WITHIN_MS, FRAMES_UNTIL_DRAWN, LINE_FADES_MS, LINE_STAYS_MS, MAX_LINES, NOTICE_TAG, SHOW_LABEL, applyUpdate, byTheUser, mountNotice, noticeUpdateOf, noticeView,
   paintNotice, whenDrawn,
   type Notice, type NoticeUpdate,
 } from '../src/notice.ts';
@@ -21,7 +21,7 @@ const texts = (notice: Notice | null, at: number): string[] => (noticeView(notic
 test('while a command runs the notice is one row: what runs, and Pause', () => {
   const notice = after([0, { state: 'working', text: 'Reading page' }]);
   assert.deepEqual(noticeView(notice, T0), {
-    status: 'Agent: Reading page', tone: 'working', pause: true, lines: [], fading: false, next: null,
+    status: 'Agent: Reading page', tone: 'working', pause: true, show: false, lines: [], fading: false, next: null,
   });
   // It stays for as long as the command does.
   assert.equal(noticeView(notice, T0 + 60_000)?.status, 'Agent: Reading page');
@@ -37,7 +37,7 @@ test('a line of what ended outlasts its command, then fades, then is gone', () =
   );
   const shown = noticeView(notice, T0 + 300);
   assert.deepEqual(shown, {
-    status: 'Agent idle', tone: 'idle', pause: true,
+    status: 'Agent idle', tone: 'idle', pause: true, show: false,
     lines: [{ id: 1, text: 'Read page', mark: 'ok', fading: false }], fading: false, next: LINE_STAYS_MS,
   });
   // Just before it starts to fade it is as it was, and the view says when to look again.
@@ -153,8 +153,10 @@ test('drawn into a page: a closed box in the corner, lines above the row with Pa
   // with the goblin, the words and Pause, stays where it is.
   assert.deepEqual([...mount.box.children].map((el) => el.className), ['lines', 'bar']);
   const bar = mount.box.lastElementChild as HTMLElement;
-  assert.deepEqual([...bar.children].map((el) => el.className || el.localName), ['goblin', 'label', 'button']);
-  assert.deepEqual([bar.children[1], bar.children[2]], [mount.label, mount.pause]);
+  assert.deepEqual([...bar.children].map((el) => el.className || el.localName), ['goblin', 'label', 'show', 'button']);
+  assert.deepEqual([bar.children[1], bar.children[2], bar.children[3]], [mount.label, mount.show, mount.pause]);
+  // While nothing is asked the way to the popup is not offered.
+  assert.equal(mount.show.hidden, true);
 
   // The older line starts to fade. Its element is the same one: a new one would start the fading anew.
   const [first, second] = [...mount.lines.children];
@@ -281,4 +283,69 @@ test('what was taken out of the page counts as out of the picture only when the 
     assert.equal(await whenDrawn(away.window), 'hidden');
     assert.equal(away.frames.length + away.timers.size, 0);
   }
+});
+
+test('while the user\'s answer is needed the notice offers the way to the popup, and in no other state', () => {
+  // In the view: only while asking.
+  const states = [
+    ['working', after([0, { state: 'working', text: 'Reading page' }])],
+    ['asking', after([0, { state: 'asking' }])],
+    ['paused', after([0, { state: 'paused', ended: { text: 'Paused by you', mark: 'info' } }])],
+    ['idle', after([0, { state: 'idle', ended: { text: 'Read page', mark: 'ok' } }])],
+  ] as const;
+  assert.deepEqual(states.map(([name, notice]) => [name, noticeView(notice, T0 + 10)?.show]),
+    [['working', false], ['asking', true], ['paused', false], ['idle', false]]);
+
+  // Drawn: a button of its own before Pause, which keeps its place and its words.
+  const { document } = new JSDOM('<!doctype html><html><body><p>The page</p></body></html>').window;
+  const shows: Event[] = [];
+  const pauses: Event[] = [];
+  const mount = mountNotice(document, (event) => pauses.push(event), (event) => shows.push(event));
+  paintNotice(mount, noticeView(after([0, { state: 'asking' }]), T0 + 10)!);
+  assert.equal(mount.show.hidden, false);
+  assert.equal(mount.show.textContent, SHOW_LABEL);
+  assert.equal(mount.show.textContent, 'Answer');
+  assert.match(mount.show.title, /Open the TabGoblin popup/);
+  assert.equal(mount.pause.hidden, false);
+  assert.equal(mount.pause.textContent, 'Pause');
+  assert.equal(mount.label.textContent, 'Answer needed in the popup');
+  // Nothing of a question is in it: the bar has the fixed words and the two buttons, and no more.
+  const bar = mount.box.lastElementChild as HTMLElement;
+  assert.equal(bar.textContent, 'Answer needed in the popupAnswerPause');
+  // Each button has its own click, and neither does the other's.
+  mount.show.click();
+  assert.deepEqual([shows.length, pauses.length], [1, 0]);
+  mount.pause.click();
+  assert.deepEqual([shows.length, pauses.length], [1, 1]);
+
+  // The question is answered, or the agent goes on: the button is gone again, whatever comes.
+  for (const next of [{ state: 'working', text: 'Submitting' }, { state: 'idle', ended: { text: 'Submitted', mark: 'ok' } },
+    { state: 'paused', ended: { text: 'Paused by you', mark: 'info' } }] as const) {
+    paintNotice(mount, noticeView(applyUpdate(after([0, { state: 'asking' }]), next, T0 + 20), T0 + 30)!);
+    assert.equal(mount.show.hidden, true, next.state);
+  }
+  // A page script finds nothing of it: the root is closed, as before.
+  assert.equal((document.querySelector(NOTICE_TAG) as HTMLElement).shadowRoot, null);
+  assert.equal(document.querySelector('button'), null);
+});
+
+test('a click that is not the user\'s own does nothing: a page can make up a click, and not a trusted one', () => {
+  let acted = 0;
+  const handler = byTheUser(() => { acted++; });
+  // What a script of the page can produce: a click it made itself, in every way it has.
+  const { document, Event: PageEvent, MouseEvent: PageMouseEvent } = new JSDOM('<!doctype html><button id="b"></button>').window;
+  const button = document.getElementById('b') as HTMLButtonElement;
+  button.addEventListener('click', handler);
+  button.click();
+  button.dispatchEvent(new PageEvent('click', { bubbles: true }));
+  button.dispatchEvent(new PageMouseEvent('click', { bubbles: true, clientX: 5, clientY: 5 }));
+  assert.equal(acted, 0);
+  // A page cannot set the mark either: it is the browser's, and read-only.
+  const forged = new PageEvent('click');
+  assert.throws(() => { (forged as { isTrusted: boolean }).isTrusted = true; });
+  button.dispatchEvent(forged);
+  assert.equal(acted, 0);
+  // The user's own click carries the mark, and that one acts.
+  handler({ isTrusted: true } as Event);
+  assert.equal(acted, 1);
 });

@@ -66,11 +66,49 @@ jobs:
             release/out/*.tar.gz
           if-no-files-found: error
 
+  # What the server and the extension are built from, as two lists in the CycloneDX format: the
+  # server's libraries, which are in the jar, and the extension's build tools, none of which is
+  # in what is shipped.
+  sbom:
+    name: Lists of components
+    needs: suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: The server's components
+        run: mvn -B -f java-server/pom.xml org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom -DoutputFormat=json -DoutputName=sbom
+      - name: The extension's components
+        working-directory: chrome-extension
+        run: |
+          npm ci
+          npm sbom --sbom-format cyclonedx > sbom.json
+      - name: Named after the version
+        run: |
+          version="$(sed -n 's/^    <version>\(.*\)<\/version>$/\1/p' java-server/pom.xml | head -1)"
+          test -n "$version"
+          mkdir out
+          cp java-server/target/sbom.json "out/tabgoblin-$version-server.cdx.json"
+          cp chrome-extension/sbom.json "out/tabgoblin-$version-extension.cdx.json"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tabgoblin-sbom
+          path: out/*.cdx.json
+          if-no-files-found: error
+
   # Only for a tag, and the only job that may write: it makes the release and nothing else.
   publish:
     name: Publish
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: download
+    needs: [download, sbom]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -83,11 +121,12 @@ jobs:
         with:
           path: downloads
           merge-multiple: true
-      - name: Three downloads, and their checksums
+      - name: Three downloads and two lists of components, and their checksums
         working-directory: downloads
         run: |
           ls -l
-          test "$(ls tabgoblin-* | wc -l)" = 3
+          test "$(ls tabgoblin-*.zip tabgoblin-*.tar.gz | wc -l)" = 3
+          test "$(ls tabgoblin-*.cdx.json | wc -l)" = 2
           sha256sum tabgoblin-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
       - uses: actions/attest-build-provenance@v4

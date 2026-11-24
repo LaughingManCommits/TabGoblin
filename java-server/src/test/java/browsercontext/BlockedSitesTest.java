@@ -156,4 +156,64 @@ class BlockedSitesTest {
         assertEquals(List.of("open", "-t", path), BlockedSites.editor("Mac OS X", file));
         assertEquals(List.of("xdg-open", path), BlockedSites.editor("Linux", file));
     }
+
+    private static BlockedSites.Rule policy(Path dir, String text) throws Exception {
+        Path file = dir.resolve(BlockedSites.FILE);
+        Files.writeString(file, text, StandardCharsets.UTF_8);
+        return BlockedSites.read(file);
+    }
+
+    @Test
+    void theRestrictionsAreReadFromTheSameFileAndWithoutThemNothingIsRestricted(@TempDir Path dir) throws Exception {
+        assertEquals(BlockedSites.Limits.NONE, BlockedSites.Rule.NONE.limits());
+        assertEquals(BlockedSites.Rule.NONE, policy(dir, "blocked.sites =\n"), "a file that restricts nothing is no rule");
+        assertEquals("", BlockedSites.Limits.NONE.summary());
+
+        BlockedSites.Limits limits = policy(dir, """
+                allowed.sites = Example.org, https://ci.intranet.example/jobs
+                screenshots = off
+                access.max = Explore
+                session.max.minutes = 240
+                session.idle.minutes = 20
+                """).limits();
+        assertEquals(new BlockedSites.Limits(false, List.of("ci.intranet.example", "example.org"), false, BlockedSites.Access.EXPLORE, 240, 20), limits);
+        assertTrue(limits.allows(BlockedSites.Access.READ) && limits.allows(BlockedSites.Access.EXPLORE));
+        assertFalse(limits.allows(BlockedSites.Access.WRITE));
+        assertTrue(limits.summary().contains("no screenshots") && limits.summary().contains("access up to Explore"), limits.summary());
+    }
+
+    @Test
+    void theStrictProfileSetsWhatTheFileDoesNotSayAndTheFileCanSayOtherwise(@TempDir Path dir) throws Exception {
+        BlockedSites.Limits strict = policy(dir, "security.profile = strict\n").limits();
+        assertEquals(new BlockedSites.Limits(true, List.of(), false, BlockedSites.Access.WRITE, BlockedSites.STRICT_SESSION_MAX, BlockedSites.STRICT_SESSION_IDLE), strict);
+        // What the file names holds, the profile or not: pictures on, another time.
+        BlockedSites.Limits own = policy(dir, "security.profile = STRICT\nscreenshots = on\nsession.idle.minutes = 0\nsession.max.minutes = 60\n").limits();
+        assertEquals(new BlockedSites.Limits(true, List.of(), true, BlockedSites.Access.WRITE, 60, 0), own);
+        assertEquals(BlockedSites.Limits.NONE, policy(dir, "security.profile = standard\n").limits());
+    }
+
+    @Test
+    void aRestrictionThatCannotBeReadIsNotTakenForNone(@TempDir Path dir) throws Exception {
+        // Each of these was meant to take something away. If it were read as nothing, the user would not know.
+        for (String slip : List.of("security.profile = strikt", "allowed.sites = exam_ple.org", "screenshots = nope", "access.max = admin",
+                "session.max.minutes = soon", "session.idle.minutes = -5", "session.max.minutes = 99999")) {
+            BlockedSites.Rule rule = policy(dir, slip + "\n");
+            assertTrue(rule.everything(), slip);
+            assertTrue(rule.unreadable().contains(slip.substring(0, slip.indexOf(' '))), rule.unreadable());
+        }
+    }
+
+    @Test
+    void onlyTheSitesThatAreAllowedAreInsideAndWhatNamesNoSiteIsOutside() {
+        BlockedSites.Rule rule = new BlockedSites.Rule(List.of(), null,
+                new BlockedSites.Limits(false, List.of("example.org", "10.0.0.7"), true, BlockedSites.Access.WRITE, 0, 0));
+        assertNull(rule.outside(List.of("https://example.org", "https://docs.example.org:8443/a", "http://10.0.0.7/x")));
+        assertEquals("notexample.org", rule.outside(List.of("https://example.org", "https://notexample.org/")));
+        assertEquals("example.org.evil.example", rule.outside(List.of("https://example.org.evil.example/")));
+        assertEquals("10.0.0.70", rule.outside(List.of("http://10.0.0.70/")));
+        assertEquals("an address that names no site", rule.outside(List.of("not an address at all")));
+        // An address that is not known yet is left to the extension, which knows where the tab is.
+        assertNull(rule.outside(java.util.Arrays.asList("", null)));
+        assertNull(BlockedSites.Rule.NONE.outside(List.of("https://anything.example")));
+    }
 }

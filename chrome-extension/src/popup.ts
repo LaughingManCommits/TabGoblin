@@ -3,7 +3,7 @@
 // only shows state and sends requests.
 
 import { agentsSummary, disconnectCost, sessionsSummary, settingsSummary } from './panels.ts';
-import { blockedBy, hostOf } from './policy.ts';
+import { blockedBy, hostOf, type Limits } from './policy.ts';
 
 type Mode = 'read' | 'explore' | 'write';
 
@@ -37,6 +37,11 @@ interface SessionView {
   /** One of its sites is on the list of blocked sites: nothing an agent does in it goes through. */
   blocked: boolean;
   mode: Mode;
+  /** What it has under the user's policy, and whether one of its sites is outside the allowed ones. */
+  access?: Mode;
+  outside?: boolean;
+  /** The name of the task the user filed the tab under, if any. */
+  workspace?: string | null;
   paused: boolean;
   expiresAt: number | null;
   clientId: string | null;
@@ -56,6 +61,8 @@ interface ClientView {
   port: number;
   /** The tabs a Disconnect would take from this agent. */
   tabs: number;
+  /** Whether it has a key of its own, and so is the same agent at every start. */
+  lasting?: boolean;
 }
 
 interface State {
@@ -71,6 +78,12 @@ interface State {
   blockedClients: string[];
   /** The sites no agent may work on, from the server's settings; `everything` when those cannot be read. */
   blocked: { sites: string[]; everything: boolean };
+  /** What the user's security policy restricts, from the server's settings. */
+  limits: Limits;
+  /** What agents ask the user for. The reason is the agent's own words. */
+  requests: {
+    id: string; kind: 'raise' | 'site'; level: Mode; origin: string; session: string | null; reason: string; clientId: string; clientName: string;
+  }[];
   sessions: SessionView[];
   activity: ActivityEntry[];
   pendingConfirm: {
@@ -180,6 +193,18 @@ function connectionText(s: State): string {
   }
 }
 
+/** The user's security policy in one line, or nothing when it restricts nothing. Its words are the extension's own. */
+function policyLine(limits: Limits): string {
+  const parts: string[] = [];
+  if (limits.strict) parts.push('strict: every submission is confirmed by you, and a click that may change something counts as one');
+  if (limits.allowed.length) parts.push(`agents work only on ${limits.allowed.length === 1 ? limits.allowed[0] : `${limits.allowed.length} sites`}`);
+  if (!limits.screenshots) parts.push('no screenshots');
+  if (limits.maxAccess !== 'write') parts.push(`access up to ${limits.maxAccess === 'explore' ? 'Explore' : 'Read'}`);
+  if (limits.sessionMaxMinutes) parts.push(`an authorization lasts at most ${limits.sessionMaxMinutes} min`);
+  if (limits.sessionIdleMinutes) parts.push(`ends after ${limits.sessionIdleMinutes} min without a command`);
+  return parts.length ? `Security policy: ${parts.join('; ')}. It is set in the TabGoblin server's settings file.` : '';
+}
+
 function renderAgents(s: State): void {
   $('agentsSection').hidden = !s.clients.length && !s.blockedClients.length;
   rebuild('agents', [s.clients, s.blockedClients], () => {
@@ -193,7 +218,10 @@ function renderAgents(s: State): void {
       button.title = cost.hint;
       button.addEventListener('click', () => void request({ type: 'disconnectClient', clientId: client.id }));
       const name = el('span', 'name', agentLabel(client, s.clients));
-      name.title = name.textContent ?? '';
+      // Whether this agent is the same agent at every start, or known for this start only.
+      name.title = `${name.textContent ?? ''} · ${client.id} · ${client.lasting
+        ? 'has a key of its own: the same agent at every start'
+        : 'no key of its own: known for this start only, and its tabs do not come back after a restart'}`;
       li.append(name, el('span', 'tabs', cost.beside), el('span', 'muted', `:${client.port}`), button);
       list.append(li);
     }
@@ -207,12 +235,99 @@ function renderAgents(s: State): void {
   });
 }
 
+/** The requests whose first moment has not passed. */
+const requestsHeld = new Set<string>();
+
+const LEVELS: Record<Mode, string> = { read: 'Read', explore: 'Explore', write: 'Read / Write' };
+
+/**
+ * What agents ask for. A higher level on a session is the user's to allow here. A tab on another
+ * site cannot be given here: that takes the user's click on that tab, where the request is offered.
+ */
+function renderRequests(s: State): void {
+  $('requests').hidden = !s.requests.length;
+  rebuild('requests', [s.requests, s.clients], () => {
+    const box = $('requests');
+    box.replaceChildren();
+    for (const asked of s.requests) {
+      const row = el('div', 'request');
+      row.dataset.request = asked.id;
+      const who = agentLabel({ name: asked.clientName, id: asked.clientId }, s.clients);
+      const what = asked.kind === 'raise'
+        ? `${who} asks for ${LEVELS[asked.level]} access in ${asked.session}, on ${displayOrigin(asked.origin)}.`
+        : `${who} asks for ${LEVELS[asked.level]} access to ${displayOrigin(asked.origin)}.`;
+      row.append(el('p', 'what', what));
+      // The agent's own words, set apart as a quotation: they are not the extension's.
+      if (asked.reason) row.append(el('p', 'reason', `Its reason: \u201c${asked.reason}\u201d`));
+      if (asked.kind === 'site') {
+        row.append(el('p', 'how', 'To give it: open that site in a tab and click the TabGoblin icon there. Nothing of the site is read before.'));
+      }
+      const buttons = el('div', 'row');
+      const deny = el('button', 'deny-request', asked.kind === 'raise' ? 'Deny' : 'Dismiss');
+      deny.addEventListener('click', () => void request({ type: 'answerRequest', id: asked.id, allow: false }));
+      buttons.append(deny);
+      if (asked.kind === 'raise') {
+        const allow = el('button', 'primary allow-request', `Allow ${LEVELS[asked.level]}`);
+        allow.addEventListener('click', () => void request({ type: 'answerRequest', id: asked.id, allow: true }));
+        buttons.append(allow);
+      }
+      row.append(buttons);
+      box.append(row);
+      // One that is still in its first moment stays held when the list is drawn anew.
+      if (requestsHeld.has(asked.id)) for (const button of Array.from(buttons.querySelectorAll('button'))) button.disabled = true;
+    }
+  });
+  for (const asked of s.requests) {
+    if (requestsShown.has(asked.id)) continue;
+    requestsHeld.add(asked.id);
+    setTimeout(() => requestsHeld.delete(asked.id), ANSWER_DELAY_MS);
+    holdRequest(asked.id);
+  }
+}
+
 function renderSessions(s: State): void {
+  renderRequests(s);
+  // What the policy restricts is said above the sessions, whatever tab the popup is opened on.
+  const policy = policyLine(s.limits);
+  $('policyNote').hidden = !policy;
+  $('policyText').textContent = policy;
+  // Under the strict profile the setting for asking is not the user's to loosen here.
+  $<HTMLSelectElement>('askMode').disabled = s.limits.strict;
+  rebuild('workspaceNames', s.sessions.map((x) => x.workspace ?? ''), () => {
+    const names = [...new Set(s.sessions.map((x) => x.workspace).filter((x): x is string => !!x))].sort();
+    $('workspaceNames').replaceChildren(...names.map((name) => {
+      const option = el('option');
+      option.value = name;
+      return option;
+    }));
+  });
   rebuild('sessions', [s.sessions, currentTab?.id, s.clients], () => {
     const box = $('sessions');
     box.replaceChildren();
     if (!s.sessions.length) box.append(el('div', 'empty', 'No tab is authorized'));
-    for (const session of s.sessions) {
+    // Tabs of one task stand together under the task's name; those without one come first.
+    const ordered = [...s.sessions].sort((a, b) => (a.workspace ?? '').localeCompare(b.workspace ?? ''));
+    let headed: string | null = null;
+    for (const session of ordered) {
+      if (session.workspace && session.workspace !== headed) {
+        headed = session.workspace;
+        const members = ordered.filter((x) => x.workspace === headed);
+        const head = el('div', 'workspace');
+        head.dataset.workspace = headed;
+        const title = el('span', 'name', headed);
+        title.title = `Workspace ${headed}: a name for these tabs. Each tab keeps its own agent, access and end.`;
+        head.append(title, el('span', 'muted', `${members.length} tab${members.length === 1 ? '' : 's'}`));
+        const name = headed;
+        const all = (label: string, cls: string, type: string): void => {
+          const button = el('button', `link ${cls}`, label);
+          button.addEventListener('click', () => void request({ type, workspace: name }));
+          head.append(button);
+        };
+        if (members.some((x) => !x.paused)) all('Pause all', 'pause-all', 'pauseWorkspace');
+        else all('Resume all', 'resume-all', 'resumeWorkspace');
+        all('Revoke all', 'revoke-all', 'revokeWorkspace');
+        box.append(head);
+      }
       const row = el('div', 'session');
       row.dataset.session = session.id;
 
@@ -239,6 +354,9 @@ function renderSessions(s: State): void {
         : 'Waiting for an agent';
       const parts = [owner];
       if (session.expiresAt) parts.push(`until ${new Date(session.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      // What the session has under the policy, where that is less than what it was given.
+      if (session.access && session.access !== session.mode) parts.push(`policy: ${session.access === 'explore' ? 'Explore' : 'Read'} at most`);
+      if (session.outside) parts.push('not on a site your policy allows');
       if (session.lastSubmission) parts.push(`last submission ${session.lastSubmission.toLowerCase()}`);
 
       const controls = el('div', 'row');
@@ -264,6 +382,18 @@ function renderSessions(s: State): void {
         row.append(el('div', 'meta blocked-note', 'Blocked: this site is on your list of blocked sites.'));
       }
       row.append(controls);
+      // The task this tab is filed under. A name only: it changes where the tab is listed.
+      const filing = el('div', 'row ws');
+      const workspace = el('input', 'workspace-name');
+      workspace.type = 'text';
+      workspace.maxLength = 40;
+      workspace.placeholder = 'Workspace';
+      workspace.setAttribute('list', 'workspaceNames');
+      workspace.setAttribute('aria-label', `Workspace of ${session.id}`);
+      workspace.value = session.workspace ?? '';
+      workspace.addEventListener('change', () => void request({ type: 'setWorkspace', session: session.id, workspace: workspace.value }));
+      filing.append(el('span', 'caption', 'Workspace'), workspace);
+      row.append(filing);
       // Asking is a matter of submitting, which only a session with write access can do.
       if (session.mode === 'write') {
         const asking = el('div', 'row asking');
@@ -355,18 +485,33 @@ function renderSessions(s: State): void {
   // With one agent connected it gets the tab; with several the user chooses.
   const agent = $<HTMLSelectElement>('newAgent');
   agent.hidden = s.clients.length < 2 || blockedHere;
-  rebuild('newAgent', s.clients, () => {
+  rebuild('newAgent', [s.clients, s.limits.strict], () => {
     agent.replaceChildren();
-    const any = el('option', '', 'Any agent');
-    any.value = '';
-    agent.append(any);
+    // Under the strict profile a tab is for one named agent: "Any agent" is not offered.
+    if (!s.limits.strict) {
+      const any = el('option', '', 'Any agent');
+      any.value = '';
+      agent.append(any);
+    }
     for (const client of s.clients) {
       const option = el('option', '', agentLabel(client, s.clients));
       option.value = client.id;
       agent.append(option);
     }
-    agent.value = s.clients.length === 1 ? s.clients[0].id : '';
+    agent.value = s.clients.length === 1 || (s.limits.strict && s.clients.length) ? s.clients[0].id : '';
   });
+  // An agent asked for a tab on this very site: its request is offered here, where the click that gives it is made.
+  const wanted = s.requests.find((r) => r.kind === 'site' && r.origin === here && s.clients.some((c) => c.id === r.clientId));
+  rebuild('offered', wanted?.id ?? '', () => {
+    if (!wanted) return;
+    $<HTMLSelectElement>('newAccess').value = wanted.level;
+    agent.value = wanted.clientId;
+  });
+  if (wanted && !blockedHere) {
+    $('authorizeHint').textContent = `${agentLabel({ name: wanted.clientName, id: wanted.clientId }, s.clients)} asked for ${LEVELS[wanted.level]} access to this site.`
+      + ' Authorize gives it as chosen below; change the choices first if you want less.';
+  }
+
 }
 
 function renderActivity(s: State): void {
@@ -432,22 +577,52 @@ const ANSWER_DELAY_MS = 700;
 /** The request the prompt is showing, so that the pause is taken once for each. */
 let promptShown: string | null = null;
 
+/** How many questions are in their first moment right now: while one is, the rest of the popup takes nothing. */
+let holding = 0;
+
+/**
+ * For the first moment of a question nothing else in the popup takes a key or a click. With the
+ * answers held, Tab would go on to the next control, and Enter there would fold a panel or press
+ * a button. Each question has its own moment; the popup is free again when the last has passed.
+ */
+function holdTheRest(): void {
+  const rest = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('main > :not(#confirm), footer')];
+  holding++;
+  for (const part of rest()) part.inert = true;
+  setTimeout(() => {
+    holding--;
+    if (holding === 0) for (const part of rest()) part.inert = false;
+  }, ANSWER_DELAY_MS);
+}
+
 function holdAnswers(id: string): void {
   promptShown = id;
   const answers = [$<HTMLButtonElement>('deny'), $<HTMLButtonElement>('allow')];
   for (const button of answers) button.disabled = true;
-  // For that moment nothing else in the popup takes a key or a click either. With the answers
-  // held, Tab would go on to the next control, and Enter there would fold a panel or press a button.
-  const rest = [...document.querySelectorAll<HTMLElement>('main > :not(#confirm), footer')];
-  for (const part of rest) part.inert = true;
+  holdTheRest();
   // The keyboard goes to the prompt as a whole, which announces it. No key does anything there,
   // and the first stop for Tab from it is Deny.
   $('confirm').focus();
   setTimeout(() => {
     if (promptShown === id) for (const button of answers) button.disabled = false;
-    // Unless another prompt has come up meanwhile and is holding the popup for its own moment.
-    if (promptShown === id || promptShown === null) for (const part of rest) part.inert = false;
   }, ANSWER_DELAY_MS);
+}
+
+/** The requests for access this popup has shown, so that the pause is taken once for each. */
+const requestsShown = new Set<string>();
+
+/**
+ * A request for access that has only just appeared takes no answer either: the popup comes up
+ * by itself for it, as for a submission. Its buttons are held for the same moment, and Deny
+ * comes before Allow.
+ */
+function holdRequest(id: string): void {
+  requestsShown.add(id);
+  const buttons = (): HTMLButtonElement[] => [...document.querySelectorAll<HTMLButtonElement>(`.request[data-request="${id}"] button`)];
+  for (const button of buttons()) button.disabled = true;
+  holdTheRest();
+  // The rows may have been drawn anew by then: the buttons are looked for again.
+  setTimeout(() => { for (const button of buttons()) button.disabled = false; }, ANSWER_DELAY_MS);
 }
 
 function render(): void {
@@ -545,6 +720,7 @@ $('authorize').addEventListener('click', () => {
     mode: $<HTMLSelectElement>('newAccess').value,
     clientId: $<HTMLSelectElement>('newAgent').value || null,
     minutes: Number($<HTMLSelectElement>('newExpiry').value) || null,
+    workspace: $<HTMLInputElement>('newWorkspace').value,
   });
 });
 const sessionOfThisTab = (): string | undefined => state?.sessions.find((x) => x.tabId === currentTab?.id)?.id;
