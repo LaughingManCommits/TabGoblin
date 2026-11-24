@@ -135,14 +135,14 @@ final class PanelPictures {
                 new State("2-waiting", model("", null, false, false, 0, 0, List.of(), none, log.subList(0, 2)), false),
                 new State("3-switched-off", model("IntelliJ IDEA", null, false, true, 0, 1001, List.of(), times, log), false),
                 new State("4-no-port", model("claude-code",
-                        "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
+                        Agent.noPort(47821, 0),
                         false, false, 0, 0, List.of(), none, List.of()), false),
                 new State("5-armed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions.subList(0, 1), times, log), true),
                 new State("6-framed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false, true),
                 new State("7-many-tabs", model("claude-code", null, true, false, NOW - 498_000, 0, many(9), times, log), false),
                 // The most there is to show, on a screen 768 pixels high with a taskbar: everything has to stay inside.
                 new State("8-low-screen", model("claude-code",
-                        "Could not listen on any of ports 47821-47828 on 127.0.0.1: too many TabGoblin servers are running.",
+                        Agent.noPort(47821, 0),
                         true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680),
                 // The one server before any agent has connected: started by the user, it waits and says so.
                 new State("9-no-agent", PanelModel.of(List.of(), 47829, McpMain.version(), false,

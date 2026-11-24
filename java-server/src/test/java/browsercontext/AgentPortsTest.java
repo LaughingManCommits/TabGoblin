@@ -42,6 +42,13 @@ class AgentPortsTest {
     }
 
     @Test
+    void theLogHasOneShortLineOfIt() {
+        assertEquals("no port to listen on ports=47821-47828 taken=0 reason=kept_back_by_the_system", Agent.noPortLogged(47821, 0));
+        assertEquals("no port to listen on ports=47821-47828 taken=8 reason=all_taken", Agent.noPortLogged(47821, 8));
+        assertEquals("no port to listen on ports=47821-47828 taken=3 reason=taken_or_kept_back", Agent.noPortLogged(47821, 3));
+    }
+
+    @Test
     void aPortIsCountedAsTakenWhenSomethingAnswersOnIt() throws Exception {
         List<ServerSocket> held = new ArrayList<>();
         try {
