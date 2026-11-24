@@ -445,6 +445,10 @@ public final class BrowserService {
         return render(send("snapshot", a, p, defaultTimeout));
     }
 
+    private static final int MAX_FIND_CHARS = 200;
+    private static final int MAX_EXTRACT_REFS = 10;
+    private static final Set<String> EXTRACT_KINDS = Set.of("tables", "code", "articles");
+
     private ToolResult extract(JsonNode a) {
         String links = optString(a, "links", "ref");
         if (!Set.of("none", "ref", "url").contains(links)) {
@@ -459,7 +463,64 @@ public final class BrowserService {
         if (a.hasNonNull("ref")) {
             p.put("ref", requireInt(a, "ref"));
         }
+        extractParts(a, p);
         return render(send("extract", a, p, defaultTimeout));
+    }
+
+    /**
+     * The arguments that return parts of a page: matching lines, regions of one kind, several refs.
+     * Whether a regular expression is one that can be run is decided where it is run, in the page.
+     */
+    private static void extractParts(JsonNode a, ObjectNode p) {
+        boolean outline = p.path("outline").asBoolean();
+        if (a.hasNonNull("find")) {
+            String find = requireString(a, "find");
+            if (find.isEmpty() || find.length() > MAX_FIND_CHARS) {
+                throw new BrowserException("INVALID_ARGUMENT", "find must be 1-" + MAX_FIND_CHARS + " characters.");
+            }
+            if (outline) {
+                throw new BrowserException("INVALID_ARGUMENT", "find cannot be combined with outline.");
+            }
+            p.put("find", find);
+            p.put("regex", optBool(a, "regex", false));
+            p.put("contextLines", range(optInt(a, "context_lines", 2), "context_lines", 0, 20));
+            p.put("maxMatches", range(optInt(a, "max_matches", 20), "max_matches", 1, 200));
+        } else if (optBool(a, "regex", false)) {
+            throw new BrowserException("INVALID_ARGUMENT", "regex needs find: the text to search for.");
+        }
+        if (a.hasNonNull("kind")) {
+            String kind = requireString(a, "kind");
+            if (!EXTRACT_KINDS.contains(kind)) {
+                throw new BrowserException("INVALID_ARGUMENT", "kind must be one of tables, code, articles.");
+            }
+            if (outline) {
+                throw new BrowserException("INVALID_ARGUMENT", "kind cannot be combined with outline.");
+            }
+            p.put("kind", kind);
+        }
+        if (a.hasNonNull("refs")) {
+            JsonNode refs = a.path("refs");
+            if (!refs.isArray() || refs.isEmpty() || refs.size() > MAX_EXTRACT_REFS) {
+                throw new BrowserException("INVALID_ARGUMENT", "refs must be an array of 1-" + MAX_EXTRACT_REFS + " refs.");
+            }
+            if (p.has("ref")) {
+                throw new BrowserException("INVALID_ARGUMENT", "Provide ref or refs, not both.");
+            }
+            if (outline) {
+                throw new BrowserException("INVALID_ARGUMENT", "refs cannot be combined with outline.");
+            }
+            if (p.path("offset").asInt() > 0) {
+                throw new BrowserException("INVALID_ARGUMENT",
+                        "offset cannot be combined with refs: continue one region with ref and offset.");
+            }
+            ArrayNode list = p.putArray("refs");
+            for (JsonNode ref : refs) {
+                if (!ref.isIntegralNumber() || !ref.canConvertToInt()) {
+                    throw new BrowserException("INVALID_ARGUMENT", "refs must hold integers: refs from an outline or a snapshot.");
+                }
+                list.add(ref.intValue());
+            }
+        }
     }
 
     private ToolResult click(JsonNode a) {

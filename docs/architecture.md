@@ -508,7 +508,8 @@ chrome-extension/src/
   content.ts               fixed set of page operations; holds the notice in the page
   notice.ts                the notice in the page: what it shows at a moment, and how it is drawn
   snapshot.ts              rendered-DOM walk, roles, names, refs, hierarchy, completeness
-  extract.ts               structured text, outline, sections
+  extract.ts               structured text, outline, sections, matching lines, regions of one kind
+  search.ts                searching lines: a literal, or a regular expression run in bounded time
   interact.ts              click, fill, type, keys, scroll, wait
   editor.ts                text entry into rich-text and code editors
   submit.ts                baseline and signals around a submission

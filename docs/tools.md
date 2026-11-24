@@ -225,6 +225,12 @@ Tree, Listbox, Feed.
 | `ref` | Read one section: a heading ref from the outline, or a container ref from a snapshot |
 | `main_only` | Leave out navigation, banners and footers when the page marks its main content |
 | `links` | `none`, `ref` (default: `text{12}`), or `url` (`[text](/path){12}`) |
+| `find` | Return only the lines that contain this text (1-200 characters, case is ignored), with the lines around them |
+| `regex` | Take `find` as a regular expression; see [below](#parts-of-a-long-page) for what is accepted |
+| `context_lines` | Lines shown before and after each matching line (default 2, 0-20) |
+| `max_matches` | Matching lines shown (default 20, 1-200) |
+| `kind` | Return only the regions of one kind: `tables`, `code` or `articles` |
+| `refs` | Read up to ten sections in one result; each as `ref` would read it |
 
 Outline:
 
@@ -267,13 +273,115 @@ Field values are not part of the extract; they are in the snapshot.
 When text is cut, the header says `continue with offset=N`; a later window also says under which
 headings it starts.
 
+### Parts of a long page
+
+`find`, `kind` and `refs` return parts of the same text a plain extract returns, so nothing can
+be found that a plain extract does not show: no password, hidden input, script or hidden text.
+The header keeps its lines; in place of `Text:` it has a line `Find:` or `Regions:`.
+
+`find: "ERROR"`, `max_matches: 2`, on a build log of 4,019 lines:
+
+```text
+Find: "ERROR" (literal, ignoring case): 3 of 4019 lines match; 2 shown with 2 lines of context
+Completeness: TRUNCATED (cut at a limit: the lines that start with --- or === say how to continue; only the lines that match find, with their context)
+
+--- lines 2027-2031, offset=156253, under [100007] ## Step 3: unit tests ---
+  2027: 10:36:50.170 INFO  [unit tests] task 0410 of module core-057 finished in 80 ms
+  2028: 10:36:51.207 INFO  [unit tests] task 0411 of module core-064 finished in 93 ms
+> 2029: 10:36:52.244 ERROR OrderServiceTest.refundsAnOrder failed: expected status 200 but was 500
+  2030:     at shop.orders.OrderService.refund(OrderService.java:92)
+  2031:     at shop.orders.OrderController.handle(OrderController.java:43)
+--- lines 2566-2570, offset=200034, under [100008] ## Step 4: integration tests ---
+  2566: 10:47:28.476 INFO  [integration tests] task 0148 of module core-066 finished in 174 ms
+  2567: 10:47:29.513 INFO  [integration tests] task 0149 of module core-073 finished in 187 ms
+> 2568: 10:47:30.550 ERROR CheckoutFlowIT.paysWithVoucher failed: timeout after 30000 ms waiting for the receipt
+  2569:     at shop.orders.OrderService.redeem(OrderService.java:110)
+  2570:     at shop.orders.OrderController.handle(OrderController.java:44)
+--- 1 more matching line not shown (max_matches): repeat the call with offset=241917 ---
+```
+
+- A matching line starts with `>`. Every line has its number in the text, counted from 1.
+  Matches whose contexts overlap or touch are one block. A line is shown up to 500 characters.
+- A block's header gives the `offset` of its first line and the nearest heading above it with
+  its ref. A plain `browser_extract` with that `offset` reads on from there. The offset belongs
+  to the text that was searched: where the header adds `ref=N` or `main_only=true`, pass that
+  too, and keep `links` as it was.
+- `3 of 4019 lines match; 2 shown`: how many lines match among those searched, and how many of
+  them are in the result. When matches are left out by `max_matches` or `max_chars`, a last
+  line says with which `offset` to repeat the call: the search then starts at that place. The
+  first matching line is shown whatever `max_chars` is.
+- A search that takes longer than 250 ms stops, returns what it found and says at which line it
+  stopped and with which `offset` to go on.
+- `find` works together with `ref`, `refs`, `main_only`, `kind` and `offset`. With `outline` it
+  is `INVALID_ARGUMENT`.
+
+With `regex: true`, `find` is a regular expression that is tested against one line at a time,
+ignoring case, and against the first 2,000 characters of a line. Accepted: literal characters,
+`.`, classes such as `[a-f0-9]` and `[^,]`, `\d` `\w` `\s` and their opposites, `\b`, `^` and `$`,
+groups, `|`, and the repetitions `*` `+` `?` `{n}` `{n,}` `{n,m}`. Refused with
+`INVALID_ARGUMENT` and the reason: a pattern over 200 characters or one that is malformed,
+backreferences (`\1`), lookahead and lookbehind, and a repetition inside a repeated group, such
+as `(a+)+` or `(a|b*)*`. The pattern is not handed to the browser's own engine: it is run in a
+way that takes a time proportional to the length of the line, whatever the pattern and the line
+contain.
+
+`kind` returns the regions of one kind, each under a header with its lines, its offset and the
+heading above it:
+
+| `kind` | What it returns |
+|---|---|
+| `tables` | Tables: `table` elements and the roles `table`, `grid` and `treegrid` |
+| `code` | Blocks of code or preformatted text: `pre`, and boxes whose text is shown with its line breaks |
+| `articles` | `article` elements, the roles `article` and `comment`, and the entries of a `feed`. A reply inside an article is part of it |
+
+```text
+Regions: 1 table, 232 characters in total; 1 shown
+Completeness: PARTIAL (only tables)
+
+--- table 1 of 1: lines 4-11, offset=46, under [100003] ## Summary ---
+Steps of build 418
+| Step | Result | Duration |
+| --- | --- | --- |
+| checkout | passed | 2 min |
+```
+
+Regions are returned in the order of the page until `max_chars` is used up. A last line then
+says where the rest of a region that was cut is, and with which `offset` the same call returns
+the regions after it. With `find`, only the lines inside such regions are searched.
+
+`refs` reads several sections in one result. Each starts with a line `=== [ref] Section: …`,
+and they share `max_chars` in equal parts; what one does not need goes to those after it. A
+region that was cut says how to continue it (`continue with offset=150 ref=100003`). A ref that
+is stale is reported in its place and the others are read:
+
+```text
+Regions: 3 refs, 1 not read, 324 characters in total
+
+=== [100003] Section: ## Summary: characters 0-150 of 243 (continue with offset=150 ref=100003) ===
+## Summary
+…
+=== [100999] not read: STALE_REF: Ref [100999] is not known in this document (…). Call browser_snapshot and use the new refs. ===
+=== [100004] Section: ## Reproduce: characters 0-81 of 81 ===
+## Reproduce
+git checkout 4f2a9c1
+./build.sh --step "integration tests" --verbose
+```
+
+`refs` cannot be combined with `ref`, `offset` or `outline`. `max_chars` bounds the text of
+the page in a result; the lines that start with `---` or `===` come on top of it.
+
+Measured on that build log (five steps of 800 lines each, 4,019 lines of text) with the extension's code under
+jsdom: read whole with the default `max_chars`, it is 27 results with 326,668 characters in
+all; `find: "ERROR"` with `context_lines: 4` returns the three errors and their stack traces in
+one result of 2,759 characters. Not measured: a real log page in a browser.
+
 ### Completeness
 
 | Status | Meaning | What to do |
 |---|---|---|
 | `COMPLETE` | Everything loaded was returned, and the page was scrolled to its end | – |
 | `PARTIAL` | One section, the viewport, or collapsed controls remain | Expand, widen the scope, read again |
-| `TRUNCATED` | Cut at the size limit | Continue with the given `offset` or `start_line` |
+| `TRUNCATED` | Cut at a limit: the size, the number of matches, or the time of a search | Continue with the given `offset` or `start_line` |
 | `BLOCKED` | A frame from another origin cannot be read | Nothing; that content is out of reach |
 | `UNKNOWN` | Not scrolled to the end | Scroll to the bottom; watch for `loadedMore` |
 

@@ -2,9 +2,11 @@
 // articles keep their shape, without transmitting HTML. Generic: it knows document structure,
 // not what any site's content means. Pure DOM code (no chrome.*).
 
+import { PatternError, compilePattern, literalTest, searchLines } from './search.ts';
 import {
-  UNTRUSTED_NOTE, accessibleName, assess, boxVisible, clip, containerOf, headingLevel, holdsLongText, isScrollable,
-  isWithin, labelControl, norm, preLines, roleOf, scrollLine, sectionScope, styleOf, walkFrom, walkVisible,
+  DomError, UNTRUSTED_NOTE, accessibleName, assess, boxVisible, clip, containerOf, headingLevel, holdsLongText,
+  isScrollable, isWithin, keepsWhitespace, labelControl, norm, preLines, roleOf, scrollLine, sectionScope, styleOf,
+  walkFrom, walkVisible,
   type Completeness, type PageState, type RefRegistry, type Visitor,
 } from './snapshot.ts';
 
@@ -29,9 +31,41 @@ interface HeadingMark {
   el: Element;
 }
 
+/** The kinds of region that can be read on their own. */
+export type RegionKind = 'tables' | 'code' | 'articles';
+export const REGION_KINDS: readonly RegionKind[] = ['tables', 'code', 'articles'];
+
+/** A table, a block of preformatted text or an article: the rendered lines it produced. */
+interface Region {
+  kind: RegionKind;
+  /** Index of its first line, and of the line after its last. */
+  start: number;
+  end: number;
+}
+
 interface Rendered {
   lines: string[];
   headings: HeadingMark[];
+  regions: Region[];
+}
+
+/** Which kinds of region an element starts. Nothing here knows a site: only elements, roles and styles. */
+function regionKinds(el: Element, cs: CSSStyleDeclaration): RegionKind[] {
+  const tag = el.localName;
+  const aria = (el.getAttribute('role') || '').trim().toLowerCase();
+  const kinds: RegionKind[] = [];
+  if (aria === 'table' || aria === 'grid' || aria === 'treegrid' || (tag === 'table' && aria !== 'presentation' && aria !== 'none')) {
+    kinds.push('tables');
+  }
+  // Text shown with its line breaks, in a box of its own: code inside a sentence is not a block.
+  const display = cs.display;
+  const block = display !== '' && display !== 'contents' && !display.startsWith('inline');
+  if (tag === 'pre' || (block && keepsWhitespace(el, cs, false))) kinds.push('code');
+  if (tag === 'article' || aria === 'article' || aria === 'comment'
+      || (el.parentElement?.getAttribute('role') || '').trim().toLowerCase() === 'feed') {
+    kinds.push('articles');
+  }
+  return kinds;
 }
 
 interface RenderOptions {
@@ -54,6 +88,11 @@ const MAX_JOINED_LINE = 240;
 function render(root: Element, options: RenderOptions, includeRoot: boolean): Rendered {
   const lines: string[] = [];
   const headings: HeadingMark[] = [];
+  const regions: Region[] = [];
+  /** The outermost region of each kind that is being walked: one inside it is part of it. */
+  const inRegion = new Map<RegionKind, { el: Element; start: number }>();
+  /** Regions whose element has been left, until the text still held back for a line is written. */
+  let closing: { kind: RegionKind; start: number }[] = [];
   const registry = options.registry;
   const withRefs = !!registry && options.links !== 'none';
   let buffer = '';
@@ -128,7 +167,17 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
     }
   };
 
-  const flush = (): void => {
+  /** Ends the regions that were left, once nothing of them is still waiting to become a line. */
+  const settle = (): void => {
+    if (!closing.length || row || norm(buffer)) return;
+    for (const region of closing) {
+      const start = Math.min(region.start, lines.length);
+      if (lines.length > start) regions.push({ kind: region.kind, start, end: lines.length });
+    }
+    closing = [];
+  };
+
+  const write = (): void => {
     const raw = buffer.replace(TRAILING_JOINS, '');
     const pre = bufferPre === true;
     buffer = '';
@@ -145,6 +194,11 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
     }
     const status = open.some((o) => o.kind === 'status') ? '(status) ' : '';
     emit(status + clip(text, MAX_BLOCK));
+  };
+
+  const flush = (): void => {
+    write();
+    settle();
   };
 
   /**
@@ -169,6 +223,7 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
       if (rowIsHeader) emit(`|${' --- |'.repeat(row.length)}`);
     }
     row = null;
+    settle();
   };
 
   const token = (el: Element, role: string): string => {
@@ -205,6 +260,12 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
         open.pop();
       }
       if (el.localName === 'tr' || el.getAttribute('role') === 'row') endRow();
+      for (const [kind, region] of inRegion) {
+        if (region.el !== el) continue;
+        inRegion.delete(kind);
+        closing.push({ kind, start: region.start });
+      }
+      settle();
     },
     element(el, cs) {
       visited++;
@@ -304,12 +365,24 @@ function render(root: Element, options: RenderOptions, includeRoot: boolean): Re
       return 'descend';
     },
   };
+  const visit = visitor.element;
+  visitor.element = (el, cs) => {
+    const action = visit(el, cs);
+    // What is walked is a region from its first line on; what is skipped has no lines of its own.
+    if (action !== 'skip') {
+      for (const kind of regionKinds(el, cs)) {
+        if (!inRegion.has(kind)) inRegion.set(kind, { el, start: lines.length });
+      }
+    }
+    return action;
+  };
 
   if (includeRoot) walkFrom(root, visitor);
   else walkVisible(root, styleOf(root), visitor, false);
   endRow();
   flush();
-  return { lines, headings };
+  regions.sort((a, b) => a.start - b.start || b.end - a.end);
+  return { lines, headings, regions };
 }
 
 /** Visible text of an element, structure kept, nothing interactive marked. Used for matching text. */
@@ -337,6 +410,45 @@ export interface ExtractOptions {
   root?: Element;
   /** Leave out navigation, banners and footers when the page marks its main content. */
   mainOnly?: boolean;
+  /** Read several elements in one result, each as `root` would be. One that could not be resolved carries the reason. */
+  roots?: ({ ref: number; el: Element } | { ref: number; error: string })[];
+  /** Return only the lines that contain this text, with the lines around them. */
+  find?: string;
+  /** `find` is a regular expression (search.ts says what is accepted). */
+  regex?: boolean;
+  /** Lines shown before and after a matching line. */
+  contextLines?: number;
+  /** Matching lines shown. */
+  maxMatches?: number;
+  /** Return only the regions of this kind. */
+  kind?: RegionKind;
+  /** The clock, for tests of the time limit. */
+  now?: () => number;
+}
+
+export const MAX_FIND = 200;
+export const MAX_ROOTS = 10;
+const DEFAULT_CONTEXT = 2;
+const DEFAULT_MATCHES = 20;
+/** Time a search may take before it stops and says where. */
+const SEARCH_MS = 250;
+/** A line of a search result is shown up to this length; its offset leads to the whole of it. */
+const MAX_FOUND_LINE = 500;
+/** A piece of a region smaller than this is not worth showing when the size limit is reached. */
+const MIN_PIECE = 200;
+
+/** Combinations of arguments that have no meaning are refused, not guessed at. */
+function checkOptions(options: ExtractOptions): void {
+  const refuse = (message: string): never => {
+    throw new DomError('INVALID_ARGUMENT', message);
+  };
+  const parts = options.find !== undefined || options.kind !== undefined || options.roots !== undefined;
+  if (options.outline && parts) refuse('outline cannot be combined with find, kind or refs.');
+  if (options.root && options.roots) refuse('Provide ref or refs, not both.');
+  if (options.roots && (options.roots.length < 1 || options.roots.length > MAX_ROOTS)) refuse(`refs must hold 1-${MAX_ROOTS} refs.`);
+  if (options.roots && options.offset > 0) refuse('offset cannot be combined with refs: continue one region with ref and offset.');
+  if (options.find !== undefined && (options.find.length < 1 || options.find.length > MAX_FIND)) refuse(`find must be 1-${MAX_FIND} characters.`);
+  if (options.kind !== undefined && !REGION_KINDS.includes(options.kind)) refuse(`kind must be one of ${REGION_KINDS.join(', ')}.`);
 }
 
 export interface Extract {
@@ -357,10 +469,11 @@ function pageRoot(doc: Document, mainOnly: boolean): { root: Element | null; mai
 
 /** A bounded window of the page's content, the outline of its sections, or one section. */
 export function extractPage(doc: Document, state: PageState, options: ExtractOptions): Extract {
+  checkOptions(options);
   const registry = state.registry;
   registry.prune();
   const { root, main } = pageRoot(doc, options.mainOnly === true);
-  const rendered: Rendered = root ? render(root, { links: options.links, registry, collapse: true }, false) : { lines: [], headings: [] };
+  const rendered: Rendered = root ? render(root, { links: options.links, registry, collapse: true }, false) : { lines: [], headings: [], regions: [] };
   const head = [
     `Page: ${clip(norm(doc.title), 200) || '(untitled)'}`,
     `URL: ${doc.location.href}`,
@@ -388,6 +501,10 @@ export function extractPage(doc: Document, state: PageState, options: ExtractOpt
       truncated: false,
       completeness: completeness.status,
     };
+  }
+
+  if (options.find !== undefined || options.kind !== undefined || options.roots !== undefined) {
+    return extractParts(doc, state, options, rendered, main, head);
   }
 
   let lines = rendered.lines;
@@ -433,6 +550,299 @@ export function extractPage(doc: Document, state: PageState, options: ExtractOpt
     totalChars: full.length,
     offset: start,
     truncated,
+    completeness: completeness.status,
+  };
+}
+
+/** One part of the page that is read: the whole of it, a heading's section, or a container. */
+interface Scope {
+  /** The ref it was asked for by, or null for the page. */
+  ref: number | null;
+  /** How the header names it, e.g. `Section: ## Installation`. */
+  label: string;
+  lines: string[];
+  /** Headings in it, by the index of their line in `lines`. */
+  headings: { line: number; level: number; text: string; ref: number | null }[];
+  regions: Region[];
+  /** Why it could not be read. */
+  error?: string;
+}
+
+const NOUNS: Record<RegionKind, [string, string]> = {
+  tables: ['table', 'tables'],
+  code: ['code block', 'code blocks'],
+  articles: ['article', 'articles'],
+};
+
+const count = (n: number, [one, many]: [string, string]): string => `${n} ${n === 1 ? one : many}`;
+
+/** The character offset at which each line starts in the lines joined by newlines; last, the length of the whole. */
+function lineOffsets(lines: string[]): number[] {
+  const offsets: number[] = new Array(lines.length + 1);
+  let at = 0;
+  for (let i = 0; i < lines.length; i++) {
+    offsets[i] = at;
+    at += lines[i].length + 1;
+  }
+  offsets[lines.length] = Math.max(0, at - 1);
+  return offsets;
+}
+
+/** The index of the line that holds a character offset; the number of lines when the offset lies after them. */
+function lineAt(offsets: number[], offset: number): number {
+  const lines = offsets.length - 1;
+  if (offset <= 0) return 0;
+  if (lines === 0 || offset > offsets[lines]) return lines;
+  let low = 0;
+  let high = lines - 1;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if (offsets[mid] <= offset) low = mid;
+    else high = mid - 1;
+  }
+  return low;
+}
+
+/** Matching lines with the lines around them, as ranges that do not overlap or touch. */
+function contextBlocks(matches: number[], context: number, lines: number): { start: number; end: number }[] {
+  const blocks: { start: number; end: number }[] = [];
+  for (const line of matches) {
+    const start = Math.max(0, line - context);
+    const end = Math.min(lines, line + context + 1);
+    const last = blocks[blocks.length - 1];
+    if (last && start <= last.end) last.end = Math.max(last.end, end);
+    else blocks.push({ start, end });
+  }
+  return blocks;
+}
+
+/**
+ * Matching lines, regions of one kind, or several parts of the page in one result. All of it is
+ * cut from the lines the renderer produced: nothing is read from the page a second way.
+ */
+function extractParts(
+  doc: Document, state: PageState, options: ExtractOptions, rendered: Rendered, main: boolean, head: string[],
+): Extract {
+  const registry = state.registry;
+  const renderOptions: RenderOptions = { links: options.links, registry, collapse: true };
+
+  const scopeOf = (el: Element, ref: number): Scope => {
+    const heading = rendered.headings.find((h) => h.el === el);
+    if (heading) {
+      const lines = sectionLines(rendered, heading);
+      const base = heading.line;
+      const end = base + lines.length;
+      return {
+        ref,
+        label: `Section: ${'#'.repeat(heading.level)} ${heading.text}`,
+        lines,
+        headings: rendered.headings.filter((h) => h.line >= base && h.line < end).map((h) => ({ ...h, line: h.line - base })),
+        regions: rendered.regions.filter((r) => r.start < end && r.end > base)
+          .map((r) => ({ kind: r.kind, start: Math.max(r.start, base) - base, end: Math.min(r.end, end) - base })),
+      };
+    }
+    const own = render(el, renderOptions, true);
+    const container = containerOf(el);
+    return {
+      ref,
+      label: `Section: ${container ? `${container.role}${container.name ? ` ${container.name}` : ''}` : roleOf(el) ?? 'element'}`,
+      ...own,
+    };
+  };
+
+  const several = options.roots !== undefined;
+  const scopes: Scope[] = options.roots
+    ? options.roots.map((root) => ('el' in root ? scopeOf(root.el, root.ref)
+      : { ref: root.ref, label: '', lines: [], headings: [], regions: [], error: root.error }))
+    : [options.root ? scopeOf(options.root, registry.assign(options.root)) : { ref: null, label: '', ...rendered }];
+  const kind = options.kind;
+  const find = options.find;
+  const from = several ? 0 : Math.max(0, options.offset);
+
+  /** The arguments that lead back to a place in a scope's text. */
+  const at = (scope: Scope, offset: number): string =>
+    `offset=${offset}${scope.ref !== null ? ` ref=${scope.ref}` : main ? ' main_only=true' : ''}`;
+  /** The nearest heading at or above a line. */
+  const under = (scope: Scope, line: number): string => {
+    let found: Scope['headings'][number] | null = null;
+    for (const h of scope.headings) {
+      if (h.line > line) break;
+      found = h;
+    }
+    return found ? `, under ${found.ref !== null ? `[${found.ref}] ` : ''}${'#'.repeat(found.level)} ${found.text}` : '';
+  };
+  /** Lines by their numbers, which start at 1: from an index up to, not including, another. */
+  const span = (start: number, end: number): string => (end - start === 1 ? `line ${start + 1}` : `lines ${start + 1}-${end}`);
+  const opening = (scope: Scope, what: string): string =>
+    (scope.error ? `=== [${scope.ref}] not read: ${scope.error} ===` : `=== [${scope.ref}] ${scope.label}: ${what} ===`);
+
+  const body: string[] = [];
+  let budget = options.maxChars;
+  /** Something was left out by a limit, and the result says how to get it. */
+  let cut = false;
+  let summary: string;
+  const scoped: string[] = [];
+
+  if (find !== undefined) {
+    let test: (line: string) => boolean;
+    try {
+      test = options.regex ? compilePattern(find) : literalTest(find);
+    } catch (e) {
+      if (e instanceof PatternError) throw new DomError('INVALID_ARGUMENT', `find is not a usable regular expression. ${e.message}`);
+      throw e;
+    }
+    const context = options.contextLines ?? DEFAULT_CONTEXT;
+    const now = options.now ?? Date.now;
+    const deadline = now() + SEARCH_MS;
+    let left = options.maxMatches ?? DEFAULT_MATCHES;
+    let total = 0;
+    let searched = 0;
+    let shown = 0;
+    let full = false;
+
+    for (const scope of scopes) {
+      if (scope.error) {
+        body.push(opening(scope, ''));
+        continue;
+      }
+      const offsets = lineOffsets(scope.lines);
+      let within: ((index: number) => boolean) | undefined;
+      if (kind) {
+        const inside = new Uint8Array(scope.lines.length);
+        for (const region of scope.regions) {
+          if (region.kind === kind) inside.fill(1, region.start, region.end);
+        }
+        within = (index) => inside[index] === 1;
+      }
+      // One more than is shown: the first that is not shown is where to go on.
+      const result = searchLines(scope.lines, test, {
+        from: lineAt(offsets, from), keep: left + 1, budgetMs: Math.max(0, deadline - now()), now, within,
+      });
+      total += result.total;
+      searched += result.searched;
+      if (several) body.push(opening(scope, `${result.total} of ${count(result.searched, ['line matches', 'lines match'])}`));
+
+      const matches = result.lines.slice(0, left);
+      const isMatch = new Set(matches);
+      let printed = 0;
+      for (const block of full ? [] : contextBlocks(matches, context, scope.lines.length)) {
+        const rows: string[] = [];
+        for (let i = block.start; i < block.end && !full; i++) {
+          const row = `${isMatch.has(i) ? '>' : ' '} ${i + 1}: ${clip(scope.lines[i], MAX_FOUND_LINE)}`;
+          // The first matching line is shown whatever the limit: a result with nothing in it helps nobody.
+          if (row.length > budget && shown > 0) {
+            full = true;
+            break;
+          }
+          rows.push(row);
+          budget -= row.length + 1;
+          if (isMatch.has(i)) {
+            shown++;
+            printed++;
+          }
+        }
+        if (rows.length) {
+          body.push(`--- ${span(block.start, block.start + rows.length)}, ${at(scope, offsets[block.start])}${under(scope, block.start)} ---`, ...rows);
+        }
+      }
+      left -= printed;
+
+      const where = several ? ` in [${scope.ref}]` : '';
+      const again = several ? 'call with the same find and' : 'repeat the call with';
+      if (printed < result.total) {
+        cut = true;
+        body.push(`--- ${count(result.total - printed, ['more matching line', 'more matching lines'])}${where} not shown `
+          + `(${full ? 'max_chars' : 'max_matches'}): ${again} ${at(scope, offsets[result.lines[printed]])} ---`);
+      }
+      if (result.stoppedAt !== null) {
+        cut = true;
+        body.push(`--- the search${where} stopped at line ${result.stoppedAt + 1} of ${scope.lines.length} after ${SEARCH_MS} ms: `
+          + `${again} ${at(scope, offsets[result.stoppedAt])} ---`);
+      }
+    }
+    if (!body.length) body.push('(no line matches)');
+    summary = `Find: ${JSON.stringify(find)} (${options.regex ? 'regular expression' : 'literal'}, ignoring case)`
+      + `${kind ? ` in ${NOUNS[kind][1]}` : ''}: ${total} of ${count(searched, ['line matches', 'lines match'])}`
+      + `${from > 0 ? `, searched from offset ${from}` : ''}; ${shown} shown`
+      + `${shown ? ` with ${count(context, ['line', 'lines'])} of context` : ''}`;
+    scoped.push('only the lines that match find, with their context');
+  } else if (kind) {
+    const nouns = NOUNS[kind];
+    const more = (n: number): string => count(n, [`more ${nouns[0]}`, `more ${nouns[1]}`]);
+    let found = 0;
+    let chars = 0;
+    let shown = 0;
+    for (const scope of scopes) {
+      if (scope.error) {
+        body.push(opening(scope, ''));
+        continue;
+      }
+      const offsets = lineOffsets(scope.lines);
+      const all = scope.regions.filter((region) => region.kind === kind);
+      const regions = all.filter((region) => offsets[region.start] >= from);
+      found += regions.length;
+      if (several) body.push(opening(scope, count(regions.length, nouns)));
+      for (const [index, region] of regions.entries()) {
+        const text = scope.lines.slice(region.start, region.end).join('\n');
+        chars += text.length;
+        if (cut) continue;
+        const rest = regions.length - index - 1;
+        if (text.length > budget && shown > 0 && budget < MIN_PIECE) {
+          cut = true;
+          body.push(`--- ${more(rest + 1)} not shown (max_chars): kind=${kind} ${at(scope, offsets[region.start])} ---`);
+          continue;
+        }
+        const piece = text.slice(0, budget);
+        budget -= piece.length;
+        shown++;
+        body.push(`--- ${nouns[0]} ${all.indexOf(region) + 1} of ${all.length}: ${span(region.start, region.end)}, `
+          + `${at(scope, offsets[region.start])}${under(scope, region.start)} ---`, piece);
+        if (piece.length < text.length) {
+          cut = true;
+          body.push(`--- cut by max_chars: the rest of this ${nouns[0]} without kind, at ${at(scope, offsets[region.start] + piece.length)}`
+            + `${rest > 0 ? `; ${more(rest)}: kind=${kind} ${at(scope, offsets[regions[index + 1].start])}` : ''} ---`);
+        }
+      }
+    }
+    if (!body.length) body.push(`(no ${nouns[1]} here)`);
+    summary = `Regions: ${count(found, nouns)}, ${chars} characters in total${from > 0 ? `, from offset ${from}` : ''}; ${shown} shown`;
+    scoped.push(`only ${nouns[1]}`);
+  } else {
+    // Several parts, whole: each gets an equal share of the size limit, and what one leaves goes to the next.
+    let chars = 0;
+    let waiting = scopes.filter((scope) => !scope.error).length;
+    for (const scope of scopes) {
+      if (scope.error) {
+        body.push(opening(scope, ''));
+        continue;
+      }
+      const text = scope.lines.join('\n');
+      const piece = text.slice(0, Math.floor(budget / waiting));
+      waiting--;
+      budget -= piece.length;
+      chars += text.length;
+      const more = piece.length < text.length;
+      if (more) cut = true;
+      body.push(opening(scope, `characters 0-${piece.length} of ${text.length}${more ? ` (continue with ${at(scope, piece.length)})` : ''}`), piece);
+    }
+    const unread = scopes.filter((scope) => scope.error).length;
+    summary = `Regions: ${count(scopes.length, ['ref', 'refs'])}${unread ? `, ${unread} not read` : ''}, ${chars} characters in total`;
+  }
+
+  if (several) scoped.push(`${count(scopes.length, ['region', 'regions'])} only`);
+  else if (options.root) scoped.push('one section only');
+  else if (main) scoped.push('main content only');
+  if (!several && scopes[0].label) head.push(scopes[0].label);
+  const completeness = assess(doc, state, { truncated: cut, scoped: scoped.join(', ') });
+  // Here the way on is not in the header: it stands where something was left out.
+  const line = completeness.line.replace('cut at the size limit: continue as shown above',
+    'cut at a limit: the lines that start with --- or === say how to continue');
+  head.push(summary, scrollLine(doc), line, UNTRUSTED_NOTE, '');
+  return {
+    text: head.join('\n') + '\n' + body.join('\n'),
+    totalChars: scopes.reduce((sum, scope) => sum + scope.lines.join('\n').length, 0),
+    offset: from,
+    truncated: cut,
     completeness: completeness.status,
   };
 }

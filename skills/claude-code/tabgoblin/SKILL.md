@@ -46,6 +46,13 @@ reach another site from it, and you cannot widen it yourself.
 - **Text:** `browser_extract`. On a long page ask for `outline: true` first: it lists the
   sections with a ref and a size each, and `ref` then reads one of them. Otherwise follow the
   "continue with offset" line of a result. `main_only: true` leaves out navigation and footers.
+- **Parts of a long page:** do not read a long log or listing whole to find a few lines in it.
+  `find` returns only the lines that contain a text, with `context_lines` around each
+  (`regex: true` takes it as a pattern); `kind` returns only the `tables`, the `code` blocks or
+  the `articles`; `refs` reads several sections in one call. Every place comes with its line,
+  the heading above it and an `offset`: a plain `browser_extract` with that `offset` reads on
+  from there. When more matches exist than are shown, the last line says with which `offset`
+  to repeat the call. No match is not proof of absence: the completeness line still applies.
 - **Controls:** `browser_snapshot` lists the page with numbered refs like `[12]`.
   `interactive_only: true` lists only what can be operated, `viewport_only: true` only what is
   in view, `ref` one section, `start_line` continues a long one, `diff: true` shows what
