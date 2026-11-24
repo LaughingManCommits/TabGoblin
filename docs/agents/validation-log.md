@@ -3,6 +3,23 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `port-copy-and-0.2.1`: a port in the server's window is copied by a click, and version 0.2.1
+
+Asked for by the owner. On Windows 11 with a display, in a copy of the tree.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 196 tests, 0 skipped, and the 8 of the conformance check on the built jar, which holds the version to the build's. One is new, in `PanelTest`: a click on the port puts its number alone on a clipboard of the test's own, asks the server for nothing, and the label says so for a moment. Three of the window's tests named the line under the title as one label; it is two now |
+| `npm run check` in `chrome-extension` | 212 tests, type-check and build |
+| `cd e2e && node run.mjs` | 103 passed, 0 failed, on the second run. The first had 11 failures: the step in which an agent's server starts again waited 30 seconds in vain, and the steps after it failed with it. The same build passed when run again; the cause was not found |
+| `PanelPictures`, the pictures opened: one agent, and two agents | The port stands where it stood, in the line under the title and as an agent's chip; the foot says 0.2.1 |
+| `git grep -n "0\.2\.0" -- ":!*package-lock.json"` | Only what speaks of the first release: the backlog, the records, the installation guide, and the runbook's example of a tag |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | Pass |
+
+Not run: the editor lab. Not seen: the click in the real window on a desktop, on any system;
+what the pointer and the line under the port look like on hovering, which no picture shows.
+The port is not reached by the keyboard.
+
 ## 2026-11-24, on `collect-late-page`: a list in pages that is swapped in late is collected whole
 
 Found in a smoke test with the real extension, with Explore, on a public site's list of commits:
@@ -274,61 +291,12 @@ imports.
 
 Not run: Windows; the editor lab; the workflows; a real agent by hand.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, security hardening and features for developers
-
-Asked for by the owner as a list of fourteen points. Made from `a06b0ce`. In a container in the
-cloud: Linux, Java 21, Node 22 (the runbook asks for 24), and the container's Chromium, build
-1243, started without its sandbox because the container runs as root. Committed on that
-branch by the session; nothing went to `main`.
-
-Before anything was changed, the same three suites on `a06b0ce`: 151 Java tests, 161 of the
-extension, 95 steps end to end, all passing.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 174 tests, 15 of them skipped for lack of a display (the panel's), and the 8 of the conformance check on the built jar. 23 are new |
-| `npm run check` in `chrome-extension` | 192 tests, with the type-check and the build. 31 are new. The limit for one test file went from 60 to 120 seconds: the worker's file takes about 60 |
-| `cd e2e && node run.mjs`, with `BCMCP_CHROME` set to a script that starts the container's Chromium with `--no-sandbox` | 100 passed, 0 failed. Five steps are new, and one was widened: an agent that only has the owner's name |
-| `npm audit --audit-level=high` in `chrome-extension` and in `e2e` | 0 vulnerabilities |
-| `npm audit --audit-level=high` in `e2e/editors` | 5 advisories, 2 of them high, in fixed versions of editors under test. The CI job lists them and does not fail |
-| `mvn org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom`, and `npm sbom --sbom-format cyclonedx` | a CycloneDX 1.6 file with 24 components for the server, one with 39 for the extension's build tools |
-| both workflow files read as YAML | well-formed; the jobs are named as the pages say |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-What the new tests are about, by where they run:
-
-- **Java:** a process that knows the pairing token and not an agent's key; a key held by two
-  processes; revoking and allowing; the key's file, id and proofs; the policy read from the
-  file, a value that cannot be read, the strict profile's defaults; refusals before anything is
-  sent; what the status says and does not say; the record on disk.
-- **Rules and worker:** a name that gives nothing, with the owner away and there; the policy at
-  the moment of a command, each of its lines; a change between two steps of one command (the
-  tab on another site, the time run out, a pause, a revocation, a lower level, a disconnected
-  agent); an approval used once, and content that changed after the question; twenty commands
-  waiting for a tab; a frame of another site in view; redaction, and its time on a megabyte.
-- **Real browser:** an agent without a key under the owner's name; content changed while the
-  prompt is open; redaction in a snapshot and an extract; a picture refused with a frame in
-  view and taken without; the settings file's policy in force without a restart; `find` on a
-  log of 4,019 lines.
-
-Measured, in the extension's tests under jsdom, on the demo's build log (317,613 characters in
-4,019 lines): read whole it is 27 results with 326,668 characters; `find: "ERROR"` with four
-lines of context is one result with 2,759 characters, with all three errors and their stack
-traces. And, natively, why search does not use the browser's regular expressions: `.*.*.*x`
-took 37 seconds on one line of 1,000 characters; the automaton takes 1 to 3 milliseconds on
-2,000.
-
-Found on the way and mended: the first form of the check on changed content compared after the
-agent's own fills, and refused a form with a group of choices, because filling one choice
-unchecks another; it compares before the fills now. And `HubTest` kept its clients in a list
-that two threads wrote.
-
-Not run: Windows; the editor lab; the two workflows on GitHub; the server's window; `screenshots.mjs`,
-so the documentation's pictures are as they were, and do not show the policy line that the
-popup has when a policy is set; a real agent with a real extension by hand; the download.
-
 ## Earlier, in one line each
 
+- 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (WP-27, security hardening and
+  features for developers, its first part, in a container on Linux): the server 174 tests, 15
+  skipped for lack of a display, and the 8 of the conformance check; the extension 192; end to
+  end 100 of 100 with the container's Chromium.
 - 2026-11-23, on `easy-install`, WP-15 (a download, a setup command, a release by a tag): server
   151 tests and 8 conformance tests, extension 161, end to end 95 of 95, and 95 of 95 again on
   the download's own runtime. The download for Windows was made and used on Windows 11 in a

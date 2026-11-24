@@ -76,7 +76,7 @@ export class McpClient {
     const result = await this.request('initialize', {
       protocolVersion: '2025-06-18',
       capabilities: {},
-      clientInfo: { name: this.name, version: '0.2.0' },
+      clientInfo: { name: this.name, version: '0.2.1' },
     });
     this.notify('notifications/initialized');
     return result;

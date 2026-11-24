@@ -344,6 +344,17 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         };
     }
 
+    /** The port the identity line ends with, or 0 where it names none: the window shows it apart, to be copied by a click. */
+    int identityPort() {
+        return agents.size() == 1 && identity.endsWith("port " + agents.get(0).port()) ? agents.get(0).port() : 0;
+    }
+
+    /** The identity line up to its port, or all of it where it names none. */
+    String identityBeforePort() {
+        int port = identityPort();
+        return port == 0 ? identity : identity.substring(0, identity.length() - ("port " + port).length());
+    }
+
     /** The line of an agent whose server could open no port: the reason is in the box under it. */
     static final String NO_PORT = "Not connected: this server has no port to listen on";
 

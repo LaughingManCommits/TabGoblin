@@ -364,6 +364,7 @@ Adding `--panel` to the agent's registration shows it whenever that agent runs.
 
 | Part | What it shows or does |
 |---|---|
+| The line under the title | Whose server it is, and its port. A click on a port, here or in an agent's row, copies the number to the clipboard |
 | The line with the dot | Whether the extension is connected, and if not, why |
 | Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. A click on a tab or an agent shows its metrics and log lines alone |
 | Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers |
