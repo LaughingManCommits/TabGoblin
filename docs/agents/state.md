@@ -50,6 +50,14 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   proposed, and which ports is the session's choice: all four are the owner's to change.
   **It has not run on a machine with a reserved range,** which is what its acceptance asks
   for: the owner's Windows machine is the place. Committed, and pushed to that branch on the owner's word; no pull request.
+  The owner merged it into `main` on 2026-11-24 (`dec2f8f`), with a repair to one of its
+  tests that failed on Windows only. On that machine the server is started with `--port`, so
+  the fallback itself is still not seen there.
+- Branch `port-copy-and-0.2.1`, made from `main` at `dec2f8f` on 2026-11-24, both asked for by
+  the owner: a click on a port in the server's window copies its number, and the version is
+  0.2.1 in the seven places the runbook names. Committed on the owner's word. Not pushed and
+  not merged. No tag: a release of 0.2.1 is the owner's, and WP-25 (release notes) was filed
+  to come with the next release. The click was not tried in the real window.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 

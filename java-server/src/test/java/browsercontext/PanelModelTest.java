@@ -180,6 +180,9 @@ class PanelModelTest {
         PanelModel named = model(true, false, 0, 0, List.of());
         assertEquals("claude-code", named.agent());
         assertEquals("claude-code  ·  c-1a2b3c4d  ·  port 47821", named.identity());
+        // The window shows the port apart from the rest of the line, to be copied by a click.
+        assertEquals(47821, named.identityPort());
+        assertEquals("claude-code  ·  c-1a2b3c4d  ·  ", named.identityBeforePort());
         PanelModel stuck = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", "Could not listen on any of ports 47821-47828.",
                 false, false, 0, 0, List.of(), NO_CALLS, List.of(new Log.Line(5, "warn", "a line")), UTC);
         assertEquals("Could not listen on any of ports 47821-47828.", stuck.problem());

@@ -260,6 +260,14 @@
     -fx-text-fill: -tg-accent;
     -fx-font-size: 11px;
 }
+/* A port that a click copies: it says so by the pointer and by a line under it. */
+.port {
+    -fx-cursor: hand;
+}
+.port:hover {
+    -fx-underline: true;
+    -fx-text-fill: -tg-accent;
+}
 .chip.state {
     -fx-background-color: -tg-warn-line, -tg-warn-soft;
     -fx-text-fill: -tg-warn;

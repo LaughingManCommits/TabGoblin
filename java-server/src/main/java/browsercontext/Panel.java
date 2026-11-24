@@ -135,6 +135,59 @@ final class Panel {
         }
     }
 
+    /** Where a port's number goes when the user clicks it: the system's clipboard. A port is no secret, and stays there. */
+    static Consumer<String> portClipboard = text -> {
+        var content = new javafx.scene.input.ClipboardContent();
+        content.putString(text);
+        javafx.scene.input.Clipboard.getSystemClipboard().setContent(content);
+    };
+
+    /**
+     * A port as the window shows it, that a click copies: the number alone goes to the clipboard,
+     * and the label says for a moment that it did. Nothing else happens by the click, also where
+     * the label stands in a row that a click chooses.
+     */
+    static final class PortLabel extends Label {
+        private final PauseTransition said = new PauseTransition(Duration.seconds(2));
+        private String idle = "";
+        private int port;
+
+        PortLabel(String... classes) {
+            getStyleClass().addAll(classes);
+            getStyleClass().add("port");
+            setAccessibleRole(javafx.scene.AccessibleRole.BUTTON);
+            setMinWidth(Region.USE_PREF_SIZE);
+            said.setOnFinished(over -> setText(idle));
+            // Pressing is taken here as well, or a row under the label would be armed and chosen.
+            setOnMousePressed(javafx.scene.input.MouseEvent::consume);
+            setOnMouseClicked(javafx.scene.input.MouseEvent::consume);
+            setOnMouseReleased(release -> {
+                release.consume();
+                if (contains(release.getX(), release.getY())) {
+                    copy();
+                }
+            });
+        }
+
+        /** What it shows while nothing was copied just now, and the port a click copies. */
+        PortLabel showing(String text, int port) {
+            this.idle = text;
+            this.port = port;
+            if (said.getStatus() != Animation.Status.RUNNING) {
+                setText(text);
+            }
+            setAccessibleText("Port " + port + ". Copy the number to the clipboard");
+            setTooltip(new Tooltip("Click to copy the port number " + port));
+            return this;
+        }
+
+        void copy() {
+            portClipboard.accept(String.valueOf(port));
+            setText("copied");
+            said.playFromStart();
+        }
+    }
+
     /** The one secret this process may have on the clipboard. Used on JavaFX's thread only. */
     private static Secret onClipboard;
 
@@ -384,6 +437,8 @@ final class Panel {
         private final HBox header = new HBox();
         private final Button minimize = new Button("–");
         private final Label agent = label("", "sub");
+        /** The port at the end of that line, where the line names one: a click copies it. */
+        private final PortLabel agentPort = new PortLabel("sub");
         private final Region dot = new Region();
         private final Label connection = label("");
         private final Label problem = label("", "problem");
@@ -448,7 +503,7 @@ final class Panel {
             minimize.getStyleClass().add("window-button");
             minimize.setTooltip(new Tooltip("Put this window away. The server keeps running."));
             minimize.setAccessibleText("Minimize. The server keeps running.");
-            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), agent), grow(), minimize);
+            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), new HBox(agent, agentPort)), grow(), minimize);
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
@@ -635,7 +690,10 @@ final class Panel {
 
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */
         void show(PanelModel model) {
-            agent.setText(model.identity());
+            agent.setText(model.identityBeforePort());
+            agentPort.setVisible(model.identityPort() > 0);
+            agentPort.setManaged(model.identityPort() > 0);
+            agentPort.showing("port " + model.identityPort(), model.identityPort());
             connection.setText(model.connection());
             dot.getStyleClass().setAll("dot", model.connected() ? "connected" : model.switchedOff() ? "off" : "waiting");
             if (!Objects.equals(shownConnected, !model.switchedOff())) {
@@ -859,7 +917,9 @@ final class Panel {
             name.setMinWidth(Region.USE_PREF_SIZE);
             // Its port while the extension is connected to it, and that it is not while it is not: the
             // row has room for one of the two beside the name and the id.
-            var last = member.connected() ? label(":" + member.port(), "chip") : label("not connected", "chip", "state");
+            // The port is copied by a click on it; the row is chosen by a click anywhere else.
+            Label last = member.connected() ? new PortLabel("chip").showing(":" + member.port(), member.port())
+                    : label("not connected", "chip", "state");
             last.setMinWidth(Region.USE_PREF_SIZE);
             if (!member.connected()) {
                 last.setTooltip(new Tooltip(member.connection()));
@@ -1004,6 +1064,11 @@ final class Panel {
                 button.setText("Copied");
                 copied.playFromStart();
             });
+        }
+
+        /** The port in the line under the title, which a click copies. */
+        PortLabel agentPort() {
+            return agentPort;
         }
 
         /** The button that opens the settings file. */

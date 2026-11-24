@@ -67,7 +67,7 @@ class PanelTest {
             return view.words();
         });
         String all = String.join("\n", words);
-        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d  ·  port 47821",
+        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d  ·  ", "port 47821",
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
@@ -234,6 +234,32 @@ class PanelTest {
     }
 
     @Test
+    void aClickOnThePortCopiesItsNumberAndNothingElse() throws Exception {
+        var system = Panel.portClipboard;
+        try {
+            List<String> seen = inTheWindow(sent -> {
+                // A clipboard of the test's own: the system's is the user's and is not touched here.
+                var clipboard = new String[] {"what the user had"};
+                Panel.portClipboard = text -> clipboard[0] = text;
+                var view = new Panel.View(sent::add);
+                view.show(model(true, false));
+                var steps = new ArrayList<String>();
+                var port = view.agentPort();
+                steps.add(port.getText() + " shown=" + port.isVisible() + " -> " + clipboard[0]);
+                port.copy();
+                steps.add(port.getText() + " -> " + clipboard[0] + " asked=" + sent);
+                // Bringing the view up to date leaves what it says for the moment.
+                view.show(model(true, false));
+                steps.add(port.getText());
+                return steps;
+            });
+            assertEquals(List.of("port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied"), seen);
+        } finally {
+            Panel.portClipboard = system;
+        }
+    }
+
+    @Test
     void theCopyButtonAsksForThePairingTokenAndTheWindowNeverHoldsIt() throws Exception {
         List<String> seen = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
@@ -306,7 +332,7 @@ class PanelTest {
                     false, false, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), List.of(), ZoneId.of("UTC")));
             return view.words();
         });
-        for (String shown : List.of("Agent c-1a2b3c4d  ·  port 47821",
+        for (String shown : List.of("Agent c-1a2b3c4d  ·  ", "port 47821",
                 "Not connected: this server has no port to listen on",
                 Agent.noPort(47821, 0),
                 "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
@@ -413,7 +439,7 @@ class PanelTest {
         }
         assertFalse(empty.note().isEmpty());
         assertFalse(shown.withOne().contains(empty.note()), String.join("\n", shown.withOne()));
-        assertTrue(shown.withOne().contains("claude-code  ·  c-1a2b3c4d  ·  port 47821"));
+        assertTrue(shown.withOne().containsAll(List.of("claude-code  ·  c-1a2b3c4d  ·  ", "port 47821")));
     }
 
     @Test
