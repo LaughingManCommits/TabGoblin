@@ -1599,7 +1599,8 @@ What a setup from before has to know:
 - **What a request for access cannot do.** It can be shown to the user, and a higher level on
   a tab can be given in the popup. A tab on another site is still given by the user's click on
   that tab, which is Chrome's rule and not ours: the popup says so, and offers the request
-  there. The popup does not open by itself for a request; the badge says `?`.
+  there. The popup opens by itself for a request, on the owner's word, with the pause and the
+  order of buttons that a question about a submission has.
 - **What a workspace is not.** It is a name on tabs, kept with the sessions for the browser's
   run. It is not saved over a restart of the browser, has no settings of its own, and is not
   shown in the server's window.

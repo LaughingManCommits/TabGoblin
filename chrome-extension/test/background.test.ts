@@ -28,6 +28,8 @@ const pageLog: string[] = [];
 const waits = new Map<string, (reply: object) => void>();
 /** What a fake page answers to an operation, where a test needs more than an echo. */
 const pageResults = new Map<string, object>();
+/** How often the worker brought the popup up by itself. */
+let popupsOpened = 0;
 /** What the badge on the toolbar was set to, in order. */
 const badges: string[] = [];
 /** Every repeating timer the worker set up, so that a test can let one come round without waiting for it. */
@@ -124,7 +126,7 @@ const fakeChrome = {
   scripting: { executeScript: async () => [{}] },
   action: {
     setBadgeText: async ({ text }: { text: string }) => { badges.push(text); },
-    setBadgeBackgroundColor: async () => undefined, openPopup: async () => undefined,
+    setBadgeBackgroundColor: async () => undefined, openPopup: async () => { popupsOpened++; },
   },
   alarms: { create: async () => undefined, onAlarm: new FakeEvent() },
 };
@@ -1873,8 +1875,11 @@ test('an agent may ask for access, and the user gives it or does not: nothing is
   const reached = pageLog.length;
 
   // A higher level on its own session. The agent is told that the user is asked, and has what it had.
+  const opened = popupsOpened;
   const asked = await ask({ level: 'write', reason: 'to post the fix\nas you said' });
   assert.equal(code(asked), 'ok');
+  // The popup is brought up for it, as for a question about a submission: a request nobody sees runs out.
+  assert.equal(popupsOpened, opened + 1);
   assert.deepEqual([asked.result.asked, asked.result.kind, asked.result.level, asked.result.session], [true, 'raise', 'write', sid]);
   assert.match(asked.result.note, /Nothing is granted yet/);
   assert.equal(code(await one.command('fill', { session: sid, params: { ref: 1, text: 'x' } })), 'WRITE_NOT_AUTHORIZED');
@@ -1889,8 +1894,9 @@ test('an agent may ask for access, and the user gives it or does not: nothing is
   // The agent's status has it as waiting; another agent's has nothing of it.
   assert.deepEqual((await one.command('status')).result.requests, [{ kind: 'raise', level: 'write', origin: 'https://tracker.example', session: sid }]);
   assert.deepEqual((await two.command('status')).result.requests, []);
-  // One request of an agent waits at a time.
+  // One request of an agent waits at a time. What is refused brings no popup up.
   assert.equal(code(await ask({ level: 'read', site: 'https://ci.example' })), 'ACCESS_REQUEST_PENDING');
+  assert.equal(popupsOpened, opened + 1);
 
   // Only the popup answers. A page, another extension, the agent itself: none of them can.
   assert.equal(await popup({ type: 'answerRequest', id: shown[0].id, allow: true }, { id: EXTENSION_ID, url: 'https://tracker.example/', tab: { id: 71 } }), undefined);

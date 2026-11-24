@@ -476,8 +476,9 @@ with its own tabs, and learns nothing of the others in it.
 
 ### When an agent asks for access
 
-An agent that needs more than it has can ask you. The request appears at the top of the
-popup's sessions, and the toolbar badge shows `?`:
+An agent that needs more than it has can ask you. The popup opens by itself with the request at
+the top of its sessions, and the toolbar badge shows `?`. For its first moment the request takes
+no answer, so that a key you were typing into the page does not answer it:
 
 - **A higher level on a tab it has:** *agent asks for Read / Write access in s1, on site*, with
   its reason in quotation marks. **Allow** gives that level; **Deny** leaves everything as it is.

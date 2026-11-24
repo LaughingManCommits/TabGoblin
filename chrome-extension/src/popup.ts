@@ -235,6 +235,9 @@ function renderAgents(s: State): void {
   });
 }
 
+/** The requests whose first moment has not passed. */
+const requestsHeld = new Set<string>();
+
 const LEVELS: Record<Mode, string> = { read: 'Read', explore: 'Explore', write: 'Read / Write' };
 
 /**
@@ -270,8 +273,16 @@ function renderRequests(s: State): void {
       }
       row.append(buttons);
       box.append(row);
+      // One that is still in its first moment stays held when the list is drawn anew.
+      if (requestsHeld.has(asked.id)) for (const button of Array.from(buttons.querySelectorAll('button'))) button.disabled = true;
     }
   });
+  for (const asked of s.requests) {
+    if (requestsShown.has(asked.id)) continue;
+    requestsHeld.add(asked.id);
+    setTimeout(() => requestsHeld.delete(asked.id), ANSWER_DELAY_MS);
+    holdRequest(asked.id);
+  }
 }
 
 function renderSessions(s: State): void {
@@ -566,22 +577,52 @@ const ANSWER_DELAY_MS = 700;
 /** The request the prompt is showing, so that the pause is taken once for each. */
 let promptShown: string | null = null;
 
+/** How many questions are in their first moment right now: while one is, the rest of the popup takes nothing. */
+let holding = 0;
+
+/**
+ * For the first moment of a question nothing else in the popup takes a key or a click. With the
+ * answers held, Tab would go on to the next control, and Enter there would fold a panel or press
+ * a button. Each question has its own moment; the popup is free again when the last has passed.
+ */
+function holdTheRest(): void {
+  const rest = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('main > :not(#confirm), footer')];
+  holding++;
+  for (const part of rest()) part.inert = true;
+  setTimeout(() => {
+    holding--;
+    if (holding === 0) for (const part of rest()) part.inert = false;
+  }, ANSWER_DELAY_MS);
+}
+
 function holdAnswers(id: string): void {
   promptShown = id;
   const answers = [$<HTMLButtonElement>('deny'), $<HTMLButtonElement>('allow')];
   for (const button of answers) button.disabled = true;
-  // For that moment nothing else in the popup takes a key or a click either. With the answers
-  // held, Tab would go on to the next control, and Enter there would fold a panel or press a button.
-  const rest = [...document.querySelectorAll<HTMLElement>('main > :not(#confirm), footer')];
-  for (const part of rest) part.inert = true;
+  holdTheRest();
   // The keyboard goes to the prompt as a whole, which announces it. No key does anything there,
   // and the first stop for Tab from it is Deny.
   $('confirm').focus();
   setTimeout(() => {
     if (promptShown === id) for (const button of answers) button.disabled = false;
-    // Unless another prompt has come up meanwhile and is holding the popup for its own moment.
-    if (promptShown === id || promptShown === null) for (const part of rest) part.inert = false;
   }, ANSWER_DELAY_MS);
+}
+
+/** The requests for access this popup has shown, so that the pause is taken once for each. */
+const requestsShown = new Set<string>();
+
+/**
+ * A request for access that has only just appeared takes no answer either: the popup comes up
+ * by itself for it, as for a submission. Its buttons are held for the same moment, and Deny
+ * comes before Allow.
+ */
+function holdRequest(id: string): void {
+  requestsShown.add(id);
+  const buttons = (): HTMLButtonElement[] => [...document.querySelectorAll<HTMLButtonElement>(`.request[data-request="${id}"] button`)];
+  for (const button of buttons()) button.disabled = true;
+  holdTheRest();
+  // The rows may have been drawn anew by then: the buttons are looked for again.
+  setTimeout(() => { for (const button of buttons()) button.disabled = false; }, ANSWER_DELAY_MS);
 }
 
 function render(): void {

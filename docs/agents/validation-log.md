@@ -26,6 +26,14 @@ been set back, because its allowance per second was reckoned with the time that 
 which was then less than none (`RateLimiter` in `policy.ts`). A test moved the clock and showed
 it.
 
+Afterwards, on the owner's word that a request should open the popup as a question about a
+submission does: the worker brings the popup up for a request that is put to the user, and
+for none that is refused; a request that has only just appeared takes no answer for 0.7
+seconds, with the rest of the popup held for that moment, and Deny before Allow. `npm run
+check`: 205 tests. `node run.mjs`: 102 passed, 0 failed; in it the popup came up by itself in
+the container's Chromium, a click on Allow in the first moment did nothing, and the suite's
+own clicks had to wait for the moment to pass, in two places. The server was not changed by it.
+
 Not run: Windows; the editor lab; the workflows; the server's window, whose new line is in its
 model and its test only; a real agent by hand.
 

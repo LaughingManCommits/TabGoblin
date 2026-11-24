@@ -801,13 +801,21 @@ function askUser(op: Operation, facts: ConfirmFacts): Promise<ConfirmAnswer> {
     pendingConfirms.set(id, { ...facts, id, session: op.sessionId, finish });
     op.finishConfirm = finish;
     refreshBadge();
-    // Best effort: bring the popup up so the request is seen. The "?" badge is the fallback.
-    try {
-      void chrome.action.openPopup().catch(() => undefined);
-    } catch {
-      // not available in this Chrome build or no focused window
-    }
+    bringPopupUp();
   });
+}
+
+/**
+ * Brings the popup up, so that what the user is asked is seen. Best effort: where it cannot be
+ * opened, the "?" on the badge says that something waits. The popup takes no answer in its first
+ * moment, because it takes the keyboard from the page when it comes up by itself.
+ */
+function bringPopupUp(): void {
+  try {
+    void chrome.action.openPopup().catch(() => undefined);
+  } catch {
+    // not available in this Chrome build, or no window has the focus
+  }
 }
 
 /** Puts a submission in front of the user when their setting or its impact calls for it. */
@@ -1543,6 +1551,8 @@ function requestAccess(client: Client, command: CommandMessage): object {
   accessRequests.push(request);
   noteActivity(request.session ?? null, 'An agent asked you for access');
   pushState();
+  // Seen at once, as a question about a submission is: a request nobody sees runs out unanswered.
+  bringPopupUp();
   return {
     asked: true,
     kind: request.kind,

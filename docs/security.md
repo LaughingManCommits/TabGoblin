@@ -175,10 +175,15 @@ it has, or for a tab on another site (`browser_request_access`).
   the same request. What you could not grant is not put to you: a blocked site, a site outside
   the allowed ones, a level above the policy's.
 - Only the popup answers a request. A page, another extension and the agent cannot.
+- The popup opens by itself for a request, as it does for a submission, so that it is seen. It
+  takes the keyboard from the page by that. So that this cannot turn into consent, a request
+  takes no answer for its first 0.7 seconds, the rest of the popup takes no key or click for
+  that moment either, and Deny comes before Allow. A request that is refused outright brings
+  no popup up.
 
 Where it stops: a request is words on your screen, written in part by an agent that a page may
-have misled. Read what is asked, not only the reason. And the popup does not open by itself for
-a request, as it does for a submission: the badge says `?`.
+have misled. Read what is asked, not only the reason. And where Chrome cannot open the popup,
+because no window of it has the focus, the badge alone says `?`.
 
 ## The security policy
 
@@ -456,6 +461,7 @@ Where it stops:
 | A restriction in the settings file that cannot be read refuses every site, and is not taken for none | Java, rules |
 | An agent is told what the policy restricts and never which sites are allowed | Java |
 | Asking for access grants nothing: the session has what it had, no session comes of it, and nothing of a tab on the site asked for is told; only the popup answers; a no stands; one request waits at a time; what the policy rules out is not asked | Rules, worker, Java, end-to-end |
+| The popup is brought up for a request, and for none that is refused; a request that has only just appeared takes no answer, and Deny comes before Allow | Worker, end-to-end |
 | A workspace gives nothing: an agent reaches no tab of another agent in the same workspace, each tab keeps its level, and its buttons do what each tab's own does, for the tabs of that name only | Rules, worker, end-to-end |
 | Refs do not cross documents or sessions; replacements are stale | DOM, end-to-end |
 | Passwords, hidden inputs, scripts, hidden content excluded | DOM, end-to-end |

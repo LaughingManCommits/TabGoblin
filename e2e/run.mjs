@@ -2231,6 +2231,17 @@ try {
     // The popup says who asks, for what, where, and the agent's reason as a quotation. The badge says that the user is asked.
     let popup = await openPopup(page, { fresh: true });
     await popup.waitForSelector('.request');
+    // It has only just appeared: for its first moment it takes no answer, and Deny comes before Allow.
+    const fresh = await popup.evaluate(() => {
+      const buttons = [...document.querySelectorAll('.request button')];
+      const held = buttons.length === 2 && buttons.every((b) => b.disabled);
+      buttons[1]?.click();
+      return { held, order: buttons.map((b) => b.className.includes('deny-request') ? 'deny' : 'allow') };
+    });
+    assert(fresh.held, 'a request that has only just appeared must not take an answer');
+    assert(fresh.order.join() === 'deny,allow', `Deny comes first, not ${fresh.order}`);
+    await popup.waitForFunction(() => [...document.querySelectorAll('.request button')].every((b) => !b.disabled));
+    has(await sessionsOfOne(), 'Access: read only');
     const words = await popup.$eval('.request', (el) => el.innerText.replace(/\s+/g, ' '));
     has(words, `agent-one asks for Read / Write access in ${sA}, on ${demo.originA}.`);
     has(words, 'Its reason: “to post the fix”');
@@ -2241,10 +2252,17 @@ try {
     has(await sessionsOfOne(), 'Access: read only');
     lacks(await sessionsOfOne(), 'Access requested');
     fails(await one.tool('browser_request_access', { session: sA, level: 'write' }), 'ACCESS_REQUEST_DENIED');
-    // Another level, allowed: the session has it, by the user's click.
+    // Another level. The popup is closed, as when the user works in the page: it comes up by itself for the request.
+    await (await findPopup())?.close().catch(() => undefined);
+    await until(async () => !(await findPopup()), 'the popup to close');
+    await page.bringToFront();
     json(await one.tool('browser_request_access', { session: sA, level: 'explore' }));
+    const cameUp = await until(findPopup, 'the popup to come up by itself for a request', 8000).catch(() => null);
+    if (!cameUp) console.log('        (note: this Chrome did not open the popup by itself; the badge is what says so here)');
+    // Allowed: the session has that level, by the user's click.
     popup = await openPopup(page, { fresh: true });
     await popup.waitForSelector('.request .allow-request');
+    await popup.waitForFunction(() => !document.querySelector('.request .allow-request').disabled);
     await popup.click('.request .allow-request');
     await until(async () => (await sessionsOfOne()).includes('Access: explore'), 'the level to be raised by the user');
     lacks(await sessionsOfOne(), 'Access requested');
@@ -2271,6 +2289,8 @@ try {
     popup = await openPopup(pageO, { fresh: true });
     await popup.waitForFunction(() => document.getElementById('authorizeHint').textContent.includes('asked for Read access to this site'));
     assert(await popup.$eval('#newAccess', (el) => el.value) === 'read', 'the level asked for is chosen');
+    // The popup shows the request, so it is held for its first moment: a click in that moment does nothing.
+    await popup.waitForFunction(() => ![...document.querySelectorAll('main > *')].some((part) => part.inert));
     await popup.type('#newWorkspace', 'Bug 512');
     await popup.click('#authorize');
     await popup.waitForFunction(() => document.getElementById('authorizeBox').hidden);
