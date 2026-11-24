@@ -3,6 +3,31 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `collect-late-page`: a list in pages that is swapped in late is collected whole
+
+Found in a smoke test with the real extension, with Explore, on a public site's list of commits:
+`browser_collect` with `next` came back after 312 ms with one page and "the last step showed
+nothing new", while the tab went on to the second page. The site fetches the next list first
+and changes the address and the list only then; a quarter of a second after the click the page
+still showed the one before. Mended: a page that still shows the one before is read again for
+up to three seconds, and once more when it has come to rest. The link is pressed once a page.
+
+| Command | Result |
+|---|---|
+| `npm run check` in `chrome-extension`, in a copy | 209 tests, type-check and build. One part of a test is new: a page that comes two readings late |
+| `cd e2e && node run.mjs`, in a copy | 103 passed, 0 failed. New in the step on collecting: `results.html?soft=1` swaps its list in 0.9 s after the click, and all twelve comments are collected once each. A first run had 12 failures, from a pattern mistyped in the new lines of the suite; the run after it is the one counted |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | Pass |
+
+The same smoke test, on `main` at `9030038` with Explore: status with diagnostics, snapshot
+(in view, with diff), extract with `find` as a pattern and with `kind=tables`, a click on an
+expand control, hover, scroll and navigation on the site worked; a click on a button and a
+navigation to another site were refused.
+
+Not run: the server's tests (no Java source changed) and the editor lab. Not seen: the mended
+collect on the site where the fault was found, since the browser there ran the extension as it
+was built before. Not mended: a plain click on such a link reports `navigated: false` for the
+same reason; a snapshot after it shows the new page.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: the documentation rewritten
 
 Asked for by the owner: the documentation reviewed against the implementation and rewritten for
@@ -360,73 +385,11 @@ machine. Not done: the acceptance as the package has it, a person following the 
 machine with nothing installed, with the minutes counted. Not run on this tree: the editor lab;
 its files are as on `main`.
 
-## 2026-11-23, on `new-token-each-start`: WP-17, built, and cut back to what helps with a pairing
-
-Three things happened on this day, and the entry says what stands at its end.
-
-1. WP-23, the documentation's pictures as SVG, was built and committed on a branch. The owner
-   pushed it and looked from the network it was for: the proxy there holds back SVG as well,
-   by the owner's report. The owner deleted the branch. Nothing of it is in `main`. What the
-   block page names was not read.
-2. WP-17 was built as the owner decided it: a new pairing token at every start of a server.
-   Committed on the owner's word. All suites passed on it: the server's 148 tests and the 8 of
-   the conformance check, the extension's 161, 97 steps end to end, the editor lab with 222 of
-   225; and the real window was read by hand.
-3. Asked whether it had been a necessary feature, the session said no: the token has to stay
-   in its file for the agents' processes, so a new one at every start keeps out no program
-   that runs as the user, and it costs a pairing at every start. The owner had it taken out
-   and kept the rest. Committed on the owner's word, as a second commit; not pushed.
-
-What follows is of the third, the tree as it is. All of it in a copy of the tree, with a jar
-and an extension built there; the session's own server runs from the tree's jar, which was not
-rebuilt.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 146 tests, and the 8 of the conformance check on the built jar. Ten of the 146 are new against `main` |
-| `npm run check` in `chrome-extension` | 161 tests, with the type-check and the build |
-| `cd e2e && node run.mjs` | 95 passed, 0 failed: the steps there were, three of them with more in them. No server of the copy left running |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-What the changed steps of the suite show, with the real jar, real Chrome and the real popup:
-
-- With no browser, the status says that a paired extension finds the server within half a
-  minute and what to do if it is not paired, names `--show-token`, and says nothing of a token
-  that is held.
-- A wrong token pasted into the popup is not taken. The popup says *Paste the server's current
-  token to connect*, and its dot is amber and not red. The status then says that the browser
-  holds a token that is not the server's and what the user has to do, and names no token.
-- After a rotation the agent is told the same, and not that the browser is paired by way of
-  the other agent, whose pairing on the old token is still open at that moment.
-
-By hand, with the built jar started as an agent's program does, on ports and a token file of
-its own, and the window read through UI Automation, with no part of the screen captured:
-
-- A token written to the file before the start is the server's after it: it is kept.
-- With no browser, `browser_status` brings no window up.
-- A program that connects as an extension and answers the challenge with a proof that is none
-  is closed with 4401. The next `browser_status` says that the browser holds another token and
-  that the window is open; the window is there, with *Not paired: the browser has another
-  token*, *Pair the browser with this server* and the button *Copy token*. The token is in no
-  word of the window and not in the status.
-- With `--no-panel` no window comes, and the status names `--show-token`.
-- When the agent's process ended, the server and its window were gone.
-
-The buttons that copy the token were not pressed: they write to the clipboard of the machine.
-
-Looked at, each opened: the window's states as its picture tool draws them, seventeen now. The
-pairing box is in the new one, where a browser came with another token, and in no other: not
-where no browser has come, not where the server has no port, not where it is switched off. The
-picture of the first state is byte for byte `docs/images/server-panel.png` as it is on `main`.
-The popup before pairing and after a refused token, captured from the real popup: the text
-fits. `docs/images/popup-pairing.png` is new; the other pictures show nothing that changed.
-
-Not run on the tree as it is: the editor lab; its files are as on `main`. Not tried: Linux and
-macOS; the owner's own extension after a real rotation; an extension from before this change
-against this server, with real parts.
-
 ## Earlier, in one line each
 
+- 2026-11-23, on `new-token-each-start` (WP-17, a new pairing token at every start, cut back
+  the same day to what helps with a pairing; and WP-23, pictures as SVG, dropped by the owner):
+  all suites passed on what stands, by that entry's count; its text is in the history.
 - 2026-11-22, on `agent-skills` (WP-22, a skill for the tools for each of three agents): the
   server 134 tests, three of them new in `SkillsTest`, which holds the three texts to one
   another, to the server's tools and to the codes the tool reference knows. None of the three

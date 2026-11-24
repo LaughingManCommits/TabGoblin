@@ -35,6 +35,12 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   is described in a release's notes. Whether GitHub's private reporting is switched on for
   the repository was not looked at; the page says what to do if it is not. Release 0.2.0's
   notes link to `docs/installation.md`, which is where it was.
+- Branch `collect-late-page`, made from `main` at `9030038` on 2026-11-24: `browser_collect`
+  with `next` waits for a page that a site swaps in late, where it gave up after a quarter of
+  a second and reported one page. Found in a smoke test on a public site, with the real
+  extension. Committed on the owner's word. Not pushed and not merged. Not yet seen on the
+  site where it was found: the extension has to be built from this branch and loaded again.
+  A plain `browser_click` on such a link still reports `navigated: false`; left as it is.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 

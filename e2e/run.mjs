@@ -707,6 +707,16 @@ try {
     assert(body(paged).filter((line) => line.includes('Review comments')).length === 1, 'the header came again');
     has(paged, 'comment 7: please rename this method');
     assert(page.url() === `${demo.originA}/results.html?page=3`, `it ended on ${page.url()}`);
+    // The same list on a site that swaps it in without a new document, and takes its time: right
+    // after the click the page shows what it showed. Each page is waited for, and none is missed.
+    json(await one.tool('browser_navigate', { url: '/results.html?soft=1' }));
+    const swapped = ok(await one.tool('browser_collect', { next: 'Next', max_steps: 10 })).text;
+    assert(/^Collected: \d+ lines in 3 readings/m.test(swapped), swapped.slice(0, 300));
+    has(swapped, 'Stopped: there is no further page');
+    const late = body(swapped).filter((line) => /comment \d+: /.test(line));
+    assert(late.length === 12 && new Set(late).size === 12, `expected the twelve comments once each: ${late.length}`);
+    assert(page.url() === `${demo.originA}/results.html?soft=1&page=3`, `it ended on ${page.url()}`);
+    json(await one.tool('browser_navigate', { url: '/results.html?page=3' }));
     // A button is not what Explore may press, whatever it is called: it is not followed as a next page.
     fails(await one.tool('browser_collect', { next: 'Resolve all' }), 'WRITE_NOT_AUTHORIZED');
     assert(await page.title() !== 'RESOLVED', 'the button must not have been pressed');
