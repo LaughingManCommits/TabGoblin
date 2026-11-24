@@ -91,8 +91,7 @@ final class Agent {
         boolean listening = bridge != null;
         if (!listening) {
             bridge = new WebSocketBridge(settings.port(), settings.token(), settings.extensionOrigin(), identity.id());
-            startupProblem = "Could not listen on any of ports " + settings.port() + "-"
-                    + (settings.port() + McpMain.PORT_RANGE - 1) + " on 127.0.0.1: too many TabGoblin servers are running.";
+            startupProblem = noPort(settings.port(), answering(settings.port()));
         }
         if (held) {
             bridge.setHeld(true);
@@ -111,6 +110,48 @@ final class Agent {
                 .tools(McpMain.toolSpecs(service, mapper, tap))
                 .build();
         return new Agent(bridge, startupProblem, listening, service, mcp);
+    }
+
+    /**
+     * How many of the ports from {@code first} on have something listening: a connection to it is
+     * taken. A port that could not be listened on and that nothing answers on is not held by a
+     * program: the system keeps it back. The error of the failed listening does not say which it
+     * is; on Windows it says "in use" for both.
+     */
+    static int answering(int first) {
+        int answering = 0;
+        for (int port = first; port < first + McpMain.PORT_RANGE; port++) {
+            try (java.net.Socket probe = new java.net.Socket()) {
+                probe.connect(new java.net.InetSocketAddress(java.net.InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), port), 300);
+                answering++;
+            } catch (java.io.IOException e) {
+                // nobody there
+            }
+        }
+        return answering;
+    }
+
+    /**
+     * Why this agent has no port, as it is said to the agent, in the log and in the window.
+     *
+     * @param answering how many of the ports have something listening on them
+     */
+    static String noPort(int first, int answering) {
+        int last = first + McpMain.PORT_RANGE - 1;
+        String could = "Could not listen on any of ports " + first + "-" + last + " on 127.0.0.1: ";
+        String other = "Start the server with --port and a port that is free, and set the same first port in the "
+                + "extension's popup under Connection.";
+        if (answering >= McpMain.PORT_RANGE) {
+            return could + "all of them are taken, by TabGoblin servers or by other programs. Close agents that are "
+                    + "not used, or: " + other;
+        }
+        String kept = "the system does not give them out. On Windows, a range of ports can be kept back for the "
+                + "system's own networking, as Hyper-V, WSL and Docker have it done; "
+                + "\"netsh interface ipv4 show excludedportrange protocol=tcp\" lists the ranges. " + other;
+        if (answering == 0) {
+            return could + "no program is listening on them, and " + kept;
+        }
+        return could + answering + " of them are taken by programs, and of the rest " + kept;
     }
 
     /**
