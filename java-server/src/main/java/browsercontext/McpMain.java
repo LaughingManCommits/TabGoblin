@@ -54,7 +54,9 @@ public final class McpMain {
             Access levels: Read looks at the current page; Explore also navigates, follows links and expands \
             sections; Write also presses buttons and enters text. A blocked action names the level it needs.
             Reading: browser_extract returns the text of the loaded page whatever the scroll position; follow its \
-            "continue with offset" line, or use outline=true and read one section by ref. Each result states its \
+            "continue with offset" line, or use outline=true and read one section by ref. On a long page, \
+            find returns only the matching lines with the lines around them, and kind only the tables, code \
+            blocks or articles; each place comes with the offset to read on from. Each result states its \
             Completeness: COMPLETE, PARTIAL (collapsed or unread parts remain), TRUNCATED (continue with the \
             given offset), BLOCKED (parts cannot be read) or UNKNOWN (the page may load more when scrolled). \
             Before concluding something is absent, expand, scroll and read again.
@@ -639,13 +641,22 @@ public final class McpMain {
         specs.add(tool(service, mapper, cancellations, "browser_extract", true,
                 "Read the visible content of the page as structured text: headings, paragraphs, lists, tables and "
                         + "nested replies keep their structure, and links carry their ref. Bounded: continue with "
-                        + "offset, or use outline=true to list sections and then ref to read one. States how "
-                        + "complete the result is.",
+                        + "offset, or use outline=true to list sections and then ref to read one. To take the "
+                        + "relevant parts out of a long page (the errors in a log, the tables), use find, which "
+                        + "returns only the matching lines with the lines around them, or kind; refs reads "
+                        + "several sections at once. Every match and region says its line, the offset to read on "
+                        + "from, and the heading above it. States how complete the result is.",
                 schema("", """
                         "max_chars":{"type":"integer","description":"Maximum characters to return (default 12000, max 100000)."}""", """
                         "offset":{"type":"integer","description":"Character offset to continue from (default 0)."}""", """
                         "outline":{"type":"boolean","description":"Return only the section outline (headings with refs and sizes)."}""", """
                         "ref":{"type":"integer","description":"Read only this section: a heading ref from the outline, or a section, list or table ref from a snapshot."}""", """
+                        "refs":{"type":"array","items":{"type":"integer"},"minItems":1,"maxItems":10,"description":"Read several sections in one result, each under its own header, sharing max_chars. A stale ref is reported in its place. Not together with ref, offset or outline."}""", """
+                        "find":{"type":"string","minLength":1,"maxLength":200,"description":"Return only the lines that contain this text (case is ignored), with context_lines around each. Works with ref, refs, main_only and kind; not with outline. With offset, the search starts there."}""", """
+                        "regex":{"type":"boolean","description":"Treat find as a regular expression, tested against one line at a time. Supported: literals, . [ ] classes, \\\\d \\\\w \\\\s \\\\b, ^ $, groups, |, and * + ? {n,m}. Not supported: backreferences, lookaround, and a repetition inside a repeated group."}""", """
+                        "context_lines":{"type":"integer","description":"Lines shown before and after each matching line (default 2, 0-20)."}""", """
+                        "max_matches":{"type":"integer","description":"Matching lines to show (default 20, 1-200). The result says how many match in all and how to get the rest."}""", """
+                        "kind":{"type":"string","enum":["tables","code","articles"],"description":"Return only the regions of this kind, each under a header with its lines and offset: tables, blocks of code or preformatted text, or articles (posts, comments, feed entries). With find, only these are searched."}""", """
                         "main_only":{"type":"boolean","description":"Leave out navigation, banners and footers when the page marks its main content."}""", """
                         "links":{"type":"string","enum":["none","ref","url"],"description":"How links appear: plain text, text with {ref} (default), or with destination and {ref}."}""")));
         specs.add(tool(service, mapper, cancellations, "browser_click", false,

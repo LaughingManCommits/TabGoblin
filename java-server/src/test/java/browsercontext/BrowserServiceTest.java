@@ -41,6 +41,18 @@ class BrowserServiceTest {
         return FakeExtension.JSON.createObjectNode();
     }
 
+    /** Arguments with a list of refs. */
+    private static ObjectNode refs(int... refs) {
+        ObjectNode a = args();
+        for (int ref : refs) {
+            a.withArray("refs").add(ref);
+        }
+        if (refs.length == 0) {
+            a.putArray("refs");
+        }
+        return a;
+    }
+
     private JsonNode lastCommand() {
         return ext.commands.get(ext.commands.size() - 1);
     }
@@ -69,6 +81,31 @@ class BrowserServiceTest {
         assertTrue(lastParams().path("outline").asBoolean());
         assertTrue(lastParams().path("mainOnly").asBoolean());
         assertEquals("url", lastParams().path("links").asString());
+        assertEquals(4, lastParams().path("ref").asInt());
+        // A plain extract carries none of the arguments for parts of a page.
+        for (String name : List.of("find", "regex", "contextLines", "maxMatches", "kind", "refs")) {
+            assertTrue(lastParams().path(name).isMissingNode(), name);
+        }
+
+        service.call("browser_extract", args().put("find", "ERROR").put("main_only", true));
+        assertEquals("ERROR", lastParams().path("find").asString());
+        assertFalse(lastParams().path("regex").asBoolean());
+        assertEquals(2, lastParams().path("contextLines").asInt());
+        assertEquals(20, lastParams().path("maxMatches").asInt());
+        ObjectNode parts = args().put("find", "^\\s+at ").put("regex", true).put("context_lines", 0)
+                .put("max_matches", 200).put("kind", "code").put("max_chars", 500);
+        parts.putArray("refs").add(4).add(9);
+        service.call("browser_extract", parts);
+        assertEquals("^\\s+at ", lastParams().path("find").asString());
+        assertTrue(lastParams().path("regex").asBoolean());
+        assertEquals(0, lastParams().path("contextLines").asInt());
+        assertEquals(200, lastParams().path("maxMatches").asInt());
+        assertEquals("code", lastParams().path("kind").asString());
+        assertEquals(List.of(4, 9), List.of(lastParams().path("refs").get(0).asInt(), lastParams().path("refs").get(1).asInt()));
+        assertTrue(lastParams().path("ref").isMissingNode());
+        // A search goes on from an offset, in the page or in one section.
+        service.call("browser_extract", args().put("find", "x").put("offset", 700).put("ref", 4));
+        assertEquals(700, lastParams().path("offset").asInt());
         assertEquals(4, lastParams().path("ref").asInt());
 
         service.call("browser_click", args().put("ref", 7));
@@ -114,7 +151,7 @@ class BrowserServiceTest {
         service.call("browser_wait_for", args().put("text", "Loading").put("gone", true));
         assertEquals("gone", lastParams().path("condition").asString());
 
-        assertEquals(13, ext.commands.size());
+        assertEquals(16, ext.commands.size());
     }
 
     @Test
@@ -193,6 +230,33 @@ class BrowserServiceTest {
         assertTrue(service.call("browser_navigate", args().put("history", "sideways")).isError());
         assertTrue(service.call("browser_snapshot", args().put("max_lines", 5)).isError());
         assertTrue(service.call("browser_extract", args().put("links", "html")).isError());
+        int sent = ext.commands.size();
+        for (ObjectNode bad : List.of(
+                args().put("find", ""),
+                args().put("find", "x".repeat(201)),
+                args().put("find", 5),
+                args().put("find", "x").put("outline", true),
+                args().put("find", "x").put("context_lines", 21),
+                args().put("find", "x").put("context_lines", -1),
+                args().put("find", "x").put("max_matches", 0),
+                args().put("find", "x").put("max_matches", 201),
+                args().put("regex", true),
+                args().put("kind", "pictures"),
+                args().put("kind", "tables").put("outline", true),
+                args().put("refs", 4),
+                refs(),
+                refs(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
+                refs(4).put("ref", 4),
+                refs(4).put("outline", true),
+                refs(4).put("offset", 10),
+                args().set("refs", args().arrayNode().add("4")))) {
+            BrowserService.ToolResult refused = service.call("browser_extract", bad);
+            assertTrue(refused.isError(), bad.toString());
+            assertTrue(refused.text().contains("INVALID_ARGUMENT"), refused.text());
+        }
+        assertEquals(sent, ext.commands.size(), "a refused call sends nothing");
+        assertTrue(service.call("browser_extract", args().put("find", "x").put("outline", true)).text()
+                .contains("find cannot be combined with outline"));
         assertTrue(service.call("browser_wait_for", args()).isError());
         assertTrue(service.call("browser_wait_for", args().put("text", "a").put("ref", 1)).isError());
         assertTrue(service.call("browser_wait_for", args().put("text", "a").put("timeout_ms", 999_999)).isError());

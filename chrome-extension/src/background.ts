@@ -697,6 +697,8 @@ async function runCommand(op: Operation, action: string, params: Record<string, 
       return page(op, session, 'extract', {
         maxChars: params.maxChars, offset: params.offset, links: params.links,
         outline: params.outline === true, mainOnly: params.mainOnly === true, ref: params.ref,
+        refs: params.refs, find: params.find, regex: params.regex === true,
+        contextLines: params.contextLines, maxMatches: params.maxMatches, kind: params.kind,
       });
     case 'click':
       return click(op, session, params);

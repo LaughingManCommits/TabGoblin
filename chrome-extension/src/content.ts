@@ -2,7 +2,7 @@
 // It answers a fixed set of operations from the background worker. There is no eval, no access to
 // cookies or storage, and nothing here is reachable from page scripts (isolated world).
 
-import { extractPage, type LinkStyle } from './extract.ts';
+import { MAX_ROOTS, extractPage, type ExtractOptions, type LinkStyle, type RegionKind } from './extract.ts';
 import {
   clickElement, describeClickTarget, describeKeyTarget, fill, foreignFramesInView, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
@@ -41,6 +41,21 @@ const submissions = new Map<string, {
 
 function optionalRef(msg: Request, state: PageState): Element | undefined {
   return msg.ref === undefined || msg.ref === null ? undefined : state.registry.resolve(Number(msg.ref));
+}
+
+/** Several refs for one reading: a ref that is stale is reported in its place and does not fail the others. */
+function optionalRefs(msg: Request, state: PageState): ExtractOptions['roots'] {
+  if (!Array.isArray(msg.refs)) return undefined;
+  // One more than is allowed, so that too many are refused and not silently dropped.
+  return msg.refs.slice(0, MAX_ROOTS + 1).map((value) => {
+    const ref = Number(value);
+    try {
+      return { ref, el: state.registry.resolve(ref) };
+    } catch (e) {
+      if (e instanceof DomError) return { ref, error: `${e.code}: ${e.message}` };
+      throw e;
+    }
+  });
 }
 
 interface NavigationApi {
@@ -135,6 +150,13 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         outline: msg.outline === true,
         mainOnly: msg.mainOnly === true,
         root: optionalRef(msg, state),
+        roots: optionalRefs(msg, state),
+        find: typeof msg.find === 'string' ? msg.find : undefined,
+        regex: msg.regex === true,
+        contextLines: typeof msg.contextLines === 'number' ? Math.min(20, Math.max(0, Math.floor(msg.contextLines))) : undefined,
+        maxMatches: typeof msg.maxMatches === 'number' ? Math.min(200, Math.max(1, Math.floor(msg.maxMatches))) : undefined,
+        // One that is not known is refused there.
+        kind: typeof msg.kind === 'string' ? msg.kind as RegionKind : undefined,
       });
     case 'describe':
       return describeClickTarget(registry.resolve(ref));
