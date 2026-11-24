@@ -230,6 +230,12 @@ function renderAgents(s: State): void {
 }
 
 function renderSessions(s: State): void {
+  // What the policy restricts is said above the sessions, whatever tab the popup is opened on.
+  const policy = policyLine(s.limits);
+  $('policyNote').hidden = !policy;
+  $('policyText').textContent = policy;
+  // Under the strict profile the setting for asking is not the user's to loosen here.
+  $<HTMLSelectElement>('askMode').disabled = s.limits.strict;
   rebuild('sessions', [s.sessions, currentTab?.id, s.clients], () => {
     const box = $('sessions');
     box.replaceChildren();
@@ -395,12 +401,7 @@ function renderSessions(s: State): void {
     }
     agent.value = s.clients.length === 1 || (s.limits.strict && s.clients.length) ? s.clients[0].id : '';
   });
-  // What the policy restricts is said where the user gives access.
-  const policy = policyLine(s.limits);
-  $('policyNote').hidden = !policy;
-  $('policyText').textContent = policy;
-  // Under the strict profile the setting for asking is not the user's to loosen here.
-  $<HTMLSelectElement>('askMode').disabled = s.limits.strict;
+
 }
 
 function renderActivity(s: State): void {

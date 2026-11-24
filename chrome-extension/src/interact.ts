@@ -637,7 +637,7 @@ export function foreignFramesInView(doc: Document, depth = 0): number {
   return count;
 }
 
-export type WaitCondition = 'visible' | 'gone' | 'enabled' | 'disabled';
+export type WaitCondition = 'visible' | 'gone' | 'enabled' | 'disabled' | 'changed';
 
 export interface WaitParams {
   text?: string;
@@ -648,12 +648,27 @@ export interface WaitParams {
   signal?: { cancelled: boolean };
 }
 
-/** Bounded wait for a UI condition: visible text, or an element becoming visible, gone, enabled or disabled. */
+/**
+ * What an element shows and is, as one text: for telling that it changed. Its visible text, its
+ * value if it is a field that may be read, and the states a snapshot gives. Nothing of it leaves the page.
+ */
+function shownState(el: Element): string {
+  const field = el as HTMLInputElement;
+  const value = !isSensitiveField(el) && typeof field.value === 'string' ? field.value : '';
+  const states = ['aria-busy', 'aria-expanded', 'aria-selected', 'aria-pressed', 'aria-current', 'aria-invalid', 'aria-valuenow', 'aria-valuetext']
+    .map((name) => el.getAttribute(name) ?? '').join('|');
+  return [norm(visibleText(el)), value, String(isDisabled(el)), String(checkedState(el)), states].join('\u0000');
+}
+
+/** Bounded wait for a UI condition: visible text, or an element becoming visible, gone, enabled, disabled or other than it was. */
 export async function waitFor(doc: Document, registry: RefRegistry, params: WaitParams): Promise<{ satisfied: true; elapsedMs: number }> {
   const needle = params.text ? norm(params.text).toLowerCase() : null;
   const timeoutMs = Math.min(Math.max(params.timeoutMs, 0), 30000);
   const started = Date.now();
   const element = (): Element | null => registry.peek(params.ref as number);
+  // For `changed`: what the element showed when the wait began.
+  const first = element();
+  const was = params.condition === 'changed' && first && isVisible(first) ? shownState(first) : null;
   const met = (): boolean => {
     if (needle !== null) {
       const present = !!doc.body && norm(visibleText(doc.body)).toLowerCase().includes(needle);
@@ -665,6 +680,8 @@ export async function waitFor(doc: Document, registry: RefRegistry, params: Wait
       case 'gone': return !visible;
       case 'enabled': return visible && !isDisabled(el as Element);
       case 'disabled': return visible && isDisabled(el as Element);
+      // Other than it was: its text, its value or one of its states; or it is gone.
+      case 'changed': return !visible || shownState(el as Element) !== was;
       default: return visible;
     }
   };
@@ -676,7 +693,8 @@ export async function waitFor(doc: Document, registry: RefRegistry, params: Wait
     if (met()) return { satisfied: true, elapsedMs: Date.now() - started };
     if (Date.now() - started >= timeoutMs) {
       const what = needle !== null ? 'The text' : `Ref [${params.ref}]`;
-      const wanted = params.condition === 'gone' ? 'was still visible' : `did not become ${params.condition}`;
+      const wanted = params.condition === 'gone' ? 'was still visible'
+        : params.condition === 'changed' ? 'did not change' : `did not become ${params.condition}`;
       throw new DomError('WAIT_TIMEOUT', `${what} ${wanted} within ${timeoutMs}ms.`);
     }
     await new Promise((resolve) => setTimeout(resolve, 200));

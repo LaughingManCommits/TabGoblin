@@ -407,3 +407,31 @@ test('a frame of another site that is in view is counted, so that no picture is 
   assert.equal(foreignFramesInView(doc), 0);
   assert.equal(foreignFramesInView(page('<p>No frame at all</p>').doc), 0);
 });
+
+test('wait_for changed is met when an element shows something else, and not while it stays as it is', async () => {
+  const { doc } = page('<p id="status" role="status">Build running</p><input id="count" aria-label="Count" value="1"><button id="go">Go</button><input id="pw" type="password" aria-label="Password" value="a">');
+  const state = new PageState('d1');
+  const snap = takeSnapshot(doc, state).text;
+  const registry = state.registry;
+  const go = refOf(snap, 'Button: Go');
+  const count = refOf(snap, 'Count');
+  // Nothing changes: bounded, and it says so.
+  await assert.rejects(waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 250 }),
+    (e: unknown) => e instanceof DomError && e.code === 'WAIT_TIMEOUT' && /did not change/.test(e.message));
+  // Its text is another.
+  setTimeout(() => { (doc.getElementById('go') as HTMLElement).textContent = 'Going'; }, 100);
+  assert.equal((await waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  // Its value is another, or one of its states.
+  setTimeout(() => { (doc.getElementById('count') as HTMLInputElement).value = '2'; }, 100);
+  assert.equal((await waitFor(doc, registry, { ref: count, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  setTimeout(() => doc.getElementById('go')?.setAttribute('aria-busy', 'true'), 100);
+  assert.equal((await waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  // It is gone: that is a change too.
+  setTimeout(() => doc.getElementById('go')?.remove(), 100);
+  assert.equal((await waitFor(doc, registry, { ref: go, condition: 'changed', timeoutMs: 2000 })).satisfied, true);
+  // What is typed into a password field is not looked at: a change of it is none here.
+  const pw = refOf(snap, 'Password');
+  setTimeout(() => { (doc.getElementById('pw') as HTMLInputElement).value = 'another'; }, 50);
+  await assert.rejects(waitFor(doc, registry, { ref: pw, condition: 'changed', timeoutMs: 300 }),
+    (e: unknown) => e instanceof DomError && e.code === 'WAIT_TIMEOUT');
+});

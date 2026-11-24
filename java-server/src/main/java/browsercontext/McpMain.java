@@ -722,11 +722,13 @@ public final class McpMain {
                 schema("")));
         specs.add(tool(service, mapper, cancellations, "browser_wait_for", true,
                 "Wait (bounded) for a UI condition: visible text to appear or disappear, or an element ref to become "
-                        + "visible, gone, enabled or disabled. Provide exactly one of text or ref.",
+                        + "visible, gone, enabled or disabled, or to change (its text, value or state is other than "
+                        + "when the wait began: a status that moves on, a counter, a log that grows). Provide exactly "
+                        + "one of text or ref.",
                 schema("", """
                         "text":{"type":"string","description":"Visible text to wait for (case-insensitive substring)."}""", """
                         "ref":{"type":"integer","description":"Element ref to wait for."}""", """
-                        "condition":{"type":"string","enum":["visible","gone","enabled","disabled"],"description":"Default visible."}""", """
+                        "condition":{"type":"string","enum":["visible","gone","enabled","disabled","changed"],"description":"Default visible. changed is for a ref only."}""", """
                         "gone":{"type":"boolean","description":"Same as condition=\\"gone\\"."}""", """
                         "timeout_ms":{"type":"integer","description":"Maximum wait in milliseconds (default 5000, max 30000)."}""")));
         specs.add(tool(service, mapper, cancellations, "browser_submit", false,

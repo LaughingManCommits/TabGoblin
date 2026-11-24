@@ -1,6 +1,6 @@
 # Current state and handoff
 
-Last updated: 2026-11-23. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-24. Claims here go stale; check the date, then `git status` and `git log`.
 
 ## Where the code is
 
@@ -22,6 +22,11 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
   filing of WP-26 is on this branch as well.
   One commit, made on the owner's word. Not pushed and not merged. Whether the longer guides
   get the same is the owner's to say once these two have been read.
+- Branch `claude/tabgoblin-security-features-ncxa9m`, made from `a06b0ce` (the merge of
+  `simpler-front-pages`) on 2026-11-24, in a session that ran in the cloud: WP-27, security
+  hardening and features for developers. Committed there by the session. Whether it is
+  pushed is said in the session's report: a cloud session's files are gone when it ends, and
+  pushing is the owner's. Nothing went to `main`, and no pull request was opened. Not merged. It carries a branch `smart-extract`, merged into it.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -29,6 +34,7 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 
 | Item | Status | Authoritative source |
 |---|---|---|
+| WP-27, security hardening and features for developers | Built on 2026-11-24 for nine of its eleven backlog items, and waits for the owner's review. An agent is known by a key of its own (`--agent`), and no tab passes by a name; a security policy in the settings file, with a strict profile; every step that touches the page checked again; an approval bound to the content shown; redaction; no picture with a frame of another site in view; protocol version 3; search and regions in `browser_extract`; waiting for a change; a record on disk; SBOM and a dependency scan in the workflows. Seven decisions the session took are listed for the owner. Left: collection, hover, workspaces, access requests, the policy in the server's window | [TODO.md](../../TODO.md) |
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
 | WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |
@@ -45,6 +51,18 @@ Last updated: 2026-11-23. Claims here go stale; check the date, then `git status
 | WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
+
+- **WP-27 changes what an existing setup does,** in four ways that its entry lists: the server
+  and the extension have to be of the same release (protocol 3); tabs come back after a restart
+  only to an agent that is named with `--agent`; a screenshot is refused while a frame of
+  another site is in view; and text that looks like a credential reads `[redacted]`.
+- **WP-27 was run on Linux only,** in a container, with Chromium 1243 of the container and Java
+  21: the three suites. Not run: Windows, where the suites are developed; the editor lab; the
+  two workflows, which were read as YAML; the server's window, which has no display there; a
+  real agent with a real extension by hand.
+- **The editor lab's packages carry two advisories of high severity** (`npm audit` in
+  `e2e/editors`): fixed versions of other people's editors, loaded in a test page and never
+  shipped. The new CI job lists them and does not fail on them.
 
 - **Release 0.2.0 is published, and nobody has used it.** Read from GitHub on 2026-11-23: run
   #2 of *Release*, for the tag `v0.2.0` on `fde041c`, succeeded; the release has the three

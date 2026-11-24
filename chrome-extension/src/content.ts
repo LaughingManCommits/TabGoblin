@@ -208,7 +208,7 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         return await waitFor(document, registry, {
           text: typeof msg.text === 'string' ? msg.text : undefined,
           ref: msg.ref === undefined || msg.ref === null ? undefined : ref,
-          condition: (['visible', 'gone', 'enabled', 'disabled'].includes(String(msg.condition)) ? msg.condition : 'visible') as WaitCondition,
+          condition: (['visible', 'gone', 'enabled', 'disabled', 'changed'].includes(String(msg.condition)) ? msg.condition : 'visible') as WaitCondition,
           timeoutMs: Number(msg.timeoutMs) || 5000,
           signal,
         });

@@ -424,8 +424,10 @@ policy allows no screenshots, it answers `SCREENSHOTS_DISABLED`.
 ## browser_wait_for
 
 Exactly one of `text` (case-insensitive substring of the visible text) or `ref`. `condition`:
-`visible` (default), `gone`, and for refs also `enabled`, `disabled`. `timeout_ms` up to 30,000.
-Fails with `WAIT_TIMEOUT`.
+`visible` (default), `gone`, and for refs also `enabled`, `disabled` and `changed`. `changed` is
+met when the element's visible text, its value or one of its states is other than when the wait
+began, or when it is gone: for a status that moves on, a counter, or a log that grows, without
+reading the page again and again. `timeout_ms` up to 30,000. Fails with `WAIT_TIMEOUT`.
 
 ## browser_navigate
 

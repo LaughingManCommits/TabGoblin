@@ -2151,7 +2151,8 @@ try {
 
     // No session more than Read, whatever it was given: this one has Write.
     writeFileSync(settingsFile, 'access.max = read\n');
-    await until(async () => (await one.tool('browser_navigate', { session: sA, url: '/page2.html' })).text.includes('Error [ACCESS_RESTRICTED]'), 'the access level to be capped');
+    await until(async () => (await one.tool('browser_status')).text.includes('access up to Read'), 'the access level to be capped');
+    fails(await one.tool('browser_navigate', { session: sA, url: '/page2.html' }), 'ACCESS_RESTRICTED');
     fails(await one.tool('browser_fill', { session: sA, ref: 1, text: 'x' }), 'ACCESS_RESTRICTED');
     has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
     const popup = await openPopup(page, { fresh: true });

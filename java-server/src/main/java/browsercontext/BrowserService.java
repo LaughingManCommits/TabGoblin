@@ -722,8 +722,8 @@ public final class BrowserService {
             throw new BrowserException("INVALID_ARGUMENT", "Provide exactly one of text or ref.");
         }
         String condition = optString(a, "condition", optBool(a, "gone", false) ? "gone" : "visible");
-        if (!Set.of("visible", "gone", "enabled", "disabled").contains(condition)) {
-            throw new BrowserException("INVALID_ARGUMENT", "condition must be one of visible, gone, enabled, disabled.");
+        if (!Set.of("visible", "gone", "enabled", "disabled", "changed").contains(condition)) {
+            throw new BrowserException("INVALID_ARGUMENT", "condition must be one of visible, gone, enabled, disabled, changed.");
         }
         if (hasText && !condition.equals("visible") && !condition.equals("gone")) {
             throw new BrowserException("INVALID_ARGUMENT", "For text, condition must be visible or gone.");
