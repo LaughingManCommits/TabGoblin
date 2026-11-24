@@ -3,6 +3,32 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `acc8167`: Show me, in the notice in the page
+
+Asked for by the owner: a button in the notice that brings the popup back to a question that
+waits. In the first session's container.
+
+| Command | Result |
+|---|---|
+| `npm run check` in `chrome-extension` | 209 tests, with the type-check and the build. Four are new: the button in the asking state and in no other, a click that is not the user's, what a notice says at rest, and the worker's part |
+| `cd e2e && node run.mjs` | 103 passed, 0 failed. The new step: a question is put, the popup is closed, a click the page makes up opens nothing, the user's click on the button brings the popup back on the question, nothing was sent by it, and the answer is given in the popup |
+| `node notice-pictures.mjs` in `e2e` | 34 pictures; one state is new, the pointer on the button |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+Looked at: the asking state over a light and a dark page and at the narrow width, and the
+working state. The button stands before Pause, in the amber of the state, with its words whole;
+Pause is where it was; the status takes two lines beside the two buttons, and the bar is no
+higher for it. The other states were not opened again: nothing of theirs was changed, and the
+button is not drawn in them.
+
+A run of the suite before this one failed from the step of a restarted server on, with calls
+that got no answer. The container had been started anew in the middle of it: its clock said
+so. The run above was the next one, and was not disturbed.
+
+Not run: the server's tests, which this did not touch; Windows; the button by hand in the
+owner's browser. Not decided, and the owner's: the button's words, and whether it also shows
+for a question that belongs to another tab's session; it does not.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `9b287f0`: a server that has no port says why, and a smoke test
 
 Two sessions. The second, on Windows 11 with a display, found a fault in use and mended what it
@@ -359,55 +385,12 @@ Not run on the tree as it is: the editor lab; its files are as on `main`. Not tr
 macOS; the owner's own extension after a real rotation; an extension from before this change
 against this server, with real parts.
 
-## 2026-11-22, on `agent-skills`: WP-22, a skill for the tools for each of three agents
-
-The owner asked for a folder of skills for Claude Code, Codex and Copilot, "to standards", if it
-adds value; and, asked how, chose three separate skills over one for all. Committed on the
-owner's word; not pushed.
-
-No product code changed. What was added: `skills/` with three skills and a page on where each
-goes, one test, and the pages that point to them.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml test`, in the tree | 134 tests, 3 of them new (`SkillsTest`): the three are the same from "Start with the status" on; each names the server's eleven tools and no other; each names only codes the tool reference sets in code; the front matter has a name that is the folder's and a description within the format's limit |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-Read, not tried: the format (agentskills.io), and where Claude Code, Codex and Copilot look for
-skills and which fields of their own they take, from each one's documentation on 2026-11-22.
-Two of those pages had moved; one was read at its new address. How a local server is added to
-Codex and to Copilot could not be read that day, and the skills do not say it.
-
-Not run for the skills alone: the jar's build and the conformance check, the extension's check,
-the suite end to end and the editor lab; nothing they cover had changed. Not tried: any of the
-three skills in its agent.
-
-**Then, on the owner's word, the command that installs one.** The owner agreed that a skill
-helps only who has it, and chose to have the jar put it in place: `--install-skill claude-code`,
-`codex` or `copilot`. The build takes the three skills into the jar. Committed on the owner's
-word; not pushed.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify`, in a copy of the tree | 136 tests, 2 more of the skills: the jar's files are the repository's, file for file; a skill goes to its agent's place below the home folder, is not written twice, and one that is there and is not this one is left alone unless the user says to replace it. And the 8 of the conformance check on the built jar |
-| `cd chrome-extension && npm run check`, in the copy | type-check clean, 161 tests, build |
-| `cd e2e && npm test`, in the copy | 95 passed, 0 failed |
-| `mvn -B -f java-server/pom.xml test`, in the tree, after one word of a message was changed | 136 tests |
-
-With the jar built in the copy, against a home folder made for the purpose and removed again:
-each of the three skills was written to its place, and each was the repository's, compared
-file by file; run again, nothing was written; with the Claude Code skill's file changed by
-hand, the command left it as it was and ended with code 1; with `--replace` it was
-overwritten; an agent's name for which there is no skill ended with code 2 and the help.
-Mended by reading its own answer: the first line said "Put the skill in …", which reads as
-something the user is asked to do; it says "Installed" now. The owner's own home folder was
-not written to.
-
-Failed on the way: the build file, once. A comment in it named the option, and two dashes end
-a comment there; no test had run until it was reworded.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `agent-skills` (WP-22, a skill for the tools for each of three agents): the
+  server 134 tests, three of them new in `SkillsTest`, which holds the three texts to one
+  another, to the server's tools and to the codes the tool reference knows. None of the three
+  was loaded in its agent.
 - 2026-11-22, on `smoke-fixes` (WP-21, what the first test on the public repository showed):
   the server 131 tests and the 8 of the conformance check, the extension 161, end to end 95 of
   95; the step on the notice takes six pictures of a page kept busy, each measured against the
