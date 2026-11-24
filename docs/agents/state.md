@@ -58,9 +58,11 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   that this is the cause and how to list the ranges, and the window says that it has no port;
   the owner runs with `--port 39821`. What does not exist yet is a way around it without the
   user: it is filed as WP-28, and waits for the owner's decisions.
-- **A real agent has used WP-27 by hand, in part.** With the real extension on Windows: reading,
-  a click on a link, hovering, collecting, a screenshot, and three refusals. Not yet by hand: a
-  submission, a key, a fill that goes through, a request for access, a workspace, a policy.
+- **A real agent has used WP-27 by hand, in part.** With the real extension on Windows and the
+  owner at the popup: reading, a click on a link, hovering, collecting, a screenshot, three
+  refusals, a request for access that was allowed, a fill, Enter in a search field, and a
+  submission that was confirmed. Not yet by hand: a Deny of a question; pause, revoke and
+  disconnect; a workspace; a policy; the notice's **Show me**.
 
 - **WP-27 changes what an existing setup does,** in four ways that its entry lists: the server
   and the extension have to be of the same release (protocol 3); tabs come back after a restart

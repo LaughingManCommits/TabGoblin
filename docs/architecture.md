@@ -460,7 +460,7 @@ pill for each thing it just did. The worker tells the page two things and nothin
 
 | Sent | When | Carries |
 |---|---|---|
-| A state | A command starts (`working`), the user is asked (`asking`), a session is paused or resumed (`paused`, `idle`) | For `working`, what runs, in the words of the activity list |
+| A state | A command starts (`working`), the user is asked about a submission or for a higher level in that tab's session (`asking`), a session is paused or resumed (`paused`, `idle`). When a command ends while a question still waits, the state is `asking` again (`noticeAtRest` in `policy.ts`) | For `working`, what runs, in the words of the activity list |
 | A line | A command ends | The activity list's words for it, and for one that did not run through the short note for its error code (`endedLine` in `policy.ts`) |
 | `off` | The session ends or is suspended, a screenshot is about to be taken, or the setting is switched off | Nothing |
 
@@ -476,10 +476,20 @@ The page keeps the time (`notice.ts`): a line stays four seconds and fades for o
 at most, and the notice leaves the page with its last line when nothing runs. The worker sets
 no timer for it, since it may be asleep by the time a line has to go. Sending is best effort:
 it never injects the content script and never holds up a command. The notice is drawn in a
-closed shadow root, and only its Pause button takes the pointer; a click on Pause counts only
-when the browser marks it as the user's.
+closed shadow root, and only its two buttons take the pointer; a click on either counts only
+when the browser marks it as the user's (`byTheUser` in `notice.ts`).
 
-It is two panes. The bar holds the goblin, the words and Pause; it is one row high whatever
+**The way back to a question.** The popup comes up by itself for a question and is gone at a
+click elsewhere. While the state is `asking`, the bar has a second button, *Show me*, before
+Pause. Its click sends the worker one fixed message, which names nothing; the worker brings the
+popup up if a question waits for the session of the tab the message came from, and does
+nothing otherwise (`indicator-show` in `background.ts`). It answers nothing: the answer is given
+in the popup, which shows what is asked and holds its buttons for a moment. What the page is
+told for it is the state alone, as before: nothing of the question, of what would be sent, or
+of an agent's reason.
+
+It is two panes. The bar holds the goblin, the words, Pause, and while an answer is needed the
+way to the popup; it is one row high whatever
 happens, and it is what stays in the corner. The pills float above it, each as wide as its
 words, with nothing drawn around the two. So what stays is small, and what passes covers no
 more of the page than its own text.

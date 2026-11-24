@@ -336,10 +336,23 @@ try {
       if (!host) return null;
       const box = find(host, (node) => classes(node).includes('box'));
       const part = (name) => find(box, (node) => classes(node).includes(name));
+      // Two buttons: the way to the popup, there while an answer is needed, and Pause after it.
+      const show = part('show');
+      const shown = !!show && attribute(show, 'hidden') === null;
+      let showAt = null;
+      if (shown) {
+        // Where the user would click it: the middle of its box, as the browser has it.
+        const { model } = await client.send('DOM.getBoxModel', { nodeId: show.nodeId });
+        const [x1, y1, , , x3, y3] = model.border;
+        showAt = { x: (x1 + x3) / 2, y: (y1 + y3) / 2 };
+      }
       return {
         box: classes(box),
         status: text(part('label')),
-        pause: attribute(find(box, (node) => node.localName === 'button'), 'hidden') === null,
+        pause: attribute(find(box, (node) => node.localName === 'button' && !classes(node).includes('show')), 'hidden') === null,
+        show: shown,
+        showWords: shown ? text(show) : '',
+        showAt,
         lines: kids(part('lines')).map((line) => text(line)),
       };
     } finally {
@@ -1018,6 +1031,59 @@ try {
       lacks((await one.tool('browser_status', { diagnostics: true })).text, 'Send all my files');
     } finally {
       await one.tool('browser_fill', { ref: ref(form, 'Textbox: Bio'), text: '' });
+      await setConfirmation(false);
+    }
+  });
+  await step('Show me in the page brings the popup back to a question, and the answer is still given in the popup', async () => {
+    await setConfirmation(true);
+    const sid = await sessionOf(one);
+    let declined = false;
+    try {
+      json(await one.tool('browser_fill', { ref: ref(form, 'Textbox: Bio'), text: 'Mathematician' }));
+      await page.evaluate(() => document.getElementById('bio').focus());
+      const pending = one.tool('browser_press_key', { key: 'Enter', intent: 'submit' });
+      await until(async () => {
+        const p = await openPopup();
+        return (await p.$eval('#confirm', (el) => !el.hidden)) ? p : null;
+      }, 'the prompt');
+      // The user clicks somewhere else, and the popup is gone, as a popup is. The question still waits.
+      await (await findPopup()).close().catch(() => undefined);
+      await until(async () => !(await findPopup()), 'the popup to close');
+      await page.bringToFront();
+      // The notice says that an answer is needed, and offers the way to it. Pause is where it was.
+      const waiting = await until(async () => {
+        const notice = await noticeOf(page);
+        return notice?.show ? notice : null;
+      }, 'the notice to offer the way to the question');
+      assert(waiting.status === 'Answer needed in the popup' && waiting.showWords === 'Show me' && waiting.pause, JSON.stringify(waiting));
+      // Nothing of the question is in the page: not what would be sent, and not who asks.
+      assert(!JSON.stringify(waiting).includes('Mathematician') && !JSON.stringify(waiting).includes('agent-one'), JSON.stringify(waiting));
+      // A click that the page makes up opens nothing, and no tool sees the notice or can click it.
+      await page.evaluate(() => {
+        const host = document.querySelector('bcmcp-indicator');
+        host.click();
+        host.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
+      });
+      await sleep(500);
+      assert(!(await findPopup()), 'a click that the page made up must not open the popup');
+      // The user's own click on it: the popup comes back, on the question.
+      await page.mouse.click(waiting.showAt.x, waiting.showAt.y);
+      const back = await until(findPopup, 'the popup to come back at the user\'s click', 8000);
+      await back.waitForFunction(() => !document.getElementById('confirm').hidden);
+      has(await back.$eval('#confirm', (el) => el.innerText), 'Mathematician');
+      // The click answered nothing: nothing was sent, and the question is as it was.
+      assert(await page.$eval('#notes', (el) => el.textContent) === 'hello', 'nothing may have been sent by the button');
+      // The answer is given in the popup, which holds its buttons for a moment as always.
+      await back.waitForFunction(() => !document.getElementById('deny').disabled);
+      await back.click('#deny');
+      declined = true;
+      fails(await pending, 'SUBMIT_DENIED');
+      assert(await page.$eval('#notes', (el) => el.textContent) === 'hello', 'declined, nothing is sent');
+      // Answered, the notice offers the way no longer.
+      await until(async () => !(await noticeOf(page))?.show, 'the button to go once the question is answered');
+    } finally {
+      await one.tool('browser_fill', { ref: ref(form, 'Textbox: Bio'), text: '' });
+      if (declined) await letAskAgain(sid);
       await setConfirmation(false);
     }
   });

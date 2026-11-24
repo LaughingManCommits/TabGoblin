@@ -110,6 +110,10 @@ small bar, and above it a pill for each thing the agent just did.
 - **The bar** says what the agent is doing now ("Agent: Reading page"), that it is idle or
   paused, or that your answer is needed in the popup. It has a **Pause** button. The bar is
   always the same height and stays in its place.
+- **Show me** appears in the bar, before Pause, while your answer is needed: for a submission
+  to confirm, or a higher level the agent asked for in this tab. The popup comes up by itself
+  for such a question and closes when you click elsewhere; **Show me** brings it back. It
+  allows nothing and declines nothing: you answer in the popup, as always.
 - **The goblin** in the bar shows the same at a glance: it glows green, softly and in pulses,
   while the agent works, amber when you are asked, and has its eyes closed when the session is
   paused.
@@ -120,7 +124,7 @@ small bar, and above it a pill for each thing the agent just did.
   last pill. A tab that is only authorized, or paused, has no notice.
 
 The notice is not part of what the agent reads and is in none of its screenshots. Scripts of the
-page can neither read it nor press its button. A click on it anywhere but on **Pause** goes to the
+page can neither read it nor press its buttons. A click on it anywhere but on a button goes to the
 page underneath. It says what the activity list says, never anything of the page or of what was
 typed. Where your system asks for less motion, nothing in it moves, pulses or fades: a pill is
 there and then it is not. You can switch the notice off under *Settings*.

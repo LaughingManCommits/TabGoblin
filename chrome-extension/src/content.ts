@@ -8,7 +8,7 @@ import {
   clickElement, controlNamed, describeClickTarget, describeKeyTarget, fill, foreignFramesInView, hoverElement, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
-import { applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice, whenDrawn, type Notice, type NoticeMount } from './notice.ts';
+import { applyUpdate, byTheUser, mountNotice, noticeUpdateOf, noticeView, paintNotice, whenDrawn, type Notice, type NoticeMount } from './notice.ts';
 import { redactText } from './redact.ts';
 import { DomError, PageState, takeSnapshot } from './snapshot.ts';
 import {
@@ -111,10 +111,12 @@ function showNotice(): void {
     return;
   }
   if (!noticeMount || !noticeMount.host.isConnected) {
-    noticeMount = mountNotice(document, (event) => {
-      // Only a real user click counts; a page cannot produce a trusted event.
-      if (event.isTrusted) void chrome.runtime.sendMessage({ bcmcp: 'indicator-pause' });
-    });
+    // Only a real user click counts; a page cannot produce a trusted event. Pause can only
+    // restrict. The other button asks the worker to bring the popup up, and can do no more:
+    // nothing is answered from inside a page.
+    noticeMount = mountNotice(document,
+      byTheUser(() => void chrome.runtime.sendMessage({ bcmcp: 'indicator-pause' })),
+      byTheUser(() => void chrome.runtime.sendMessage({ bcmcp: 'indicator-show' })));
   }
   paintNotice(noticeMount, view);
   // A little late rather than early: a timer that fires before the moment would find nothing changed.

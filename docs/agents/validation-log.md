@@ -29,8 +29,15 @@ public site. Worked: the status, also with diagnostics, a snapshot, an extract, 
 link, a wait, a navigation back, a hover, a scroll, collecting with `find` (4 readings, 1.1
 seconds), a screenshot without the notice in it. Refused as they should be: a click on a
 button and a fill (`WRITE_NOT_AUTHORIZED`), a navigation to another site
-(`NAVIGATION_BLOCKED`). A typical call took 22 ms in the extension and the page. Not tried: a
-submission, a key, a fill that goes through, a request for access.
+(`NAVIGATION_BLOCKED`). Then, with the owner at the popup: a request for write access, which
+the owner allowed, after which the status said read/write; a fill into a search field, which
+kept its text; Enter in that search field with `intent=submit`, sent without a question, as a
+search is; and a submission with two fields and an expected text, which the owner allowed and
+which came back `CONFIRMED` by content, with three pieces of evidence. It made a real issue in
+the owner's repository, which is open. A typical call took 22 ms in the extension and the page.
+Not seen, since no tool sees the popup: that it came up by itself, and what the request and
+the prompt showed. Not tried: a Deny of either question; pause, revoke and disconnect from the
+user's side; a navigation that suspends the session.
 
 Not run: the extension's check, which neither commit touched; the live window's log with the
 new short line; the editor lab with `BACKGROUND=1`; the workflows.

@@ -6,7 +6,7 @@ import {
   checkAsk, checkClick, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent, isLastingAgent,
-  NO_LIMITS, REQUEST_LASTS_MS, checkAccessRequest, requestKey, requestReason, workspaceName, workspacesOf, askUnder, capMode, checkLimits, endsAt, outsideAllowed, strictest, type Limits,
+  NO_LIMITS, REQUEST_LASTS_MS, noticeAtRest, checkAccessRequest, requestKey, requestReason, workspaceName, workspacesOf, askUnder, capMode, checkLimits, endsAt, outsideAllowed, strictest, type Limits,
   HEARTBEATS_UNANSWERED, badgeFor, serverGone,
   NOTHING_BLOCKED, blockedAmong, blockedBy, checkBlocked, hostOf,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
@@ -723,4 +723,12 @@ test('a clock that is set back does not lock an agent out', () => {
   for (let i = 0; i < 39; i++) assert.equal(limiter.tryTake(1_000_000), true, `command ${i}`);
   assert.equal(limiter.tryTake(1_000_000), false, 'the burst is still the limit');
   assert.equal(limiter.tryTake(1_000_000 + 100), true, 'and it fills up again as time goes on');
+});
+
+test('at rest a tab\'s notice says that it is paused, that an answer is needed, or that the agent is idle', () => {
+  assert.equal(noticeAtRest(false, false), 'idle');
+  assert.equal(noticeAtRest(false, true), 'asking');
+  // Nothing is answered for a session that is paused: that is what it says, also while a question waits.
+  assert.equal(noticeAtRest(true, true), 'paused');
+  assert.equal(noticeAtRest(true, false), 'paused');
 });

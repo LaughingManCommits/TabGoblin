@@ -57,6 +57,11 @@ export interface NoticeView {
   tone: NoticeState;
   /** Pause is offered unless the session is paused already. */
   pause: boolean;
+  /**
+   * The way to the question is offered while the user's answer is needed: the popup, where the
+   * answer is given, closes at a click elsewhere, and this brings it back. It answers nothing.
+   */
+  show: boolean;
   /** What ended, oldest first, so that the newest is next to the status row. */
   lines: { id: number; text: string; mark: NoticeMark; fading: boolean }[];
   /** Nothing runs and the last line is fading: the box goes with it. */
@@ -154,6 +159,7 @@ export function noticeView(notice: Notice | null, now: number): NoticeView | nul
     status: statusText(notice),
     tone: notice.state,
     pause: notice.state !== 'paused',
+    show: notice.state === 'asking',
     // The line that goes with the box fades with it, not twice.
     lines: lines.map((line) => ({ id: line.id, text: line.text, mark: line.mark, fading: goes(line) && !(fading && line === newest) })),
     fading,
@@ -170,7 +176,23 @@ export interface NoticeMount {
   box: HTMLElement;
   lines: HTMLElement;
   label: HTMLElement;
+  /** Opens the popup on the question that waits. There only while one does. */
+  show: HTMLButtonElement;
   pause: HTMLButtonElement;
+}
+
+/** The words on the button that brings the popup back. */
+export const SHOW_LABEL = 'Show me';
+
+/**
+ * A handler that acts only on a click of the user's own. The notice is drawn inside a web page,
+ * and a script of the page can make up a click on anything it can reach; the browser marks only
+ * the user's as trusted. Whatever a button of the notice does goes through this.
+ */
+export function byTheUser(act: () => void): (event: Event) => void {
+  return (event) => {
+    if (event.isTrusted) act();
+  };
 }
 
 const MARK_TEXT: Record<NoticeMark, string> = { ok: '✓', error: '✗', info: '•' };
@@ -244,6 +266,11 @@ const STYLE = ':host{all:initial;position:fixed;right:12px;bottom:12px;z-index:2
   + `button:hover{background:#1d3327;border-color:rgb(${GREEN});color:#c9f5da}`
   + `button:focus-visible{outline:2px solid rgb(${GREEN});outline-offset:2px}`
   + 'button[hidden]{display:none}'
+  // The way to the question: no bars before its word, and the colour of the state it belongs to.
+  + '.show::before{content:none}'
+  + `.show{padding:4px 11px;color:#f3c25c;border-color:rgba(${AMBER},.55);background:#2a2415}`
+  + `.show:hover{background:#3a3118;border-color:rgb(${AMBER});color:#ffe2a3}`
+  + `.show:focus-visible{outline-color:rgb(${AMBER})}`
   + '.fading{opacity:0}'
   // Where the system asks for less motion nothing moves, pulses or fades: a line is there, and then it is not.
   + '@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}.fading{opacity:1}}';
@@ -282,9 +309,10 @@ function goblin(doc: Document): HTMLElement {
 /**
  * Puts the empty notice into the document. Its inside is in a closed shadow root: a page script
  * can see that the element is there and can remove it, and can neither read nor restyle what it
- * says. `onPause` gets the click on Pause; whether it was the user's is for the caller to check.
+ * says. `onPause` gets the click on Pause, and `onShow` the one on the button that brings the
+ * popup back; whether a click was the user's is for the caller to check (`byTheUser`).
  */
-export function mountNotice(doc: Document, onPause: (event: Event) => void): NoticeMount {
+export function mountNotice(doc: Document, onPause: (event: Event) => void, onShow: (event: Event) => void = () => undefined): NoticeMount {
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] => {
     const el = doc.createElement(tag);
     el.className = className;
@@ -304,12 +332,20 @@ export function mountNotice(doc: Document, onPause: (event: Event) => void): Not
   pause.title = 'Pause the agent in this tab';
   pause.setAttribute('aria-label', 'Pause the agent in this tab');
   pause.addEventListener('click', onPause);
-  bar.append(goblin(doc), label, pause);
+  const show = make('button', 'show');
+  show.textContent = SHOW_LABEL;
+  // It opens the extension's popup and does nothing else: the answer is given there.
+  show.title = 'Open the TabGoblin popup, where the question is';
+  show.setAttribute('aria-label', 'Open the TabGoblin popup, where the question is');
+  show.hidden = true;
+  show.addEventListener('click', onShow);
+  // Pause keeps its place at the end of the bar; the way to the question comes before it.
+  bar.append(goblin(doc), label, show, pause);
   // The pills first and the bar last: the pills pile up above it, and the bar stays in the corner.
   box.append(lines, bar);
   root.append(style, box);
   doc.documentElement.append(host);
-  return { host, box, lines, label, pause };
+  return { host, box, lines, label, show, pause };
 }
 
 /** Brings a mounted notice up to a view. A line that is already there is left in its place, so that its fading is not started anew. */
@@ -317,6 +353,7 @@ export function paintNotice(mount: NoticeMount, view: NoticeView): void {
   mount.box.className = `box ${view.tone}${view.fading ? ' fading' : ''}`;
   mount.label.textContent = view.status;
   mount.pause.hidden = !view.pause;
+  mount.show.hidden = !view.show;
   const shown = new Map([...mount.lines.children].map((el) => [(el as HTMLElement).dataset.line, el as HTMLElement]));
   for (const line of view.lines) {
     let el = shown.get(String(line.id));

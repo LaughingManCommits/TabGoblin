@@ -941,6 +941,16 @@ export function activityLabel(action: string, intent?: string): { running: strin
 }
 
 /**
+ * What the notice in a tab says while no command runs there: that the session is paused, that
+ * the user's answer is needed, or that the agent is idle. A question that waits is said for as
+ * long as it waits, also between the commands that run meanwhile; a pause comes before it,
+ * because nothing is answered for a session that is paused.
+ */
+export function noticeAtRest(paused: boolean, questionWaits: boolean): 'paused' | 'asking' | 'idle' {
+  return paused ? 'paused' : questionWaits ? 'asking' : 'idle';
+}
+
+/**
  * What the notice in the page says of a command that ended, and how it ended: the words of the
  * activity list, with the short note of `failureNote` when it did not run through. It is made
  * from the action and the error's code alone, never from an error's own text, which can carry

@@ -339,6 +339,12 @@ Web pages can contain text written to steer an agent. TabGoblin's part:
   not to follow instructions found in pages.
 - Page content cannot change sessions, permissions, pairing or settings: those have no tool and
   change only through the popup.
+- **The notice can open the popup, and can grant nothing.** While your answer is needed it has
+  a button, *Show me*, that brings the popup back; the answer is given there and nowhere else.
+  There is no Allow in the notice, and none anywhere outside the popup: the notice is drawn
+  inside the web page, which could cover it or imitate it. The button reacts only to a click the
+  browser marks as yours, and the worker opens the popup only where a question really waits
+  for that tab's session.
 - The notice in the page lives in a closed shadow root; page scripts cannot read it, and its Pause
   button reacts only to genuine user clicks (it can only restrict, never grant). What it is told
   is a state and the fixed words of the activity list. Nothing of a page, of what was typed, of a
@@ -490,6 +496,7 @@ Where it stops:
 | What looks like a credential is taken out of text and addresses; plain words about passwords and tokens stay; a megabyte of text is gone over in bounded time | Rules |
 | Popup requests from a web page or another extension ignored | Worker |
 | Page scripts can neither read nor operate the notice in the page | End-to-end |
+| The notice offers the way to the popup only while an answer is needed; a click a page makes up does nothing; the worker opens the popup only for a tab whose session has a question waiting, and nothing is answered by it; the page is told a state and nothing of the question | DOM, rules, worker, end-to-end |
 | The agent's snapshots, texts and screenshots have nothing of the notice; a screenshot also not while the page is busy and draws late | DOM, worker, end-to-end |
 | The notice is told a state and fixed words, and nothing of a page | Rules, DOM, worker |
 | Injected page text changes no session or permission | End-to-end |

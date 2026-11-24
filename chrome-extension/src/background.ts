@@ -9,7 +9,7 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent,
+  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent, noticeAtRest,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
   type AccessRequest, type AllowMemory, type AskMemory, type AskMode, type Blocked, type Limits, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
@@ -348,6 +348,33 @@ function setNotice(session: SessionRecord, update: NoticeUpdate): Promise<void> 
   if (update.state !== 'off' && !config.indicator) return Promise.resolve();
   return chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'indicator', origins: session.origins, ...update }, { frameId: 0 })
     .then(() => undefined, () => undefined);
+}
+
+/**
+ * Whether the user's answer is waited for in this session: about a submission of it, or about a
+ * higher level its agent asked for. A request for a tab on another site belongs to no session.
+ */
+function questionWaits(session: SessionRecord): boolean {
+  return [...pendingConfirms.values()].some((c) => c.session === session.id)
+    || waitingRequests().some((r) => r.session === session.id);
+}
+
+/** What a tab's notice says while no command runs there. */
+function atRest(session: SessionRecord): 'paused' | 'asking' | 'idle' {
+  return noticeAtRest(session.paused, questionWaits(session));
+}
+
+/** The sessions whose notice says that an answer is needed because of a request for access: told again when it is gone. */
+const askedForAccess = new Set<string>();
+
+/** Takes "answer needed" out of the notices whose request has been answered or has run out. */
+function settleNotices(): void {
+  for (const id of [...askedForAccess]) {
+    const session = sessionById(id);
+    if (session && questionWaits(session)) continue;
+    askedForAccess.delete(id);
+    if (session) void setNotice(session, { state: atRest(session) });
+  }
 }
 
 // ---------------------------------------------------------------- sessions and authorization
@@ -1444,7 +1471,8 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
     // What ended is said in the page for a few seconds, with how it ended, in the list's own words.
     if (session) {
       void setNotice(session, {
-        state: session.paused ? 'paused' : 'idle',
+        // Paused, idle, or still waiting for the user's answer to something else in this session.
+        state: atRest(session),
         ended: endedLine(command.action, typeof params.intent === 'string' ? params.intent : undefined, code, entry !== null),
       });
     }
@@ -1550,6 +1578,11 @@ function requestAccess(client: Client, command: CommandMessage): object {
   };
   accessRequests.push(request);
   noteActivity(request.session ?? null, 'An agent asked you for access');
+  // The tab it is about says that an answer is needed, and offers the way to the popup.
+  if (session && !session.paused) {
+    askedForAccess.add(session.id);
+    void setNotice(session, { state: 'asking' });
+  }
   pushState();
   // Seen at once, as a question about a submission is: a request nobody sees runs out unanswered.
   bringPopupUp();
@@ -1903,6 +1936,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
         declinedRequests = declinedRequests.filter((d) => Date.now() - d.at < NO_STANDS_MS).concat({ key: requestKey(asked), at: Date.now() });
         noteActivity(asked.session ?? null, 'Request for access declined by you');
       }
+      settleNotices();
       pushState();
       return;
     }
@@ -1939,7 +1973,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       if (session && session.paused) {
         session.paused = false;
         noteActivity(session.id, 'Resumed by you');
-        void setNotice(session, { state: 'idle' });
+        void setNotice(session, { state: atRest(session) });
         pushState();
       }
       return;
@@ -2057,6 +2091,17 @@ chrome.runtime.onMessage.addListener((msg: PopupMessage & { bcmcp?: unknown }, s
     });
     return false;
   }
+  // The notice's other button: the user wants to see the question. The popup is brought up, and
+  // only where a question really waits for that tab's session. Nothing is answered by it: a
+  // content script lives inside a page, and is never trusted with anything that grants.
+  if (msg?.bcmcp === 'indicator-show' && sender.tab?.id !== undefined) {
+    const tabId = sender.tab.id;
+    void ready.then(() => {
+      const session = persisted.sessions.find((s) => s.tabId === tabId);
+      if (session && questionWaits(session)) bringPopupUp();
+    });
+    return false;
+  }
   // Everything else only from this extension's own popup page.
   if (!sender.url?.startsWith(chrome.runtime.getURL('popup.html'))) return false;
   handlePopup(msg).then(
@@ -2070,7 +2115,11 @@ chrome.runtime.onMessage.addListener((msg: PopupMessage & { bcmcp?: unknown }, s
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== 'reconnect') return;
   scan(true);
-  void ready.then(endExpired);
+  void ready.then(() => {
+    endExpired();
+    // A request that ran out unanswered: its tab no longer says that an answer is needed.
+    settleNotices();
+  });
 });
 
 /** Ends every authorization that has run out: by the time the user gave it, or by the policy's limits on how long one lasts. */

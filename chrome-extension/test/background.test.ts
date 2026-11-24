@@ -2021,3 +2021,105 @@ test('a workspace groups tabs under a name and gives nothing: each tab keeps its
   await popup({ type: 'revoke', session: wiki });
   for (const id of [81, 82, 83]) tabs.delete(id);
 });
+
+test('the notice\'s Show me brings the popup up, only where a question waits for that tab, and answers nothing', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  tabs.set(91, { id: 91, url: 'https://forms.example/new', status: 'complete', active: true, windowId: 1, title: 'New' });
+  tabs.set(92, { id: 92, url: 'https://other.example/', status: 'complete', active: false, windowId: 1, title: 'Other' });
+  const sid = (await popup({ type: 'authorize', tabId: 91, mode: 'write', clientId: 'c-one' })).state.sessions.at(-1).id;
+  const quiet = (await popup({ type: 'authorize', tabId: 92, mode: 'read', clientId: 'c-one' })).state.sessions.at(-1).id;
+  /** The button in the page of a tab, pressed by the user: what its content script then sends. */
+  const showMe = async (tabId: number, sender: object = { id: EXTENSION_ID, url: tabs.get(tabId)?.url, tab: { id: tabId } }): Promise<void> => {
+    await popup({ bcmcp: 'indicator-show' }, sender);
+    await sleep(20);
+  };
+  const told = (tabId: number): unknown[] => notices.filter((n) => n.tab === tabId).map((n) => n.state);
+
+  // Nothing waits: the button's message opens nothing, from either tab.
+  let opened = popupsOpened;
+  await showMe(91);
+  await showMe(92);
+  assert.equal(popupsOpened, opened);
+
+  // A submission waits for the user's answer in the first tab. Its page is told that, in a state and no more.
+  pageResults.set('submit_prepare', {
+    target: { readSafe: false, disclosure: false, externalLink: false, submit: 'form', label: 'Save' }, by: 'click', how: 'click',
+    label: 'Save', digest: 'a1-2', preview: [{ field: 'Title', text: 'SECRET DRAFT TITLE' }],
+  });
+  pageResults.set('submit_baseline', { problems: [], baseline: {} });
+  pageResults.set('submit_fire', { dispatched: true });
+  pageResults.set('submit_observe', {
+    expectSeen: false, submittedSeen: false, newAlerts: [], invalidFields: [], newStatuses: ['Saved'], formGone: true, fieldsCleared: false,
+    urlChanged: false, documentChanged: false,
+  });
+  const pending = one.command('submit', { session: sid, params: { ref: 1, submissionId: 'shown' } });
+  await until(async () => (await state()).pendingConfirm !== null, 'the user to be asked');
+  assert.equal(told(91).at(-1), 'asking');
+  const asking = notices.filter((n) => n.tab === 91).at(-1)!;
+  assert.deepEqual(Object.keys(asking).sort(), ['state', 'tab'], 'the page is told a state and nothing of the question');
+  assert.ok(!JSON.stringify(notices).includes('SECRET DRAFT TITLE'));
+  opened = popupsOpened; // the popup came up by itself for the question; the user has closed it since
+
+  // The user presses Show me in that tab: the popup is brought up again. The question is as it was.
+  await showMe(91);
+  assert.equal(popupsOpened, opened + 1);
+  const question = (await state()).pendingConfirm;
+  assert.ok(question && question.session === sid);
+  assert.equal((await state()).sessions.find((x: any) => x.id === sid).lastSubmission, 'PREPARED', 'nothing was sent by it');
+  // The other tab has no question: its button's message opens nothing, though a question waits elsewhere.
+  await showMe(92);
+  assert.equal(popupsOpened, opened + 1);
+  // Not from a tab without a session, not from another extension, and not without a tab.
+  await showMe(93);
+  await showMe(91, { id: 'someotherextension', url: 'https://forms.example/new', tab: { id: 91 } });
+  await showMe(91, { id: EXTENSION_ID, url: 'https://forms.example/new' });
+  assert.equal(popupsOpened, opened + 1);
+  // A page cannot answer through it, whatever it sends along: the message has one meaning.
+  await popup({ bcmcp: 'indicator-show', type: 'confirm', id: question.id, allow: true }, { id: EXTENSION_ID, url: 'https://forms.example/new', tab: { id: 91 } });
+  await sleep(30);
+  assert.ok((await state()).pendingConfirm, 'the question still waits');
+  // It is taken for what it is, a wish to see the question, and the popup comes up once more.
+  assert.equal(popupsOpened, opened + 2);
+  // The answer is given in the popup, as always.
+  await popup({ type: 'confirm', id: question.id, allow: true });
+  assert.equal((await pending).result.state, 'CONFIRMED');
+  assert.equal(told(91).at(-1), 'idle');
+  await showMe(91);
+  assert.equal(popupsOpened, opened + 2, 'answered, there is nothing to show');
+
+  // A request for a higher level waits for the second tab's session: its notice says so too, and offers the way.
+  const before = popupsOpened;
+  assert.equal(code(await one.command('request_access', { session: quiet, params: { level: 'explore', reason: 'SECRET REASON' } })), 'ok');
+  assert.equal(popupsOpened, before + 1, 'the popup comes up by itself for the request');
+  await until(() => told(92).at(-1) === 'asking', 'the tab to be told that an answer is needed');
+  assert.ok(!JSON.stringify(notices).includes('SECRET REASON'), 'the agent\'s reason is not put into a page');
+  // A command that runs meanwhile ends, and the notice says again that an answer is needed.
+  assert.equal(code(await one.command('snapshot', { session: quiet })), 'ok');
+  await until(() => told(92).at(-1) === 'asking', 'the notice to say again that an answer is needed');
+  await showMe(92);
+  assert.equal(popupsOpened, before + 2);
+  await showMe(91);
+  assert.equal(popupsOpened, before + 2, 'the request is not the first tab\'s');
+  // Answered in the popup: the level is the user's to give, and the notice is at rest again.
+  const request = (await state()).requests[0];
+  await popup({ type: 'answerRequest', id: request.id, allow: false });
+  await until(() => told(92).at(-1) === 'idle', 'the notice to be at rest again');
+  assert.equal((await state()).sessions.find((x: any) => x.id === quiet).mode, 'read');
+  await showMe(92);
+  assert.equal(popupsOpened, before + 2);
+
+  // A session that is paused says so, and not that an answer is needed.
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 6 * 60_000;
+    await popup({ type: 'pause', session: quiet });
+    assert.equal(code(await one.command('request_access', { session: quiet, params: { level: 'explore' } })), 'ok');
+    assert.equal(told(92).at(-1), 'paused');
+  } finally {
+    Date.now = realNow;
+  }
+
+  for (const op of ['submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  for (const id of [91, 92]) tabs.delete(id);
+});
