@@ -3,6 +3,38 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `9b287f0`: a server that has no port says why, and a smoke test
+
+Two sessions. The second, on Windows 11 with a display, found a fault in use and mended what it
+says; the first, in its container, ran what the second had left for the mending. What the
+second session ran is as it reported it.
+
+**The fault.** The server's window said that it could not listen on any of ports 47821 to
+47828 because too many servers were running, and the popup said *Disconnected*. No other
+server ran, and nothing listened there. Windows had kept the range 47749 to 47848 back for its
+own networking, as Hyper-V, WSL and Docker have it done, out of the dynamic range, which on
+that machine begins at 1024. A plain Node program was refused on the same ports and opened
+39821. Java says *Address already in use* for a port that is kept back as for one that is held.
+The owner runs with `--port 39821` and the same first port in the popup since.
+
+| Where | Command | Result |
+|---|---|---|
+| Windows, second session | `mvn test`, at `8b7656d` | 184 passed |
+| Windows, second session | `PanelPictures` | the window's state without a port was drawn and looked at |
+| Container, first session | `xvfb-run -a mvn -B -f java-server/pom.xml verify`, at `9b287f0` | 184 tests, none skipped, and the 8 of the conformance check on the built jar |
+| Container, first session | `cd e2e && node run.mjs`, at `9b287f0` | 102 passed, 0 failed |
+
+**By hand, on Windows, with the real extension** at protocol 3 and Explore access on a tab of a
+public site. Worked: the status, also with diagnostics, a snapshot, an extract, a click on a
+link, a wait, a navigation back, a hover, a scroll, collecting with `find` (4 readings, 1.1
+seconds), a screenshot without the notice in it. Refused as they should be: a click on a
+button and a fill (`WRITE_NOT_AUTHORIZED`), a navigation to another site
+(`NAVIGATION_BLOCKED`). A typical call took 22 ms in the extension and the page. Not tried: a
+submission, a key, a fill that goes through, a request for access.
+
+Not run: the extension's check, which neither commit touched; the live window's log with the
+new short line; the editor lab with `BACKGROUND=1`; the workflows.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: the server's window names a security policy
 
 After the entry below, whose session saw two things in the window and left them: the policy
@@ -367,148 +399,16 @@ not written to.
 Failed on the way: the build file, once. A comment in it named the option, and two dashes end
 a comment there; no test had run until it was reworded.
 
-## 2026-11-22, on `smoke-fixes`: WP-21, what the first test on the public repository showed
-
-The owner made the repository public and asked for a basic test through TabGoblin with Explore
-access; then showed a picture of the server's window and asked whether its metrics look good;
-then: "do the fixes please". Committed on the owner's word; not pushed.
-
-**The test, in the owner's Chrome, with the build of `main` as merged.** One session on the
-repository's pages, Explore. Worked: status with diagnostics, snapshot, extract (whole, outline,
-one section), navigation by address and back, a click on a link and on a tree item, scroll,
-wait, a navigation key, screenshot. Refused, as they must be: a fill, a click on a plain button
-and a typed character (`WRITE_NOT_AUTHORIZED`), a navigation to another site
-(`NAVIGATION_BLOCKED`), a ref from an earlier page (`STALE_REF`). Nothing was changed on GitHub.
-
-**Three faults, and how each was pinned down before it was mended.**
-
-- *The notice in a screenshot.* Six screenshots in the owner's Chrome: the two taken about ten
-  seconds after a page had loaded had the notice in the corner, three taken later did not, and
-  one was taken after the notice had gone by itself. Then on the build as it was, in the
-  suite's Chrome, with a script that puts the notice on the page and takes the picture at
-  once: on a quiet page the notice was in 0 of 12 pictures, with the page kept busy in 4 of 12.
-  The same script on the build with the fix: 0 of 20 busy and 0 of 20 quiet; and in a visible
-  Chrome 0 of 10 busy and 0 of 10 quiet. A visible Chrome was not measured before the fix.
-- *The log that stood still.* Read from the owner's real window: nine lines, ending before the
-  test, scrolled to the top. On the build as it was, in a real window on ports of its own, with
-  an agent whose calls each write a line: untouched, the log followed, also while the window
-  was put away and after it came back (37, 67, 97, 127 lines, at its end each time). So it
-  holds only when someone has scrolled up or marked text, as the user guide says. With the
-  fix, in a real window: text marked through the accessibility interface, thirty calls later
-  the log stood at 37 lines, its corner said *held while you read* and the button *30 newer
-  lines*; the button pressed, it had 67 lines and no button; thirty calls later 97.
-- *The metrics.* The window's four shares were the status tool's own, 98, 0, 2, 0 over 50
-  calls, with a longest pause of 346 seconds in them. With the fix the real window had, over 33
-  calls of a script, *share* and *per call* over the numbers and 70% with 124 ms for the agent.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 131 tests, 5 of them new, and the 8 of the conformance check on the built jar |
-| `cd chrome-extension && npm run check` | type-check clean, 161 tests, 1 of them new and one longer, build |
-| `cd e2e && npm test` | 95 passed, 0 failed. The step on the notice takes six pictures of a page kept busy now, each measured against the page without the notice |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-All of it in a copy of the tree with a jar built there, on the final sources, in one run.
-
-The picture tool drew sixteen states, one of them new: the log held. Opened and looked at: the
-first, the low screen, a tab chosen, and the new one. Mended by looking: the new button took
-the general button's look and height and left the log two lines; and the line over the
-metrics' numbers took the log's room, so the window is 24 pixels higher.
-`docs/images/server-panel.png` is the first drawing, byte for byte.
-
-Not run: the editor lab; nothing it covers changed. Not tried: a screenshot of a tab whose
-window is covered or minimized; the owner's own Chrome and window with these fixes; Linux and
-macOS. Read on GitHub and not acted on: CI's runs #15 to #20 did not start, with a message about
-the account's billing.
-
-## 2026-11-22, on `blocked-sites`: WP-20, sites that no agent may work on
-
-The owner: "deny URL domain basically we can created blocked sites, this should be properties,
-any action tried on site is blocked by the mcp server", and, from options: an entry is a domain
-with its subdomains; the block shows in the server's answer, the popup and the window; a file
-that cannot be read refuses everything. Built on a branch made from `one-server`, and
-committed there on the owner's word; not pushed.
-
-All of the following on the final sources, in a copy of the tree with a jar built there.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 126 tests, 17 of them new, and the 8 of the conformance check on the built jar |
-| `cd chrome-extension && npm run check` | type-check clean, 160 tests, 4 of them new, build |
-| `cd e2e && npm test` | 95 passed, 0 failed. The new step: a second tab on the demo site under `localhost`, which is another host than `127.0.0.1`; the site written into the settings file while the server runs; nine tools refused there with `SITE_BLOCKED`, the tab not moved; the other tab working, and a navigation from it to the blocked host refused; the status naming the blocked session; the popup marking it, and offering nothing on a new tab of that site, checked as drawn and not as marked; the site taken off the list and the same session working; a mistake in the file refusing both sessions, the popup saying so once; the file mended |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-The suite was run four times. What the earlier runs showed:
-
-- **Run 1, 94 and the new step failed:** the popup's sentence named the tab's address with its
-  scheme and port, and the step expected the host. The sentence was the fault: no list has an
-  address in it. It names the host now, and the entry that blocks it where that is a domain
-  above it.
-- **Run 2, the new step passed and the step behind it failed:** the diagnostics step looks for
-  one old operation among the recent ones, and the new step's many snapshots had pushed it out.
-  No fault of the product; the new step stands behind that one now. The same run's list showed
-  the extension refusing for up to a second after a site was taken off the list, because the
-  server had read the file and not told it yet. The server tells it ahead of the next command
-  now.
-- **Run 3, 95 of 95.** Then the look below found three things in the popup and the window, and
-  they were mended.
-- **Run 4, 95 of 95,** on what is in the tree.
-
-Found by reading, by no run: a list sent right behind the pairing answer would have made an
-extension from before this change close the connection, every time, since it takes a message it
-does not know for a failed pairing while it still checks the server's proof. The list is sent
-after the extension's first word as a paired one. A test of the server alone holds that; an
-older extension was not run against it.
-
-The picture tool drew fifteen states, two of them new: sites blocked with a tab on one, and a
-settings file with a mistake. Opened and looked at: those two, the first, and the low screen.
-Mended by looking: the new row had left the log two lines, so the window is 40 pixels higher;
-and the sentence on a mistake took three lines, and takes two. `docs/images/server-panel.png`
-is the first drawing, byte for byte.
-
-By hand, with real parts on Windows and Java 21: the jar from the copy as an agent's program
-starts it, with `--panel`, on ports of its own; the suite's Chrome with the built extension;
-the demo site. The popup was pictured in five states and each picture opened. The server's real
-window was read and pressed through the accessibility interface.
-
-- A tab authorized on `localhost`, then `localhost` written into the settings file: the agent's
-  next snapshot there answered `SITE_BLOCKED` with that host and nothing else of the list. The
-  popup marked the session and said why in its row. The window marked the tab *blocked*.
-- A tab on the blocked site without a session, and one on `app.localhost`: the popup had a
-  statement and nothing to press. **The first pictures showed the two selects for access and
-  duration still drawn** under the statement, though the code hid them: the row's own layout
-  beat the hidden mark. Mended, and the suite's step now checks what is drawn.
-- The window's line read "bank.example, intranet.example and 1 more", and the one more was the
-  entry that blocked the tab in view. Entries that block a tab come first now; the real window
-  then read "localhost, bank.example and 1 more".
-- **Edit**, pressed in the real window: a text editor started on the settings file of that
-  server. It was Notepad; its window was closed again by its own close command.
-- A mistake written into the file (`local_host`): the agent's calls answered
-  `SETTINGS_UNREADABLE`, the status began with it, the window said in its amber box which
-  entry is no domain, and both tabs were marked. The popup said it three times, in each row
-  and in a box; it says it once now, above the rows. The file written whole again: the window
-  showed the list at once, without anything restarted.
-- After the look no server and no editor from it was left running.
-- The first three pictures of the popup showed it twice, one above the other, and the owner
-  asked why. They had been taken as whole pages. Reproduced afterwards with the built extension
-  in Chrome: one masthead in the popup's page, counted before and after; pictured as the popup
-  shows it, one; pictured as a whole page, of 844 pixels with a window of 510, the image starts
-  again with the popup's header about 586 pixels down, in place of the rest of the content.
-  Scrolled as a person scrolls it, to the middle and to the bottom, the popup's window showed
-  Sessions, Activity and Settings and no header: it is not pinned and had scrolled out of view.
-  So the popup has one header, and the fault is in that kind of picture. Where in Chrome or
-  in the tool that drives it was not traced. The same popup laid out in an ordinary tab and
-  pictured whole, as `screenshots.mjs` does it, showed it once at its full length. The look's
-  later pictures are of the popup's own view. In the repository no script pictures the popup
-  as a whole page, and the two full-length pictures in `docs/images` were opened: one header
-  each. The runbook says how to picture the popup, and the development page points to it.
-
-Not run: the editor lab; nothing it covers changed. Not tried: **Edit** on Linux and macOS;
-this server with an extension from before this change; the owner's own Chrome and agent with
-this build; a list of hundreds of entries.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `smoke-fixes` (WP-21, what the first test on the public repository showed):
+  the server 131 tests and the 8 of the conformance check, the extension 161, end to end 95 of
+  95; the step on the notice takes six pictures of a page kept busy, each measured against the
+  page without the notice.
+- 2026-11-22, on `blocked-sites` (WP-20, sites that no agent may work on): the server 126
+  tests, 17 of them new, and the 8, the extension 160, end to end 95 of 95 with a new step: a
+  second tab on the demo site under `localhost`, the site written into the settings file while
+  the server runs, and the tools refused there with `SITE_BLOCKED`.
 - 2026-11-22, on `one-server` (WP-19, one server for all agents, and a click on a tab): the
   server 109 tests, 17 of them new, and the 8 of the conformance check through the pipe and the
   server it starts; the extension 156; end to end 94 of 94 with both agents through one server,

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Fifteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Sixteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -32,7 +32,9 @@ release notes that say what changed; it is to come with the next release, and is
 WP-26, filed the same day, is access that ends by itself when it is not used; it is not
 started. WP-27, asked for on 2026-11-24, is security hardening and developer features in
 fourteen points, in three priorities; its entry has the gap analysis, the backlog, what was
-built and what was left. New work gets the next number, WP-28.
+built and what was left. WP-28, filed on 2026-11-24, is the ports that Windows can keep back, so
+that no server has one; what it says is mended, and a way around it is proposed and not
+started. New work gets the next number, WP-29.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1622,3 +1624,75 @@ What a setup from before has to know:
   against another (keys, token and settings have the protection of the home folder); a secret
   of no known shape; text typed without a submission under the strict profile; a page that
   changes something on a plain link.
+
+## WP-28: Ports that the system keeps back
+
+Found by the owner's second session on 2026-11-24, in use on Windows 11. Goal: a machine on
+which Windows has reserved the server's ports still gets a working TabGoblin without the user
+having to find out why, pick a port and set it in two places.
+
+### What happens today
+
+- **The server takes the first free port of eight from a fixed first one,** 47821 unless
+  `--port` or `BCMCP_PORT` says otherwise (`Agent.serve`), and the one server listens for the
+  agents' processes on the port after those eight (`Link.port`). The extension looks at the
+  same eight ports from the first port in its settings (`scan` in `background.ts`).
+- **Windows can keep a range of ports back** for its own networking, as Hyper-V, WSL and
+  Docker have it done. It takes them in blocks of a hundred from the dynamic range, anew at a
+  start. By default that range begins at 49152; on the owner's machine it begins at 1024, so a
+  block can lie anywhere. That day it was 47749 to 47848: all nine of TabGoblin's ports.
+- **A port that is kept back cannot be told from one that is held** by what Java says. Since
+  `1b4d35a` the server counts which of the eight answer a connection, and says from that whether
+  they are taken, kept back, or some of each, with the command that lists the ranges; since
+  `8b7656d` the window says that the server has no port, and the log has one short line.
+- **The way out is the user's:** start the server with `--port` and another first port, in each
+  agent's settings, and set the same first port in the popup under *Connection*.
+
+### What it runs into
+
+- **The extension cannot be told a port.** It finds a server only by trying addresses: it has
+  no file to read and nobody to ask. So whatever the server falls back to has to be a port the
+  extension tries by itself.
+- **No port is safe** on a machine whose dynamic range begins at 1024: any block may be taken at
+  the next start. A second fixed range lowers the chance of both being gone; it does not end it.
+- **Everything hangs on one first port:** the agents' eight, and the port of the one server
+  after them. A fallback has to move all nine together, and every agent's process has to find
+  the server on the same one.
+- **Each port the extension tries and finds nobody on** is a failed connection, every half
+  minute while no server is found.
+
+### Proposal
+
+1. **A short list of first ports that both sides know,** two or three, far apart: the one of
+   today first. The server takes the first of them on which it can listen at all; the process
+   an agent starts looks for the server on each in turn before it starts one; the extension
+   looks at each range, and stays with the one where it found a server.
+2. **`--port` and the popup's field stay,** and mean what they mean now: one first port, and no
+   list. A setup that names a port is not changed by this.
+3. **The message keeps the command** that lists the reserved ranges, and adds the one that
+   keeps a range for TabGoblin, for whoever may run it as an administrator: a range that an
+   administrator has excluded is not given to the system's own networking. To be tried on a
+   machine before it is written into a page: it is from memory.
+4. **The status says which first port is in use** when it is not the first of the list, so
+   that an agent can tell the user.
+
+### Decisions for the owner
+
+1. Whether a fallback is wanted at all, or the message and `--port` are enough.
+2. Which first ports, and how many. More of them make it likelier that one is free, and make
+   the extension try more addresses where no server runs.
+3. Whether the extension tries all ranges every time, or the others only when the first has
+   nobody (proposal: the others only then).
+4. Whether the first port of today stays the first of the list (proposal: yes, so that nothing
+   changes for a machine where it works).
+
+### Tasks and acceptance
+
+Per the task map: "Change how the one server and the agents' processes find, prove and leave
+each other" and "Change sessions, pairing or the connection". Tests: a server that cannot
+listen on the first range takes the second, and its agents' processes find it there (`HubTest`,
+with a range made unusable by holding it); the extension finds a server on the second range and
+does not go on trying the first while it has one (`test/background.test.ts`); end to end with
+the first range held by another program. Acceptance, on a Windows machine with the first range
+reserved: an agent is started without `--port`, the popup is left as it is, and
+`browser_status` says connected. The tool's text changes where the status names the port.

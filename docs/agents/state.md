@@ -33,6 +33,7 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
 
 | Item | Status | Authoritative source |
 |---|---|---|
+| WP-28, ports that the system keeps back | Filed on 2026-11-24, not started. The message is mended and merged; a way around a reserved range is proposed, and four decisions wait for the owner | [TODO.md](../../TODO.md) |
 | WP-27, security hardening and features for developers | Built on 2026-11-24 for all eleven of its backlog items, and waits for the owner's review. Pushed to its branch on the owner's word; not merged, and not to be merged to `main` by a session. An agent is known by a key of its own (`--agent`), and no tab passes by a name; a security policy in the settings file, with a strict profile; every step that touches the page checked again; an approval bound to the content shown; redaction; no picture with a frame of another site in view; protocol version 3; search and regions in `browser_extract`; waiting for a change; three new tools, `browser_collect`, `browser_hover` and `browser_request_access`, which makes fourteen; workspaces; a record on disk; SBOM and a dependency scan in the workflows. Seven decisions the session took are listed for the owner. Left: what its entry lists under "Left, and why", none of it started work | [TODO.md](../../TODO.md) |
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
 | WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
@@ -50,6 +51,16 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
 | WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
+
+- **The default ports can be kept back by Windows, and then no server has a port.** Found on
+  the owner's machine on 2026-11-24: Windows had the range 47749 to 47848 reserved for its own
+  networking, which holds the server's eight ports and the one after them. The server now says
+  that this is the cause and how to list the ranges, and the window says that it has no port;
+  the owner runs with `--port 39821`. What does not exist yet is a way around it without the
+  user: it is filed as WP-28, and waits for the owner's decisions.
+- **A real agent has used WP-27 by hand, in part.** With the real extension on Windows: reading,
+  a click on a link, hovering, collecting, a screenshot, and three refusals. Not yet by hand: a
+  submission, a key, a fill that goes through, a request for access, a workspace, a policy.
 
 - **WP-27 changes what an existing setup does,** in four ways that its entry lists: the server
   and the extension have to be of the same release (protocol 3); tabs come back after a restart
