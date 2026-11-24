@@ -415,6 +415,10 @@ final class Panel {
         private final Region knob = new Region();
         private final Label browserHint = label("", "hint");
         private final Label blockedHint = label("", "hint");
+        /** Over the two lines: it names the security policy as well while one is in force. */
+        private final Label blockedTitle = label("Blocked sites", "strong");
+        /** What the policy restricts, in short. Not there, and taking no room, without a policy. */
+        private final Label policyHint = label("", "hint");
         private final Button edit = new Button("Edit");
         private final Tooltip blockedTip = new Tooltip();
         private final Label version = label("", "foot");
@@ -551,7 +555,14 @@ final class Panel {
             edit.setOnAction(click -> commands.accept(new Command.EditSettings()));
             blockedHint.setTooltip(blockedTip);
             blockedHint.setMaxWidth(Double.MAX_VALUE);
-            var blockedWords = new VBox(label("Blocked sites", "strong"), blockedHint);
+            policyHint.setTooltip(blockedTip);
+            policyHint.setMaxWidth(Double.MAX_VALUE);
+            // What it restricts is not cut short: it takes a second line where one is not enough.
+            policyHint.setWrapText(true);
+            policyHint.setMinHeight(Region.USE_PREF_SIZE);
+            policyHint.setVisible(false);
+            policyHint.setManaged(false);
+            var blockedWords = new VBox(blockedTitle, blockedHint, policyHint);
             // The names give way to the button: a long list ends in dots, and is whole where the mouse rests.
             blockedWords.setMinWidth(0);
             HBox.setHgrow(blockedWords, Priority.ALWAYS);
@@ -686,6 +697,10 @@ final class Panel {
             blockedHint.setText(model.blocked().summary());
             blockedHint.getStyleClass().setAll("label", "hint", model.blocked().unreadable() != null ? "bad" : "fine");
             blockedTip.setText(model.blocked().explained());
+            blockedTitle.setText(model.blocked().heading());
+            policyHint.setText(model.blocked().policyLine());
+            policyHint.setVisible(model.blocked().restricts());
+            policyHint.setManaged(model.blocked().restricts());
         }
 
         /**

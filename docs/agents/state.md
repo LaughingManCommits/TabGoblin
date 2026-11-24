@@ -55,10 +55,12 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   and the extension have to be of the same release (protocol 3); tabs come back after a restart
   only to an agent that is named with `--agent`; a screenshot is refused while a frame of
   another site is in view; and text that looks like a credential reads `[redacted]`.
-- **WP-27 was run on Linux only,** in a container, with Chromium 1243 of the container and Java
-  21: the three suites. Not run: Windows, where the suites are developed; the editor lab; the
-  two workflows, which were read as YAML; the server's window, which has no display there; a
-  real agent with a real extension by hand.
+- **WP-27 has run on Linux and on Windows.** In a container, with its Chromium and Java 21:
+  the three suites, and the window's tests and pictures on a virtual display. On Windows 11, by
+  a second session at `41248d7`: the three suites with none skipped, and the editor lab with
+  the tab in front, 222 of 225 as before WP-27. Not run: the two workflows, which run on GitHub
+  only; the editor lab with `BACKGROUND=1`; the live window on a desktop with a policy in
+  force; a real agent with a real extension by hand.
 - **The editor lab's packages carry two advisories of high severity** (`npm audit` in
   `e2e/editors`): fixed versions of other people's editors, loaded in a test page and never
   shipped. The new CI job lists them and does not fail on them.

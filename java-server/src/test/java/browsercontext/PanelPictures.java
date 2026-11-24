@@ -160,6 +160,12 @@ final class PanelPictures {
                 // A settings file with a mistake in it: every tab is blocked, and the window says what is wrong.
                 new State("15-settings-unreadable", blocked(sessions, times, log, new BlockedSites.Rule(List.of(),
                         "\"exam_ple.org\" in blocked.sites is no domain")), false),
+                // A security policy with a blocked site, and one without: the heading names the policy, and a
+                // second line says in short what it restricts. The Control card is one line higher for it.
+                new State("18-policy", blocked(sessions, times, log, new BlockedSites.Rule(List.of("docs.example.org"), null,
+                        new BlockedSites.Limits(true, List.of("ci.example.org"), false, BlockedSites.Access.EXPLORE, 240, 20))), false),
+                new State("19-policy-alone", blocked(sessions, times, log, new BlockedSites.Rule(List.of(), null,
+                        new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0))), false),
                 // Someone reads in the log, scrolled up to its first line, and seven lines have come since:
                 // it stands still, and its corner says so, with the way to the newest line.
                 connected.held("16-log-held", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, later(log))),

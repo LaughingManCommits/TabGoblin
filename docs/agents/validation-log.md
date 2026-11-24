@@ -3,6 +3,32 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: the server's window names a security policy
+
+After the entry below, whose session saw two things in the window and left them: the policy
+stood under a heading that named only blocked sites, with its content under the mouse alone;
+and the pictures had no state for it. In the first session's container, which has a virtual
+display after all (`xvfb-run`), so the window's tests and its pictures ran there for the first
+time.
+
+| Command | Result |
+|---|---|
+| `xvfb-run -a mvn -B -f java-server/pom.xml verify` | 179 tests, none skipped, the 15 of `PanelTest` among them, and the 8 of the conformance check |
+| `PanelPictures`, under `xvfb-run` | nineteen pictures: the seventeen there were, and two new ones |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+The two new pictures were opened and looked at. `18-policy`: the heading reads *Blocked sites
+and security policy*; under it *docs.example.org*, and then *Policy: strict, 1 site allowed, no
+screenshots, up to Explore, ends by itself* on two lines, whole, beside **Edit**; the Control
+card with Stop and Kill is inside the window. `19-policy-alone`: the same heading, *No site is
+blocked*, and *Policy: no screenshots*. Two forms before that were looked at and changed: one
+line, which was cut off after *no screens…*, and separators that took a third line.
+
+Not done: the live window on a desktop, and the text under the mouse, which is tested in the
+window's model. The extension and the suite end to end were not run again: neither was
+touched. `1-connected` was not compared with the documentation's picture: another system draws
+its letters differently, and the window without a policy is as it was.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `41248d7`: WP-27 on Windows, and the editor lab
 
 The owner asked for the tests to be run on what the three entries below built. They had run in
@@ -481,351 +507,28 @@ Not run: the editor lab; nothing it covers changed. Not tried: **Edit** on Linux
 this server with an extension from before this change; the owner's own Chrome and agent with
 this build; a list of hundreds of entries.
 
-## 2026-11-22, on `one-server`: WP-19, one server for all agents, and a click on a tab
-
-The owner, after a server started by hand had been taken five times for the server the agent
-uses: "only one instance of the server may be started", with several agents connected to it and
-each with its own tabs; and for its window: a click on a session shows that session's metrics
-and log, and no click shows all. Then: "okay do your recommendations". Built in two steps.
-
-**The click, in the window as it was.** Every tab is in the list, three show at a time and the
-list scrolls; a click on a tab shows that tab's metrics and log lines, a second click or Escape
-shows all. The extension says in each answer in which session a command ran, since a command
-may name none. Run in a copy of the tree with a jar built there: the server's 96 tests and the
-8 of the conformance check, the extension's 156, end to end 94 of 94. Pressed in a real window
-through the accessibility interface, with the suite's Chrome, two tabs and seven real calls:
-each tab chosen shows its own calls and its own lines, and the same tab again shows all.
-
-**The one server.** The process an agent's program starts is a pipe to the server, which it
-starts as a process of its own if none runs. All of the following on the final sources, in a
-copy of the tree with a jar built there.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 109 tests, 17 of them new since `by-hand-panel`, and the 8 of the conformance check on the built jar, which now goes through the pipe and the server it starts; none skipped, none failed. No server was left running six seconds after it |
-| `cd chrome-extension && npm run check` | type-check clean, 156 tests, build |
-| `cd e2e && npm test` | 94 passed, 0 failed, with the suite's two agents through one server. Two checks are new in it: the server listens for agents on the port after theirs and neither process serves alone, and nothing listens there once the last agent has gone |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-The suite passed 94 of 94 before its two new checks as well, unchanged: an agent's own log, its
-port and its restart are to the suite as they were.
-
-Found by the first run with real processes, and by no test before it: six servers that the
-conformance check had started were still running forty minutes later. That check ends each
-process at once, and the server took a broken connection for none at all, so that it never
-counted its agent as gone. It takes it for the agent's going now. The test for it fails against
-the code as it was; after the fix no server was left behind.
-
-The picture tool drew thirteen states. Opened and looked at: a tab clicked, the second tab
-clicked, nine tabs, the low screen, no agent, two agents, and an agent clicked. Three things
-were mended by looking: the list of tabs did not stay at three rows with nine tabs; an agent's
-name was cut short when its row was marked; and the line that said what is chosen pushed the
-cards below it down at every click, so it stands in the corner of the card now.
-
-By hand, with real processes on Windows and Java 21, read and pressed through the
-accessibility interface:
-
-- Two agents' processes started as agents' programs start them: one server process (`javaw`)
-  and two pipes; the first agent opened in 666 ms, which includes the server's start, the
-  second in 198 ms. Ports listened on: one for each agent, and the server's own. The first
-  agent left: its process ended with code 0 after 9 ms and its output closed for the program
-  that had started it; the second went on working. After the last one the server was gone and
-  nothing listened.
-- The jar run in a console of its own with `--panel`, on ports apart from the owner's: the
-  command returned, one server ran that stays without an agent, and its window said that no
-  agent is connected. An agent's process started then showed in that
-  window by its name, 441 ms after its start. **Stop server**, pressed twice: the agent's
-  process ended with code 0 and the line that the user had stopped the server in its log, the
-  server was gone, and nothing started it anew.
-- Two agents with the suite's Chrome, each with a tab of its own and real calls, one window:
-  both agents with their headings, ids and ports; an agent clicked shows its five calls and its
-  seven lines and none of the other's; a tab of the other agent clicked shows its two; clicked
-  again, everything.
-
-On the owner's word that "typed by hand" is confusing, and to be critical of what the user
-reads, the words of the window, the terminal and the help text were gone over afterwards: the
-help text is in two parts, what you run and what your agent runs; the window said that no
-agent is connected twice, and "no tabs" twice in one card, and says each once now. The three
-suites were run once more on that, with the same counts, and the pictures drawn and the changed
-ones looked at.
-
-Not tried: Linux and macOS, where the server is started as a process of its own in another
-way; an IDE's program that ends every process below it when it closes, which would end the
-server with it and leave the taking over to the other agents; Kill in the real window with
-agents connected, and the taking over with real processes, which the tests do with a server
-that is dropped inside one Java process; the jar run in a terminal while a server already runs,
-which the tests do; a process that has to serve its agent alone because another program holds
-the server's port, of which the tests cover that it is found out and not the serving; the
-owner's own Chrome and Claude Code with this build, which needs both parts built in the tree.
-Not run: the editor lab; CI, which has no credit.
-
-## 2026-11-22, on `by-hand-panel`: what a server started by hand says, a disconnected agent's server left alone, and a panel that shows what the agent did
-
-The owner asked for a walk through GitHub with the tools, and then for the fixes of what it
-showed. A server started by hand with its panel stood beside the session's own server, which
-had no window: the owner authorized a tab for the first, which no agent can use, and watched
-its panel for the agent's sessions, times and calls. That panel's log filled with a pairing
-and a close every few seconds, after its agent had been disconnected in the popup. Asked for
-on the way: the card of the times is to be called Metrics, and the log is to show what the
-agent did.
-
-The walk itself, on a tab of `github.com`, some seventy tool calls through the session's own
-server, first with the owner's extension as built at 10:03 and then with the one built at
-15:47. With Read: outline, sections, scrolling, a wait, two screenshots; a fill, a navigation,
-the Tab key and a link refused with the level each needs. With Explore: links followed, pages
-read, the Actions page and the list of commits, the way back, a folder opened in the file
-tree; another site refused, buttons refused, one screenshot refused while another tab was in
-front. No fault of the tools was found. A file in GitHub's file tree could not be opened by a
-click with Explore: it is a tree item and no link, so it counts as a control; its address
-opens it.
-
-All of the following on the final sources, in a copy of the tree with a jar built there.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 92 tests, 3 of them new, and the 8 of the conformance check on the built jar; none skipped, none failed |
-| `cd chrome-extension && npm run check` | type-check clean, 156 tests, 1 of them new, build |
-| `cd e2e && npm test` | 94 passed, 0 failed. The step that disconnects an agent now reads the server's log: one disconnect, and no pairing after it, across the next looks at the ports |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-The new worker test fails against the worker as it was: a proof went to the disconnected
-agent's server again. The picture tool drew ten states. Opened and looked at: the first, which
-is the documentation's picture and was taken into `docs/images` with the card's new name, and
-the two of a server started by hand, without a tab and with one of its own beside one that is
-open to any agent.
-
-By hand, in the real windows on Windows with Java 21, read through the accessibility interface:
-
-- A server started in a console of its own from a jar built in a copy, not connected to a
-  browser: the box under the status line, the words of both cards, and the box, the cards'
-  words, Copy, Stop, Kill and the version line all inside the window (444 by 804).
-- The owner's own server started by hand from the jar the owner built at 15:47, connected: the
-  box, *1 tab* for a tab the owner had authorized for any agent, and under it the line that no
-  agent can use it. That line was wrong: the session used the tab a moment later, and the
-  window then said *No tab is authorized for this server*. Mended after that: the line speaks
-  of the server's own tabs, and an open tab is marked *any agent*. The mended form was drawn
-  and tested, not seen in a real window.
-- The session's own server, after the owner's Reconnect in Claude Code at 15:59, from the same
-  jar and with `--panel`: its window named `claude-code`, the tab, the four shares over the
-  last six calls, and a log with the start, the connection and the one call that was refused.
-  The calls that went through were not in it, which is what the owner had missed; they are
-  kept now, tested, and not seen in a real window, which needs the jar built again.
-- That Reconnect was the first restart of a real agent's server: the new server, with another
-  id, had the tab at once, by the name `claude-code`.
-
-Not tried: an older extension against this server and the other way round, which are as before
-by the source and by one half of the worker test; the owner's extension with a disconnected
-agent, by hand. Not seen on GitHub: the picture in the two READMEs with its wider edge, which
-needs a push. Not run: the editor lab; Linux and macOS; CI, which has no credit.
-
-## 2026-11-22, on `restart-keeps-tabs`: a server that is started again has its tabs at once
-
-The owner: a server stopped with a session and started again did not show the session in its
-panel, while the popup showed it as connected. The cause is in two places. A server makes a new
-id at each start, and its tabs come back to it by its agent's name alone; it learned that name
-only with the agent's first tool call, and a server started by hand never had one. And the
-extension handed a tab over only with the first command that used it.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify`, in a copy of the tree | 89 tests, one of them new; `McpConformanceIT` on the built jar: 8 tests |
-| `npm run check` in `chrome-extension`, in the copy | type-check clean, 155 tests, one of them new, build |
-| the new worker test against `background.ts` as it was | fails: the popup says of the restarted agent's tab that its agent is not connected |
-| `cd e2e && npm test`, in the copy, on the final sources | 94 passed, 0 failed. The step for a restarted server now waits, before the agent calls any tool, until the popup names the agent as the tab's and the badge says `ON` |
-| `node docs/agents/check-links.mjs` | 148 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-By hand, the owner's case, with the real extension in Chrome as the suite drives it and the real
-panel read and pressed through the accessibility interface: a server started in a console of
-its own with `--panel`, a tab authorized for it, Stop pressed twice in the panel, the server
-started again the same way.
-
-- Before the stop: the popup lists the agent and the tab's agent as *Started by hand*, the
-  badge says `ON`, the panel says `1 tab` and lists it.
-- After the stop: the popup says *Disconnected* and marks the tab's agent as not connected;
-  the badge says `OFF`.
-- After the start, with Java 21 after 3.7 seconds and with Java 26 after 3.0: the popup says
-  *1 agent connected* and names *Started by hand* as the tab's agent; the badge says `ON`; the
-  panel of the new server, which has another id, says `1 tab` and lists it.
-- A run before the hand-over was added showed the tab under the old server's id in the popup,
-  though the new server could use it. That is why the extension now makes the tab the new
-  server's own the moment it is back.
-
-Not tried: a real IDE's agent that starts its server again (the suite's client stands in for
-it); two agents of the same name, of which one is started again; Linux and macOS. Not run: the
-editor lab; CI, which has no credit.
-
-## 2026-11-22, on `aftercare`: commands at hand, the pairing token copied, a panel that keeps its controls, an extension that shows what is so
-
-Four things the owner asked for after the documentation pass was merged, and one fault found on
-the way. The jar and the suites that need it were run in a copy of the tree: a build of the jar
-in the tree by the session was refused by its safety rules, and the jar there is still the one
-of 2026-11-21.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify`, in the copy | 88 tests; `McpConformanceIT` on the built jar: 8 tests |
-| `mvn -B -f java-server/pom.xml test`, in the tree | 88 tests |
-| `npm run check` in `chrome-extension`, in the copy | type-check clean, 154 tests, build. The first try stopped at the type-check: a new test did not pass it, though it ran |
-| the new worker test against `background.ts` as it was | fails: "timed out waiting for the silent server to be taken for gone" |
-| `cd e2e && npm test`, in the copy | 94 passed, 0 failed. Its last step is longer: with both servers ended the badge goes from `ON` to `OFF` and the popup says *Disconnected* |
-| `node docs/agents/check-links.mjs` | 147 links, all resolve |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-**A simple command, and a page of commands.** The user guide's section on the panel opens with
-the command that starts a server with its window by hand. `docs/cheatsheet.md` is new: the
-important commands on one line each, written so that a line works in PowerShell, Command Prompt
-and bash, with the page that explains each part under its table. The options and variables
-were read in `McpMain.java`. Tried from the repository's root for the form that needs no change
-of folder: `npm --prefix chrome-extension run typecheck` and `node --test
-chrome-extension/test/panels.test.ts`. The other rows in that form were not run. The owner ran
-the panel's command on the old jar and got `Unknown option: --panel`, as the user guide says;
-the cheat sheet has a line for it.
-
-**The pairing token, copied.** A button in the panel puts the token on the clipboard. By hand,
-in the real window on Windows, server run from the tree's classes with a token file of the
-test's own, the button pressed through the accessibility interface: the clipboard then held
-the token of the file; the window showed it nowhere; the log said `pairing token copied to the
-clipboard in the panel` and had nothing of the token, nor had standard output; 66 seconds later
-the clipboard was empty. The text the clipboard had held before was put back. Not tried: the
-clipboard on Linux and macOS; Stop within the minute, which is tested with a clipboard of the
-test's own.
-
-**The panel's controls.** Found by drawing the panel with nine tabs: the list pushed the switch
-and both buttons out of the window. It was so since the panel was merged, from about six tabs.
-Now three are listed and the rest counted, the window is up to 760 pixels high where the screen
-allows, and the part between header and controls scrolls. Looked at in the tool's eight
-pictures, among them nine tabs, and the most there is to show at the height of a screen of 768
-pixels: in each the header and the whole Control card are inside. Not seen: a real screen that
-low.
-
-**The extension shows what is so.** Two things were stale. The badge said `ON` for an
-authorized tab whether or not an agent was connected: it says `OFF` now. And the answers to the
-heartbeat were never counted, so a server that hangs stayed connected: now two in a row
-without an answer take it for gone. By hand, with the real extension in Chrome as the suite
-drives it and a real server whose process was stopped as a whole and later let run again
-(`NtSuspendProcess`): the badge said `ON`; 60 seconds after the server stopped answering it
-said `OFF`, and the popup said *Disconnected: is the MCP server running?* with the tab marked
-as its agent's, not connected; 3.0 seconds after the server ran again the badge said `ON`, the
-agent's status listed the session and a snapshot worked. The server's log has `extension
-disconnected … code=4408` and the new connection. Not tried: a server that hangs while a
-command runs; a machine that sleeps.
-
-Pictures: the eight drawings of the panel, six of them opened after the last change;
-`docs/images/server-panel.png` is the first, byte for byte.
-
-Not run: the editor lab; the two unit suites on Linux; CI, which has no credit.
-
-## 2026-11-22, on `docs-pass`: the documentation gone over (WP-18, part 1)
-
-Every page that is not a record was read whole: `README.md`, `AGENTS.md`, `docs/README.md`,
-the installation guide, the user guide, the tool reference, the security model, the editors
-page, the architecture, the conformance page, the development page and the runbook. Claims
-were checked against the source that owns them. No product code changed.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml test`, in the tree | 84 tests, after the change to three test files below |
-| `cd chrome-extension && npm test` | 151 tests, none failed: the count the README states |
-| `git grep -n "0\.2\.0" -- ":!*package-lock.json"` | names the seven files of the runbook and no other, after the change below; before it, three test files as well |
-| `PanelPictures`, then `cmp` with `docs/images/server-panel.png` | six pictures; the first is byte for byte the documentation's picture |
-| The jar in the tree, built on 2026-11-21 before the panel, run with `--panel` | `Unknown option: --panel` and the usage text on standard error, exit code 2, nothing on standard output |
-| The window asked to close (`WM_CLOSE`, as Alt+F4 sends it), on Windows, server run from the tree's classes | The window is put away and still there; the server runs on and ends with exit code 0 when its input ends |
-| `node docs/agents/check-links.mjs` | 133 links, all resolve (91 before the pass) |
-| `node docs/agents/check-personal.mjs` | nothing personal found |
-
-Out of date, and set right, each against its source:
-
-- Installation guide: the build's example output named 52 tests (there are 84), and three
-  bundle sizes that the built bundles no longer have. Both numbers are gone: the page now says
-  what to look for.
-- "Fourteen editor libraries" in the editors page, the README (twice) and the development
-  page. The lab has fifteen pages: thirteen libraries and two plain controls, as the editors
-  page's own table and `FIXTURES` in `e2e/editors/lab.mjs` show. It has been so since the
-  page was written.
-- Tool reference: `PAGE_ERROR`, `EXTENSION_ERROR` and `ERROR` can be answered and were not in
-  the table of codes. Every other code the sources give is in it, and every parameter of every
-  tool's definition is named in that tool's section (compared by a script, not by eye).
-- Architecture: `Progress.java`, `BrowserException.java` and `pairing.ts` were not in the file
-  map.
-- Development page: the close codes 1001 and 1009 are used and were not named; `editor` was
-  missing from the list of modules that run under jsdom; CI is also started by hand.
-- The panel's tests had the product's version written into them, which made the runbook's
-  check for a change of version name three files too many. They use a made-up version now,
-  and `PanelPictures` reads the real one.
-- The popup's *Disconnected* is now also explained by a connection switched off in a server's
-  panel, in the two places that explain it.
-
-Said once now, with links from the other pages:
-
-- Installing and pairing: the installation guide. The user guide had the commands, the
-  settings and the picture again.
-- What the popup's messages mean: the user guide. The installation guide had three of them
-  again and now points there.
-- The server's panel, which stood at length in four pages: what the user sees in the user
-  guide, the rules in the security model, how it is built in the architecture, the commands in
-  the runbook. The development page and `AGENTS.md` keep a line each and link.
-- Which page owns what: a new section "Documentation" in the development page. `AGENTS.md`
-  points to it.
-
-Added, on the owner's question whether the panel needs better documentation. The pages said
-what the window shows to someone who has it; they did not say what is needed before that, or
-when it puzzles. Now in the user guide: that a jar from before the panel does not start at all
-with the option, and so costs the agent its tools (shown above); what each sentence of the line
-with the dot means and what to do about it; that several agents give several windows, that a
-window takes the keyboard when it appears, and that a request to close it puts it away; two
-rows in the troubleshooting table. In `AGENTS.md`: that the panel repeats the popup's colours
-and the goblin's shapes by hand. Not tried: the close button of a frame on Linux; that it puts
-the window away there too is read in the source.
-
-After the commit of this pass, on the owner's word: the root README's picture, two lines of
-plain text, is now the Mermaid diagram of `docs/README.md`, block for block, as every other
-diagram in the documentation is one. Both copies carry a comment that says to change both.
-
-Seen on GitHub, through TabGoblin, on the docs index as it is on `main`: GitHub lays its
-buttons for zooming over the bottom right corner of a diagram, and where a diagram spans the
-column they cover what is there. In this one that was most of the box "Every other tab", the
-one the words "no access" point to. Both copies now have an empty place at the right edge,
-with a comment that says why. That was checked by drawing the diagram with the Mermaid
-library in a headless Chrome, in a frame of GitHub's width with the corner marked that the
-buttons took in the picture from GitHub (112 by 105 pixels): before, "Every other tab" lay
-under it; now nothing does. Not seen: the corrected diagram on GitHub itself; it is not
-pushed. In the architecture page the diagram "Reading a page" is narrower than the column
-and clear of the buttons; in "A command, end to end" they cover the lower of the two boxes
-"Content script", whose upper one is whole. That was left as it is.
-
-Moved out of the architecture page, where they were told as a story; they are measurements of
-2026-11-22, made while the panel was built:
-
-- With the real extension, the connection switched on again in the panel was found by the
-  extension by itself after 14.3 seconds.
-- A copy of the jar from which the 53 native files for Windows had been taken, run with
-  `--panel` on Windows with an empty cache for JavaFX, as a stand-in for a system the jar has
-  no native part for: JavaFX printed a trace of its own, the server logged
-  `panel not shown reason=RuntimeException`, ran on, and ended with exit code 0 and nothing on
-  standard output.
-
-Looked at and left:
-
-- The user guide and the security model both state the rules for submissions, for two
-  readers. They point to each other now and were not merged.
-- Two sentences in the editors page speak of "the fourteen" editors. What they count could
-  not be told without a run of the lab.
-- The security model's numbers (sizes, limits, times) were compared with the constants in the
-  code and are right. Its table of what is verified by tests was not gone through row by row.
-- The conformance page: the SDK's version and the number of tests were compared; the rest was
-  not read against the SDK.
-- The example outputs in the tool reference were not compared with a run.
-
-CI: run #15, for `main` with the panel, failed in all five jobs after two seconds each, read
-on GitHub. The owner says the account's credit for Actions is used up; the logs were not
-opened. Nothing of that run speaks about the code.
-
-Not run: the suite end to end and the editor lab; the pass changed three test files of the
-server and no other code.
-
 ## Earlier, in one line each
 
+- 2026-11-22, on `one-server` (WP-19, one server for all agents, and a click on a tab): the
+  server 109 tests, 17 of them new, and the 8 of the conformance check through the pipe and the
+  server it starts; the extension 156; end to end 94 of 94 with both agents through one server,
+  and nothing left listening after the last had gone. Not run with real processes by hand: the
+  taking over when the server's process ends, and a process that serves its agent alone.
+- 2026-11-22, on `by-hand-panel` (what a server started by hand says, a disconnected agent's
+  server left alone, a panel that shows what the agent did): the server 92 tests and the 8, the
+  extension 156, end to end 94 of 94; the step that disconnects an agent reads the server's log
+  for one disconnect and no pairing after it.
+- 2026-11-22, on `restart-keeps-tabs` (a server that is started again has its tabs at once): the
+  server 89 tests and the 8, the extension 155, end to end 94 of 94 in a copy of the tree. That
+  was by the agent's name; WP-27 replaced it with the agent's key.
+- 2026-11-22, on `aftercare` (commands at hand, the pairing token copied, a panel that keeps
+  its controls, an extension that shows what is so): the server 88 tests and the 8, the
+  extension 154, end to end 94 of 94. The first try of the extension's check stopped at the
+  type-check, on a test that ran and did not pass it.
+- 2026-11-22, on `docs-pass` (WP-18, part 1, the documentation gone over): the server 84 tests,
+  the extension 151, 133 links resolving where there were 91; six pictures of the panel, the
+  first byte for byte the documentation's. The installation guide had named 52 tests, and the
+  panel's tests had the version written into them.
 - 2026-11-22, on `server-panel` (WP-13, the server's panel): a window for the server in JavaFX,
   after one in Swing was turned down by the owner. Server 84 tests and the 8 of the conformance
   check; end to end 94 of 94, four times. By hand on Windows 11: the window on Java 21 and on

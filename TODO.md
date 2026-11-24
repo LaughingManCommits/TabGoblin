@@ -1611,10 +1611,10 @@ What a setup from before has to know:
   access, as a click on that button would be; "load more" buttons are not pressed by it.
 - **The editor lab was not run.** `editor.ts` was not touched; what a snapshot and an extract
   say now passes through the redaction, which the lab's checks read.
-- **The server's window says that a policy is in force, and under the mouse what it
-  restricts.** That is in the window's model and tested there. The window itself was not
-  seen: there is no display here. It does not show whether an agent has a key, nor requests
-  and workspaces; the popup shows all three.
+- **The server's window names a security policy** in the heading of its settings' row, says in
+  short what it restricts in a line of its own, and in full under the mouse. Drawn and looked
+  at in two pictures; the live window was not. It does not show whether an agent has a key,
+  nor requests and workspaces; the popup shows all three.
 - **The SBOM and the scan run in the workflows only,** which run on GitHub. They were read as
   YAML and not run.
 - **Not signed, as before.** A download is verified by its checksum and GitHub's attestation.

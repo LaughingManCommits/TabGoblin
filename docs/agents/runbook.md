@@ -190,13 +190,17 @@ cd java-server
 java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
 ```
 
-On Linux and macOS the separator in the class path is `:`. Success: seventeen pictures at
+On Linux and macOS the separator in the class path is `:`. On a machine without a display, put
+`xvfb-run -a` in front of the `java` command, and of `mvn` for the window's tests. Success: nineteen pictures at
 double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
 screen, the server without an agent, with two agents, the first and the second tab clicked, an
 agent clicked, sites blocked with a tab on one of them, and a settings file with a mistake in
-it, the log held, and a browser that came with another token. In the two of the blocked sites the Control card names what is blocked, or says that every site is refused,
+it, the log held, a browser that came with another token, and a security policy with a blocked
+site and without one. In the two of the policy the Control card's heading reads *Blocked sites
+and security policy*, and a line *Policy: …* under the blocked sites says in short what it
+restricts, whole, on two lines at most. In the two of the blocked sites the Control card names what is blocked, or says that every site is refused,
 and the tab says *blocked*; with the mistake an amber box under the status names it. In the last, a green box under the status says *Pair the browser with this server* and has the
 button **Copy token**; no other picture has that box, also not the second, where no browser has
 come. The sixteenth

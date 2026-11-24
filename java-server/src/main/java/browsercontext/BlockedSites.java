@@ -179,6 +179,30 @@ final class BlockedSites {
             return maxAccess.covers(needed);
         }
 
+        /**
+         * The restrictions in one short line, for where there is little room: the server's window.
+         * Empty when there is none. What each means is said in full by {@link #summary()}.
+         */
+        String inShort() {
+            List<String> parts = new ArrayList<>();
+            if (strict) {
+                parts.add("strict");
+            }
+            if (!allowed.isEmpty()) {
+                parts.add(allowed.size() == 1 ? "1 site allowed" : allowed.size() + " sites allowed");
+            }
+            if (!screenshots) {
+                parts.add("no screenshots");
+            }
+            if (maxAccess != Access.WRITE) {
+                parts.add("up to " + maxAccess.label());
+            }
+            if (sessionMaxMinutes > 0 || sessionIdleMinutes > 0) {
+                parts.add("ends by itself");
+            }
+            return String.join(", ", parts);
+        }
+
         /** The restrictions in a few words, for the user and for an agent; empty when there is none. */
         String summary() {
             List<String> parts = new ArrayList<>();

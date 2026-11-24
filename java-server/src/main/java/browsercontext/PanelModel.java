@@ -37,17 +37,33 @@ record PanelModel(String agent, String identity, int port, String version, Strin
      * @param unreadable why the settings file could not be taken as a list, or null; while it is so, every site is refused
      * @param file       where the settings file is
      */
-    record Blocked(List<String> sites, String unreadable, String file, String policy) {
+    /**
+     * @param policy      what else the settings restrict, in full, for under the mouse; empty for nothing
+     * @param policyShort the same in one short line, for the window itself
+     */
+    record Blocked(List<String> sites, String unreadable, String file, String policy, String policyShort) {
 
         /** Blocked sites alone, where the settings restrict nothing else. */
         Blocked(List<String> sites, String unreadable, String file) {
-            this(sites, unreadable, file, "");
+            this(sites, unreadable, file, "", "");
         }
 
         static final Blocked NONE = new Blocked(List.of(), null, "");
 
-        /** What the line says when the settings restrict more than sites: the rest is under the mouse. */
-        static final String POLICY_IN_FORCE = "  ·  security policy in force";
+        /** What stands over the two lines: the heading says so when the settings restrict more than sites. */
+        String heading() {
+            return restricts() ? "Blocked sites and security policy" : "Blocked sites";
+        }
+
+        /** Whether a security policy is in force: not while the file cannot be read, when everything is refused anyway. */
+        boolean restricts() {
+            return unreadable == null && !policy.isEmpty();
+        }
+
+        /** The policy's line in the window: what it restricts, in short. Empty when there is none. */
+        String policyLine() {
+            return restricts() ? "Policy: " + policyShort : "";
+        }
 
         /** How many names the line under "Blocked sites" has room for; the rest are counted. */
         static final int NAMED = 2;
@@ -62,12 +78,11 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             if (unreadable != null) {
                 return "Every site is refused: the file has a mistake";
             }
-            String more = policy.isEmpty() ? "" : POLICY_IN_FORCE;
             if (sites.isEmpty()) {
-                return "No site is blocked" + more;
+                return "No site is blocked";
             }
             String names = String.join(", ", sites.subList(0, Math.min(sites.size(), NAMED)));
-            return (sites.size() > NAMED ? names + " and " + (sites.size() - NAMED) + " more" : names) + more;
+            return sites.size() > NAMED ? names + " and " + (sites.size() - NAMED) + " more" : names;
         }
 
         /** What rests under the mouse: what blocking is, every site that is blocked, and where the file is. */
@@ -81,7 +96,7 @@ record PanelModel(String agent, String identity, int port, String version, Strin
                 text.append("\n\nBlocked now:");
                 sites.forEach(site -> text.append("\n  ").append(site));
             }
-            if (unreadable == null && !policy.isEmpty()) {
+            if (restricts()) {
                 // What else the same file takes away from every agent. It is the user's window: the allowed sites are named.
                 text.append("\n\nSecurity policy:\n  ").append(policy.replace("; ", "\n  "));
             }
@@ -251,7 +266,8 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         }
         List<String> sites = new ArrayList<>(inTheWay);
         rule.domains().stream().filter(site -> !inTheWay.contains(site)).forEach(sites::add);
-        Blocked blocked = new Blocked(List.copyOf(sites), rule.unreadable(), settingsFile, rule.limits().summary());
+        Blocked blocked = new Blocked(List.copyOf(sites), rule.unreadable(), settingsFile, rule.limits().summary(),
+                rule.limits().inShort());
         if (problem == null && rule.everything()) {
             problem = blocked.mistake();
         }

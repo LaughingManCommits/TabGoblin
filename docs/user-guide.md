@@ -378,6 +378,9 @@ then, so a key that was on its way elsewhere presses nothing.
   file is. **Edit** opens that file in
   your system's text editor ([Blocked sites](#blocked-sites)). *Every site is refused: the file
   has a mistake* means that: the amber box under the line with the dot names the mistake.
+  While a [security policy](#the-security-policy) is in force, the heading reads *Blocked sites
+  and security policy*, and a line *Policy: …* under it says in short what the policy
+  restricts; the pointer shows it in full.
 - **Stop server** ends the server in order, for every agent: each then has no TabGoblin tools
   until its program connects again. **Kill** ends the process at once, for a server that
   hangs; what it was doing in the browser then has an unknown outcome, and agents that are
