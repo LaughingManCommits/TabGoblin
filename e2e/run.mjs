@@ -716,6 +716,11 @@ try {
     const late = body(swapped).filter((line) => /comment \d+: /.test(line));
     assert(late.length === 12 && new Set(late).size === 12, `expected the twelve comments once each: ${late.length}`);
     assert(page.url() === `${demo.originA}/results.html?soft=1&page=3`, `it ended on ${page.url()}`);
+    // A click on such a link says where the tab went, and not that it stayed, though the address changes late.
+    const backLink = ok(await one.tool('browser_snapshot', { interactive_only: true })).text.match(/\[(\d+)\] Link: Previous/);
+    assert(backLink, 'the link to the page before is in the snapshot');
+    const went = json(await one.tool('browser_click', { ref: Number(backLink[1]) }));
+    assert(went.navigation === 'same-document' && went.url === `${demo.originA}/results.html?soft=1&page=2`, JSON.stringify(went));
     json(await one.tool('browser_navigate', { url: '/results.html?page=3' }));
     // A button is not what Explore may press, whatever it is called: it is not followed as a next page.
     fails(await one.tool('browser_collect', { next: 'Resolve all' }), 'WRITE_NOT_AUTHORIZED');

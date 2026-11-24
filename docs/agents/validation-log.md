@@ -3,6 +3,30 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `late-navigation`: a link whose site changes the address late is waited for
+
+A smoke test with the real extension on `main` at `9229490`, with Explore, on a public site:
+`browser_collect` with `next` now returned both pages of a list of commits, 70 of them, in
+1.2 seconds, where it had returned one. Status with diagnostics, snapshot, extract with `find`
+and with `kind=tables`, a click on an expand control, hover and navigation worked; a click on
+a button and a navigation to another site were refused. Two things were off, and are mended
+here: the collection pressed the link to the next page twice for one page, since the page
+before changed a little by itself and that was taken for the next one; and `browser_click` on
+a link said `navigated: false` while the tab went on. Both for one reason: what follows a
+click was looked at once, a quarter of a second after it. After a click on a link the address
+now has up to two seconds to change.
+
+| Command | Result |
+|---|---|
+| `npm run check` in `chrome-extension`, in a copy | 213 tests, type-check and build. One is new: an address that changes 700 ms after the click, a control that shows and hides answering as quickly as before, and a link that leads nowhere. The worker's file takes about 20 seconds longer, for the tests that click a link that leads nowhere |
+| `cd e2e && node run.mjs`, in a copy | 103 passed, 0 failed. New in the step on collecting: a click on a link of the list that swaps its pages in late says the new address |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | Pass |
+
+Not run: the server's tests (no Java source changed) and the editor lab. Not seen: either
+mended point on the site where it was found, since the browser there ran the extension as it
+was built before. Not tried in the smoke test: `browser_request_access`, and the fallback
+ranges of WP-28, as the server there is started with `--port`.
+
 ## 2026-11-24, on `port-copy-and-0.2.1`: a port in the server's window is copied by a click, and version 0.2.1
 
 Asked for by the owner. On Windows 11 with a display, in a copy of the tree.
@@ -264,35 +288,11 @@ own clicks had to wait for the moment to pass, in two places. The server was not
 Not run: Windows; the editor lab; the workflows; the server's window, whose new line is in its
 model and its test only; a real agent by hand.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, collecting and hovering
-
-On the owner's "continue with p1", after the entry below. Two tools, `browser_collect` and
-`browser_hover`: thirteen now. In the same container. Pushed to that branch on the owner's word.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 176 tests, 15 skipped for lack of a display, and the 8 of the conformance check, which counts thirteen tools and eight that give an object |
-| `npm run check` in `chrome-extension` | 200 tests, with the type-check and the build. Eight are new: what of a further reading is new, hover, the control to a next page, and collecting in the worker |
-| `cd e2e && node run.mjs` | 101 passed, 0 failed. One step is new, on two new pages of demo site A |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-Measured in the real browser, on the demo's feed of sixty events that shows twenty at a time:
-one call of `browser_collect` returned all sixty, each once, in 6 readings and 2.1 seconds;
-the same with `find: "ERROR"` returned the two that failed with a line of context, in about a
-quarter of the characters. A list that draws nine rows of two hundred came back in order and
-without a row twice, over two calls of twenty steps. Three pages of a list: 19 lines in 3
-readings, 0.5 seconds.
-
-Found on the way: the count of readings in the result's first line was one too many where the
-last step found no further page. And, on the owner's word about standards, the new Java was gone
-over: the access level is an enum and no longer three strings, the record on disk is written
-with the JSON library and no longer by hand, and qualified names in the new classes became
-imports.
-
-Not run: Windows; the editor lab; the workflows; a real agent by hand.
-
 ## Earlier, in one line each
 
+- 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (WP-27, `browser_collect` and
+  `browser_hover`, in a container on Linux): the server 176 tests, 15 skipped for lack of a
+  display, and the 8 of the conformance check; the extension 200; end to end 101 of 101.
 - 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (WP-27, security hardening and
   features for developers, its first part, in a container on Linux): the server 174 tests, 15
   skipped for lack of a display, and the 8 of the conformance check; the extension 192; end to
