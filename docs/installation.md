@@ -288,7 +288,7 @@ do not, the popup says *Server and extension versions differ*. The pairing survi
 | **Load unpacked** is not there | Developer mode is off | Switch it on, top right |
 | Developer mode or loading is blocked | A managed (work) browser forbids unpacked extensions | Ask your administrator, or use a personal Chrome profile |
 | The extension's ID is different | The `key` in `chrome-extension/manifest.json` was changed or removed | Restore it; or start the server with `--extension-origin any` |
-| Agent: *Could not listen on any of ports 47821-47828* | Eight servers are already running, or other programs hold those ports | Close unused agents, or start the server with `--port` and set the same *First port* in the popup under *Connection…* |
+| Agent: *Could not listen on any of ports 47821-47828*, and the server's window says the same | The message says which: all eight are taken, by servers or other programs; or no program has them and the system does not give them out. Windows keeps ranges of ports back for its own networking where Hyper-V, WSL or Docker is used, and they move when those start anew: `netsh interface ipv4 show excludedportrange protocol=tcp` lists them | Taken: close unused agents. Kept back: start the server with `--port` and a free port, and set the same *First port* in the popup under *Connection…*. Either way the extension finds no server until then, and the popup says *Disconnected* |
 
 What the popup and the agent say once everything is installed (*Disconnected*, *Paste the server's current token*,
 "not connected") is in the user guide's [troubleshooting](user-guide.md#7-troubleshooting).
