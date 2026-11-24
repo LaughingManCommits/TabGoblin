@@ -96,6 +96,8 @@ public final class McpMain {
             System.exit(2);
             return;
         }
+        // Where the ports begin: the user's own first port and no other, or the list that every part knows.
+        List<Integer> firsts = Ports.firsts(options.port(), options.portChosen());
         int port = options.port();
         Path tokenFile = options.tokenFile();
         String extensionOrigin = options.extensionOrigin();
@@ -172,15 +174,16 @@ public final class McpMain {
         // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
         Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "bcmcp-shutdown"));
 
+        List<Integer> serverPorts = firsts.stream().map(Link::port).toList();
         if (options.hub()) {
-            serveAll(settings, options);
+            serveAll(settings, options, firsts);
             return;
         }
         boolean byHand = startedByHand();
         if (byHand && options.panel()) {
             // A person asked for the server's window. There is one server: its window is brought up,
             // and the server is started first if none runs. Nothing else is started here.
-            System.exit(showWindow(settings, options, mcpOut) ? 0 : 1);
+            System.exit(showWindow(settings, options, serverPorts, mcpOut) ? 0 : 1);
             return;
         }
         if (byHand) {
@@ -193,7 +196,7 @@ public final class McpMain {
         }
         // An agent's program started this process. There is one server for all agents: this process
         // passes its agent's messages on to it, and starts it first if there is none.
-        Link link = new Link(System.in, mcpOut, System.err, tokens, Link.port(port), options.panel(), options.quiet(),
+        Link link = new Link(System.in, mcpOut, System.err, tokens, serverPorts, options.panel(), options.quiet(),
                 () -> startServer(options, false), options.agent(), agentKeys);
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
@@ -201,23 +204,23 @@ public final class McpMain {
         }
         // No server is to be had here: its port is held by something else, or it cannot be started.
         // This process serves its agent alone then, as every such process did before there was one server.
-        serveAlone(settings, options, mcpOut);
+        // On the first range the system gives out, where the extension looks as well.
+        serveAlone(settings.withPort(Ports.firstUsable(firsts)), options, mcpOut);
     }
 
     /**
      * The one server: every agent's process connects to it. It runs until the user stops it or its
      * last agent has gone.
      */
-    private static void serveAll(Agent.Settings settings, Options options) {
+    private static void serveAll(Agent.Settings configured, Options options, List<Integer> firsts) {
         // The window may be asked for at any time: the log is kept from the first line on.
         Log.keep(Panel.LOG_LINES);
-        Hub hub;
-        try {
-            hub = Hub.open(settings, options.standing());
-        } catch (java.io.IOException e) {
-            // The port is taken: there is a server already, and one is enough.
+        Hub hub = openWhereThePortsAre(configured, firsts, options.standing());
+        if (hub == null) {
             return;
         }
+        // The token and the settings file are the same wherever the ports begin.
+        Agent.Settings settings = configured;
         RUNNING.add(hub::close);
         hub.whenEmpty(McpMain::end);
         java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
@@ -238,6 +241,34 @@ public final class McpMain {
             hub.showWindow();
         }
         hub.serve();
+    }
+
+    /**
+     * Opens the one server on the first range of ports that the system gives out, or says null:
+     * there is a server already, and one is enough, or no range is given out, and the agent's
+     * process then serves its agent alone and says why it has no port.
+     */
+    static Hub openWhereThePortsAre(Agent.Settings configured, List<Integer> firsts, boolean standing) {
+        return openWhereThePortsAre(configured, firsts, standing, Ports::usable);
+    }
+
+    /** @param usable whether the system gives out the range that begins at a port */
+    static Hub openWhereThePortsAre(Agent.Settings configured, List<Integer> firsts, boolean standing,
+            java.util.function.IntPredicate usable) {
+        for (int first : firsts) {
+            if (!usable.test(first)) {
+                // The system keeps this range back: no agent could listen there. The next one of the list.
+                Log.warn("ports kept back by the system ports=" + first + "-" + Link.port(first));
+                continue;
+            }
+            try {
+                return Hub.open(configured.withPort(first), standing);
+            } catch (java.io.IOException e) {
+                // The port is taken: there is a server already.
+                return null;
+            }
+        }
+        return null;
     }
 
     /**
@@ -309,9 +340,9 @@ public final class McpMain {
      * bring its window up; if not, it is started for the user, with its window, and stays until
      * the user stops it. Says whether the window is up.
      */
-    private static boolean showWindow(Agent.Settings settings, Options options, PrintStream said) {
+    private static boolean showWindow(Agent.Settings settings, Options options, List<Integer> serverPorts, PrintStream said) {
         Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(), System.err,
-                settings.token(), Link.port(settings.port()), true, false, () -> { });
+                settings.token(), serverPorts, true, false, () -> { }, null, null);
         try {
             if (asker.show()) {
                 said.println("The TabGoblin server is running; its window is open now. "
@@ -368,8 +399,11 @@ public final class McpMain {
             command.add("--standing");
             command.add("--panel");
         }
-        command.add("--port");
-        command.add(String.valueOf(options.port()));
+        if (options.portChosen()) {
+            // Only the user's own first port is handed on: without one the server finds its range itself.
+            command.add("--port");
+            command.add(String.valueOf(options.port()));
+        }
         command.add("--token-file");
         command.add(options.tokenFile().toAbsolutePath().toString());
         command.add("--extension-origin");
@@ -915,7 +949,7 @@ public final class McpMain {
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
             boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace, boolean quiet,
-            Skills.Agent setup, String agent, String revokeAgent, String allowAgent, boolean listAgents) {
+            Skills.Agent setup, String agent, String revokeAgent, String allowAgent, boolean listAgents, boolean portChosen) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -983,7 +1017,8 @@ public final class McpMain {
                     default -> throw new UsageException("Unknown option: " + arg);
                 }
             }
-            String portText = firstSet(port, environment.apply("BCMCP_PORT"), String.valueOf(DEFAULT_PORT));
+            String ownPort = firstSet(port, environment.apply("BCMCP_PORT"), null);
+            String portText = ownPort == null ? String.valueOf(DEFAULT_PORT) : ownPort;
             int number;
             try {
                 number = Integer.parseInt(portText.trim());
@@ -1030,7 +1065,7 @@ public final class McpMain {
                     fromStart, hub, standing,
                     list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup,
                     agentLabel, revokeAgent == null ? null : agentLabel("--revoke-agent", revokeAgent),
-                    allowAgent == null ? null : agentLabel("--allow-agent", allowAgent), listAgents);
+                    allowAgent == null ? null : agentLabel("--allow-agent", allowAgent), listAgents, ownPort != null);
         }
 
         /** A label for an agent's key, or the reason it is none. */

@@ -74,7 +74,8 @@ final class Link {
     private final PrintStream err;
     private final Supplier<String> token;
     private final boolean quiet;
-    private final int port;
+    /** The ports the one server may listen on for links, in the order they are tried. */
+    private final java.util.List<Integer> ports;
     private final boolean panel;
     private final Starter starter;
     /** The label of this agent's key and the folder the keys are in; null for an agent that has none. */
@@ -119,6 +120,15 @@ final class Link {
      */
     Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, int port, boolean panel, boolean quiet,
             Starter starter, String agent, java.nio.file.Path agentKeys) {
+        this(in, out, err, token, java.util.List.of(port), panel, quiet, starter, agent, agentKeys);
+    }
+
+    /**
+     * @param ports the ports the server may listen on for links, in the order they are tried: one
+     *              for each first port of {@link Ports}, or the one that follows from the user's own
+     */
+    Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, java.util.List<Integer> ports, boolean panel,
+            boolean quiet, Starter starter, String agent, java.nio.file.Path agentKeys) {
         this.agent = agentKeys == null ? null : agent;
         this.agentKeys = agentKeys;
         this.quiet = quiet;
@@ -126,7 +136,7 @@ final class Link {
         this.out = out;
         this.err = err;
         this.token = token;
-        this.port = port;
+        this.ports = ports;
         this.panel = panel;
         this.starter = starter;
     }
@@ -205,12 +215,36 @@ final class Link {
         }
     }
 
+    /**
+     * Connects to the server on the first of its ports that somebody listens on. Where the system
+     * keeps the usual ports back, the server is on a later one of the list ({@link Ports}).
+     *
+     * @throws ConnectException if nobody listens on any of them: there is no server
+     */
+    private Socket open() throws IOException {
+        ConnectException nobody = new ConnectException("no port to look for the server on");
+        for (int port : ports) {
+            Socket socket = new Socket();
+            try {
+                socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), port), 1000);
+                return socket;
+            } catch (ConnectException e) {
+                nobody = e;
+                socket.close();
+            } catch (IOException e) {
+                socket.close();
+                throw e;
+            }
+        }
+        throw nobody;
+    }
+
     /** Proves this side, has the other side proven, and says what is wanted: to pass an agent's messages, or the window. */
     private Channel attach(String what) throws IOException, Refused {
-        Socket socket = new Socket();
+        Socket socket = null;
         boolean kept = false;
         try {
-            socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), port), 1000);
+            socket = open();
             socket.setSoTimeout(5000);
             socket.setTcpNoDelay(true);
             BufferedReader from = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
@@ -260,7 +294,7 @@ final class Link {
             kept = true;
             return new Channel(socket, from, to);
         } finally {
-            if (!kept) {
+            if (!kept && socket != null) {
                 try {
                     socket.close();
                 } catch (IOException e) {

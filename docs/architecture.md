@@ -97,6 +97,16 @@ sessions and its own tools. The ports:
 | Agents' ports | 47821 to 47828 | One WebSocket endpoint per agent, the first free port counting up from `--port`. The extension connects to each |
 | Server's port | 47829 | Links connect here: the port after the agents' eight |
 
+**When the system keeps ports back.** Windows can reserve a range of ports for its own
+networking (Hyper-V, WSL and Docker have it done), and a server then cannot listen on any port
+of that range. The extension cannot be told a port: it finds a server only by trying addresses.
+So the server, the links and the extension share a fixed list of first ports, far apart:
+47821, 37821 and 27821 (`Ports.FIRST` in the server, `FIRST_PORTS` in `policy.ts`). The server
+takes the first whose range the system gives out; a link looks for the server on each in turn
+before it starts one; the extension looks at every range while no server is connected, and
+only at the server's range while one is (`rangesToScan`). A first port the user set, with
+`--port` or in the popup, is the only one that is tried.
+
 Both listen on `127.0.0.1` only. Agents share the process and nothing else: no tool tells one
 agent anything about another.
 

@@ -429,6 +429,33 @@ export function sessionsOfAgent<T extends Pick<SessionAuth, 'clientId'>>(session
 /** What the badge on the toolbar says; nothing when no tab is authorized. */
 export type Badge = '?' | 'RUN' | 'ON' | 'OFF' | 'II' | '';
 
+/** How many ports a server's agents have, in a row from a first one. */
+export const PORTS_OF_A_SERVER = 8;
+
+/**
+ * The first ports a server may have, in the order it tries them. The server takes the first whose
+ * range the system gives out: a system can keep a range of ports back for its own networking,
+ * and then none of a server's ports can be listened on. The extension cannot be told a port, so
+ * the list is fixed and has to say what `Ports.FIRST` says in the server.
+ */
+export const FIRST_PORTS: readonly number[] = [47821, 37821, 27821];
+
+/**
+ * The first ports whose ranges are looked at for servers now.
+ *
+ * - A first port the user set is the only one: a setup that names a port means that port.
+ * - While a server is connected, only the range it is in: there is one server, and it has one range.
+ * - While none is, every range of the list: the server may be on any of them.
+ *
+ * @param configured the first port in the extension's settings
+ * @param connected  the ports of the servers that are connected now
+ */
+export function rangesToScan(configured: number, connected: readonly number[]): number[] {
+  if (configured !== FIRST_PORTS[0]) return [configured];
+  const inUse = FIRST_PORTS.filter((first) => connected.some((port) => port >= first && port < first + PORTS_OF_A_SERVER));
+  return inUse.length > 0 ? inUse : [...FIRST_PORTS];
+}
+
 /**
  * What the badge on the toolbar says. `ON` is a promise: an agent may act now. That takes a
  * session that is neither paused nor suspended and a connected agent that may use it. A session

@@ -9,7 +9,7 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent, noticeAtRest,
+  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent, noticeAtRest, rangesToScan,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
   type AccessRequest, type AllowMemory, type AskMemory, type AskMode, type Blocked, type Limits, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
@@ -1800,6 +1800,7 @@ function connectPort(port: number): void {
 /**
  * Looks for servers on every port of the range that has no live connection yet. Each server takes
  * the first free port, but other software may hold ports in between, so the whole range is tried.
+ * While no server is connected, the other ranges a server may have are tried as well (`rangesToScan`).
  * Throttled, because the popup asks for it while it is open.
  */
 function scan(force: boolean, minGapMs = 2500): void {
@@ -1809,7 +1810,11 @@ function scan(force: boolean, minGapMs = 2500): void {
     const now = Date.now();
     if (!force && now - lastScan < minGapMs) return;
     lastScan = now;
-    for (let port = config.port; port < config.port + PORT_RANGE; port++) connectPort(port);
+    // Where the system keeps the usual ports back, the server is on a later range of the list.
+    const connected = [...clients.values()].filter((c) => c.authenticated).map((c) => c.port);
+    for (const first of rangesToScan(config.port, connected)) {
+      for (let port = first; port < first + PORT_RANGE; port++) connectPort(port);
+    }
   });
 }
 

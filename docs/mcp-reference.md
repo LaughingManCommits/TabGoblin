@@ -96,6 +96,7 @@ Session s1
 | Line | Meaning |
 |---|---|
 | `This agent` | The agent's id and port, and who it is: `identity "…": the same agent at every start` for an agent started with `--agent`; otherwise that it has an id for this start only and its tabs do not come back after a restart |
+| `Ports: …` | Only where the system keeps the usual ports back and the server uses another range: `Ports: this machine's system keeps the usual ports 47821-47829 back, so this server uses 37821-37829. The extension looks there by itself: the user has nothing to set.` Nothing for the agent to do; it explains the port in the line above |
 | `Submissions need user confirmation` | The user's general setting: *yes*; *yes, the first time for each control; what the user allowed passes for a while*; or *no (only high-impact ones are put to the user)*. A submission is declared the same way under every setting |
 | `Security policy: …` | Only where the user's [security policy](developer-guide.md#the-security-policy) restricts something: the strict profile, no screenshots, the highest access level, how long an authorization lasts, and that agents work only on the sites the user allows. The sites are not listed |
 | `Sessions: N` | With more than one it adds `(pass session=<id> to every tool)`. Without any, the result says `Authorized origin: none` and what to ask the user for |

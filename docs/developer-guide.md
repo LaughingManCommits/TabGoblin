@@ -265,7 +265,8 @@ its last agent has gone. To stop it yourself, press **Stop server** in
 connects again (in Claude Code, *Reconnect* under `/mcp`). Its tabs are kept.
 
 **A server that hangs or is left over.** The agents' ports are 47821 to 47828, and the
-server's own is 47829. To find the process:
+server's own is 47829. (Where the system keeps those back, they begin at 37821 or 27821
+instead: `browser_status` and the server's window say which.) To find the process:
 
 ```powershell
 # Windows (PowerShell)
@@ -434,7 +435,7 @@ Tips:
 |---|---|---|
 | When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
 | Notice in the page | Switch under *Settings* in the popup | on |
-| First port | *Connection…* in the popup; `--port` on the server | 47821 |
+| First port | *Connection…* in the popup; `--port` on the server. Set both or neither | 47821, and by itself 37821 or 27821 where the system keeps the ports before back |
 | Blocked sites, security policy, audit record | The settings file: [restricting what agents may do](#restricting-what-agents-may-do) | none, no restriction, off |
 
 Options of the server go after the jar's path (or after `tabgoblin` in a download). The
@@ -443,7 +444,7 @@ variable is set in the environment the server is started in; the option wins.
 | Option | Variable | Default | What it sets |
 |---|---|---|---|
 | `--agent <name>` | `BCMCP_AGENT` | none | The name of the agent that starts the server ([agents](#agents)) |
-| `--port` | `BCMCP_PORT` | `47821` | The first of the eight agents' ports |
+| `--port` | `BCMCP_PORT` | `47821`, else `37821`, else `27821` | The first of the eight agents' ports. Without it the server takes the first of the three whose range the system gives out, and the extension finds it. With it, only that port is tried, and the popup's *First port* has to say the same |
 | `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
 | `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is |
 | `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
@@ -484,4 +485,4 @@ In a build from source, `java -jar java-server/target/browser-context-mcp.jar` s
 | The page stopped responding | A native `alert` or `confirm` dialog is open | Dismiss the dialog |
 | Working through TabGoblin is slow | The time goes to the agent and its model, to the browser, or to waiting for you | Ask the agent to call `browser_status` with `diagnostics`: it says [where the time went](mcp-reference.md#where-the-time-went) |
 | `--panel` is set and no window appears | The server found no display, or runs on a system the jar has no window for | The server's log has a line `panel not shown reason=…` |
-| *Could not listen on any of ports 47821-47828* | The ports are taken, or the system holds them back | See [installation problems](installation.md#problems) |
+| *Could not listen on any of ports 47821-47828* | Eight agents are connected already, other programs hold the ports, or the system keeps all three ranges back | See [installation problems](installation.md#problems) |
