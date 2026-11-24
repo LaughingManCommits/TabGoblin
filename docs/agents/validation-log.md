@@ -46,6 +46,16 @@ its place. Whether listening and connecting fail on Windows for a reserved port 
 `Ports.usable` takes them to is not seen. Not run either: the server's window; Windows and
 macOS at all; the extension in a browser against a server on the second range.
 
+Added the same day, from a second session on Windows 11 with a display, at `1dcbc2c`, in a
+copy: `mvn verify` failed in one of the new tests, `PortsTest`
+`aRangeThatIsFreeOrThatProgramsHoldIsNotTakenForOneTheSystemKeepsBack`, and so built no jar.
+A fault of the test, not of `Ports`: its held sockets queued one connection and took none, the
+first question whether a port answers filled that queue, and Windows refuses a further
+connection where Linux lets it wait. With a queue of ten: 195 tests, 0 skipped, and the 8 of
+the conformance check; `npm run check` 212; end to end 103 passed, 0 failed. The usual range
+is kept back on that machine, but its server is started with `--port`, so no fallback was seen
+there either. Not run: the editor lab.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: the documentation rewritten
 
 Asked for by the owner: the documentation reviewed against the implementation and rewritten for

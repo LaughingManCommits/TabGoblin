@@ -104,7 +104,9 @@ class PortsTest {
         int first = freeRange();
         assertTrue(Ports.usable(first), "free");
         for (int port = first; port < first + McpMain.PORT_RANGE; port++) {
-            ServerSocket held = new ServerSocket(port, 1, loopback());
+            // Room for the connections that ask whether it answers: nobody takes them here, and
+            // Windows refuses a further one once the queue is full.
+            ServerSocket held = new ServerSocket(port, 10, loopback());
             open.add(held);
         }
         // All eight are taken, by programs that answer: closing one of them helps, another range does not.
