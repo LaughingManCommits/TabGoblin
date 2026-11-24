@@ -6,9 +6,9 @@ description: Read and operate the browser tabs the user has authorized in their 
 # TabGoblin
 
 TabGoblin lets you work in tabs of the user's own Chrome, with the user's own logins. You get
-eleven tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_click`,
-`browser_fill`, `browser_press_key`, `browser_scroll`, `browser_navigate`,
-`browser_screenshot`, `browser_wait_for` and `browser_submit`. You never get cookies, tokens
+thirteen tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_collect`,
+`browser_click`, `browser_hover`, `browser_fill`, `browser_press_key`, `browser_scroll`,
+`browser_navigate`, `browser_screenshot`, `browser_wait_for` and `browser_submit`. You never get cookies, tokens
 or a way to run code in the page. The user decides which tab you may use, on which website, and
 how much you may do there.
 
@@ -81,7 +81,18 @@ to the page it came from: after a navigation or a change, `STALE_REF` asks for a
 - `browser_press_key`: Escape, Tab and the keys that move through a page with Explore; other
   keys need Read / Write.
 - `browser_scroll` scrolls the page or one element. `browser_wait_for` waits, for a limited
-  time, for a text or an element to appear or to go.
+  time, for a text or an element to appear or to go, or for an element to change
+  (`condition: "changed"`): use that for a status or a build that moves on, and do not read the
+  page again and again.
+- `browser_collect` reads, in one call, a page that shows more as it is scrolled (a feed, a
+  log, a long discussion, a list that draws only the rows in view), or a list in pages when you
+  give it the name of the link to the next page (`next: "Next"`). It leaves out what it read
+  before, and stops at the end or at a limit. Read its `Stopped:` and `Completeness:` lines:
+  `TRUNCATED` means there is more, and a further call goes on from where the page is now. With
+  `find` it returns only the matching lines and their context. Prefer it to a loop of scrolling
+  and reading.
+- `browser_hover` moves the pointer over an element, for a menu or a tooltip that a page shows
+  on hovering. Nothing is clicked. Take a snapshot with `diff: true` afterwards.
 
 ## Submit
 

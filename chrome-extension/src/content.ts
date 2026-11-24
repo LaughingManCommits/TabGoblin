@@ -2,9 +2,10 @@
 // It answers a fixed set of operations from the background worker. There is no eval, no access to
 // cookies or storage, and nothing here is reachable from page scripts (isolated world).
 
-import { MAX_ROOTS, extractPage, type ExtractOptions, type LinkStyle, type RegionKind } from './extract.ts';
+import { MAX_LINES_PER_READ } from './collect.ts';
+import { MAX_ROOTS, extractPage, visibleText, type ExtractOptions, type LinkStyle, type RegionKind } from './extract.ts';
 import {
-  clickElement, describeClickTarget, describeKeyTarget, fill, foreignFramesInView, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
+  clickElement, controlNamed, describeClickTarget, describeKeyTarget, fill, foreignFramesInView, hoverElement, keyElement, press, scrollPage, takesText, unsavedFields, viewportCoverage,
   waitFor, waitForQuiet, type WaitCondition,
 } from './interact.ts';
 import { applyUpdate, mountNotice, noticeUpdateOf, noticeView, paintNotice, whenDrawn, type Notice, type NoticeMount } from './notice.ts';
@@ -189,6 +190,20 @@ async function handle(msg: Request, state: PageState): Promise<unknown> {
         typeof msg.amount === 'number' ? msg.amount : undefined,
         optionalRef(msg, state) ?? null,
         state);
+    case 'hover':
+      return hoverElement(registry.resolve(ref));
+    case 'collect_read': {
+      // What is shown now, as lines, by the reader an extract uses: nothing it leaves out is in
+      // here. What looks like a credential is taken out before it leaves the page.
+      const root = optionalRef(msg, state) ?? document.body;
+      const lines = root ? redactText(visibleText(root)).split('\n') : [];
+      return { lines: lines.slice(0, MAX_LINES_PER_READ), cut: lines.length > MAX_LINES_PER_READ, title: document.title };
+    }
+    case 'collect_next': {
+      // The control that leads on, looked for anew on every page: a ref does not outlast its document.
+      const control = controlNamed(document, String(msg.name ?? ''));
+      return control ? { ref: registry.assign(control), target: describeClickTarget(control) } : { ref: null };
+    }
     case 'coverage':
       return { text: viewportCoverage(document) };
     case 'frames':

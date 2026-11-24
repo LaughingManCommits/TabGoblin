@@ -507,6 +507,7 @@ chrome-extension/src/
   background.ts            connections, sessions, gate, navigation, submissions, activity
   policy.ts                every rule, as pure functions
   redact.ts                what looks like a credential, taken out of text and addresses
+  collect.ts               what of a further reading is new, after a scroll or on a next page
   protocol.ts              typed messages and their validation
   pairing.ts               HMAC proofs for the pairing, the mirror of Pairing.java
   content.ts               fixed set of page operations; holds the notice in the page

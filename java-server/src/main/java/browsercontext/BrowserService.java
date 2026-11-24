@@ -241,6 +241,8 @@ public final class BrowserService {
                 case "browser_fill" -> fill(a);
                 case "browser_press_key" -> pressKey(a);
                 case "browser_scroll" -> scroll(a);
+                case "browser_hover" -> hover(a);
+                case "browser_collect" -> collect(a);
                 case "browser_navigate" -> navigate(a);
                 case "browser_screenshot" -> screenshot(a);
                 case "browser_wait_for" -> waitFor(a);
@@ -259,8 +261,16 @@ public final class BrowserService {
     }
 
     private JsonNode send(String action, JsonNode a, ObjectNode params, Duration timeout) {
+        return send(action, action, a, params, timeout);
+    }
+
+    /**
+     * @param checkedAs the action whose access level this command needs, where that depends on its
+     *                  arguments: collecting by pages needs what a click on a link needs
+     */
+    private JsonNode send(String action, String checkedAs, JsonNode a, ObjectNode params, Duration timeout) {
         String session = session(a);
-        refuseIfBlocked(action, session, null);
+        refuseIfBlocked(checkedAs, session, null);
         return bridge.send(action, session, params, timeout);
     }
 
@@ -296,12 +306,11 @@ public final class BrowserService {
             throw new BrowserException("SCREENSHOTS_DISABLED", "The user's security policy allows no screenshots. Nothing was "
                     + "captured. Read the page with browser_snapshot or browser_extract instead.");
         }
-        String needs = NEEDS.getOrDefault(action, "read");
+        BlockedSites.Access needs = NEEDS.getOrDefault(action, BlockedSites.Access.READ);
         if (!limits.allows(needs)) {
             bridge.refused(session, action, "ACCESS_RESTRICTED");
             throw new BrowserException("ACCESS_RESTRICTED", "The user's security policy allows no session more than "
-                    + (limits.maxAccess().equals("explore") ? "Explore" : "Read") + " access, and this needs "
-                    + (needs.equals("write") ? "Write" : "Explore") + ". Nothing was done. Only the user can change the policy, "
+                    + limits.maxAccess().label() + " access, and this needs " + needs.label() + ". Nothing was done. Only the user can change the policy, "
                     + "in the settings of the TabGoblin server.");
         }
         if (rule.domains().isEmpty() && limits.allowed().isEmpty()) {
@@ -349,8 +358,10 @@ public final class BrowserService {
     }
 
     /** The least access each action needs: what the extension's rules have, said here to refuse ahead of sending. */
-    private static final Map<String, String> NEEDS = Map.of("navigate", "explore", "click", "explore", "press_key", "explore",
-            "hover", "explore", "fill", "write", "submit", "write");
+    private static final Map<String, BlockedSites.Access> NEEDS = Map.of(
+            "navigate", BlockedSites.Access.EXPLORE, "click", BlockedSites.Access.EXPLORE,
+            "press_key", BlockedSites.Access.EXPLORE, "hover", BlockedSites.Access.EXPLORE,
+            "fill", BlockedSites.Access.WRITE, "submit", BlockedSites.Access.WRITE);
 
     /** What an agent is told of a site outside the ones the user limits agents to. It names the one site, and never the list. */
     static String notAllowedMessage(String host) {
@@ -676,6 +687,55 @@ public final class BrowserService {
             p.put("ref", requireInt(a, "ref"));
         }
         return render(send("scroll", a, p, defaultTimeout));
+    }
+
+    private ToolResult hover(JsonNode a) {
+        ObjectNode p = json.createObjectNode();
+        p.put("ref", requireInt(a, "ref"));
+        return render(send("hover", a, p, defaultTimeout));
+    }
+
+    static final int MAX_COLLECT_STEPS = 20;
+    static final int MAX_COLLECT_MS = 30_000;
+
+    /**
+     * Reads what a tab shows over several steps in one call: scrolled down, or page after page by
+     * a link the agent names. Bounded by steps, time and size; the extension stops at the first.
+     */
+    private ToolResult collect(JsonNode a) {
+        ObjectNode p = json.createObjectNode();
+        p.put("maxSteps", range(optInt(a, "max_steps", 5), "max_steps", 1, MAX_COLLECT_STEPS));
+        int maxMs = range(optInt(a, "max_ms", 15_000), "max_ms", 500, MAX_COLLECT_MS);
+        p.put("maxMs", maxMs);
+        p.put("maxChars", range(optInt(a, "max_chars", 12_000), "max_chars", 100, 100_000));
+        boolean paged = a.hasNonNull("next");
+        if (paged) {
+            String next = requireString(a, "next").trim();
+            if (next.isEmpty() || next.length() > 80) {
+                throw new BrowserException("INVALID_ARGUMENT", "next must be the name of the link to the next page, 1-80 characters.");
+            }
+            p.put("next", next);
+        }
+        if (a.hasNonNull("ref")) {
+            if (paged) {
+                throw new BrowserException("INVALID_ARGUMENT", "ref goes with scrolling, not with next: a ref does not outlast its page.");
+            }
+            p.put("ref", requireInt(a, "ref"));
+        }
+        if (a.hasNonNull("find")) {
+            String find = requireString(a, "find");
+            if (find.isEmpty() || find.length() > 200) {
+                throw new BrowserException("INVALID_ARGUMENT", "find must be 1-200 characters.");
+            }
+            p.put("find", find);
+            p.put("regex", optBool(a, "regex", false));
+            p.put("contextLines", range(optInt(a, "context_lines", 2), "context_lines", 0, 20));
+        } else if (optBool(a, "regex", false) || a.hasNonNull("context_lines")) {
+            throw new BrowserException("INVALID_ARGUMENT", "regex and context_lines go with find.");
+        }
+        // Following a link takes Explore: refused here already where the user's policy allows no session
+        // that much. Each step has its own time in the extension; the whole has the caller's on top.
+        return render(send("collect", paged ? "click" : "collect", a, p, defaultTimeout.plusMillis(maxMs)));
     }
 
     private ToolResult navigate(JsonNode a) {

@@ -10,6 +10,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Stream;
 
 /**
@@ -30,7 +31,7 @@ import java.util.stream.Stream;
 final class AgentKeys {
 
     /** What an agent is to a server: its id, the label of its key if it has one, and whether that label is revoked. */
-    record Identity(String id, String label, boolean persistent, java.util.function.BooleanSupplier revoked) {
+    record Identity(String id, String label, boolean persistent, BooleanSupplier revoked) {
 
         /** An agent without a key: an id for this start, and nothing that comes back to it after. */
         static Identity ephemeral() {

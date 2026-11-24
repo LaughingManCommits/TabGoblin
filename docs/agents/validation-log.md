@@ -3,6 +3,33 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, collecting and hovering
+
+On the owner's "continue with p1", after the entry below. Two tools, `browser_collect` and
+`browser_hover`: thirteen now. In the same container. Pushed to that branch on the owner's word.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 176 tests, 15 skipped for lack of a display, and the 8 of the conformance check, which counts thirteen tools and eight that give an object |
+| `npm run check` in `chrome-extension` | 200 tests, with the type-check and the build. Eight are new: what of a further reading is new, hover, the control to a next page, and collecting in the worker |
+| `cd e2e && node run.mjs` | 101 passed, 0 failed. One step is new, on two new pages of demo site A |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+Measured in the real browser, on the demo's feed of sixty events that shows twenty at a time:
+one call of `browser_collect` returned all sixty, each once, in 6 readings and 2.1 seconds;
+the same with `find: "ERROR"` returned the two that failed with a line of context, in about a
+quarter of the characters. A list that draws nine rows of two hundred came back in order and
+without a row twice, over two calls of twenty steps. Three pages of a list: 19 lines in 3
+readings, 0.5 seconds.
+
+Found on the way: the count of readings in the result's first line was one too many where the
+last step found no further page. And, on the owner's word about standards, the new Java was gone
+over: the access level is an enum and no longer three strings, the record on disk is written
+with the JSON library and no longer by hand, and qualified names in the new classes became
+imports.
+
+Not run: Windows; the editor lab; the workflows; a real agent by hand.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, security hardening and features for developers
 
 Asked for by the owner as a list of fourteen points. Made from `a06b0ce`. In a container in the

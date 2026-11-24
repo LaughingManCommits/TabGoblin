@@ -267,7 +267,7 @@ public class WebSocketBridge extends WebSocketServer {
             var allowed = msg.putArray("allowed");
             limits.allowed().forEach(allowed::add);
             msg.put("screenshots", limits.screenshots());
-            msg.put("maxAccess", limits.maxAccess());
+            msg.put("maxAccess", limits.maxAccess().wire());
             msg.put("sessionMaxMinutes", limits.sessionMaxMinutes());
             msg.put("sessionIdleMinutes", limits.sessionIdleMinutes());
             try {

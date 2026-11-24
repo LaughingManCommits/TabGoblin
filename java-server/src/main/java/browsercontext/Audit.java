@@ -8,6 +8,8 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * A record on this machine of what agents did, for the user or whoever is answerable for the
@@ -27,6 +29,8 @@ final class Audit {
     static final String KEY = "audit.log";
     static final String FILE = "audit.jsonl";
     static final long MAX_BYTES = 5L * 1024 * 1024;
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private static volatile Path file;
 
@@ -54,14 +58,18 @@ final class Audit {
         if (target == null) {
             return;
         }
-        String line = "{\"time\":\"" + Instant.now() + "\""
-                + ",\"agent\":" + text(agent)
-                + ",\"session\":" + text(session)
-                + ",\"action\":" + text(action)
-                + ",\"ms\":" + Math.max(0, millis)
-                + ",\"outcome\":" + text(errorCode == null ? "ok" : errorCode)
-                + (errorCode == null ? "" : ",\"category\":" + text(Protocol.category(errorCode)))
-                + "}\n";
+        ObjectNode entry = JSON.createObjectNode();
+        entry.put("time", Instant.now().toString());
+        entry.put("agent", agent);
+        entry.put("session", session);
+        entry.put("action", action);
+        entry.put("ms", Math.max(0, millis));
+        entry.put("outcome", errorCode == null ? "ok" : errorCode);
+        if (errorCode != null) {
+            entry.put("category", Protocol.category(errorCode));
+        }
+        // One entry, one line: the library escapes what a value holds.
+        String line = JSON.writeValueAsString(entry) + "\n";
         try {
             if (Files.exists(target) && Files.size(target) >= MAX_BYTES) {
                 Files.move(target, target.resolveSibling("audit.1.jsonl"), StandardCopyOption.REPLACE_EXISTING);
@@ -80,23 +88,5 @@ final class Audit {
             file = null;
             Log.warn("audit log: cannot be written, switched off reason=" + e.getClass().getSimpleName());
         }
-    }
-
-    /** A value as JSON text. Ids, action names and codes only come here; anything else is made harmless. */
-    private static String text(String value) {
-        if (value == null) {
-            return "null";
-        }
-        StringBuilder out = new StringBuilder("\"");
-        for (char c : value.toCharArray()) {
-            if (c == '"' || c == '\\') {
-                out.append('\\').append(c);
-            } else if (c < 0x20) {
-                out.append(' ');
-            } else {
-                out.append(c);
-            }
-        }
-        return out.append('"').toString();
     }
 }

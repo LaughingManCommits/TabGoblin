@@ -8,9 +8,12 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -125,7 +128,7 @@ final class Hub {
     private final List<Member> members = new CopyOnWriteArrayList<>();
     private final Deque<Long> failedProofs = new ArrayDeque<>();
     /** The ids of the agents that are here by a key: a key has one agent at a time. */
-    private final java.util.Set<String> present = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private final Set<String> present = ConcurrentHashMap.newKeySet();
     private final BiConsumer<String, String> logTo = this::passOn;
     private volatile boolean standing;
     private volatile boolean held;
@@ -355,7 +358,7 @@ final class Hub {
      * this start: a tab has one agent, and the first is the one that has the key's tabs.
      */
     private AgentKeys.Identity identify(JsonNode ask, String nonce, String linkNonce) {
-        java.nio.file.Path keys = settings.agentKeys();
+        Path keys = settings.agentKeys();
         if (!ask.hasNonNull("agent") || keys == null) {
             return AgentKeys.Identity.ephemeral();
         }

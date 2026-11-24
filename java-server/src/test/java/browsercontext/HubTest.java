@@ -200,7 +200,7 @@ class HubTest {
         assertEquals(port, agent.bridge().getPort(), "the first agent has the first port");
 
         client.send("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
-        assertEquals(11, client.answerTo(1).path("result").path("tools").size());
+        assertEquals(13, client.answerTo(1).path("result").path("tools").size());
 
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         client.call(2, "browser_status", "{}");
@@ -354,7 +354,7 @@ class HubTest {
         assertNotEquals(firstId, again.bridge().clientId(), "a new server, and a new id");
         // The agent goes on as if nothing had happened to its connection, and sees no second answer to its opening.
         client.send("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/list\"}");
-        assertEquals(11, client.answerTo(8).path("result").path("tools").size());
+        assertEquals(13, client.answerTo(8).path("result").path("tools").size());
         assertTrue(client.received.stream().noneMatch(msg -> msg.path("id").asInt(-1) == 0), "the opening was answered once");
         assertEquals(1, silent.commands.size(), "nothing was sent to the browser a second time");
         assertTrue(client.log().contains("the server has gone: starting it anew"), client.log());

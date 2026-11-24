@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   clickElement, describeClickTarget, describeKeyTarget, fillElement, pressKey, waitFor,
-  foreignFramesInView,
+  controlNamed, foreignFramesInView, hoverElement,
 } from '../src/interact.ts';
 import { DomError, PageState, takeSnapshot } from '../src/snapshot.ts';
 import { layout, page, refOf } from './helpers.ts';
@@ -434,4 +434,28 @@ test('wait_for changed is met when an element shows something else, and not whil
   setTimeout(() => { (doc.getElementById('pw') as HTMLInputElement).value = 'another'; }, 50);
   await assert.rejects(waitFor(doc, registry, { ref: pw, condition: 'changed', timeoutMs: 300 }),
     (e: unknown) => e instanceof DomError && e.code === 'WAIT_TIMEOUT');
+});
+
+test('hover sends the pointer events a page listens for, and presses nothing', () => {
+  const { doc } = page('<button id="menu">Account</button><p id="tip" hidden>Signed in</p>');
+  const menu = doc.getElementById('menu') as HTMLElement;
+  const seen: string[] = [];
+  for (const type of ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove', 'mousedown', 'mouseup', 'click', 'focus']) {
+    menu.addEventListener(type, () => seen.push(type));
+  }
+  menu.addEventListener('mouseenter', () => { (doc.getElementById('tip') as HTMLElement).hidden = false; });
+  const result = hoverElement(menu);
+  assert.equal(result.dispatched, true);
+  assert.deepEqual(seen, ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove']);
+  assert.equal((doc.getElementById('tip') as HTMLElement).hidden, false, 'what the page opens on hovering is open');
+  assert.notEqual(doc.activeElement, menu, 'the keyboard did not move');
+});
+
+test('the control to a next page is found by its exact name, and only one that can be pressed', () => {
+  const { doc } = page(`<a id="n1" href="/p/2">Next</a><a href="/p/9">Next page of comments</a>
+    <button id="older" aria-label="Older posts">›</button><button disabled>Disabled</button>
+    <a href="/x" style="display:none">Hidden</a><span role="button" aria-disabled="true">Off</span><p>Next</p>`);
+  assert.equal(controlNamed(doc, 'next'), doc.getElementById('n1'));
+  assert.equal(controlNamed(doc, ' Older  posts '), doc.getElementById('older'));
+  for (const none of ['Disabled', 'Hidden', 'Off', 'Nex', 'comments', '']) assert.equal(controlNamed(doc, none), null, none);
 });

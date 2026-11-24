@@ -547,7 +547,7 @@ class BrowserServiceTest {
     void mcpLayerExposesExactlyTheGenericToolsAndRoutesCalls() {
         List<SyncToolSpecification> specs = McpMain.toolSpecs(service, McpJsonDefaults.getMapper());
         assertEquals(List.of("browser_status", "browser_snapshot", "browser_extract", "browser_click",
-                "browser_fill", "browser_press_key", "browser_scroll", "browser_navigate", "browser_screenshot",
+                "browser_fill", "browser_press_key", "browser_scroll", "browser_hover", "browser_collect", "browser_navigate", "browser_screenshot",
                 "browser_wait_for", "browser_submit"),
                 specs.stream().map(s -> s.tool().name()).toList());
 
@@ -768,7 +768,7 @@ class BrowserServiceTest {
     }
 
     private static BlockedSites.Rule limited(boolean strict, java.util.List<String> allowed, boolean screenshots, String maxAccess) {
-        return new BlockedSites.Rule(java.util.List.of(), null, new BlockedSites.Limits(strict, allowed, screenshots, maxAccess, 480, 30));
+        return new BlockedSites.Rule(java.util.List.of(), null, new BlockedSites.Limits(strict, allowed, screenshots, BlockedSites.Access.of(maxAccess), 480, 30));
     }
 
     @Test
@@ -843,5 +843,54 @@ class BrowserServiceTest {
         assertEquals("explore", said.path("maxAccess").asString());
         assertEquals(480, said.path("sessionMaxMinutes").asInt());
         assertEquals(30, said.path("sessionIdleMinutes").asInt());
+    }
+
+    @Test
+    void collectingAndHoveringAreRoutedWithTheirLimitsAndWhatIsOutsideThemIsRefusedHere() {
+        service.call("browser_hover", args().put("ref", 12));
+        assertEquals("hover", lastCommand().path("action").asString());
+        assertEquals(12, lastParams().path("ref").asInt());
+        assertTrue(service.call("browser_hover", args()).text().startsWith("Error [INVALID_ARGUMENT]"));
+
+        service.call("browser_collect", args());
+        assertEquals("collect", lastCommand().path("action").asString());
+        assertEquals(5, lastParams().path("maxSteps").asInt());
+        assertEquals(15_000, lastParams().path("maxMs").asInt());
+        assertEquals(12_000, lastParams().path("maxChars").asInt());
+        for (String name : java.util.List.of("next", "ref", "find", "regex", "contextLines")) {
+            assertTrue(lastParams().path(name).isMissingNode(), name);
+        }
+        service.call("browser_collect", args().put("max_steps", 20).put("max_ms", 30_000).put("max_chars", 100_000)
+                .put("ref", 4).put("find", "ERROR").put("regex", true).put("context_lines", 0));
+        assertEquals(20, lastParams().path("maxSteps").asInt());
+        assertEquals(4, lastParams().path("ref").asInt());
+        assertEquals("ERROR", lastParams().path("find").asString());
+        assertTrue(lastParams().path("regex").asBoolean());
+        assertEquals(0, lastParams().path("contextLines").asInt());
+        service.call("browser_collect", args().put("next", " Next "));
+        assertEquals("Next", lastParams().path("next").asString());
+
+        int sent = ext.commands.size();
+        // No more steps, time or size than the limits; a ref with pages; a search's options without a search.
+        for (ObjectNode bad : java.util.List.of(args().put("max_steps", 21), args().put("max_steps", 0), args().put("max_ms", 30_001),
+                args().put("max_ms", 100), args().put("max_chars", 100_001), args().put("next", ""), args().put("next", "x".repeat(81)),
+                args().put("next", "Next").put("ref", 3), args().put("find", ""), args().put("find", "x".repeat(201)),
+                args().put("regex", true), args().put("context_lines", 3), args().put("find", "x").put("context_lines", 21))) {
+            BrowserService.ToolResult refused = service.call("browser_collect", bad);
+            assertTrue(refused.text().startsWith("Error [INVALID_ARGUMENT]"), bad + ": " + refused.text());
+        }
+        assertEquals(sent, ext.commands.size(), "none of them was sent");
+    }
+
+    @Test
+    void whereThePolicyAllowsNoSessionMoreThanReadNoPageIsFollowedAndNothingIsHoveredOver() throws Exception {
+        twoSessions();
+        bridge.blockedSites(() -> limited(false, java.util.List.of(), true, "read"));
+        assertTrue(service.call("browser_hover", args().put("session", "s1").put("ref", 3)).text().startsWith("Error [ACCESS_RESTRICTED]"));
+        assertTrue(service.call("browser_collect", args().put("session", "s1").put("next", "Next")).text().startsWith("Error [ACCESS_RESTRICTED]"));
+        assertEquals(0, ext.commands.size());
+        // Scrolling and reading is what Read access has.
+        ext.responder = cmd -> FakeExtension.ok(cmd, args().put("text", "Collected: 3 lines"));
+        assertEquals("Collected: 3 lines", service.call("browser_collect", args().put("session", "s1")).text());
     }
 }

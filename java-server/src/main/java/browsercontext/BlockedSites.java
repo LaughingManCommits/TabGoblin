@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
@@ -118,6 +119,42 @@ final class BlockedSites {
         }
     }
 
+    /** The three access levels of a session, from the least to the most. */
+    enum Access {
+        READ("Read"), EXPLORE("Explore"), WRITE("Write");
+
+        private final String label;
+
+        Access(String label) {
+            this.label = label;
+        }
+
+        /** The level as the user reads it. */
+        String label() {
+            return label;
+        }
+
+        /** The level as the settings file and the protocol have it. */
+        String wire() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        /** Whether a session of this level may do what needs that level. */
+        boolean covers(Access needed) {
+            return needed.ordinal() <= ordinal();
+        }
+
+        /** The level of that name, whatever its case, or null if there is none. */
+        static Access of(String name) {
+            for (Access access : values()) {
+                if (access.wire().equalsIgnoreCase(name == null ? "" : name.trim())) {
+                    return access;
+                }
+            }
+            return null;
+        }
+    }
+
     /**
      * What the user's settings restrict besides blocked sites. It is local to this machine: a file
      * the user, or whoever manages the machine, writes. Nothing here widens what an agent may do;
@@ -127,32 +164,24 @@ final class BlockedSites {
      *                           change something is a submission, and a tab is authorized for one named agent
      * @param allowed            the only sites agents may work on, as domains; empty for no such limit
      * @param screenshots        whether an agent may take a picture of a tab
-     * @param maxAccess          the highest access level a session may have: read, explore or write
+     * @param maxAccess          the highest access level a session may have
      * @param sessionMaxMinutes  how long an authorization lasts at most; 0 for no limit
      * @param sessionIdleMinutes after how long without a command an authorization ends; 0 for never
      */
-    record Limits(boolean strict, List<String> allowed, boolean screenshots, String maxAccess, int sessionMaxMinutes,
+    record Limits(boolean strict, List<String> allowed, boolean screenshots, Access maxAccess, int sessionMaxMinutes,
             int sessionIdleMinutes) {
 
         /** No restriction: what holds without a settings file. */
-        static final Limits NONE = new Limits(false, List.of(), true, "write", 0, 0);
+        static final Limits NONE = new Limits(false, List.of(), true, Access.WRITE, 0, 0);
 
         /** Whether an action that needs this access level is within the highest level allowed. */
-        boolean allows(String level) {
-            return rank(level) <= rank(maxAccess);
-        }
-
-        private static int rank(String level) {
-            return switch (level) {
-                case "write" -> 2;
-                case "explore" -> 1;
-                default -> 0;
-            };
+        boolean allows(Access needed) {
+            return maxAccess.covers(needed);
         }
 
         /** The restrictions in a few words, for the user and for an agent; empty when there is none. */
         String summary() {
-            List<String> parts = new java.util.ArrayList<>();
+            List<String> parts = new ArrayList<>();
             if (strict) {
                 parts.add("strict profile (every submission is confirmed by the user; a click that may change something counts as one)");
             }
@@ -162,8 +191,8 @@ final class BlockedSites {
             if (!screenshots) {
                 parts.add("no screenshots");
             }
-            if (!maxAccess.equals("write")) {
-                parts.add("access up to " + (maxAccess.equals("explore") ? "Explore" : "Read"));
+            if (maxAccess != Access.WRITE) {
+                parts.add("access up to " + maxAccess.label());
             }
             if (sessionMaxMinutes > 0) {
                 parts.add("an authorization lasts at most " + sessionMaxMinutes + " min");
@@ -216,9 +245,10 @@ final class BlockedSites {
         if (!pictures.equals("on") && !pictures.equals("off")) {
             throw new Slip("\"" + pictures + "\" in " + SCREENSHOTS + " is neither on nor off");
         }
-        String access = properties.getProperty(MAX_ACCESS, "write").trim().toLowerCase(Locale.ROOT);
-        if (!List.of("read", "explore", "write").contains(access)) {
-            throw new Slip("\"" + access + "\" in " + MAX_ACCESS + " is none of read, explore, write");
+        String level = properties.getProperty(MAX_ACCESS, Access.WRITE.wire()).trim();
+        Access access = Access.of(level);
+        if (access == null) {
+            throw new Slip("\"" + level + "\" in " + MAX_ACCESS + " is none of read, explore, write");
         }
         return new Limits(strict, List.copyOf(allowed), pictures.equals("on"), access,
                 minutes(properties, SESSION_MAX, strict ? STRICT_SESSION_MAX : 0),
@@ -474,7 +504,7 @@ final class BlockedSites {
                             Log.info("security policy: profile=" + (read.limits().strict() ? "strict" : "standard")
                                     + " allowed_sites=" + read.limits().allowed().size()
                                     + " screenshots=" + (read.limits().screenshots() ? "on" : "off")
-                                    + " access_max=" + read.limits().maxAccess()
+                                    + " access_max=" + read.limits().maxAccess().wire()
                                     + " session_max_min=" + read.limits().sessionMaxMinutes()
                                     + " session_idle_min=" + read.limits().sessionIdleMinutes());
                         }

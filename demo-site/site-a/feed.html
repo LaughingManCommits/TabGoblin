@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Demo Tracker: Activity</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 24px; max-width: 760px; }
+  #feed li { padding: 14px 0; border-bottom: 1px solid #dde3ea; }
+  #rows { height: 200px; overflow-y: auto; border: 1px solid #c8d0d8; position: relative; }
+  #rows .row { position: absolute; left: 0; right: 0; height: 25px; line-height: 25px; padding: 0 8px; }
+  #menu { border: 1px solid #c8d0d8; padding: 8px; width: 200px; }
+</style>
+</head>
+<body>
+  <!-- Three things a page of fixed content does not have: a list that draws only the rows in
+       view, something that opens on hovering, and a feed that loads more when it is scrolled. -->
+  <nav><a href="/">Back to issues</a></nav>
+  <h1>Activity</h1>
+
+  <button id="account" type="button" aria-haspopup="true">Account</button>
+  <div id="menu" role="menu" hidden><a role="menuitem" href="/page2.html">Profile settings</a></div>
+
+  <h2 id="jobs-title">Jobs</h2>
+  <div id="rows" role="list" aria-labelledby="jobs-title" tabindex="0"><div id="sizer"></div></div>
+
+  <h2>Events</h2>
+  <ul id="feed"></ul>
+  <p id="end" role="status" hidden>End of activity.</p>
+
+  <script>
+    // On hovering, and not on a click: a menu that a page opens by its own script.
+    const account = document.getElementById('account');
+    account.addEventListener('mouseenter', () => { document.getElementById('menu').hidden = false; });
+
+    // 200 jobs, of which only those in view are in the page at any moment.
+    const TOTAL = 200;
+    const ROW = 25;
+    const rows = document.getElementById('rows');
+    document.getElementById('sizer').style.height = `${TOTAL * ROW}px`;
+    function draw() {
+      const first = Math.floor(rows.scrollTop / ROW);
+      rows.querySelectorAll('.row').forEach((row) => row.remove());
+      for (let i = first; i < Math.min(TOTAL, first + 9); i++) {
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.setAttribute('role', 'listitem');
+        row.style.top = `${i * ROW}px`;
+        row.textContent = `job ${String(i + 1).padStart(3, '0')}: ${(i + 1) % 40 === 0 ? 'FAILED in stage deploy' : 'passed'}`;
+        rows.append(row);
+      }
+    }
+    rows.addEventListener('scroll', draw);
+    draw();
+
+    // 60 events, twenty at a time: the next twenty come when the end of the page is near.
+    const feed = document.getElementById('feed');
+    let shown = 0;
+    function more() {
+      for (let n = 0; n < 20 && shown < 60; n++) {
+        shown++;
+        const item = document.createElement('li');
+        item.textContent = `event ${String(shown).padStart(2, '0')}: build ${500 + shown} ${shown % 25 === 0 ? 'ERROR out of memory' : 'finished'}`;
+        feed.append(item);
+      }
+      if (shown >= 60) document.getElementById('end').hidden = false;
+    }
+    more();
+    window.addEventListener('scroll', () => {
+      if (shown < 60 && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 80) more();
+    });
+  </script>
+</body>
+</html>

@@ -176,19 +176,19 @@ class BlockedSitesTest {
                 session.max.minutes = 240
                 session.idle.minutes = 20
                 """).limits();
-        assertEquals(new BlockedSites.Limits(false, List.of("ci.intranet.example", "example.org"), false, "explore", 240, 20), limits);
-        assertTrue(limits.allows("read") && limits.allows("explore"));
-        assertFalse(limits.allows("write"));
+        assertEquals(new BlockedSites.Limits(false, List.of("ci.intranet.example", "example.org"), false, BlockedSites.Access.EXPLORE, 240, 20), limits);
+        assertTrue(limits.allows(BlockedSites.Access.READ) && limits.allows(BlockedSites.Access.EXPLORE));
+        assertFalse(limits.allows(BlockedSites.Access.WRITE));
         assertTrue(limits.summary().contains("no screenshots") && limits.summary().contains("access up to Explore"), limits.summary());
     }
 
     @Test
     void theStrictProfileSetsWhatTheFileDoesNotSayAndTheFileCanSayOtherwise(@TempDir Path dir) throws Exception {
         BlockedSites.Limits strict = policy(dir, "security.profile = strict\n").limits();
-        assertEquals(new BlockedSites.Limits(true, List.of(), false, "write", BlockedSites.STRICT_SESSION_MAX, BlockedSites.STRICT_SESSION_IDLE), strict);
+        assertEquals(new BlockedSites.Limits(true, List.of(), false, BlockedSites.Access.WRITE, BlockedSites.STRICT_SESSION_MAX, BlockedSites.STRICT_SESSION_IDLE), strict);
         // What the file names holds, the profile or not: pictures on, another time.
         BlockedSites.Limits own = policy(dir, "security.profile = STRICT\nscreenshots = on\nsession.idle.minutes = 0\nsession.max.minutes = 60\n").limits();
-        assertEquals(new BlockedSites.Limits(true, List.of(), true, "write", 60, 0), own);
+        assertEquals(new BlockedSites.Limits(true, List.of(), true, BlockedSites.Access.WRITE, 60, 0), own);
         assertEquals(BlockedSites.Limits.NONE, policy(dir, "security.profile = standard\n").limits());
     }
 
@@ -206,7 +206,7 @@ class BlockedSitesTest {
     @Test
     void onlyTheSitesThatAreAllowedAreInsideAndWhatNamesNoSiteIsOutside() {
         BlockedSites.Rule rule = new BlockedSites.Rule(List.of(), null,
-                new BlockedSites.Limits(false, List.of("example.org", "10.0.0.7"), true, "write", 0, 0));
+                new BlockedSites.Limits(false, List.of("example.org", "10.0.0.7"), true, BlockedSites.Access.WRITE, 0, 0));
         assertNull(rule.outside(List.of("https://example.org", "https://docs.example.org:8443/a", "http://10.0.0.7/x")));
         assertEquals("notexample.org", rule.outside(List.of("https://example.org", "https://notexample.org/")));
         assertEquals("example.org.evil.example", rule.outside(List.of("https://example.org.evil.example/")));

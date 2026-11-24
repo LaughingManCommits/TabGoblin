@@ -53,7 +53,7 @@ flowchart LR
 ```
 
 - The **agent** understands the website and decides what to do.
-- The **server** offers eleven generic tools and passes them on. It knows nothing about any site.
+- The **server** offers thirteen generic tools and passes them on. It knows nothing about any site.
 - The **extension** does the work in the page and enforces what you allowed.
 - **You** log in, choose the tabs, choose the access level, and can pause or revoke at any time.
 

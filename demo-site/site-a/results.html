@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Demo Tracker: Review comments</title>
+<style>body { font-family: system-ui, sans-serif; margin: 24px; max-width: 760px; }</style>
+</head>
+<body>
+  <!-- A list in pages: each page is a document of its own, with the same header and footer. -->
+  <nav><a href="/">Back to issues</a></nav>
+  <h1>Review comments</h1>
+  <p>Sorted by date, four on a page.</p>
+  <ol id="items"></ol>
+  <p id="pager"></p>
+  <footer><p>Demo Tracker</p></footer>
+  <script>
+    const PAGES = 3;
+    const page = Math.min(PAGES, Math.max(1, Number(new URLSearchParams(location.search).get('page')) || 1));
+    const items = document.getElementById('items');
+    items.start = (page - 1) * 4 + 1;
+    for (let n = 1; n <= 4; n++) {
+      const number = (page - 1) * 4 + n;
+      const item = document.createElement('li');
+      item.textContent = `comment ${number}: ${number === 7 ? 'please rename this method' : 'looks good'}`;
+      items.append(item);
+    }
+    const pager = document.getElementById('pager');
+    pager.append(`Page ${page} of ${PAGES}. `);
+    if (page > 1) pager.insertAdjacentHTML('beforeend', `<a href="?page=${page - 1}">Previous</a> `);
+    if (page < PAGES) pager.insertAdjacentHTML('beforeend', `<a href="?page=${page + 1}">Next</a>`);
+    // A control of the same kind that is no link to a page: it would delete something.
+    pager.insertAdjacentHTML('beforeend', ' <button type="button" id="resolve">Resolve all</button>');
+    document.getElementById('resolve').addEventListener('click', () => { document.title = 'RESOLVED'; });
+  </script>
+</body>
+</html>

@@ -597,6 +597,46 @@ export function viewportCoverage(doc: Document): string {
     + `Not in the image: ${top}px above and ${below}px below. Use browser_scroll and capture again to see more, or browser_extract to read all of the text at once.`;
 }
 
+/**
+ * Moves the pointer over an element, as far as a script can: the events a page listens for to
+ * open a menu or a tooltip. The browser's own hover state is not set by it: what a page shows
+ * by a style rule for hovering alone does not appear. Nothing is pressed.
+ */
+export function hoverElement(el: Element): { dispatched: true; note: string } {
+  const view = viewOf(el);
+  const html = el as HTMLElement;
+  if (typeof html.scrollIntoView === 'function') html.scrollIntoView({ block: 'center', inline: 'center' });
+  const rect = el.getBoundingClientRect();
+  const init: MouseEventInit = {
+    bubbles: true, cancelable: true, composed: true, view, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2, button: 0, buttons: 0,
+  };
+  const Pointer = view.PointerEvent ?? view.MouseEvent;
+  el.dispatchEvent(new Pointer('pointerover', init));
+  el.dispatchEvent(new Pointer('pointerenter', { ...init, bubbles: false }));
+  el.dispatchEvent(new view.MouseEvent('mouseover', init));
+  el.dispatchEvent(new view.MouseEvent('mouseenter', { ...init, bubbles: false }));
+  el.dispatchEvent(new Pointer('pointermove', init));
+  el.dispatchEvent(new view.MouseEvent('mousemove', init));
+  return {
+    dispatched: true,
+    note: 'The pointer events were sent. Take a snapshot (diff=true) to see what appeared. What a page shows by a hover style alone does not appear this way.',
+  };
+}
+
+/**
+ * The control that leads to the next page of a list: a link or a button that is visible, not
+ * disabled, and has exactly this name. Null when there is none, which is how a last page is known.
+ */
+export function controlNamed(doc: Document, name: string): Element | null {
+  const wanted = norm(name).toLowerCase();
+  if (!wanted) return null;
+  for (const el of Array.from(doc.querySelectorAll('a[href], button, [role="link"], [role="button"]'))) {
+    if (!isVisible(el) || isDisabled(el) || el.getAttribute('aria-disabled') === 'true') continue;
+    if (norm(accessibleName(el)).toLowerCase() === wanted) return el;
+  }
+  return null;
+}
+
 /** The smallest side of a frame that counts as showing something: below it there is nothing to read in a picture. */
 const FRAME_SHOWS_FROM_PX = 8;
 const EMBEDDING = 'iframe, frame, object, embed, fencedframe, portal';

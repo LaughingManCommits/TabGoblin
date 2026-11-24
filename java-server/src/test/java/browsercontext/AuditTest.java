@@ -81,7 +81,8 @@ class AuditTest {
         List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
         assertEquals(1, lines.size(), "a line break in a value does not make a second line");
         JsonNode read = new ObjectMapper().readTree(lines.get(0));
-        assertEquals("a\"b\\c d", read.path("agent").asString());
+        // The value comes back as it was: the line break is written as two characters, not as a break.
+        assertEquals("a\"b\\c\nd", read.path("agent").asString());
         assertEquals(0, read.path("ms").asInt());
 
         // The place is no file: the record is switched off, and the call that found it so goes on.

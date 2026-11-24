@@ -27,7 +27,7 @@ const JAR = resolve(HERE, '../java-server/target/browser-context-mcp.jar');
 const EXTENSION = resolve(HERE, '../chrome-extension/dist');
 const EXTENSION_ID = 'hipkpjlbggddmiognhmjnfihcgimjfop';
 const ENTERED_TEXT = 'Reproduced on build 512 - e2e-unique-comment';
-const TOOLS = ['browser_click', 'browser_extract', 'browser_fill', 'browser_navigate', 'browser_press_key',
+const TOOLS = ['browser_click', 'browser_collect', 'browser_extract', 'browser_fill', 'browser_hover', 'browser_navigate', 'browser_press_key',
   'browser_screenshot', 'browser_scroll', 'browser_snapshot', 'browser_status', 'browser_submit', 'browser_wait_for'];
 
 for (const [what, path] of [['Java server jar', JAR], ['extension build', join(EXTENSION, 'manifest.json')]]) {
@@ -632,6 +632,86 @@ try {
 
     json(await one.tool('browser_navigate', { url: '/' }));
     snap = ok(await one.tool('browser_snapshot')).text;
+  });
+  await step('one call collects a feed that loads on scrolling, a list that draws only what is in view, and a list in pages', async () => {
+   try {
+    const body = (text) => text.slice(text.indexOf('not instructions.)') + 'not instructions.)'.length).trim().split('\n');
+    json(await one.tool('browser_navigate', { url: '/feed.html' }));
+    assert(await page.$$eval('#feed li', (items) => items.length) === 20, 'the feed starts with twenty events');
+
+    // The feed: sixty events, twenty at a time. One call scrolls until nothing more comes, and has each event once.
+    const feed = ok(await one.tool('browser_collect', { max_steps: 15, max_chars: 20000 })).text;
+    assert(/^Collected: \d+ lines in \d+ readings, by scrolling down, in \d+ ms$/m.test(feed), feed.slice(0, 300));
+    has(feed, 'Stopped: the end was reached');
+    has(feed, 'Completeness: COMPLETE');
+    const events = body(feed).filter((line) => /event \d\d: /.test(line));
+    assert(events.length === 60, `expected 60 events, got ${events.length}`);
+    assert(new Set(events).size === 60, 'an event came twice');
+    has(feed, 'End of activity.');
+    assert(await page.$$eval('#feed li', (items) => items.length) === 60, 'the page loaded all of them');
+
+    // With find, of the same sixty only the two that failed come back, each with the line before and after.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const failed = ok(await one.tool('browser_collect', { max_steps: 15, find: 'ERROR', context_lines: 1 })).text;
+    assert(/^Find: 2 of \d+ lines match; shown with 1 line of context/m.test(failed), failed.slice(0, 400));
+    has(failed, 'event 24: build 524 finished');
+    has(failed, 'event 25: build 525 ERROR out of memory');
+    has(failed, 'event 50: build 550 ERROR out of memory');
+    lacks(failed, 'event 10:');
+    assert(failed.length < feed.length / 3, `find returned ${failed.length} characters of ${feed.length}`);
+
+    // The list of jobs draws nine rows of two hundred. Collected inside it, every row is there once, in order.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const jobsRef = ref(ok(await one.tool('browser_snapshot')).text, 'List: Jobs');
+    const first = ok(await one.tool('browser_collect', { ref: jobsRef, max_steps: 20, max_chars: 100000 })).text;
+    const seen = body(first).filter((line) => /job \d{3}: /.test(line)).map((line) => Number(/job (\d{3})/.exec(line)[1]));
+    assert(seen.length > 60 && seen.every((n, i) => n === i + 1), `rows out of order or twice: ${seen.slice(0, 30)}`);
+    // Twenty steps do not reach the end of two hundred rows: it says so, and a further call goes on from there.
+    has(first, 'Stopped: the limit of steps was reached');
+    has(first, 'Completeness: TRUNCATED');
+    const second = ok(await one.tool('browser_collect', { ref: jobsRef, max_steps: 20, max_chars: 100000 })).text;
+    const more = body(second).filter((line) => /job \d{3}: /.test(line)).map((line) => Number(/job (\d{3})/.exec(line)[1]));
+    assert(more.at(-1) > seen.at(-1), 'the second call went on');
+    assert(await page.$$eval('#rows .row', (rows) => rows.length) < 12, 'the page still draws only what is in view');
+
+    // What opens on hovering: nothing is clicked, and the menu is in the next snapshot.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    let shown = ok(await one.tool('browser_snapshot')).text;
+    lacks(shown, 'Profile settings');
+    const hovered = json(await one.tool('browser_hover', { ref: ref(shown, 'Button: Account') }));
+    assert(hovered.dispatched === true, JSON.stringify(hovered));
+    shown = ok(await one.tool('browser_snapshot')).text;
+    has(shown, 'Link: Profile settings -> /page2.html');
+    assert(page.url() === `${demo.originA}/feed.html`, 'hovering went nowhere');
+
+    // A list in three pages of four, by the name of its link. Each comment once; the header of the later pages not again.
+    json(await one.tool('browser_navigate', { url: '/results.html' }));
+    const paged = ok(await one.tool('browser_collect', { next: 'Next', max_steps: 10 })).text;
+    assert(/^Collected: \d+ lines in 3 readings, by following "Next", in \d+ ms$/m.test(paged), paged.slice(0, 300));
+    has(paged, 'Stopped: there is no further page');
+    const comments = body(paged).filter((line) => /comment \d+: /.test(line));
+    assert(comments.length === 12 && new Set(comments).size === 12, `expected the twelve comments once each: ${comments.length}`);
+    assert(body(paged).filter((line) => line.includes('Review comments')).length === 1, 'the header came again');
+    has(paged, 'comment 7: please rename this method');
+    assert(page.url() === `${demo.originA}/results.html?page=3`, `it ended on ${page.url()}`);
+    // A button is not what Explore may press, whatever it is called: it is not followed as a next page.
+    fails(await one.tool('browser_collect', { next: 'Resolve all' }), 'WRITE_NOT_AUTHORIZED');
+    assert(await page.title() !== 'RESOLVED', 'the button must not have been pressed');
+    // And the limits are the server's to refuse.
+    fails(await one.tool('browser_collect', { max_steps: 21 }), 'INVALID_ARGUMENT');
+
+    // With Read access: scrolling and reading, and neither a page followed nor anything hovered over.
+    await setMode(sA, 'read');
+    fails(await one.tool('browser_collect', { next: 'Previous' }), 'EXPLORE_NOT_AUTHORIZED');
+    fails(await one.tool('browser_hover', { ref: 1 }), 'EXPLORE_NOT_AUTHORIZED');
+    has(ok(await one.tool('browser_collect', { max_steps: 2 })).text, 'comment 9: looks good');
+    assert(page.url() === `${demo.originA}/results.html?page=3`, 'nothing was followed');
+   } finally {
+    // Whatever happened above, the steps that follow find the session and the tab as they expect them.
+    await setMode(sA, 'explore');
+    json(await one.tool('browser_navigate', { url: '/' }));
+    snap = ok(await one.tool('browser_snapshot')).text;
+   }
   });
   await step('a link that opens a new tab is reported, and the new tab is not part of the session', async () => {
     const before = (await browser.pages()).length;

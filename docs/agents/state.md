@@ -24,9 +24,8 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   get the same is the owner's to say once these two have been read.
 - Branch `claude/tabgoblin-security-features-ncxa9m`, made from `a06b0ce` (the merge of
   `simpler-front-pages`) on 2026-11-24, in a session that ran in the cloud: WP-27, security
-  hardening and features for developers. Committed there by the session. Whether it is
-  pushed is said in the session's report: a cloud session's files are gone when it ends, and
-  pushing is the owner's. Nothing went to `main`, and no pull request was opened. Not merged. It carries a branch `smart-extract`, merged into it.
+  hardening and features for developers. Committed there by the session, and pushed to that
+  branch on the owner's word ("Push to development branch your work"). Nothing went to `main`, and no pull request was opened. Not merged. It carries a branch `smart-extract`, merged into it.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -34,7 +33,7 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
 
 | Item | Status | Authoritative source |
 |---|---|---|
-| WP-27, security hardening and features for developers | Built on 2026-11-24 for nine of its eleven backlog items, and waits for the owner's review. An agent is known by a key of its own (`--agent`), and no tab passes by a name; a security policy in the settings file, with a strict profile; every step that touches the page checked again; an approval bound to the content shown; redaction; no picture with a frame of another site in view; protocol version 3; search and regions in `browser_extract`; waiting for a change; a record on disk; SBOM and a dependency scan in the workflows. Seven decisions the session took are listed for the owner. Left: collection, hover, workspaces, access requests, the policy in the server's window | [TODO.md](../../TODO.md) |
+| WP-27, security hardening and features for developers | Built on 2026-11-24 for ten of its eleven backlog items, and waits for the owner's review. Pushed to its branch on the owner's word; not merged, and not to be merged to `main` by a session. An agent is known by a key of its own (`--agent`), and no tab passes by a name; a security policy in the settings file, with a strict profile; every step that touches the page checked again; an approval bound to the content shown; redaction; no picture with a frame of another site in view; protocol version 3; search and regions in `browser_extract`; waiting for a change; two new tools, `browser_collect` and `browser_hover`, which makes thirteen; a record on disk; SBOM and a dependency scan in the workflows. Seven decisions the session took are listed for the owner. Left: workspaces, access requests, the policy in the server's window | [TODO.md](../../TODO.md) |
 | WP-13, a panel for the server | Merged. Seen on Windows and on Linux in the Linux subsystem of Windows; five points are open for the owner | [TODO.md](../../TODO.md) |
 | WP-18, aftercare of the panel, and the documentation gone over | Its first part, the pass over the documentation, is merged. Its third part, what the owner asked for after that, is merged, but for its last items, which are committed on `by-hand-panel` and wait for the owner's push and merge: what a server started by hand says of itself, a disconnected agent's server left alone, the panel's Metrics and its log of every call, and the READMEs' picture. Its second part lists what the panel left behind that needs no decision; none of it is started | [TODO.md](../../TODO.md) |
 | WP-14, nothing personal in the repository | The files and the check are merged. What remains is the owner's: the address of commits from now on, the history, and four decisions | [TODO.md](../../TODO.md) |

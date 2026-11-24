@@ -5,7 +5,7 @@
 <img src="chrome-extension/icons/icon128.png" width="64" align="left" alt="">
 
 Lets AI agents on your machine read and operate **the browser tabs you authorize**, in your own
-Chrome with your own logins. Agents get eleven generic browser tools over MCP; they never get your
+Chrome with your own logins. Agents get thirteen generic browser tools over MCP; they never get your
 cookies, tokens or the ability to run code, and they reach only the tabs and websites you chose.
 
 <br clear="left">

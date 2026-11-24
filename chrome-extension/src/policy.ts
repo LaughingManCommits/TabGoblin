@@ -37,14 +37,17 @@ export class CommandError extends Error {
 
 export const ACTIONS = [
   'status', 'snapshot', 'extract', 'click', 'fill', 'press_key', 'scroll', 'navigate', 'screenshot',
-  'wait_for', 'submit',
+  'wait_for', 'submit', 'hover', 'collect',
 ] as const;
 export type Action = (typeof ACTIONS)[number];
 
 /** The least access an action needs before anything else is checked. */
 const REQUIRED: Record<string, Mode> = {
   snapshot: 'read', extract: 'read', scroll: 'read', screenshot: 'read', wait_for: 'read',
-  navigate: 'explore', click: 'explore', press_key: 'explore',
+  // Collecting scrolls and reads, as an agent with Read access may; following a link to a next page needs Explore, which is asked where it is done.
+  collect: 'read',
+  // Hovering shows what a page shows on it, and may load something: as a click on a link may.
+  navigate: 'explore', click: 'explore', press_key: 'explore', hover: 'explore',
   fill: 'write', submit: 'write',
 };
 
@@ -812,6 +815,8 @@ export function activityLabel(action: string, intent?: string): { running: strin
     case 'screenshot': return { running: 'Capturing screenshot', done: 'Captured screenshot' };
     case 'wait_for': return { running: 'Waiting for content', done: 'Waited for content' };
     case 'submit': return { running: 'Submitting', done: 'Submitted' };
+    case 'hover': return { running: 'Pointing at element', done: 'Pointed at element' };
+    case 'collect': return { running: 'Collecting content', done: 'Collected content' };
     default: return { running: 'Working', done: 'Done' };
   }
 }

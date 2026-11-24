@@ -1556,8 +1556,10 @@ changed. "There" means built and tested; "part" means built in part; "not" means
 
 ### What was built
 
-Items 1 to 9, and of item 10 the waiting for a change (`condition: "changed"` of
-`browser_wait_for`). What each is, for a user, is in the pages that own it: the
+Items 1 to 10: of item 10 the waiting for a change (`condition: "changed"` of
+`browser_wait_for`) on 2026-11-24, and collecting and hovering as two tools, `browser_collect`
+and `browser_hover`, after the owner's "continue with p1". There are thirteen tools now. What
+each is, for a user, is in the pages that own it: the
 [security model](docs/security.md) (agents, the security policy, what is checked and when,
 submissions, what is taken out, logging), the [user guide](docs/user-guide.md#the-security-policy),
 the [tool reference](docs/tools.md) and the [protocol](docs/development.md#protocol-reference).
@@ -1593,13 +1595,15 @@ What a setup from before has to know:
 
 ### Left, and why
 
-- **The rest of item 10, and item 11: collection over scrolling and pages, hover, workspaces,
-  access requests.** Not started. Each adds a tool or a prompt, which is a change of the public
-  contract in eight places and of what the user is asked; they were not begun in a session
-  that was already changing the protocol. Two things to settle before they are: a hover made
-  by script does not set the browser's own hover state, so it opens only what a page opens by
-  script; and an access request can be shown to the user, but a tab is still given by their
-  click on that tab, which is Chrome's rule and not ours.
+- **Item 11: workspaces and access requests.** Not started. Each adds a prompt or a grouping
+  to the popup, which changes what the user is asked. One thing to settle before they are: an
+  access request can be shown to the user, but a tab is still given by their click on that
+  tab, which is Chrome's rule and not ours.
+- **What collecting and hovering do not do.** A hover made by script does not set the browser's
+  own hover state: it opens what a page opens by script, and not what a style rule alone
+  shows. Collecting reads downwards from where the page is, and by pages only through a
+  control with an exact name; a list that is paged by a button is followed only with Write
+  access, as a click on that button would be; "load more" buttons are not pressed by it.
 - **The editor lab was not run.** `editor.ts` was not touched; what a snapshot and an extract
   say now passes through the redaction, which the lab's checks read.
 - **The server's window does not show the policy or an agent's identity.** It has no display

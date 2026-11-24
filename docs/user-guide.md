@@ -51,9 +51,9 @@ the address before every command is the second.
 
 | | Read | Explore | Read / Write |
 |---|---|---|---|
-| Read the page, scroll, take screenshots, wait | yes | yes | yes |
+| Read the page, scroll, take screenshots, wait; read on while scrolling down | yes | yes | yes |
 | Go to other pages of the site, back, forward, reload | no | yes | yes |
-| Follow links, open tabs and expand collapsed sections | no | yes | yes |
+| Follow links, open tabs and expand collapsed sections; go through a list page by page; point at an element so that its menu or tooltip opens | no | yes | yes |
 | Press buttons, fill in and type into fields | no | no | yes |
 | Submit forms, post, save, delete | no | no | yes, as a stated submission |
 

@@ -441,6 +441,8 @@ Where it stops:
 | The prompt names the agent, the control, the site and what would be sent, for every kind of request; a password is never shown in it | DOM, worker, end-to-end |
 | Automatic: asked the first time for each control, and the prompt says that an Allow will stand; an Allow does not reach another control, another site, a high-impact action or a control without a name, does not cover a burst, and is gone after a pause, after the tab left the site and after a restart | Rules, worker, end-to-end |
 | Read and Explore cannot write; submissions need intent | Rules, worker, end-to-end |
+| Collecting takes no more steps, time or size than its limits, whatever is asked; it stops when the session is paused; with Read access it follows no page, and with Explore only a link an ordinary click may press: not a control that submits, not a link to another site; it reads nothing of a page outside the session's sites | Java, worker, end-to-end |
+| Hovering needs Explore, presses nothing and does not move the keyboard | DOM, worker, end-to-end |
 | Declined or cancelled submission types nothing and sends nothing | End-to-end |
 | Duplicate and uncertain submissions not repeated | Java, end-to-end |
 | An approval is used once and for its own request: answered again, or made up, it does nothing | Worker |
@@ -472,7 +474,8 @@ Chrome.
 - **Whatever is visible is shared.** Text, screenshots and non-password field values of an
   authorized tab go to your agent and its model provider.
 - **Explore loads pages.** A site that changes state on a plain link (some logout or vote links)
-  can be affected. Read does not navigate at all.
+  can be affected. Read does not navigate at all. Collecting page by page follows such a link up
+  to twenty times in one call, and hovering makes a page do what it does on hovering.
 - **Blocked sites guard against a wrong click and a wandering agent, not against an agent with
   a shell.** The list is a file you can edit, so an agent that runs commands as you can edit it
   too; and it holds back TabGoblin's tools, not other tools the agent has.

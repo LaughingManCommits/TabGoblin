@@ -51,8 +51,10 @@ public final class McpMain {
             Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
             browser_fill / browser_press_key / browser_scroll / browser_navigate -> take a new snapshot to see \
             the result. Refs go stale when the page changes; take a new snapshot when told so.
-            Access levels: Read looks at the current page; Explore also navigates, follows links and expands \
+            Access levels: Read looks at the current page; Explore also navigates, follows links, hovers and expands \
             sections; Write also presses buttons and enters text. A blocked action names the level it needs.
+            Long content: browser_collect reads a page that loads on scrolling, or a list in pages, in one \
+            call and within limits, and says why it stopped. browser_hover opens what a page shows on hovering.
             Reading: browser_extract returns the text of the loaded page whatever the scroll position; follow its \
             "continue with offset" line, or use outline=true and read one section by ref. On a long page, \
             find returns only the matching lines with the lines around them, and kind only the tables, code \
@@ -707,6 +709,29 @@ public final class McpMain {
                         "direction":{"type":"string","enum":["up","down","left","right","top","bottom"],"description":"Default down."}""", """
                         "amount":{"type":"integer","description":"Pixels to scroll (default: most of one viewport)."}""", """
                         "ref":{"type":"integer","description":"Optional element ref to scroll instead of the page."}""")));
+        specs.add(tool(service, mapper, cancellations, "browser_hover", false,
+                "Move the pointer over an element, to open what a page shows on hovering: a menu, a tooltip, a row's "
+                        + "actions. Needs Explore access. Nothing is clicked. Take a snapshot with diff=true afterwards. It "
+                        + "sends the events a page listens for; what a page shows by a hover style alone does not appear.",
+                schema("\"ref\"", """
+                        "ref":{"type":"integer","description":"Element ref from the latest snapshot."}""")));
+        specs.add(tool(service, mapper, cancellations, "browser_collect", false,
+                "Read what a page shows over several steps, in one call, with what was read before left out: a feed "
+                        + "or log that loads on scrolling, a list that draws only the rows in view, or a list in pages. "
+                        + "By default it scrolls down from where the page is, each step, and reads (Read access). With "
+                        + "next it follows the link of that name from page to page instead (Explore access; only a link "
+                        + "or control that an ordinary click may press). It stops at the end, or at the first limit: "
+                        + "max_steps, max_ms, max_chars. The result says why it stopped and how complete it is. With find "
+                        + "only matching lines and their context are returned, however much was gone through.",
+                schema("", """
+                        "max_steps":{"type":"integer","description":"Scrolls or pages after the first reading (default 5, max 20)."}""", """
+                        "max_ms":{"type":"integer","description":"Longest time in milliseconds (default 15000, max 30000)."}""", """
+                        "max_chars":{"type":"integer","description":"Most characters returned (default 12000, max 100000)."}""", """
+                        "ref":{"type":"integer","description":"Scroll and read inside this scrollable element instead of the page. Not with next."}""", """
+                        "next":{"type":"string","description":"The exact name of the link or button to the next page, such as Next or Older. It is looked for anew on every page."}""", """
+                        "find":{"type":"string","description":"Return only lines that contain this text (case-insensitive), with context."}""", """
+                        "regex":{"type":"boolean","description":"Treat find as a regular expression, as browser_extract does."}""", """
+                        "context_lines":{"type":"integer","description":"Lines shown before and after a matching line (default 2, max 20)."}""")));
         specs.add(tool(service, mapper, cancellations, "browser_navigate", false,
                 "Navigate the session's tab: to an absolute or relative URL, or back, forward or reload. Needs "
                         + "Explore access. The destination must stay on the authorized origin; anything else is "
@@ -756,13 +781,15 @@ public final class McpMain {
             java.util.Map.entry("browser_fill", "Fill in a field"),
             java.util.Map.entry("browser_press_key", "Press a key"),
             java.util.Map.entry("browser_scroll", "Scroll"),
+            java.util.Map.entry("browser_hover", "Hover"),
+            java.util.Map.entry("browser_collect", "Collect over scrolling or pages"),
             java.util.Map.entry("browser_navigate", "Navigate"),
             java.util.Map.entry("browser_screenshot", "Screenshot"),
             java.util.Map.entry("browser_wait_for", "Wait for the page"),
             java.util.Map.entry("browser_submit", "Submit"));
 
     /** Tools whose result is an object. They say so with an output schema, and give the object next to its text. */
-    static final java.util.Set<String> STRUCTURED = java.util.Set.of("browser_click", "browser_fill", "browser_press_key",
+    static final java.util.Set<String> STRUCTURED = java.util.Set.of("browser_click", "browser_fill", "browser_press_key", "browser_hover",
             "browser_scroll", "browser_navigate", "browser_wait_for", "browser_submit");
 
     /**
