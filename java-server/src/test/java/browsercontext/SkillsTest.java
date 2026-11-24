@@ -112,7 +112,7 @@ class SkillsTest {
 
         // Every word in capitals that the tool reference sets in code: error codes, how complete a
         // result is, how a submission ended.
-        Set<String> known = found(Pattern.compile("`([A-Z][A-Z_]{2,})`"), read(Path.of("..", "docs", "tools.md")));
+        Set<String> known = found(Pattern.compile("`([A-Z][A-Z_]{2,})`"), read(Path.of("..", "docs", "mcp-reference.md")));
         assertTrue(known.containsAll(List.of("SITE_BLOCKED", "STALE_REF", "UNCERTAIN", "TRUNCATED")), known.toString());
 
         for (Map.Entry<String, String> skill : skills().entrySet()) {

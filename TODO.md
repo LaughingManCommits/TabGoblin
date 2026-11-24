@@ -72,14 +72,14 @@ says that it ends them all when there are several. The third was left as it is, 
 word of 2026-11-21 ("leave 3"): a control stays known by its name on its site, so that "Save"
 on another page of the site passes too. Narrowing it to the address of the page would make a
 chat ask again in every conversation. The limit is stated in
-[docs/security.md](docs/security.md) and in the user guide.
+[docs/security-model.md](docs/security-model.md) and in the developer guide.
 
 WP-9 was built as proposed, with the proposals taken for its three points after the owner's
 "after that" of 2026-11-21: the extension gives three numbers with each answer (how long the
 command ran, waited for its turn, and waited for the user); the report is in `browser_status`
 with `diagnostics: true` and in the server's log at `debug`, with no file and no new tool; and
 the extension's part is not split into worker and page. What the report cannot tell is in
-[docs/tools.md](docs/tools.md#where-the-time-went): the model from the agent's program, and the
+[docs/mcp-reference.md](docs/mcp-reference.md#where-the-time-went): the model from the agent's program, and the
 extension from the page.
 
 WP-10 was asked for by the owner on 2026-11-21 ("i can disconnect agent but then his
@@ -95,7 +95,7 @@ command. And a reason was found that the filing did not have: a session whose ow
 connected passes to an agent of the same name, so the tab of a disconnected agent could be
 taken by a second instance of the same program. That was run against the source as it was: the
 second agent got the page. What Disconnect still does not do is hold over a new start of the
-agent's server; that is in WP-17. The rule is in [docs/security.md](docs/security.md#agents).
+agent's server; that is in WP-17. The rule is in [docs/security-model.md](docs/security-model.md#agent-identity-and-authentication).
 
 WP-11 was asked for by the owner on 2026-11-21 ("the notification on the bottom disapears to
 quickly we shoul let it slowly fade and allow them to stack maybe we should think redesign for
@@ -199,7 +199,7 @@ animations, a pure function from an action to its animation with a test, `backgr
 sending the kind of action with the state. A check in `test/agnostic.test.ts` terms: no library name comes in. End to end: a
 scroll shows the goblin with the scroll's animation and a click another; it is gone from a
 screenshot taken meanwhile; a page script can neither read nor operate it; switched off, it
-does not appear. Then pictures for the user guide, each one opened and looked at. No tool's
+does not appear. Then pictures for the developer guide, each one opened and looked at. No tool's
 text changes.
 
 ## WP-13: A panel for the server
@@ -213,8 +213,8 @@ pro java developer that knows the latest tech". Goal: a server can be looked at 
 from a small window of its own; without that window it runs as it did.
 
 **Built on 2026-11-22, on the branch `server-panel`. Not merged; it waits for the owner's
-review.** What the user sees is in the [user guide](docs/user-guide.md#9-the-servers-panel),
-the rules in [security.md](docs/security.md#the-servers-panel), the build in
+review.** What the user sees is in the [developer guide](docs/developer-guide.md#the-servers-panel),
+the rules in [security-model.md](docs/security-model.md#the-servers-panel), the build in
 [architecture.md](docs/architecture.md#the-servers-panel).
 
 ### What is there
@@ -243,7 +243,7 @@ the rules in [security.md](docs/security.md#the-servers-panel), the build in
    switched on again, and the agent is told why. It is still no revocation: see below.
 3. **A tool's text changed**, where the filing expected none: `browser_status` and the
    `NOT_CONNECTED` error say that the user switched the connection off, and where.
-   `docs/tools.md` has it, and the end-to-end suite was run.
+   `docs/mcp-reference.md` has it, and the end-to-end suite was run.
 4. **Two kinds of window.** Without a frame on Windows, in the system's frame elsewhere,
    because the frameless one drew nothing on Linux. The owner saw that before the session did.
 
@@ -301,7 +301,7 @@ On the owner's "do wp-14", with the proposal taken for each point that had one. 
 found are not repeated here.
 
 - **The examples.** The folder of the owner's checkout is out of the four configuration
-  examples (`README.md`, `docs/installation.md` twice, `docs/user-guide.md`). They say
+  examples (`README.md`, `docs/installation.md` twice, `docs/developer-guide.md`). They say
   `<folder>`, and a sentence beside them says what to write there.
 - **The pictures.** All thirteen in `docs/images` were opened. They show the popup, the notice
   in a demo page and Chrome's extensions page with TabGoblin alone: loopback addresses, the
@@ -538,7 +538,7 @@ Read from the documentation on 2026-11-22.
   driver of our own end-to-end suite.
 - **What sets TabGoblin apart is said in pieces, and never against anything:** the first
   paragraph and "Limits worth knowing" of the root `README.md`, and "What is never exposed"
-  and "What remains your risk" in [docs/security.md](docs/security.md).
+  and "What remains your risk" in [docs/security-model.md](docs/security-model.md).
 - **Diagrams.** Seven, all in Mermaid: the idea in one picture in `docs/README.md`, and six in
   `docs/architecture.md`. The root `README.md` has the idea as two lines of text. The thirteen
   pictures in `docs/images` are captures of the popup and of Chrome; none is drawn.
@@ -721,9 +721,9 @@ validation log:
   reference; and the panel's new tests, which had the version written into them and so broke
   the runbook's check for a change of version.
 - **Said once now, with links from the rest:** how to install and pair (the installation
-  guide; the user guide had both again), what the popup's messages mean (the user guide; the
+  guide; the developer guide had both again), what the popup's messages mean (the developer guide; the
   installation guide had three of them again), and the server's panel, which stood at length in
-  four pages: what the user sees in the user guide, the rules in the security model, the build
+  four pages: what the user sees in the developer guide, the rules in the security model, the build
   in the architecture, the commands in the runbook.
 - **New:** a section in `docs/development.md`, "Documentation", that says which page owns what.
   `AGENTS.md` points to it instead of listing the owners itself.
@@ -731,7 +731,7 @@ validation log:
   a user needs before the window is there and when it puzzles. A jar from before the panel does
   not start at all with `--panel`; what each sentence of the line with the dot means; several
   agents, several windows; two rows of troubleshooting.
-- **Looked at and left:** the user guide and the security model both state the rules for
+- **Looked at and left:** the developer guide and the security model both state the rules for
   submissions, one for the user and one as rules; they now point to each other and were not
   merged. Two sentences in `docs/editors.md` speak of "the fourteen" editors; what they count
   could not be checked without a run of the lab.
@@ -771,7 +771,7 @@ was run is in the validation log.
 
 - **A simple command for the panel, and a page of commands.** "how do i run with single command
   the server with ui panel", then "we need like cheat sheet md with all the important
-  commands". The user guide's section on the panel opens with the command now, and
+  commands". The developer guide's section on the panel opens with the command now, and
   `docs/cheatsheet.md` has the important commands on one line each, with the page that
   explains each under its table.
 - **The panel can copy the pairing token.** "the server pannel should means to copy access
@@ -812,7 +812,7 @@ was run is in the validation log.
   `by-hand-panel`. The panel of such a server now has a box under its status line that says no
   agent talks to it and where an agent's tabs and tool calls are; its two cards say *for this
   server* and *no agent talks to this server*, and under a tab that is authorized for it,
-  that no agent can use the tab. The user guide and the cheat sheet say that the command is
+  that no agent can use the tab. The developer guide and the cheat sheet say that the command is
   for looking at the panel, and how to have it on the agent's server.
 - **A disconnected agent's server is left alone.** Seen in the same panel: its log filled with
   `extension connected` and `extension disconnected … code=4403`, a pair every few seconds,
@@ -1001,7 +1001,7 @@ address; the server's process is ended and a connector takes over, with the tabs
 and the running call reported as unknown; run by the user with a server running, the jar ends
 and the window is up. End to end: the suite's two agents through one server, and every step
 that ends or restarts a server. Then `docs/architecture.md` (processes, how a server ends),
-`docs/security.md` (the local connection, the panel's rules, what remains your risk), the user
+`docs/security-model.md` (the local connection, the panel's rules, what remains your risk), the user
 guide's sections on stopping and on the panel, the cheat sheet, the diagram in the two
 READMEs, and the conformance check, which starts the jar as an agent does.
 
@@ -1046,7 +1046,7 @@ Read from the source on 2026-11-22 (`BrowserService.java`, `Agent.java`; `summar
   would cost every agent its tools.
 - **A file the user can edit, an agent that runs commands as the user can edit.** The list is a
   guard against a wrong click and a wandering agent, and none against an agent with a shell.
-  That belongs in `docs/security.md`, under what remains your risk, in so many words.
+  That belongs in `docs/security-model.md`, under what remains your risk, in so many words.
 - **A screenshot shows what is on the screen.** A page on a site that is not blocked may embed
   a frame from one that is; its text is not read, since frames of another site never are, and
   its pixels are in the picture. That is so today for every frame of another site.
@@ -1138,7 +1138,7 @@ on macOS; this server with an extension from before this change, with real parts
 
 ### Tasks and acceptance
 
-A new error code and a new line in a tool's text: `docs/tools.md` and the suite end to end.
+A new error code and a new line in a tool's text: `docs/mcp-reference.md` and the suite end to end.
 The server: the file and its re-reading (`Settings`, beside `Pairing`), the rule as a pure
 function of a host and a list, the check in `BrowserService.send` and in `navigate`, the list
 to the extension after pairing (`Protocol.java`, `WebSocketBridge.java`), the window
@@ -1151,8 +1151,8 @@ blocked address is refused before it is sent; a changed file is in force at the 
 an unreadable file refuses everything; the agent's answer names the site it tried and no
 other; the extension refuses what an older server would have let through. End to end, with the
 demo sites: one of them blocked in a settings file, the agent's calls there refused, the popup
-on that tab without Authorize, the other site working. Then `docs/security.md` (what an agent
-can reach, what is verified, what remains your risk), the user guide, the cheat sheet, the
+on that tab without Authorize, the other site working. Then `docs/security-model.md` (what an agent
+can reach, what is verified, what remains your risk), the developer guide, the cheat sheet, the
 help text, and the protocol reference.
 
 ## WP-21: What the first test on the public repository showed
@@ -1180,7 +1180,7 @@ refuse was refused. It showed three faults, none of which a suite had found.
   seconds.
 - **The window's log stood still and did not say so.** It had nine lines and ended before the
   test, with fifty calls counted beside it in Metrics. It holds while someone reads in it, as
-  the user guide says; it had been scrolled up. Tried in a real window: untouched, it follows,
+  the developer guide says; it had been scrolled up. Tried in a real window: untouched, it follows,
   also while the window is put away. So the fault was the silence, not the holding.
 
 ### What was built
@@ -1503,8 +1503,8 @@ It is the first thing to settle, and the request does not say.
 Per the task map: "Change what is allowed" for the rule (`policy.ts`); "Change sessions,
 pairing or the connection" for the time in a session's record and the half-minute check
 (`background.ts`); "Change the popup" for the setting and the row. The tool's text changes, so
-`docs/tools.md` and the end-to-end suite; the user guide for sessions and its table of
-settings; and the table of what is tested in `docs/security.md`. Tests: the rule, with the
+`docs/mcp-reference.md` and the end-to-end suite; the developer guide for sessions and its table of
+settings; and the table of what is tested in `docs/security-model.md`. Tests: the rule, with the
 clock given; the worker, that a command renews a session and that one left alone ends, also
 over a restart of the worker; end to end, with a short time set in the real popup. Acceptance:
 a session that is not used for the time set is gone from the popup and refused to the agent,
@@ -1563,9 +1563,9 @@ Items 1 to 10: of item 10 the waiting for a change (`condition: "changed"` of
 and `browser_hover`, after the owner's "continue with p1". And item 11, after the owner's
 "continue with p2": workspaces, requests for access (`browser_request_access`), and the
 security policy in the server's window. There are fourteen tools now. What each is, for a user, is in the pages that own it: the
-[security model](docs/security.md) (agents, the security policy, what is checked and when,
-submissions, what is taken out, logging), the [user guide](docs/user-guide.md#the-security-policy),
-the [tool reference](docs/tools.md) and the [protocol](docs/development.md#protocol-reference).
+[security model](docs/security-model.md) (agents, the security policy, what is checked and when,
+submissions, what is taken out, logging), the [developer guide](docs/developer-guide.md#the-security-policy),
+the [tool reference](docs/mcp-reference.md) and the [protocol](docs/development.md#protocol-reference).
 What was run is in the validation log.
 
 What a setup from before has to know:

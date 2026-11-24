@@ -189,7 +189,7 @@ Most MCP clients take this JSON:
 `--agent` names the agent to the server, with a short name of your choice, a different one for
 each agent. By it the agent has a key of its own and is the same agent at every start: after a
 restart its tabs are its own again. Without it everything works, and the tabs have to be
-authorized again after each restart ([agents](user-guide.md#agents)). A setup from before this
+authorized again after each restart ([agents](developer-guide.md#agents)). A setup from before this
 option needs the two arguments added once.
 
 Restart the agent, or reload its MCP servers, so it picks the server up. You can connect several
@@ -209,7 +209,7 @@ What the skills say, and where each agent keeps them, is in [skills](../skills/R
 
 A server has no window. With `--panel` as a further argument it shows a small one, with its
 sessions, its log and a button to stop it: see
-[the server's panel](user-guide.md#9-the-servers-panel).
+[the server's panel](developer-guide.md#the-servers-panel).
 
 ## 6. Pair the extension with the server
 
@@ -227,7 +227,7 @@ Port:          47821
 Click the goblin in Chrome's toolbar, paste the token into **Pairing token**, leave the port as it
 is, and press **Save and connect**.
 
-A server that shows [its panel](user-guide.md#9-the-servers-panel) saves you the command: its
+A server that shows [its panel](developer-guide.md#the-servers-panel) saves you the command: its
 **Copy** button puts the token on the clipboard.
 
 <img src="images/popup-pairing.png" width="354" alt="The popup before pairing">
@@ -243,7 +243,7 @@ folder. You pair once; it stays valid until you rotate it.
 3. Ask your agent: *"Call browser_status."* It should answer along these lines:
 
    ```text
-   Extension: connected (protocol 2)
+   Extension: connected (protocol 3)
    Sessions: 1
    Session s1
      Authorized origin: https://example.com
@@ -252,7 +252,7 @@ folder. You pair once; it stays valid until you rotate it.
 
 4. Ask it: *"Take a browser snapshot and tell me what is on the page."*
 
-That is the whole chain working. The [user guide](user-guide.md) takes it from here.
+That is the whole chain working. The [developer guide](developer-guide.md) takes it from here.
 
 ## Updating
 
@@ -291,6 +291,6 @@ do not, the popup says *Server and extension versions differ*. The pairing survi
 | Agent: *Could not listen on any of ports 47821-47828*, and the server's window says the same | The message says which: all eight are taken, by servers or other programs; or no program has them and the system does not give them out. Windows keeps ranges of ports back for its own networking where Hyper-V, WSL or Docker is used, and they move when those start anew: `netsh interface ipv4 show excludedportrange protocol=tcp` lists them | Taken: close unused agents. Kept back: start the server with `--port` and a free port, and set the same *First port* in the popup under *Connection…*. Either way the extension finds no server until then, and the popup says *Disconnected* |
 
 What the popup and the agent say once everything is installed (*Disconnected*, *Paste the server's current token*,
-"not connected") is in the user guide's [troubleshooting](user-guide.md#7-troubleshooting).
+"not connected") is in the developer guide's [troubleshooting](developer-guide.md#troubleshooting).
 
 Chrome is the only browser this has been run in. Other Chromium browsers may work but are untested.

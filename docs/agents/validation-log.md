@@ -3,6 +3,37 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: the documentation rewritten
+
+Asked for by the owner: the documentation reviewed against the implementation and rewritten for
+developers and for a security review. No product code was changed; one test is new.
+
+| Command | Result |
+|---|---|
+| `cd e2e && node run.mjs`, at `70e3026`, before the rewrite | 103 passed, 0 failed. This is the run the entry below says was started after its commit |
+| `mvn -f java-server/pom.xml test` | 186 tests, 15 skipped (the window's tests, without a display). Two are new, `ToolReferenceTest`: every tool of the server has its heading in `docs/mcp-reference.md` and no other tool has one, and every argument of a tool's schema is named in that tool's section |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | 245 links, all resolve; nothing personal found |
+| The nine diagrams of `README.md`, `docs/architecture.md` and `docs/corporate-assessment.md`, drawn with mermaid 11.4.1 in a headless browser | All nine are drawn. One did not parse at first, for a semicolon in a message, and was mended. Two were opened and looked at |
+
+Checked against the source, by two readings apart from the writing: every tool's arguments,
+defaults, bounds and error codes (the tool reference), and the numbers, names, options, file
+names, close codes, popup texts, CI jobs and release steps of the other pages. What was found
+wrong and is mended: protocol 2 in three places where it is 3; `auth_ok` without its version
+and `attach` without `agent` and `agentProof`; "there is no hover" in the README; four
+commands of the server's window where there are five, and 760 pixels where it is 824; sixteen
+pictures of the window where there are nineteen, and six tests that need a display where it
+is all of `PanelTest`; seven tools with an output schema where there are nine; tabs that come
+back "by its name"; `--list-agents` without the revoked names; `browser_wait_for`'s `gone`
+and a number of bounds missing from the tool reference; and that links to another origin are
+not clicked, also to another site of the same session.
+
+Not run: the extension's tests and the suite end to end after the rewrite, since no file they
+read was changed (`e2e/screenshots.mjs` writes into `docs/images` and `docs/examples`, which
+are where they were). Not checked: how GitHub draws the diagrams and the pages; the tool
+reference's example outputs against `docs/examples`; the measured numbers carried over from
+the earlier pages (sizes, the search measurement). `ToolReferenceTest` was not tried against
+a reference with an argument taken out.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `acc8167`: Show me, in the notice in the page
 
 Asked for by the owner: a button in the notice that brings the popup back to a question that

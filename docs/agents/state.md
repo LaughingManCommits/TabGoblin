@@ -26,6 +26,15 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   `simpler-front-pages`) on 2026-11-24, in a session that ran in the cloud: WP-27, security
   hardening and features for developers. Committed there by the session, and pushed to that
   branch on the owner's word ("Push to development branch your work"). Nothing went to `main`, and no pull request was opened. Not merged. It carries a branch `smart-extract`, merged into it.
+  The documentation was rewritten there on 2026-11-24, on the owner's word: three pages have
+  new names (`docs/security-model.md`, `docs/developer-guide.md`, `docs/mcp-reference.md`),
+  three are new (`docs/corporate-assessment.md`, `SECURITY.md`, `CONTRIBUTING.md`), and two
+  are gone, their content folded into others (`docs/README.md`, `docs/cheatsheet.md`). The
+  owner has not read them yet. Two sentences in `SECURITY.md` speak for the owner and want
+  their yes: that only the latest release is maintained, and that a confirmed vulnerability
+  is described in a release's notes. Whether GitHub's private reporting is switched on for
+  the repository was not looked at; the page says what to do if it is not. Release 0.2.0's
+  notes link to `docs/installation.md`, which is where it was.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -240,7 +249,7 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   high-contrast colours.
 - **Disconnect holds for one run of an agent's server.** The agent is refused by an id that its
   server makes when it starts; started again, it is connected again, without a tab.
-  [security.md](../security.md#agents) says so.
+  [security-model.md](../security-model.md#agent-identity-and-authentication) says so.
 - **The tree's `chrome-extension/dist` was built on 2026-11-22 at 15:47,** by the owner, and
   has everything of `by-hand-panel`. One thing came after: an answer names the session its
   command ran in, without which a call that names no session is in no tab's metrics.

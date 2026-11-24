@@ -130,7 +130,7 @@ ends by itself three seconds after its last agent has gone, and by **Stop server
 window. The process an agent starts is a pipe to it and ends when the agent closes it; run in a
 terminal without an option it waits on its input and looks like a hang, and Ctrl+C ends it. Ending
 the server's process is no stop: agents that still run start it again. Finding it by its ports
-is in the [user guide](../user-guide.md#8-stopping).
+is in the [developer guide](../developer-guide.md#stopping).
 
 ## Regenerate screenshots and examples
 
