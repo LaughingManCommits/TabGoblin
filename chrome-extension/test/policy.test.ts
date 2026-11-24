@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
   ALLOW_LASTS_MS, CommandError, NO_STANDS_MS, RateLimiter, RecentIds, UNASKED_PER_MINUTE, UNWELCOME_AFTER, activityLabel, askModeOf,
-  checkAsk, checkClick, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
+  checkAsk, checkClick, leadsOn, checkGate, checkKey, endedLine, failureNote, highImpactWord, inScope, isHighImpact, needsAsking, noteAnswer, notePassed,
   rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, looksLikeSearch, looksLikeSubmission, originOf, parseKey, resolveNavigation, resolveSession, sessionsOfAgent, isLastingAgent,
   NO_LIMITS, REQUEST_LASTS_MS, noticeAtRest, checkAccessRequest, requestKey, requestReason, workspaceName, workspacesOf, askUnder, capMode, checkLimits, endsAt, outsideAllowed, strictest, type Limits,
@@ -214,6 +214,11 @@ const target = (over: Partial<ClickTarget> = {}): ClickTarget =>
 test('Read cannot click; Explore clicks links and expanders only', () => {
   assert.equal(code(() => checkClick('read', 'interact', target({ readSafe: true }))), 'EXPLORE_NOT_AUTHORIZED');
   assert.equal(checkClick('explore', 'interact', target({ readSafe: true })), 'interact');
+  // A link leads to another address, and what follows a click on it is waited for; a control
+  // that shows and hides, or any other, is not taken to lead anywhere.
+  assert.equal(leadsOn(target({ readSafe: true })), true);
+  assert.equal(leadsOn(target({ readSafe: true, disclosure: true })), false);
+  assert.equal(leadsOn(target()), false);
   assert.equal(checkClick('explore', 'interact', target({ disclosure: true })), 'interact');
   assert.equal(code(() => checkClick('explore', 'interact', target())), 'WRITE_NOT_AUTHORIZED');
   assert.equal(code(() => checkClick('explore', 'interact', target({ submit: 'form' }))), 'WRITE_NOT_AUTHORIZED');

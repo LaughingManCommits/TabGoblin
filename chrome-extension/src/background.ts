@@ -9,7 +9,7 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent, noticeAtRest, rangesToScan,
+  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, leadsOn, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent, noticeAtRest, rangesToScan,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
   type AccessRequest, type AllowMemory, type AskMemory, type AskMode, type Blocked, type Limits, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
@@ -902,9 +902,30 @@ async function confirmWithUser(
 }
 
 /** Finds out what an interaction did to the tab: nothing, an in-page route change, a new document, or leaving the origin. */
-async function settle(session: SessionRecord, before: { url: string | undefined; docId: string | null; at: number }): Promise<object> {
+/**
+ * How long a link's destination is waited for when the address has not changed yet. A site that
+ * swaps its content in fetches it first and changes the address only then: a moment after the
+ * click the tab is where it was, and saying "no navigation" then would be saying it too early.
+ */
+const LATE_MOVE_MS = 2000;
+
+/**
+ * @param expectsMove the click was on a link that leads to another address: the address is given
+ *                    a moment to change before the tab is taken to have stayed where it was
+ */
+async function settle(
+  session: SessionRecord, before: { url: string | undefined; docId: string | null; at: number }, expectsMove = false,
+): Promise<object> {
   await sleep(250);
-  const tab = await waitWhileLoading(session.tabId, 10000);
+  let tab = await waitWhileLoading(session.tabId, 10000);
+  if (expectsMove) {
+    const until = Date.now() + LATE_MOVE_MS;
+    // Nothing is waited for where the link opened a tab of its own: this tab stays as it is.
+    while (tab && tab.url === before.url && Date.now() < until && (newTabs.get(session.tabId) ?? 0) < before.at) {
+      await sleep(100);
+      tab = await waitWhileLoading(session.tabId, 10000);
+    }
+  }
   if (!inScope(session.origins, tab?.url)) {
     suspendSession(session);
     return {
@@ -958,7 +979,7 @@ async function click(op: Operation, session: SessionRecord, params: Record<strin
   }
   const before = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
   const result = await page<{ dispatched: true; note?: string }>(op, session, 'click', { ref });
-  return { ...result, ...(await settle(session, before)) };
+  return { ...result, ...(await settle(session, before, leadsOn(target))) };
 }
 
 async function pressKey(op: Operation, session: SessionRecord, params: Record<string, unknown>): Promise<object> {
@@ -1105,7 +1126,7 @@ async function collect(op: Operation, session: SessionRecord, params: Record<str
       underPolicy(op, session, (has, strict) => checkClick(has, 'interact', target, strict));
       const here = { url: (await getTab(session.tabId))?.url, docId: session.documentId, at: Date.now() };
       await page(op, session, 'click', { ref: control.ref });
-      const moved = await settle(session, here) as { leftAuthorizedOrigin?: boolean };
+      const moved = await settle(session, here, leadsOn(target)) as { leftAuthorizedOrigin?: boolean };
       if (moved.leftAuthorizedOrigin || !sessionById(session.id) || session.suspended) {
         stopped = 'left';
         break;

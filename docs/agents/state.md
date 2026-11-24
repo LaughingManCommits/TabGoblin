@@ -57,7 +57,14 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   the owner: a click on a port in the server's window copies its number, and the version is
   0.2.1 in the seven places the runbook names. Committed on the owner's word. Not pushed and
   not merged. No tag: a release of 0.2.1 is the owner's, and WP-25 (release notes) was filed
-  to come with the next release. The click was not tried in the real window.
+  to come with the next release. The click was not tried in the real window. The owner merged
+  it into `main` on 2026-11-24 (`9229490`).
+- Branch `late-navigation`, made from `main` at `9229490` on 2026-11-24, on the owner's word
+  ("yeah fix them"): after a click on a link the address has up to two seconds to change
+  before the tab is taken to have stayed, so that `browser_click` says where the tab went and
+  `browser_collect` reads the next page and not the one before, on a site that swaps its
+  content in late. Committed on the owner's word. Not pushed and not merged. Not yet seen on
+  the site where the faults were found: the extension has to be built from it and loaded again.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 

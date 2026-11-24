@@ -854,7 +854,10 @@ is something to say (for example that another element appears to cover this one)
 click's result was captured for this page.
 
 **Limits:** the server waits 30 seconds, and 95 seconds with `intent: "submit"`, which includes
-up to 60 seconds for the user's answer.
+up to 60 seconds for the user's answer. After a click on a link, the address is given up to
+two seconds to change before the result says `none`: a site that swaps its content in changes
+the address only once it has fetched it. A link that leads nowhere therefore answers two
+seconds later than another control.
 
 **Restrictions**
 

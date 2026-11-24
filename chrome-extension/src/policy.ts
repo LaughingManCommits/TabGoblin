@@ -571,6 +571,16 @@ export interface ClickTarget {
 }
 
 /**
+ * Whether a click on this is expected to take the tab to another address: a link on the same
+ * site that is no control for showing and hiding. What follows such a click is waited for a
+ * moment longer, since a site that swaps its content in changes the address only once it has
+ * fetched the new content.
+ */
+export function leadsOn(target: ClickTarget): boolean {
+  return target.readSafe && !target.disclosure;
+}
+
+/**
  * Decides whether a click may proceed. Returns 'submit' when it is a submission (which the
  * caller may additionally put in front of the user) and 'interact' otherwise.
  */

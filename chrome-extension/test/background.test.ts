@@ -1791,6 +1791,41 @@ test('collecting reads over several scrolls in one command, leaves out what was 
   tabs.delete(61);
 });
 
+test('a link whose site changes the address late is waited for, and a control that leads nowhere is not', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  tabs.set(63, { id: 63, url: 'https://list.example/commits', status: 'complete', active: true, windowId: 1, title: 'Commits' });
+  const sid = (await popup({ type: 'authorize', tabId: 63, mode: 'explore', clientId: 'c-one' })).state.sessions.at(-1).id;
+  const click = (): Promise<any> => one.command('click', { session: sid, params: { ref: 5 } });
+
+  // The site fetches first and changes the address 700 ms after the click: the result says where the tab went.
+  pageResults.set('describe', { readSafe: true, disclosure: false, externalLink: false, submit: null, label: 'A commit' });
+  pageResults.set('click', () => {
+    setTimeout(() => { tabs.get(63)!.url = 'https://list.example/commit/1'; }, 700);
+    return { dispatched: true };
+  });
+  const followed = (await click()).result;
+  assert.equal(followed.navigation, 'same-document');
+  assert.equal(followed.navigated, true);
+  assert.equal(followed.url, 'https://list.example/commit/1');
+
+  // A control that shows and hides is not waited for: the answer comes as quickly as it did.
+  pageResults.set('describe', { readSafe: true, disclosure: true, externalLink: false, submit: null, label: 'Show more' });
+  pageResults.set('click', { dispatched: true });
+  const began = Date.now();
+  const expanded = (await click()).result;
+  assert.equal(expanded.navigation, 'none');
+  assert.ok(Date.now() - began < 1500, `it took ${Date.now() - began} ms`);
+
+  // A link that leads nowhere after all: the wait has an end, and the result says that nothing moved.
+  pageResults.set('describe', { readSafe: true, disclosure: false, externalLink: false, submit: null, label: 'This page' });
+  const stayed = (await click()).result;
+  assert.equal(stayed.navigation, 'none');
+
+  for (const op of ['describe', 'click']) pageResults.delete(op);
+  await popup({ type: 'revoke', session: sid });
+  tabs.delete(63);
+});
+
 test('collecting page after page follows only a link an agent may click, needs Explore, and hovering needs it too', async () => {
   for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
   tabs.set(62, { id: 62, url: 'https://list.example/results?page=1', status: 'complete', active: true, windowId: 1, title: 'Results' });
