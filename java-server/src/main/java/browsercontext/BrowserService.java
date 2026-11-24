@@ -440,6 +440,11 @@ public final class BrowserService {
         sb.append("Extension: connected (protocol ").append(Protocol.VERSION).append(")\n");
         sb.append("This agent: ").append(bridge.clientId()).append(" on port ").append(bridge.getPort())
                 .append(identityLine()).append('\n');
+        // Where the usual ports could not be had: said so that the agent can tell the user why the port is another.
+        String ports = Ports.note(bridge.getPort());
+        if (!ports.isEmpty()) {
+            sb.append(ports).append('\n');
+        }
         // The general setting. Older extensions say only yes or no.
         String asking = s.path("confirmation").asString(s.path("confirmSubmissions").asBoolean(true) ? "always" : "never");
         sb.append("Submissions need user confirmation: ").append(describeAsking(asking)).append('\n');

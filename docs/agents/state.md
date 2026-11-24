@@ -41,6 +41,15 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   extension. Committed on the owner's word. Not pushed and not merged. Not yet seen on the
   site where it was found: the extension has to be built from this branch and loaded again.
   A plain `browser_click` on such a link still reports `navigated: false`; left as it is.
+- `main` has moved on since the lines above: the owner merged the branch of WP-27 with the
+  rewritten documentation, `editors-page-simpler`, and `collect-late-page` (`1e355c7`).
+- Branch `wp-28-fallback-ports`, made from `1e355c7` on 2026-11-24: WP-28, a list of three
+  first ports (47821, 37821, 27821) that the server, the agents' processes and the extension
+  all know, so that a machine whose system keeps the usual ports back still gets a server.
+  Built on the owner's word to mend the fault; its four decisions were taken as the entry
+  proposed, and which ports is the session's choice: all four are the owner's to change.
+  **It has not run on a machine with a reserved range,** which is what its acceptance asks
+  for: the owner's Windows machine is the place. Committed; not pushed, and no pull request.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 

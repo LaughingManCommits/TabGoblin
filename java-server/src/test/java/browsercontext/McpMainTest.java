@@ -238,4 +238,14 @@ class McpMainTest {
         assertFalse(revoked.persistent());
         assertFalse(revoked.id().equals(first.id()));
     }
+
+    @Test
+    void aFirstPortIsTheUsersOwnOnlyWhenTheOptionOrTheVariableNamesOne() throws Exception {
+        assertFalse(parse(Map.of()).portChosen(), "none named: the list of first ports holds");
+        assertEquals(McpMain.DEFAULT_PORT, parse(Map.of()).port());
+        assertTrue(parse(Map.of(), "--port", "5000").portChosen());
+        assertTrue(parse(Map.of("BCMCP_PORT", "5000")).portChosen());
+        assertTrue(parse(Map.of(), "--port", String.valueOf(McpMain.DEFAULT_PORT)).portChosen(), "also the usual one, when it is named");
+        assertFalse(parse(Map.of("BCMCP_PORT", " ")).portChosen(), "a variable that is empty names none");
+    }
 }

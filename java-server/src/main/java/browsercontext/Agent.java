@@ -31,6 +31,11 @@ final class Agent {
             this(port, token, extensionOrigin, () -> BlockedSites.Rule.NONE);
         }
 
+        /** The same, with the ports beginning elsewhere: where a server found a range the system gives out. */
+        Settings withPort(int first) {
+            return new Settings(first, token, extensionOrigin, blocked, agentKeys);
+        }
+
         /** Without keys for agents: each agent has an id for this start only. */
         Settings(int port, Supplier<String> token, String extensionOrigin, Supplier<BlockedSites.Rule> blocked) {
             this(port, token, extensionOrigin, blocked, null);

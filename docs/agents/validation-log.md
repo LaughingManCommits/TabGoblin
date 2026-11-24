@@ -28,6 +28,24 @@ collect on the site where the fault was found, since the browser there ran the e
 was built before. Not mended: a plain click on such a link reports `navigated: false` for the
 same reason; a snapshot after it shows the new page.
 
+## 2026-11-24, on `wp-28-fallback-ports`: WP-28, a server where the system keeps the usual ports back
+
+The owner said to mend the fault on the backlog. In the session's container, on Linux.
+
+| Command | Result |
+|---|---|
+| `mvn -f java-server/pom.xml verify` | 203 tests with the conformance check's, 15 skipped (the window's, without a display). Nine are new: `PortsTest` (the user's own port is the only one; the first range that can be used is taken; a range that is free or that programs hold is not taken for one that is kept back; a server takes the next range and an agent's process finds it there; nothing changes where the first range is given out; no second server; no range, no server; what the status says) and one in `McpMainTest` (when a port counts as the user's own) |
+| `npm run check` in `chrome-extension` | 212 tests, with the type-check and the build. Three are new: which ranges are looked at, that the ranges are far apart, and that a first port the user set is the only range the worker tries |
+| `cd e2e && node run.mjs` | 103 passed, 0 failed. Its servers are started with `--port`, so it holds that a named port works as before and tries no fallback |
+| By hand, the built jar started as an agent's program starts it, without a port | The server listened on 47821 and the status named that port: nothing changed where the usual range is given out |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
+
+**Not run, and it is what the work is for: a machine whose system keeps the first range back.**
+None can be made in the container. The tests say "kept back" of a range by a function put in
+its place. Whether listening and connecting fail on Windows for a reserved port as
+`Ports.usable` takes them to is not seen. Not run either: the server's window; Windows and
+macOS at all; the extension in a browser against a server on the second range.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: the documentation rewritten
 
 Asked for by the owner: the documentation reviewed against the implementation and rewritten for
@@ -299,94 +317,15 @@ Not run: Windows; the editor lab; the two workflows on GitHub; the server's wind
 so the documentation's pictures are as they were, and do not show the policy line that the
 popup has when a policy is set; a real agent with a real extension by hand; the download.
 
-## 2026-11-23, on `easy-install`: WP-15, a download, a setup command, and a release by a tag
-
-The owner decided that there will be no Chrome Web Store, ever, and then: "okay lets build wp 15
-with the cd release". Made from `new-token-each-start`. Committed on the owner's word; not
-pushed.
-
-In a copy of the tree, with a jar and an extension built there; the session's own server runs
-from the tree's jar, which was not rebuilt.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 151 tests, and the 8 of the conformance check on the built jar. Five of the 151 are new for this: four of setup, one of the help |
-| `npm run check` in `chrome-extension` | 161 tests, with the type-check and the build |
-| `cd e2e && node run.mjs` | 95 passed, 0 failed. No server of the copy left running |
-| `bash release/bundle.sh`, on Windows 11 with a JDK 26 | `tabgoblin-0.2.0-windows-x64.zip`, 48.5 MB; 67 MB unpacked. With a tag that is not the version it makes nothing and ends with 1 |
-| `cd e2e && node run.mjs`, with the download's `runtime/bin` first on the path | 95 passed, 0 failed, on a jar that is byte for byte the download's. `java` was the download's, for the shell and for Node |
-| `bash release/bundle.sh`, in Ubuntu under Windows' Linux subsystem, with a JDK 21 fetched for the making | `tabgoblin-0.2.0-linux-x64.tar.gz`, 51.3 MB |
-| both workflow files read as YAML | well-formed; the release calls the suites, makes three downloads after them, and publishes only for a tag, as the one job that may write |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-The download for Windows, unpacked into a folder with a space in its name:
-
-- `tabgoblin --help` prints the help, with the line that says what the command stands for.
-- `tabgoblin --setup claude-code` and `--setup copilot`, with a home folder made for the purpose:
-  the skill was put there; the line for the agent, the extension's folder and the command for
-  the window were printed with the download's own paths, each in quotes; asked again, it said
-  that the skill was there already.
-- The line for Claude Code was run with the real tool, in Command Prompt and in PowerShell,
-  against a configuration made for the purpose, and what it stored was read: the Java of the
-  download as the command, its path whole with the space in it, and `-jar` with the jar.
-- Started as an agent's program starts it, on the runtime that is inside: the server came up,
-  and its window after a browser had come with another token, read through UI Automation.
-
-The download for Linux, in the Linux subsystem, where there is no Java: the help; setup for
-Codex, which put both files of that skill in place; and the server as an agent starts it,
-which answered `initialize` and a `browser_status`. Its window: the server's log said `panel
-shown`, and the window was not found by a look from either system, so it counts as not seen.
-A server started with `tabgoblin --panel` in a terminal made up for the purpose was gone once
-that terminal had closed.
-
-What went wrong on the way, and is worth knowing:
-
-- **The first run of the suite "on the download's runtime" was not on it.** The path was given
-  in the form Windows writes, which the shell did not take, and the suite ran on the system's
-  Java. Its own first line showed it. The run was thrown away and done again, and its record
-  now names the Java the shell and Node each found.
-- **Counts of windows in the Linux subsystem meant nothing:** the tools that list them are not
-  installed there, and their errors were hidden. Nothing was installed.
-- **A line passed from one shell into another lost its quotes,** which looked like a fault of
-  the line for Claude Code in Command Prompt. Run from a file of that shell, the line is right.
-
-Read on GitHub afterwards, through TabGoblin, on a tab the owner authorized with Explore, once
-the owner had merged and started the workflow by hand:
-
-- Run #1 of *Release*, on `83aea15`: succeeded in 7m 37s. *Java server* 1m 19s, *Chrome
-  extension* 59s, *Nothing personal* 14s, *End to end* 4m 22s, *Editors* 5m 47s; the three
-  downloads; *Publish* skipped.
-- The job for Windows, 1m 34s, and the one for macOS, 36s, each say the six modules and *Made*
-  with the download's name. On macOS that is the first time the script ran, and it starts the
-  server on the runtime it made before it packs.
-- Kept with the run: `tabgoblin-windows-x64` 47.9 MB, `tabgoblin-linux-x64` 51.1 MB,
-  `tabgoblin-macos-arm64` 47.1 MB.
-- CI run #22, for the merge itself, was cancelled after 5m 25s, with *Canceling since a higher
-  priority waiting request for ci-refs/heads/main exists*: the release's suites took its
-  place. On `release-keeps-ci` the group is named after the workflow as well. Both workflow
-  files were read as YAML again; the change has not run on GitHub.
-
-Later that day the owner merged that change and pushed the tag `v0.2.0`. Read from GitHub,
-without signing in, since the repository is public:
-
-- Run #2 of *Release*, for the tag, on `fde041c`: completed, success.
-- The release *TabGoblin 0.2.0*, published at 18:10 UTC, neither a draft nor a prerelease, with
-  `tabgoblin-0.2.0-windows-x64.zip` 47.9 MB, `tabgoblin-0.2.0-linux-x64.tar.gz` 51.3 MB,
-  `tabgoblin-0.2.0-macos-arm64.tar.gz` 47.1 MB and `SHA256SUMS.txt`, which has a line for
-  each of the three. Its notes begin as `release/notes.md` does.
-- GitHub holds one attestation for the digest of the Windows download, as `SHA256SUMS.txt`
-  gives it.
-- CI run #23, for the merge of the change to the groups, passed. That does not show the
-  change: the release ran for the tag, which was never in the CI's group.
-
-Not done: a download of the release taken and used, on any system; `gh attestation verify`
-run against one; the two other attestations asked for. Not run: the lines for Codex and for Copilot; neither agent is on this
-machine. Not done: the acceptance as the package has it, a person following the page on a
-machine with nothing installed, with the minutes counted. Not run on this tree: the editor lab;
-its files are as on `main`.
-
 ## Earlier, in one line each
 
+- 2026-11-23, on `easy-install`, WP-15 (a download, a setup command, a release by a tag): server
+  151 tests and 8 conformance tests, extension 161, end to end 95 of 95, and 95 of 95 again on
+  the download's own runtime. The download for Windows was made and used on Windows 11 in a
+  folder with a space in its name (help, setup, the line for Claude Code in two shells, the
+  server and its window); the one for Linux in the Linux subsystem without Java (help, setup,
+  the server as an agent starts it), where its window was not seen and a server started with
+  `--panel` ended with its terminal. The workflows were read as YAML and not run on GitHub.
 - 2026-11-23, on `new-token-each-start` (WP-17, a new pairing token at every start, cut back
   the same day to what helps with a pairing; and WP-23, pictures as SVG, dropped by the owner):
   all suites passed on what stands, by that entry's count; its text is in the history.

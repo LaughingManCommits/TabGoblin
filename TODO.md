@@ -33,8 +33,9 @@ WP-26, filed the same day, is access that ends by itself when it is not used; it
 started. WP-27, asked for on 2026-11-24, is security hardening and developer features in
 fourteen points, in three priorities; its entry has the gap analysis, the backlog, what was
 built and what was left. WP-28, filed on 2026-11-24, is the ports that Windows can keep back, so
-that no server has one; what it says is mended, and a way around it is proposed and not
-started. New work gets the next number, WP-29.
+that no server has one; what it says is mended, and the way around it was built on
+2026-11-24 with the entry's own proposals taken for its decisions: it has not run on a machine
+whose ports are kept back. New work gets the next number, WP-29.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1685,6 +1686,41 @@ having to find out why, pick a port and set it in two places.
    nobody (proposal: the others only then).
 4. Whether the first port of today stays the first of the list (proposal: yes, so that nothing
    changes for a machine where it works).
+
+### Built, on 2026-11-24, on the branch `wp-28-fallback-ports`
+
+The owner said to mend it; the four decisions were taken as the entry proposed them, and the
+second, which had no proposal, was taken by the session. Each is the owner's to change.
+
+1. **A fallback is there.**
+2. **Three first ports: 47821, 37821, 27821.** Ten thousand apart, where a block the system
+   keeps back is a hundred; all below 49152, where the dynamic range begins on most machines.
+   Which numbers, and that there are three, is the session's choice.
+3. **The extension looks at the other ranges only while no server is connected,** and then at
+   all of them at once: 24 addresses each half minute while nothing is found, 8 as before
+   once a server is.
+4. **The first port of before stays the first:** nothing changes on a machine where it works.
+
+How it works: `Ports.java` has the list. The server takes the first range of which one
+agent's port can be listened on or is held by a program; a range of which neither is so is
+kept back. An agent's process looks for the server on each range in turn before it starts
+one, and no longer hands a port on to the server it starts unless the user named one. The
+extension's rule is `rangesToScan` in `policy.ts`. `--port`, `BCMCP_PORT` and the popup's
+*First port* mean one port and no list. `browser_status` has a line `Ports: …` when the
+server is not on the usual range.
+
+Not built: the command that keeps a range for TabGoblin (proposal 3). It was from memory, and
+was to be tried on a machine first.
+
+**Not tried, and what the acceptance asks for: a Windows machine with the first range
+reserved.** No range can be kept back in the session's container, so what is tested is what
+follows once a range is known to be unusable (the server on the next range, an agent's
+process finding it there, no second server, the extension's rule), and that a range which
+programs hold is not taken for one that is kept back. Whether binding and connecting behave
+on Windows as the entry says of a reserved port is the owner's second session's to see. One
+case is known and left: a block that ends inside a range, so that the agents' ports are given
+out and the server's own port after them is not. Each agent's process then serves its agent
+alone on that range, as before this.
 
 ### Tasks and acceptance
 

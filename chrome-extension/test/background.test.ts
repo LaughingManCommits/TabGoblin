@@ -214,6 +214,8 @@ class FakeServer {
 }
 
 const servers = new Map<number, FakeServer>();
+/** Every port a connection was tried on. */
+const tried = new Set<number>();
 
 class FakeSocket {
   static CONNECTING = 0;
@@ -227,6 +229,7 @@ class FakeSocket {
 
   constructor(url: string) {
     const port = Number(url.split(':').pop());
+    tried.add(port);
     setTimeout(() => {
       this.server = servers.get(port);
       if (!this.server) {
@@ -2143,3 +2146,12 @@ test('the notice\'s button for a question brings the popup up, only where a ques
   for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
   for (const id of [91, 92]) tabs.delete(id);
 });
+
+test('a first port the user set is the only range that is looked at', async () => {
+  // The whole file runs with a first port of its own. The ranges a server falls back to where the
+  // system keeps the usual ports back are for a setup that names no port (`rangesToScan`).
+  await popup({ type: 'getState' });
+  assert.ok(tried.has(BASE_PORT));
+  for (const port of tried) assert.ok(port >= BASE_PORT && port < BASE_PORT + 8, `port ${port} was tried`);
+});
+
