@@ -25,9 +25,18 @@ A run of the suite before this one failed from the step of a restarted server on
 that got no answer. The container had been started anew in the middle of it: its clock said
 so. The run above was the next one, and was not disturbed.
 
+Afterwards the owner chose other words for the button, and a glyph: an arrow up and to the
+right, where the toolbar is, and the word *Answer*, in the place of *Show me*. `npm run check`:
+209 tests. Drawn and looked at over a light and a dark page: the arrow and the word are whole
+beside Pause. The first drawing of the arrow had its shaft on the other diagonal and read as a
+wedge; that was seen in the picture and set right. A variant with the arrow alone was drawn
+beside it for the owner and is not in the tree: the status took two lines there as well, so it
+gained no room. The suite end to end was started after the commit; its result is in the
+session's report and not here.
+
 Not run: the server's tests, which this did not touch; Windows; the button by hand in the
-owner's browser. Not decided, and the owner's: the button's words, and whether it also shows
-for a question that belongs to another tab's session; it does not.
+owner's browser. Not decided, and the owner's: whether the button also shows for a question
+that belongs to another tab's session; it does not.
 
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `9b287f0`: a server that has no port says why, and a smoke test
 

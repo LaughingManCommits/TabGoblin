@@ -340,7 +340,8 @@ Web pages can contain text written to steer an agent. TabGoblin's part:
 - Page content cannot change sessions, permissions, pairing or settings: those have no tool and
   change only through the popup.
 - **The notice can open the popup, and can grant nothing.** While your answer is needed it has
-  a button, *Show me*, that brings the popup back; the answer is given there and nowhere else.
+  a button, *Answer* with an arrow up to the toolbar, that brings the popup back; the answer is
+  given there and nowhere else: the button opens the popup and gives no answer itself.
   There is no Allow in the notice, and none anywhere outside the popup: the notice is drawn
   inside the web page, which could cover it or imitate it. The button reacts only to a click the
   browser marks as yours, and the worker opens the popup only where a question really waits

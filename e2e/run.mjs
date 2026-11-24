@@ -1034,7 +1034,7 @@ try {
       await setConfirmation(false);
     }
   });
-  await step('Show me in the page brings the popup back to a question, and the answer is still given in the popup', async () => {
+  await step('the notice\'s Answer button brings the popup back to a question, and the answer is still given in the popup', async () => {
     await setConfirmation(true);
     const sid = await sessionOf(one);
     let declined = false;
@@ -1055,7 +1055,7 @@ try {
         const notice = await noticeOf(page);
         return notice?.show ? notice : null;
       }, 'the notice to offer the way to the question');
-      assert(waiting.status === 'Answer needed in the popup' && waiting.showWords === 'Show me' && waiting.pause, JSON.stringify(waiting));
+      assert(waiting.status === 'Answer needed in the popup' && waiting.showWords === 'Answer' && waiting.pause, JSON.stringify(waiting));
       // Nothing of the question is in the page: not what would be sent, and not who asks.
       assert(!JSON.stringify(waiting).includes('Mathematician') && !JSON.stringify(waiting).includes('agent-one'), JSON.stringify(waiting));
       // A click that the page makes up opens nothing, and no tool sees the notice or can click it.

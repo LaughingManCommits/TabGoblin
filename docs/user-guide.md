@@ -110,9 +110,9 @@ small bar, and above it a pill for each thing the agent just did.
 - **The bar** says what the agent is doing now ("Agent: Reading page"), that it is idle or
   paused, or that your answer is needed in the popup. It has a **Pause** button. The bar is
   always the same height and stays in its place.
-- **Show me** appears in the bar, before Pause, while your answer is needed: for a submission
+- **Answer**, with an arrow that points up to the toolbar, appears in the bar, before Pause, while your answer is needed: for a submission
   to confirm, or a higher level the agent asked for in this tab. The popup comes up by itself
-  for such a question and closes when you click elsewhere; **Show me** brings it back. It
+  for such a question and closes when you click elsewhere; **Answer** brings it back. It
   allows nothing and declines nothing: you answer in the popup, as always.
 - **The goblin** in the bar shows the same at a glance: it glows green, softly and in pulses,
   while the agent works, amber when you are asked, and has its eyes closed when the session is

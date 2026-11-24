@@ -2022,7 +2022,7 @@ test('a workspace groups tabs under a name and gives nothing: each tab keeps its
   for (const id of [81, 82, 83]) tabs.delete(id);
 });
 
-test('the notice\'s Show me brings the popup up, only where a question waits for that tab, and answers nothing', async () => {
+test('the notice\'s button for a question brings the popup up, only where a question waits for that tab, and answers nothing', async () => {
   for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
   tabs.set(91, { id: 91, url: 'https://forms.example/new', status: 'complete', active: true, windowId: 1, title: 'New' });
   tabs.set(92, { id: 92, url: 'https://other.example/', status: 'complete', active: false, windowId: 1, title: 'Other' });
@@ -2060,7 +2060,7 @@ test('the notice\'s Show me brings the popup up, only where a question waits for
   assert.ok(!JSON.stringify(notices).includes('SECRET DRAFT TITLE'));
   opened = popupsOpened; // the popup came up by itself for the question; the user has closed it since
 
-  // The user presses Show me in that tab: the popup is brought up again. The question is as it was.
+  // The user presses the button in that tab: the popup is brought up again. The question is as it was.
   await showMe(91);
   assert.equal(popupsOpened, opened + 1);
   const question = (await state()).pendingConfirm;

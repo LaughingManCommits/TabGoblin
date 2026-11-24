@@ -304,14 +304,14 @@ test('while the user\'s answer is needed the notice offers the way to the popup,
   paintNotice(mount, noticeView(after([0, { state: 'asking' }]), T0 + 10)!);
   assert.equal(mount.show.hidden, false);
   assert.equal(mount.show.textContent, SHOW_LABEL);
-  assert.equal(mount.show.textContent, 'Show me');
+  assert.equal(mount.show.textContent, 'Answer');
   assert.match(mount.show.title, /Open the TabGoblin popup/);
   assert.equal(mount.pause.hidden, false);
   assert.equal(mount.pause.textContent, 'Pause');
   assert.equal(mount.label.textContent, 'Answer needed in the popup');
   // Nothing of a question is in it: the bar has the fixed words and the two buttons, and no more.
   const bar = mount.box.lastElementChild as HTMLElement;
-  assert.equal(bar.textContent, 'Answer needed in the popupShow mePause');
+  assert.equal(bar.textContent, 'Answer needed in the popupAnswerPause');
   // Each button has its own click, and neither does the other's.
   mount.show.click();
   assert.deepEqual([shows.length, pauses.length], [1, 0]);

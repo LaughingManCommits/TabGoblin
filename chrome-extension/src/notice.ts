@@ -181,8 +181,12 @@ export interface NoticeMount {
   pause: HTMLButtonElement;
 }
 
-/** The words on the button that brings the popup back. */
-export const SHOW_LABEL = 'Show me';
+/**
+ * The word on the button that brings the popup back. It stands beside "Answer needed in the
+ * popup" and says why one presses it; an arrow before it points up to the toolbar, where the
+ * popup opens. What the button does in full is in its title, and for a screen reader in its label.
+ */
+export const SHOW_LABEL = 'Answer';
 
 /**
  * A handler that acts only on a click of the user's own. The notice is drawn inside a web page,
@@ -266,9 +270,12 @@ const STYLE = ':host{all:initial;position:fixed;right:12px;bottom:12px;z-index:2
   + `button:hover{background:#1d3327;border-color:rgb(${GREEN});color:#c9f5da}`
   + `button:focus-visible{outline:2px solid rgb(${GREEN});outline-offset:2px}`
   + 'button[hidden]{display:none}'
-  // The way to the question: no bars before its word, and the colour of the state it belongs to.
-  + '.show::before{content:none}'
-  + `.show{padding:4px 11px;color:#f3c25c;border-color:rgba(${AMBER},.55);background:#2a2415}`
+  // The way to the question, in the colour of the state it belongs to. Before its word, in the
+  // place of Pause's two bars, an arrow up and to the right, where the toolbar and the popup are:
+  // the corner of a square for its head and a line across the square for its shaft.
+  + '.show::before{width:8px;height:8px;border-width:2px 2px 0 0;'
+  + 'background:linear-gradient(to bottom right,transparent calc(50% - 1px),currentColor calc(50% - 1px),currentColor calc(50% + 1px),transparent calc(50% + 1px))}'
+  + `.show{color:#f3c25c;border-color:rgba(${AMBER},.55);background:#2a2415}`
   + `.show:hover{background:#3a3118;border-color:rgb(${AMBER});color:#ffe2a3}`
   + `.show:focus-visible{outline-color:rgb(${AMBER})}`
   + '.fading{opacity:0}'

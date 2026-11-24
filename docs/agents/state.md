@@ -62,7 +62,7 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   owner at the popup: reading, a click on a link, hovering, collecting, a screenshot, three
   refusals, a request for access that was allowed, a fill, Enter in a search field, and a
   submission that was confirmed. Not yet by hand: a Deny of a question; pause, revoke and
-  disconnect; a workspace; a policy; the notice's **Show me**.
+  disconnect; a workspace; a policy; the notice's **Answer** button.
 
 - **WP-27 changes what an existing setup does,** in four ways that its entry lists: the server
   and the extension have to be of the same release (protocol 3); tabs come back after a restart

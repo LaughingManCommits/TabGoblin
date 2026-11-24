@@ -480,7 +480,7 @@ closed shadow root, and only its two buttons take the pointer; a click on either
 when the browser marks it as the user's (`byTheUser` in `notice.ts`).
 
 **The way back to a question.** The popup comes up by itself for a question and is gone at a
-click elsewhere. While the state is `asking`, the bar has a second button, *Show me*, before
+click elsewhere. While the state is `asking`, the bar has a second button, *Answer* with an arrow before the word, before
 Pause. Its click sends the worker one fixed message, which names nothing; the worker brings the
 popup up if a question waits for the session of the tab the message came from, and does
 nothing otherwise (`indicator-show` in `background.ts`). It answers nothing: the answer is given
