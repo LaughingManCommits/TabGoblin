@@ -40,12 +40,16 @@ final class Agent {
     private final WebSocketBridge bridge;
     private final BrowserService service;
     private final String startupProblem;
+    /** The same for the log, in one short line: the window has the whole of it above. */
+    private final String startupLogged;
     private final boolean listening;
     private final McpSyncServer mcp;
 
-    private Agent(WebSocketBridge bridge, String startupProblem, boolean listening, BrowserService service, McpSyncServer mcp) {
+    private Agent(WebSocketBridge bridge, String startupProblem, String startupLogged, boolean listening, BrowserService service,
+            McpSyncServer mcp) {
         this.bridge = bridge;
         this.startupProblem = startupProblem;
+        this.startupLogged = startupLogged;
         this.listening = listening;
         this.service = service;
         this.mcp = mcp;
@@ -79,6 +83,7 @@ final class Agent {
             Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity) {
         WebSocketBridge bridge = null;
         String startupProblem = null;
+        String startupLogged = null;
         for (int candidate = settings.port(); candidate < settings.port() + McpMain.PORT_RANGE && bridge == null; candidate++) {
             WebSocketBridge attempt = new WebSocketBridge(candidate, settings.token(), settings.extensionOrigin(), identity.id());
             try {
@@ -91,7 +96,9 @@ final class Agent {
         boolean listening = bridge != null;
         if (!listening) {
             bridge = new WebSocketBridge(settings.port(), settings.token(), settings.extensionOrigin(), identity.id());
-            startupProblem = noPort(settings.port(), answering(settings.port()));
+            int answering = answering(settings.port());
+            startupProblem = noPort(settings.port(), answering);
+            startupLogged = noPortLogged(settings.port(), answering);
         }
         if (held) {
             bridge.setHeld(true);
@@ -109,7 +116,7 @@ final class Agent {
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
                 .tools(McpMain.toolSpecs(service, mapper, tap))
                 .build();
-        return new Agent(bridge, startupProblem, listening, service, mcp);
+        return new Agent(bridge, startupProblem, startupLogged, listening, service, mcp);
     }
 
     /**
@@ -154,6 +161,12 @@ final class Agent {
         return could + answering + " of them are taken by programs, and of the rest " + kept;
     }
 
+    /** The same in the log's own form: what, the ports, how many are taken, and the reason in a word. */
+    static String noPortLogged(int first, int answering) {
+        String reason = answering >= McpMain.PORT_RANGE ? "all_taken" : answering == 0 ? "kept_back_by_the_system" : "taken_or_kept_back";
+        return "no port to listen on ports=" + first + "-" + (first + McpMain.PORT_RANGE - 1) + " taken=" + answering + " reason=" + reason;
+    }
+
     /**
      * Says in the log that this agent is served, and on which port, or why it has none. Said by the
      * one who serves it, once it holds the agent: the line is the agent's, and goes to the agent's log.
@@ -162,7 +175,7 @@ final class Agent {
         if (listening) {
             Log.of(bridge.clientId()).info("listening port=" + bridge.getPort() + " client=" + bridge.clientId());
         } else {
-            Log.of(bridge.clientId()).warn(startupProblem);
+            Log.of(bridge.clientId()).warn(startupLogged);
         }
     }
 

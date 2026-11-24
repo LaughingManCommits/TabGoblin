@@ -242,7 +242,9 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             // An agent says its name when it opens its connection. Until then it goes by its id, as in the popup.
             boolean named = facts.name() != null && !facts.name().isBlank();
             members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), facts.port(), facts.connected(),
-                    connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
+                    // Without a port no browser can come: that, and not a browser that is waited for.
+                    facts.problem() != null && !facts.connected() && !switchedOff ? NO_PORT
+                            : connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
                     facts.sessions().size()));
             for (Protocol.Session session : facts.sessions()) {
                 // A tab on a blocked site is that before it is anything else: nothing an agent does in it goes through.
@@ -341,6 +343,9 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             default -> "Not connected: waiting for the extension";
         };
     }
+
+    /** The line of an agent whose server could open no port: the reason is in the box under it. */
+    static final String NO_PORT = "Not connected: this server has no port to listen on";
 
     /** The same for no agent, or for several: how many of them the extension is connected to. */
     static String connection(List<Member> agents, boolean switchedOff) {
