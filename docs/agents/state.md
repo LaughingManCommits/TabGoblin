@@ -49,7 +49,7 @@ Last updated: 2026-11-24. Claims here go stale; check the date, then `git status
   Built on the owner's word to mend the fault; its four decisions were taken as the entry
   proposed, and which ports is the session's choice: all four are the owner's to change.
   **It has not run on a machine with a reserved range,** which is what its acceptance asks
-  for: the owner's Windows machine is the place. Committed; not pushed, and no pull request.
+  for: the owner's Windows machine is the place. Committed, and pushed to that branch on the owner's word; no pull request.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
