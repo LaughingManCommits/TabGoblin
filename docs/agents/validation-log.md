@@ -3,6 +3,32 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `41248d7`: WP-27 on Windows, and the editor lab
+
+The owner asked for the tests to be run on what the three entries below built. They had run in
+a container on Linux without a display, and say so: not on Windows, not the editor lab. This
+is the same tree, unchanged, on Windows 11 with a display, in a copy of it; the session's own
+server runs from the tree's jar, which was not rebuilt.
+
+| Command | Result |
+|---|---|
+| `mvn -B -f java-server/pom.xml verify` | 179 tests, none skipped: the 15 that the container skipped for lack of a display ran here, the server's window among them. And the 8 of the conformance check on the built jar |
+| `npm run check` in `chrome-extension` | 205 tests, with the type-check and the build |
+| `cd e2e && node run.mjs` | 102 passed, 0 failed, in Chrome 157. No server of the copy left running |
+| `cd e2e/editors && node run.mjs` | 222 of 225 checks, tab in front, no `SILENT`: as before this work |
+| `npm audit --audit-level=high`, as the workflow's new job runs it | `chrome-extension` and `e2e`: no vulnerabilities. `e2e/editors`: five, two of them high, in the editors under test, which that job lists and does not fail for |
+
+The server's window with a security policy in force was drawn by its picture tool and looked
+at. The tool has no such state: one was added in the copy only, with a blocked site, the
+strict profile and a limit to one site. Under *Blocked sites* the line reads
+*docs.example.org · security policy in force*, whole, beside **Edit**; the foot says protocol
+3. What the line restricts is under the mouse, and that was not looked at.
+
+Not done: the window itself on the desktop; a real agent by hand; the workflows, which run on
+GitHub only; the editor lab with the tab in the background. Seen and not changed: the policy
+stands under a heading that names blocked sites only, and the picture tool in the repository
+still has no state for it.
+
 ## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, workspaces and requests for access
 
 On the owner's "continue with p2", after the two entries below. Workspaces, a fourteenth tool,
