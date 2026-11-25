@@ -93,7 +93,8 @@ revoke.
 3. **TabGoblin's server checks the call and passes it on, once.** Nothing is retried.
 4. **The extension checks what you allowed, then acts.** Is the tab authorized for this agent?
    Is the page still on that website? Does the access level cover the action? A submission is
-   put to you first.
+   put to you first by default; you can relax that per tab, and the strict profile makes it
+   mandatory.
 
 <img src="docs/images/popup-sessions.png" width="354" alt="The TabGoblin popup with two sessions"> <img src="docs/images/popup-confirm.png" width="354" alt="The popup asking to allow a submission">
 
@@ -107,7 +108,7 @@ TabGoblin is built to offer less:
 | | Unrestricted browser automation | TabGoblin |
 |---|---|---|
 | Reach | Every tab of the profile it drives | Only the tabs you authorized, each on its exact website |
-| Credentials | Cookies, storage and request headers can be read | No tool reads them, and the extension holds no permission for them. A secret that a page displays is still page text |
+| Credentials | Cookies, website storage and request headers can be read | No tool reads them. A secret that a page displays is still page text |
 | Code | Arbitrary script can run in a page | A fixed set of operations; no tool evaluates script |
 | Network | Arbitrary requests | None. A tab can be navigated within its authorized website |
 | Writes | Performed like any other action | A submission is declared, sent once and verified, and by default shown to you first |
@@ -117,10 +118,13 @@ TabGoblin is built to offer less:
 
 - **Least privilege.** The extension's permissions are `activeTab`, `scripting`, `storage` and
   `alarms`. It has no host permissions: it cannot touch a tab until you click its icon there.
+  `storage` is the extension's own store, for its pairing, settings and sessions; it gives no
+  access to a website's storage or cookies.
 - **Exact scope.** A session is one tab on the websites you gave it, checked before every
   command and again before each step that touches the page.
-- **No direct access to credentials.** No tool reads cookies, headers or browser storage, and
-  the extension holds no permission for them. Password fields are neither read nor filled.
+- **No direct access to credentials.** No tool reads cookies, request headers or a website's
+  storage. For cookies and headers the extension holds no permission; a website's storage it
+  has no operation to read. Password fields are neither read nor filled.
   That is about where credentials are kept. What a page *displays* is page content: a key or
   a token shown on a page reaches the agent like any other text, unless the best-effort
   redaction below catches it.
@@ -135,7 +139,9 @@ TabGoblin is built to offer less:
 - **Local policy.** A settings file can restrict every agent: blocked sites, allowed sites, a
   maximum access level, no screenshots, session time limits, a strict profile.
 
-No access control makes an agent safe by itself. Whatever an authorized tab shows goes to your
+TabGoblin restricts what an agent does in your browser through its own two interfaces. It does
+not restrict the agent's other capabilities: its shell, its file access, its other tools. No
+access control makes an agent safe by itself. Whatever an authorized tab shows goes to your
 agent and its model provider, and a page can try to mislead an agent within the access you gave
 it. The [security model](docs/security-model.md) says what is enforced, what is configurable,
 what is best effort, and [what remains your risk](docs/security-model.md#residual-risks).
