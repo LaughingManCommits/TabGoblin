@@ -37,6 +37,14 @@ both variants of the overview and one or both of the others. Three rounds: label
 out of their boxes, a popup drawn outside the extension it belongs to, and a legend cut off
 at the lower edge were mended. Every file a page names exists. Not seen on GitHub.
 
+Every diagram looked at, the same day, on the owner's word to look with a critical eye, after
+a semicolon in a label had drawn three stray states that no earlier look had caught: the four
+SVG files on a light and a dark ground and all eight Mermaid diagrams. Found and mended: two
+container labels crossed by a connector; the coding agent and the result drawn outside the
+box that stands for the one account they run in; a dashed border on a check that is no
+boundary; four Mermaid notes and labels longer than their place. Left as it is: the session's
+state diagram, whose labels lie on its lines as Mermaid sets them.
+
 Not run: the rest of the server's tests, the extension's and the end-to-end suite, since no
 code was changed. Not seen: the changed pages and their two changed pictures as GitHub draws
 them. No picture was regenerated.

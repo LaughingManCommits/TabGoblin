@@ -58,11 +58,11 @@ function picture(width, height, title, desc, draw) {
         `<text class="sub" fill="#475569" x="${x + w / 2}" y="${first + step * (i + 1)}" text-anchor="middle" font-size="${small}">${esc(line)}</text>`));
       return { x, y, w, h, cx: x + w / 2, cy: y + h / 2, top: y, bottom: y + h, left: x, right: x + w };
     },
-    /** A container. Dashed is a trust boundary; solid says only what belongs together. */
-    box(x, y, w, h, label, kind = 'slate', dashed = false) {
+    /** A container. Dashed is a trust boundary; solid says only what belongs together. Its label can stand in the middle, out of the way of connectors. */
+    box(x, y, w, h, label, kind = 'slate', dashed = false, at = 'left') {
       const c = COLOUR[kind];
       out.push(`<rect${dashed ? ' fill="none"' : ` class="half" fill-opacity="0.035" fill="${c}"`} x="${x}" y="${y}" width="${w}" height="${h}" rx="12" stroke="${c}" stroke-width="${label ? 1 : 1.5}"${dashed ? ' stroke-dasharray="6 5"' : label ? ' stroke-opacity="0.55"' : ''}/>`);
-      if (label) out.push(`<text class="${kind === 'green' ? 'green-text' : 'sub'}" fill="${kind === 'green' ? '#15803D' : '#475569'}" x="${x + 14}" y="${y + 20}" font-size="11" font-weight="600" letter-spacing="0.6">${esc(label.toUpperCase())}</text>`);
+      if (label) out.push(`<text class="${kind === 'green' ? 'green-text' : 'sub'}" fill="${kind === 'green' ? '#15803D' : '#475569'}" x="${at === 'centre' ? x + w / 2 : x + 14}" y="${y + 20}"${at === 'centre' ? ' text-anchor="middle"' : ''} font-size="11" font-weight="600" letter-spacing="0.6">${esc(label.toUpperCase())}</text>`);
     },
     /** A connector through points, with an arrow head at its end unless told otherwise. */
     line(points, opts = {}) {
@@ -154,7 +154,7 @@ picture(760, 1040, named('components', 'The components of TabGoblin'),
   'The CLI and the MCP link are two interfaces to one TabGoblin server, which has one set of tool definitions, one service and one WebSocket endpoint. In Chrome, the extension has a popup for the user, a worker that holds the rules, and a content script that works in the authorized tab.', (d) => {
     const agent = d.node(190, 20, 240, 48, 'Coding agent');
 
-    d.box(40, 108, 540, 110, 'Integration interfaces', 'slate');
+    d.box(40, 108, 540, 110, 'Integration interfaces', 'slate', false, 'centre');
     const cli = d.node(70, 140, 220, 56, 'CLI', ['one process per command']);
     const link = d.node(330, 140, 220, 56, 'MCP link', ['one process per agent']);
     d.line([[agent.cx - 40, agent.bottom], [agent.cx - 40, 88], [cli.cx, 88], [cli.cx, cli.top]]);
@@ -200,7 +200,7 @@ picture(800, 1066, named('command-checks', 'Where a command is checked'),
     const RX = 474;
     const RW = 276;
     const check = (y, h, name, lines, cls, codes, kind = 'green', no = 'no') => {
-      const n = d.node(X, y, W, h, name, lines, kind, { dashed: cls === 'CONFIGURABLE' });
+      const n = d.node(X, y, W, h, name, lines, kind);
       d.label(X - 14, n.cy + 4, cls, { anchor: 'end', bold: true, spaced: true, kind: cls === 'ENFORCED' ? 'green' : undefined });
       if (codes) {
         const r = d.node(RX, n.cy - 26, RW, 52, 'Refused', codes, 'red');
@@ -214,8 +214,8 @@ picture(800, 1066, named('command-checks', 'Where a command is checked'),
       if (text) d.label(a.cx + 10, (a.bottom + b.top) / 2 + 4, text);
     };
 
-    const agent = d.node(X, 20, W, 52, 'Coding agent', ['a CLI command or an MCP call']);
-    d.box(20, 104, 760, 826, 'One operating-system account · application checks, not isolation between programs', 'slate', true);
+    d.box(20, 6, 760, 1004, 'One operating-system account · application checks, not isolation between programs', 'slate', true);
+    const agent = d.node(X, 44, W, 52, 'Coding agent', ['a CLI command or an MCP call']);
 
     d.box(36, 134, 728, 222, 'TabGoblin server', 'green');
     const s1 = check(164, 72, 'Who is asking?', ['pairing token and agent key proven', 'agent not revoked'], 'ENFORCED', ['connection refused', 'AGENT_REVOKED']);
@@ -264,7 +264,7 @@ picture(760, 830, named('data-flow', 'Deployment boundary and data flow'),
     const disk = d.node(456, 392, 108, 72, 'Home folder', ['token · keys', 'settings · audit']);
     d.line([[server.right, server.cy], [disk.cx, server.cy], [disk.cx, disk.top]], { dashed: true, head: false });
 
-    d.box(40, 420, 400, 222, "Chrome · the developer's profile", 'slate', true);
+    d.box(40, 420, 400, 222, 'Chrome profile', 'slate', true);
     const ext = d.node(60, 452, 360, 88, 'TabGoblin extension', ['checks: session · origin · access level', 'policy · approval', 'four permissions, no host permissions'], 'green');
     d.line([[server.cx - 60, server.bottom], [server.cx - 60, ext.top]], { both: true });
     d.label(server.cx - 50, 392, ['WebSocket on 127.0.0.1', 'commands and results']);

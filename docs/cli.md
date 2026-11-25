@@ -186,7 +186,7 @@ sequenceDiagram
   X-->>S: the page as text
   S-->>C: result
   C-->>A: one JSON object and an exit code
-  Note over S: no command for ten minutes: the agent is let go, its port closed
+  Note over S: ten idle minutes: the agent is let go
 ```
 
 1. **`--agent <name>` selects a key.** The key is a file in your home folder, made at the

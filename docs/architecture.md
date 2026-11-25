@@ -211,7 +211,7 @@ sequenceDiagram
     B->>B: create the session: tab, origin, level, owner, expiry
     B->>S: the agent's sessions
   end
-  Note over S: The status now lists the session for its owner, on either interface
+  Note over S: The agent's status now lists the session
 ```
 
 A session exists only through this path. No tool creates one, raises its level or adds a site
@@ -339,7 +339,7 @@ sequenceDiagram
   S->>B: submit
   B->>B: gate (Write access)
   B->>P: prepare: resolve refs, fingerprint control, form fields and content
-  B->>B: is the user to be asked? Their setting decides. Always under the strict profile and for a high-impact control
+  B->>B: ask the user? Their setting decides, always if strict or high-impact
   opt the user is asked
     B->>U: prompt: agent, control, website, beginning of the content
     alt Deny, or no answer within a minute
