@@ -3,6 +3,45 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-25, on `ccr-6350ba03-tntbzp`: WP-29, the tools as commands of a terminal
+
+In a session that ran in the cloud: a container on Linux with Java 21 and its own Chromium,
+which there starts only without its sandbox (a wrapper given as `BCMCP_CHROME`, outside the
+repository). The jar was first used by hand: `tools`, a wrong command line, and `status` twice
+under one name against a server the first command started, on the same port both times.
+
+| Command | Result |
+|---|---|
+| `mvn -f java-server/pom.xml verify` | 225 tests, 16 skipped for lack of a display, and the conformance check on the built jar. 14 are new in `CliTest`, 1 in `SetupTest`, 3 in `McpMainTest`, 3 in `SkillsTest`. No test that was there was changed |
+| `npm run check` in `chrome-extension` | Passes, with the type-check and the build. No source of the extension was changed |
+| `cd e2e && node run.mjs` | 109 passed, 0 failed. Six steps are new, the section "The command line": no MCP client takes part in what they run |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | Pass |
+
+The suite was run four times. The first two had faults of the new steps themselves (the
+popup's setting was left at "never" by the steps before, and a helper was called with the
+wrong words). The third failed in a step that was there before and that no command takes part
+in, "an agent whose server restarts gets its sessions back", on a wait in the popup, and the
+steps after it timed out on the agent that step had closed; it had passed in the two runs
+before with the same server, and passed in the fourth. Why it failed once was not found.
+
+Afterwards, on the owner's word, a skill of its own for the command line for each agent
+(`skills/cli`). The 225 tests above are with it. The built jar was then run against a home
+folder made for the purpose: `--setup codex --mode cli` put the skill for the command line
+there, with `agents/openai.yaml`; `--install-skill codex` put the one for MCP in its place, and
+`--install-skill codex --mode cli` the first again, each saying that it replaced. The
+end-to-end suite was not run again after that: no skill takes part in it, and the server's
+code changed only where a skill is installed. One test of `CliTest` failed once on the way, by
+a fault of its own: it took an agent that was just leaving for the new one.
+
+Then the skills' folder was split in two, `skills/mcp` and `skills/cli`: `mvn verify` again,
+226 tests with one new in `SkillsTest`, and the built jar installed the skill for MCP and the
+one for the command line into a home folder made for the purpose.
+
+Not run: Windows and macOS; `tabgoblin.cmd` and a download's launcher with a command; the
+editor lab; the workflows; the server's window with an agent of the command line in it; a real
+agent with the skill's new section. Not measured: how long a first command takes on a slow
+machine, beyond the ten seconds it waits for the extension.
+
 ## 2026-11-24, on `late-navigation`: a link whose site changes the address late is waited for
 
 A smoke test with the real extension on `main` at `9229490`, with Explore, on a public site:
@@ -254,42 +293,12 @@ GitHub only; the editor lab with the tab in the background. Seen and not changed
 stands under a heading that names blocked sites only, and the picture tool in the repository
 still has no state for it.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: WP-27, workspaces and requests for access
-
-On the owner's "continue with p2", after the two entries below. Workspaces, a fourteenth tool,
-`browser_request_access`, and the security policy in the model of the server's window. In the
-same container. Pushed to that branch, as the owner said for it; nothing to `main`.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 179 tests, 15 skipped for lack of a display, and the 8 of the conformance check, which counts fourteen tools and nine that give an object |
-| `npm run check` in `chrome-extension` | 205 tests, with the type-check and the build. Five are new: the rules for a workspace's name and for a request, a clock that is set back, and the two in the worker |
-| `cd e2e && node run.mjs` | 102 passed, 0 failed. One step is new; it drives the real popup: a request declined, one allowed, a tab on another site given by the click on that tab with the request offered there, a workspace's two buttons |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-A picture of the popup with a request in it was taken in that step and looked at: the card says
-who asks, for which level, in which session and on which site, the agent's reason in quotation
-marks, and has Deny before Allow. The field for a workspace had the browser's own look in the
-first picture and was given the popup's.
-
-Found on the way, and mended: an agent was locked out for as long as the system's clock had
-been set back, because its allowance per second was reckoned with the time that had passed,
-which was then less than none (`RateLimiter` in `policy.ts`). A test moved the clock and showed
-it.
-
-Afterwards, on the owner's word that a request should open the popup as a question about a
-submission does: the worker brings the popup up for a request that is put to the user, and
-for none that is refused; a request that has only just appeared takes no answer for 0.7
-seconds, with the rest of the popup held for that moment, and Deny before Allow. `npm run
-check`: 205 tests. `node run.mjs`: 102 passed, 0 failed; in it the popup came up by itself in
-the container's Chromium, a click on Allow in the first moment did nothing, and the suite's
-own clicks had to wait for the moment to pass, in two places. The server was not changed by it.
-
-Not run: Windows; the editor lab; the workflows; the server's window, whose new line is in its
-model and its test only; a real agent by hand.
-
 ## Earlier, in one line each
 
+- 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (WP-27, workspaces and requests for
+  access, in a container on Linux): the server 179 tests, 15 skipped for lack of a display, and
+  the 8 of the conformance check; the extension 205; end to end 102 of 102. A clock set back
+  had locked an agent out (`RateLimiter`), and was mended.
 - 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (WP-27, `browser_collect` and
   `browser_hover`, in a container on Linux): the server 176 tests, 15 skipped for lack of a
   display, and the 8 of the conformance check; the extension 200; end to end 101 of 101.

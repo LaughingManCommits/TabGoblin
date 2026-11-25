@@ -141,6 +141,9 @@ retried for you, and a refusal is never an error to work around.
   border are the user's decisions. Do not look for another tool, another address or another
   wording that gets around them. Say what was refused and what the user can do about it.
 - **Do what was asked.** Reading is not a licence to click, and clicking is none to submit.
+- **One way in.** These tools are how the user set you up. If they are missing, disconnected or
+  refuse, do not go over to TabGoblin's command line by yourself, even if you can run
+  commands: tell the user. Which way you use is the user's decision.
 
 ## When it is slow
 

@@ -248,4 +248,41 @@ class McpMainTest {
         assertTrue(parse(Map.of(), "--port", String.valueOf(McpMain.DEFAULT_PORT)).portChosen(), "also the usual one, when it is named");
         assertFalse(parse(Map.of("BCMCP_PORT", " ")).portChosen(), "a variable that is empty names none");
     }
+
+    @Test
+    void setupTakesTheWayTheAgentIsToReachTheToolsAndIsAsItWasWithoutOne() throws Exception {
+        assertFalse(parse(Map.of(), "--setup", "claude-code").commandLine(), "as before there was a choice");
+        assertFalse(parse(Map.of(), "--setup", "claude-code", "--mode", "mcp").commandLine());
+        assertTrue(parse(Map.of(), "--setup", "codex", "--mode", "cli").commandLine());
+        assertEquals("--mode is mcp or cli, not \"rest\".",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--setup", "codex", "--mode", "rest")).getMessage());
+        assertEquals("--mode goes with --setup or --install-skill.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--mode", "cli")).getMessage());
+        assertTrue(parse(Map.of(), "--install-skill", "copilot", "--mode", "cli").commandLine());
+        assertFalse(parse(Map.of(), "--install-skill", "copilot").commandLine());
+        assertEquals("--mode needs a value.",
+                assertThrows(UsageException.class, () -> parse(Map.of(), "--setup", "codex", "--mode")).getMessage());
+    }
+
+    @Test
+    void howLongAnAgentOfTheCommandLineIsKeptIsTenMinutesOrWhatTheVariableSays() throws Exception {
+        assertEquals(600_000, parse(Map.of()).commandIdleMs());
+        assertEquals(30_000, parse(Map.of("BCMCP_COMMAND_IDLE_SECONDS", "30")).commandIdleMs());
+        for (String wrong : List.of("0", "-5", "soon", "86401")) {
+            assertThrows(UsageException.class, () -> parse(Map.of("BCMCP_COMMAND_IDLE_SECONDS", wrong)), wrong);
+        }
+    }
+
+    @Test
+    void aCommandLineThatBeginsWithAWordIsACommandAndTheServersOwnBeginWithAnOption() {
+        assertTrue(Cli.handles(new String[] {"status", "--agent", "ide"}));
+        assertTrue(Cli.handles(new String[] {"tools"}));
+        for (String[] own : List.of(new String[0], new String[] {"--agent", "ide"}, new String[] {"--panel"},
+                new String[] {"--setup", "codex", "--mode", "cli"}, new String[] {"-h"})) {
+            assertFalse(Cli.handles(own), String.join(" ", own));
+        }
+        // The help names both ways, and the command line's exit codes.
+        String help = McpMain.usage(false);
+        assertTrue(help.contains("tools --json") && help.contains("--mode <mcp or cli>") && help.contains("4: sent, and"), help);
+    }
 }

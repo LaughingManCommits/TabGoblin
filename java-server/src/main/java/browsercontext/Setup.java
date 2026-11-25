@@ -105,6 +105,22 @@ final class Setup {
      * @param skill how putting the skill in its place ended
      */
     static String says(Skills.Result skill, Self self) {
+        return says(skill, self, false);
+    }
+
+    /**
+     * The command an agent runs in its terminal for one tool, where it is set up for the command
+     * line: the download's own command, or the Java and the jar. Nothing is registered for it.
+     */
+    static String commandLine(Skills.Agent agent, Self self, String command) {
+        return self.forAPerson(command) + " --agent " + agent.id();
+    }
+
+    /**
+     * @param commandLine the agent is to run the tools as commands in its terminal (--mode cli),
+     *                    and not to be told about an MCP server
+     */
+    static String says(Skills.Result skill, Self self, boolean commandLine) {
         Skills.Agent agent = skill.agent();
         String skillLine = switch (skill.outcome()) {
             case INSTALLED -> "installed in " + skill.folder();
@@ -116,9 +132,23 @@ final class Setup {
         StringBuilder said = new StringBuilder();
         said.append("TabGoblin setup for ").append(agent.called()).append("\n\n");
         said.append("1. The skill, which tells the agent how to use the tools: ").append(skillLine).append("\n\n");
-        said.append("2. The server. Run this line once, so that ").append(agent.called()).append(" knows it:\n\n");
-        said.append("     ").append(registration(agent, self)).append("\n\n");
-        if (agent == Skills.Agent.COPILOT) {
+        if (commandLine) {
+            said.append("2. The command. Nothing is registered: ").append(agent.called()).append(" runs the tools as commands in its\n");
+            said.append("   terminal, each with its own name behind it. This one lists your tabs:\n\n");
+            said.append("     ").append(commandLine(agent, self, "status")).append("\n\n");
+            said.append("   The skill calls the command tabgoblin. ");
+            said.append(self.launcher() != null
+                    ? "Put this folder on your PATH so that the agent finds it:\n\n     " + self.launcher().getParent() + "\n\n"
+                            + "   or tell the agent the line above once, for instance in its instructions file.\n\n"
+                    : "A build from source has no such command: tell the agent\n"
+                            + "   the line above once, for instance in its instructions file.\n\n");
+            said.append("   The tools and the rules are the same as through MCP. To use MCP instead, run this setup\n");
+            said.append("   with --mode mcp; the agent does not change from one to the other by itself.\n\n");
+        } else {
+            said.append("2. The server. Run this line once, so that ").append(agent.called()).append(" knows it:\n\n");
+            said.append("     ").append(registration(agent, self)).append("\n\n");
+        }
+        if (!commandLine && agent == Skills.Agent.COPILOT) {
             said.append("   That is for Copilot's command line. In VS Code, run \"MCP: Add Server\" from the Command Palette\n");
             said.append("   and give it what stands behind the two dashes as the command.\n\n");
         }
@@ -134,8 +164,14 @@ final class Setup {
         said.append("     ").append(self.forAPerson("--panel")).append("\n\n");
         said.append("   Press Copy next to Pairing token there. Click the goblin in Chrome's toolbar, paste the\n");
         said.append("   token and press Save and connect.\n\n");
-        said.append("Then start ").append(agent.called()).append(" anew, open a website, click the goblin on that tab, press\n");
-        said.append("Authorize, and ask the agent for the browser status.");
+        if (commandLine) {
+            // An agent that comes by commands is in the popup's list once it has run one: the status is the first.
+            said.append("Then start ").append(agent.called()).append(" anew and ask it for the browser status. After that, open a website,\n");
+            said.append("click the goblin on that tab and press Authorize.");
+        } else {
+            said.append("Then start ").append(agent.called()).append(" anew, open a website, click the goblin on that tab, press\n");
+            said.append("Authorize, and ask the agent for the browser status.");
+        }
         return said.toString();
     }
 }

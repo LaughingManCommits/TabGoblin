@@ -47,6 +47,21 @@ is in the download.
    An agent that setup does not know takes the same command in its MCP settings:
    [step 5](#5-tell-your-agent-about-the-server) has the forms.
 
+   **Without MCP.** An agent that runs commands in a terminal and has no MCP, or is not to
+   use it, is set up for the command line instead:
+
+   ```sh
+   tabgoblin --setup claude-code --mode cli
+   ```
+
+   Nothing is registered then. Setup installs the agent's skill for the command line, in the
+   place of the one for MCP, and prints the command the agent
+   runs, `tabgoblin status --agent claude-code` with your folder's path, and says to put the
+   folder on your `PATH` or to tell the agent that line once. `--mode mcp` is what setup does
+   without the option. The tools and every rule are the same on both ways
+   ([the command line](mcp-reference.md#the-command-line)); an agent uses the one you set up,
+   and does not change to the other by itself when one is blocked.
+
 4. **Load the extension in Chrome**, as in [step 4](#4-load-the-extension-in-chrome), with the
    folder `extension` of the download.
 

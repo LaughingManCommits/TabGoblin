@@ -19,6 +19,8 @@ raw HTML.
 - **Progress.** A client that sends a progress token with a call is told every three seconds
   that the call is still running.
 - **Cancellation.** A call the client cancels is stopped in the browser and gets no answer.
+- **Without MCP.** Every tool is also a command of the server's program, for an agent that has
+  a terminal and no MCP client: [the command line](#the-command-line).
 - **Nothing is retried.** A command is sent once. Where no answer came, the outcome is reported
   as unknown (`TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`).
 - **Time.** The server waits 30 seconds for the browser's answer to a command, and longer where
@@ -1157,6 +1159,80 @@ that of a key press with `submitted: false`, and no submission is recorded.
 `SENSITIVE_FIELD`, `STALE_REF`, `ELEMENT_DISABLED`, `NAVIGATION_BLOCKED`, `INVALID_ARGUMENT`.
 See [Errors](#errors).
 
+## The command line
+
+An agent that runs programs in a terminal and has no MCP uses the same fourteen tools as
+commands of the server's program. A command is one tool call: it goes through the same link to
+the same server, is checked by the same rules in the server and in the extension, and returns
+what the tool returns. Nothing is allowed to a command that is not allowed to the tool, and no
+MCP client or MCP registration takes part.
+
+```sh
+tabgoblin tools --json            # every command, its description, the schema of its arguments
+tabgoblin status --agent claude-code
+tabgoblin snapshot --agent claude-code --session s1 --interactive-only
+tabgoblin click --agent claude-code --session s1 --ref 12
+tabgoblin submit --agent claude-code --args '{"ref": 7, "fields": [{"ref": 5, "text": "Thanks"}], "expect_text": "Thanks"}'
+tabgoblin screenshot --agent claude-code --out page.jpg
+```
+
+`tabgoblin` is the command of a [download](installation.md#from-a-download); in a build from
+source `java -jar java-server/target/browser-context-mcp.jar` stands for it.
+
+| Part | What it is |
+|---|---|
+| Command | A tool's name without `browser_`, with dashes: `status`, `press-key`, `wait-for`, `request-access`. The tool's own name is taken as well. `tools` lists the commands; with `--json` as one object that has, for each, `command`, `tool`, `description` and `inputSchema` (the MCP tool's own schema), and with them the server's instructions, the options below and the exit codes. `<command> --help` says one command's arguments as text. Neither needs a server or an agent's name |
+| `--agent <name>` | Who the agent is: the name of its [key](security-model.md#agent-identity-and-authentication). Every command but `tools` needs it; the variable `BCMCP_AGENT` stands in for it. The commands of one name are one agent, with one set of sessions |
+| Arguments | The tool's input, each by its name: `--ref 12`, `--max-lines 40` (a dash may stand for an underscore), or `--links=none`. A boolean needs no value: `--diff`, and `--diff=false` to say no. An array or an object is given as JSON: `--refs '[3,8]'`. An argument the tool does not have, a value of another type, and a missing required argument are refused before anything is sent |
+| `--args <json>` | All arguments as one JSON object, as an MCP client sends them. `--args -` reads it from standard input and `--args-file <path>` from a file: for text with quotes or line breaks, and where a shell's quoting is in the way. Single arguments given beside it come on top |
+| `--out <path>` | With `screenshot`: the image is written to that file, and the answer names the file in place of the data |
+| Server options | `--port`, `--token-file`, `--settings`, `--extension-origin`, `--panel` and `--no-panel`, as [for the server](developer-guide.md#settings). They have to be those of the MCP agents for the commands to reach the same server |
+
+**The answer** is one JSON object on standard output, on one line. Everything else, the
+server's log lines for this agent among it, goes to standard error and is not part of the
+result. A command never asks anything in the terminal.
+
+```json
+{"ok":true,"tool":"browser_click","text":"{ \"clicked\" : true, … }","result":{"clicked":true}}
+{"ok":true,"tool":"browser_screenshot","text":"Viewport …","image":{"mimeType":"image/jpeg","base64":"…"}}
+{"ok":false,"tool":"browser_fill","error":{"code":"WRITE_NOT_AUTHORIZED","message":"…"},"text":"Error [WRITE_NOT_AUTHORIZED]: …"}
+{"ok":false,"tool":"browser_click","error":{"code":"CONNECTION_LOST","message":"…"},"outcome":"unknown","text":"Error [CONNECTION_LOST]: …"}
+```
+
+`text` is the tool's text as this page shows it. `result` is the object of a tool that returns
+one (its structured content). `image` has `mimeType` and `base64`, or under `--out` `file` and
+`bytes`. `error.code` is one of the [codes](#errors).
+
+| Exit code | Meaning |
+|---|---|
+| 0 | The tool answered, and not with an error. A submission that ended `FAILED` or `UNCERTAIN` is such an answer: its state is in `result` |
+| 1 | The tool answered with an error; `error.code` says which |
+| 2 | The command line was not understood (`USAGE`). Nothing was sent |
+| 3 | Nothing was sent: no server could be reached or started (`NO_SERVER`), or the name is that of an agent connected through MCP (`AGENT_IN_USE`) |
+| 4 | The outcome is unknown, and the answer has `"outcome": "unknown"`: the command was sent and no answer came (`TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED`), or the command's process was ended while it ran (`CANCELLED`). Nothing was retried |
+
+**One agent over many processes.** Each command is a process of its own, and proves the key of
+its name to the server as an MCP agent's process does. The server keeps the agent, with its
+port and its pairing with the extension, for ten minutes after its last command
+(`BCMCP_COMMAND_IDLE_SECONDS`, set where the server is started, changes that), so the next
+command finds the browser connected. After a longer pause the agent is made anew at its next
+command, with the same id: the extension finds it within about 30 seconds, or at once when the
+user opens the popup, and a command before that answers `NOT_CONNECTED`. The first command of
+an agent waits up to 10 seconds for the extension, as the first call of an MCP agent does.
+
+- Several commands of one name may run at once; they are the one agent. Two programs that
+  use one name are therefore one agent: give agents that are to be kept apart different names.
+- A name whose key is held by an agent connected through MCP is refused with `AGENT_IN_USE`,
+  as long as that agent is connected: a key has one agent at a time, and a command is neither
+  let into that agent nor made a second one beside it.
+- A name the user revoked answers `AGENT_REVOKED` at every command.
+
+**Ending a command.** A command waits for its answer as long as the server's own limits allow,
+and gives up after 150 seconds with `TIMEOUT`. A process that is ended while its command runs
+(Ctrl+C, a signal, the time limit of the agent's shell) tells the server to stop the command in
+the browser and prints `CANCELLED` with `"outcome": "unknown"`; its exit code is then the
+system's for that ending. Progress is not reported.
+
 ## Completeness
 
 A snapshot, an extract and a collection say how much of the page the result covers. Where
@@ -1212,4 +1288,5 @@ Every failure is `Error [CODE]: message`. This table has every code.
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |
 | `RATE_LIMITED`, `DUPLICATE_COMMAND`, `STALE_COMMAND` | Protocol protections. `RATE_LIMITED`: more than a burst of 40 commands and 20 a second after it, or twenty commands waiting for one tab already; wait for the answers. `STALE_COMMAND`: the command waited past its deadline and was dropped without running |
 | `INVALID_ARGUMENT`, `INVALID_URL`, `UNKNOWN_TOOL`, `UNSUPPORTED_ACTION` | The request itself is wrong |
+| `USAGE`, `NO_SERVER`, `AGENT_IN_USE` | Only from [the command line](#the-command-line), and nothing was sent. `USAGE`: the command line was not understood. `NO_SERVER`: no server could be reached or started. `AGENT_IN_USE`: an agent of that name is connected through MCP; a command does not become a second agent beside it. Tell the user; do not change to another way or another name by yourself |
 | `PAGE_ERROR`, `EXTENSION_ERROR`, `ERROR` | Something failed that has no code of its own: in the page, in the extension, or in the server. The message says what |

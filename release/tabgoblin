@@ -1,6 +1,7 @@
 #!/bin/sh
 # Starts the TabGoblin server on the Java that came with it. This command is for you: setup, the
-# server's window, the pairing token. Your agent is told the Java and the jar themselves, and
-# setup prints the line for that.
+# server's window, the pairing token. An agent that uses MCP is told the Java and the jar
+# themselves, and setup prints the line for that; an agent without MCP runs this command with a
+# tool's name ("tabgoblin tools" lists them).
 here=$(cd "$(dirname "$0")" && pwd)
 exec "$here/runtime/bin/java" -jar "$here/browser-context-mcp.jar" "$@"

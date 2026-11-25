@@ -86,7 +86,9 @@
                 <targetPath>skills</targetPath>
                 <filtering>false</filtering>
                 <includes>
-                    <include>*/tabgoblin/**</include>
+                    <!-- For each agent one for the MCP tools and one for the command line, which the mode "cli" installs. -->
+                    <include>mcp/*/tabgoblin/**</include>
+                    <include>cli/*/tabgoblin/**</include>
                 </includes>
             </resource>
             <resource>

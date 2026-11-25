@@ -128,6 +128,18 @@ refused.
   for that start only; no tab comes back to it.
 - **One agent per key at a time.** Of two processes holding the same key, the first is that
   agent; the second gets an id of its own.
+- **The command line is the same agent model, not a second one.** An agent without MCP runs
+  the tools as commands ([reference](mcp-reference.md#the-command-line)). Every command is a
+  process that proves the pairing token and the key of its `--agent` name, exactly as an MCP
+  agent's process does; a command without a name is not run. The commands of one key are that
+  key's one agent, one after another or at once, and the server keeps the agent between them
+  for ten minutes. A command whose key an MCP-connected agent holds is refused
+  (`AGENT_IN_USE`): it is not let into that agent's connection and gets no id of its own. A
+  command reaches the browser only through the server's tool calls, so every rule on this page
+  holds for it unchanged: authorization, origins, access levels, approval of submissions,
+  blocked sites, the policy, pause, revocation and redaction. There is no rule that is
+  different for a command, and no option of a command that changes one. Neither the pairing
+  token nor a key is ever an argument, part of an answer or part of a log line.
 - **The key is separate from the pairing token.** The extension never holds an agent's key. A
   new pairing token leaves every agent's identity; revoking one agent leaves the pairing and
   the other agents.
@@ -143,9 +155,19 @@ refused.
   next call. `--allow-agent <name>` removes the mark; the agent is then a new one, with a new
   id and no tab. `--list-agents` lists the names that have a key, each with its id, and the names that are revoked.
 
-**Enforced in.** `AgentKeys.java`, `Hub.identify`, `Link.attach`; `canUse` in `policy.ts`.
+**Enforced in.** `AgentKeys.java`, `Hub.identify`, `Hub.serveCommand`, `Link.attach`, `Cli.java`;
+`canUse` in `policy.ts`.
 
 **Limitations.**
+
+- The command line tells agents apart by the name they give, backed by that name's key file.
+  Two programs that run commands under one name are one agent and share its tabs. A program
+  that is to be kept apart needs a name of its own; nothing stops a program from using
+  another's name, as nothing stops it from reading another's key.
+- An agent of the command line stays connected for ten minutes after its last command. In
+  that time its sessions can be used by any process that holds its key, as they could be by
+  starting the agent again. Pause, revoke and *Disconnect* in the popup, and `--revoke-agent`,
+  act at once as for any agent.
 
 - The keys are protected by the home folder and nothing else. A program that runs as the user
   can read a key and act as that agent, or create a key under a new name and be a new agent. A
@@ -591,6 +613,10 @@ Each row is a property and the level of test that holds it. "Rules" are the pure
 |---|---|
 | Only the four permissions; no content script registered for all pages | End-to-end |
 | Wrong token, wrong origin, missing origin, other extension id refused | Java, end-to-end |
+| The command line offers the server's tools and no other, each with the tool's own schema; a command line that is not understood sends nothing | Java, end-to-end |
+| The commands of one name are one agent with its sessions from one process to the next and at once; another name is another agent with no tab; a name held by an MCP-connected agent is refused; a revoked name has no command, and allowed again is a new agent | Java, end-to-end |
+| Through the command line a tab needs the user's authorization, a submission the user's approval, and pause, the access level and blocked sites hold | End-to-end |
+| A command whose server goes away, that gets no answer in time or whose process is ended reports an unknown outcome, is cancelled in the browser where it can be, and is not sent again | Java |
 | Old protocol version refused | Java, worker, end-to-end |
 | Pairing lockout, token rotation | Java, end-to-end |
 | A browser that comes with a token that is not the server's is told apart from one that has not come: the agent is told that pairing is what is missing, and where the token is, and never the token | Java, end-to-end |
@@ -687,7 +713,10 @@ be dismissed.
 - **Secrets may appear in ordinary rendered content.** Redaction goes by shape and has gaps. A
   secret a page displays is delivered like any other text.
 - **An authorized agent may transmit what it extracted.** To its model provider as a matter of
-  course, and anywhere else its other tools reach.
+  course, and anywhere else its other tools reach. That is the same for MCP and for the command
+  line: either way the result is given to the agent, and TabGoblin has no say in where the
+  agent sends it. A command's output can in addition be kept by whatever runs it: a shell's
+  history holds the arguments, and a terminal's or an agent's own log the answers.
 - **No isolation within the operating-system account.** An agent with unrestricted access to
   the user's account (a shell, the file system) can read the pairing token and the agents'
   keys, edit the settings file and the audit record, and act as any local agent. TabGoblin

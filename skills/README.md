@@ -6,15 +6,18 @@ authorized, how to read a long page, how to act and to submit, and what to do wh
 refuses. The server itself tells every agent a few lines of this when it connects; a skill has
 room for the rest.
 
-There is one for each of three agents. They follow the same open format
+They are in two folders, by the way an agent reaches the tools: `mcp/` for an agent that has
+TabGoblin's MCP tools, and `cli/` for one that runs the same tools as commands in a terminal
+([below](#the-skills-for-the-command-line)). In each there is one for each of three agents.
+They follow the same open format
 ([agentskills.io](https://agentskills.io/specification)), and each agent looks for skills in a
 place of its own:
 
-| Agent | The skill here | For you, in every project | For one project |
+| Agent | The skills here | For you, in every project | For one project |
 |---|---|---|---|
-| Claude Code | `claude-code/tabgoblin/` | `~/.claude/skills/tabgoblin/` | `.claude/skills/tabgoblin/` |
-| Codex | `codex/tabgoblin/` | `~/.agents/skills/tabgoblin/` | `.agents/skills/tabgoblin/` |
-| GitHub Copilot | `copilot/tabgoblin/` | `~/.copilot/skills/tabgoblin/` | `.github/skills/tabgoblin/` |
+| Claude Code | `mcp/claude-code/tabgoblin/`, `cli/claude-code/tabgoblin/` | `~/.claude/skills/tabgoblin/` | `.claude/skills/tabgoblin/` |
+| Codex | `mcp/codex/tabgoblin/`, `cli/codex/tabgoblin/` | `~/.agents/skills/tabgoblin/` | `.agents/skills/tabgoblin/` |
+| GitHub Copilot | `mcp/copilot/tabgoblin/`, `cli/copilot/tabgoblin/` | `~/.copilot/skills/tabgoblin/` | `.github/skills/tabgoblin/` |
 
 `~` is your home folder.
 
@@ -39,20 +42,42 @@ cloned TabGoblin into:
 
 ```sh
 mkdir -p <your project>/.claude/skills
-cp -r skills/claude-code/tabgoblin <your project>/.claude/skills/
+cp -r skills/mcp/claude-code/tabgoblin <your project>/.claude/skills/
 ```
 
 Start the agent again if it does not show the skill. A skill does not add the server: the
 agent has to know TabGoblin's MCP server first
 ([installation, step 5](../docs/installation.md#5-tell-your-agent-about-the-server)).
 
+## The skills for the command line
+
+An agent without MCP runs the same tools as commands in a terminal
+([the command line](../docs/mcp-reference.md#the-command-line)), and has a skill of its own for
+that, in `cli/`: `cli/claude-code/tabgoblin/`, `cli/codex/tabgoblin/` and
+`cli/copilot/tabgoblin/`. It says the same about tabs, access levels, submissions and refusals,
+in terms of commands: `tabgoblin snapshot --interactive-only` where the other says
+`browser_snapshot` with `interactive_only: true`, the JSON answer, the exit codes, and that
+every command names its agent. It names no MCP tool, and the skill for MCP names no command.
+
+```sh
+java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code --mode cli
+```
+
+`--setup <agent> --mode cli` does the same as its first step. The two skills of an agent have
+one name and one place, so an agent has the one for the way it was set up, and not both:
+installing either takes the other's place, without `--replace`, since both are TabGoblin's
+own. A skill of that name that is neither is left as it is, as above. Each skill tells its
+agent not to go over to the other way by itself.
+
 ## What is the same and what is not
 
-The three say the same about TabGoblin. That part begins at "Start with the status" and is word
-for word the same in all of them; a test of the server's suite (`SkillsTest`) fails when one of
+The three for MCP say the same about TabGoblin, and so do the three for the command line among
+themselves. That part begins at "Start with the status" and is word for word the same in the
+three of a kind; a test of the server's suite (`SkillsTest`) fails when one of
 them drifts from the others, when a skill names a tool the server does not have or leaves one
 out, and when it names an error code that the [tool reference](../docs/mcp-reference.md#errors) does
-not know. What differs is each one's head:
+not know. For the command line it also fails when a skill names an option that no command has,
+or an MCP tool. What differs is each one's head:
 
 - **Claude Code:** the tools' names as Claude Code has them, and what to ask the user for when
   the server is not connected. Its front matter has `when_to_use`, which Claude Code reads
@@ -63,6 +88,9 @@ not know. What differs is each one's head:
   called as a command.
 
 ## What was checked, and what was not
+
+The skills for the command line were written on 2026-11-25 and installed in a test only. None
+has been loaded in an agent.
 
 The places and the fields are from each agent's own documentation, read on 2026-11-22. The
 command was run with the built jar on Windows, against a home folder made for the purpose:

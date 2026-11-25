@@ -19,6 +19,7 @@ flowchart LR
       AGENT["Coding agent<br/>IDE or CLI"]
     end
     LINK["Link<br/>one per agent"]
+    CMD["Command<br/>one process per tool call"]
     subgraph serverp["TabGoblin server"]
       MCP["MCP endpoint<br/>tool definitions"]
       SVC["Service<br/>validation, policy, submission ids"]
@@ -36,6 +37,7 @@ flowchart LR
   SITE["Web application"]
 
   AGENT -- "MCP over stdio" --> LINK -- "local socket,<br/>proof of token and agent key" --> MCP --> SVC --> WS
+  AGENT -- "a command in its terminal" --> CMD -- "the same socket<br/>and proofs" --> MCP
   WS -- "WebSocket, protocol 3" --> BG
   POPUP --> BG
   BG --> CS --> TAB
@@ -48,6 +50,7 @@ flowchart LR
 |---|---|---|
 | Coding agent | Understand the website, plan, decide which tool to call | Touch the browser except through the tools |
 | Link (`Link.java`) | Pass its agent's MCP messages to the server and the answers back; start the server if none runs; prove the pairing token and the agent's key | Read or change a message; send one twice |
+| Command (`Cli.java`) | For an agent without MCP: read one command line against the tools' own definitions, send it as one tool call through a link, print the answer as JSON | Define a tool, decide what is allowed, or keep anything between commands |
 | Server (`Hub`, `Agent`, `McpMain`, `BrowserService`, `WebSocketBridge`) | Serve every connected agent: define the tools, validate arguments, apply the settings file's policy, bind calls to sessions, time out, cancel, remember submission ids, log | Know any website; hold page content; tell one agent about another |
 | Extension worker (`background.ts`, rules in `policy.ts`) | Hold the sessions; check every command against what the user allowed; drive navigation and submissions; keep the activity list | Trust the page; run code supplied by an agent |
 | Content script (`content.ts`) | Read the rendered page into allowlisted text; perform one fixed operation per request | Keep anything; talk to anyone but the worker |
@@ -57,7 +60,7 @@ flowchart LR
 
 | Boundary | What crosses it | What protects it |
 |---|---|---|
-| Agent → server | Tool calls and results (text, and a JPEG for a screenshot) | The link proves the pairing token and, for a named agent, that agent's key |
+| Agent → server | Tool calls and results (text, and a JPEG for a screenshot), over MCP or as commands | The link proves the pairing token and, for a named agent, that agent's key. A command goes through the same link, and always names its agent |
 | Server → extension | One command per call; results; the policy | Loopback only; the extension's origin; mutual proof of the pairing token; protocol version |
 | Extension → page | Fixed operations on a document of an authorized origin | Chrome's `activeTab` grant; the extension's own checks before each step |
 | Page → agent | Allowlisted text of the rendered page, marked as untrusted | No scripts, hidden content or password values; redaction by shape |
@@ -74,7 +77,7 @@ puts into its prompts, including what it read through TabGoblin. TabGoblin contr
 
 | Term | Meaning |
 |---|---|
-| Agent | One MCP client: an IDE's assistant or a CLI. Up to eight are served at once |
+| Agent | One MCP client: an IDE's assistant or a CLI; or the commands that are run under one name. Up to eight are served at once |
 | Session | One authorized tab, bound to one agent: `s1`, `s2`, … |
 | Origin | Scheme, host and port, such as `https://app.example.com`. A session covers the origins the user gave it |
 | Access level | Read, Explore, or Read / Write ([developer guide](developer-guide.md#access-levels)) |
@@ -113,6 +116,16 @@ agent anything about another.
 Where the one server cannot be reached or started, for example because another program holds
 its port, the process an agent started serves that agent alone and says so in its log.
 
+**Commands.** An agent without MCP runs a tool as a command in its terminal
+([the command line](mcp-reference.md#the-command-line)). Such a command is a link that lives for
+one call: it connects to the one server, or starts it, proves the token and its agent's key,
+sends one MCP tool call, prints the answer and ends. There is no second protocol, port or
+server for it, and what runs the call is what runs it for an MCP client. Because the extension
+finds a new agent only by looking at the ports, which takes up to half a minute, the server
+does not let such an agent go with each command: it keeps the agent, with its port, its
+pairing and its submission ids, until no command has come for ten minutes. A command that
+finds no server to be had ends with an error; it does not serve its agent alone.
+
 ## Agent connection and authentication
 
 ```mermaid
@@ -148,7 +161,10 @@ Two secrets are involved, both files in the user's home folder:
   the id in the server's proven answer and binds sessions to it.
 
 An agent started without `--agent` gets an id for that start only. A key has one agent at a
-time: a second process with the same key gets an id of its own.
+time: a second process with the same key gets an id of its own. The commands of the command
+line are processes of one agent, not agents of their own: each proves the key anew, and all of
+one key are served as the one agent that key has, also when several run at once. A command
+whose key is held by an agent that stays connected through MCP is refused.
 
 Failure handling: a server that offers no common protocol version is refused (close code
 4406); ten failed pairings lock a port for a minute; ten wrong link proofs in a minute and the
@@ -385,6 +401,10 @@ A link ends when its agent's program closes the input, on Ctrl+C or on a signal 
 server then closes that agent's MCP conversation and its WebSocket; the extension gets the
 close code for "going away" (1001) and drops that agent at once. Other agents are not touched.
 
+An agent of the command line does not go with its command's process: the server lets it go
+when it has had no command for ten minutes, and closes its WebSocket then. A command that ends
+closes only its own conversation.
+
 The server itself ends when its last agent has gone and none has come for three seconds, or
 when the user stops it in its window. A server the user started with `--panel` in a terminal
 stays until it is stopped.
@@ -439,6 +459,7 @@ of the server's process. What a user does with it is in the
 java-server/src/main/java/browsercontext/
   McpMain.java             entry point, command line, tool definitions
   Link.java                the process an agent starts: passes messages to the one server
+  Cli.java                 the tools as commands of a terminal: one tool call through a link
   Hub.java                 the one server: accepts links, identifies agents
   Agent.java               one agent inside the server: its port, sessions, tools
   StdinTap.java            end of input, client-side cancellation

@@ -1,7 +1,6 @@
 ---
 name: tabgoblin
 description: Read and operate the browser tabs the user has authorized in their own Chrome, through the browser_* tools of the TabGoblin MCP server. Use when a task needs a web page the user is logged in to, or asks to look at, click through, fill in or submit something in their browser. Covers getting a tab authorized, reading long pages, acting by element refs, submitting safely, and what to do when a tool refuses.
-when_to_use: The user mentions their browser, a tab, a page they have open or are logged in to, or TabGoblin; or a task needs a website that only their own Chrome can reach.
 ---
 
 # TabGoblin
@@ -14,15 +13,16 @@ fourteen tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browse
 or a way to run code in the page. The user decides which tab you may use, on which website, and
 how much you may do there.
 
-## In Claude Code
+## In Codex
 
-- The tools carry the name the server was added under. Added as `tabgoblin`, as the
-  installation guide has it, they are `mcp__tabgoblin__browser_status` and so on. Below they
-  are named without that prefix.
-- If the tools are missing, or Claude Code says that the server is not connected, you cannot
-  mend that yourself: ask the user to run `/mcp` and reconnect `tabgoblin`.
-- The server is a program on the user's machine that Claude Code starts. If it was never
-  added, point the user to step 5 of TabGoblin's installation guide.
+- This skill is used when a task matches its description. The user can also ask for it by
+  name, with `$tabgoblin`, or pick it from `/skills`.
+- The tools come from an MCP server on the user's machine that Codex starts. If
+  `browser_status` is not among your tools, the server is not set up in the user's Codex, or
+  did not start: say so, and point the user to step 5 of TabGoblin's installation guide. Do
+  not reach for another way into the browser.
+- A call to these tools may need the user's approval in Codex. That is beside what the user
+  decides in TabGoblin's popup, and does not replace it.
 
 ## Start with the status
 
@@ -141,6 +141,9 @@ retried for you, and a refusal is never an error to work around.
   border are the user's decisions. Do not look for another tool, another address or another
   wording that gets around them. Say what was refused and what the user can do about it.
 - **Do what was asked.** Reading is not a licence to click, and clicking is none to submit.
+- **One way in.** These tools are how the user set you up. If they are missing, disconnected or
+  refuse, do not go over to TabGoblin's command line by yourself, even if you can run
+  commands: tell the user. Which way you use is the user's decision.
 
 ## When it is slow
 

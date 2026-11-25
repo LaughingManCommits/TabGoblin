@@ -85,6 +85,17 @@ public final class McpMain {
         System.setOut(System.err);
         System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "warn");
 
+        if (Cli.handles(args)) {
+            // A command of the command line: one tool call for an agent that has a terminal and no MCP.
+            // It goes the way an MCP client's messages go, through the link to the one server.
+            Cli cli = new Cli(mcpOut, System.err, System.in, McpMain::commandLink);
+            // Ended while its command runs, it tells the server to stop it, and says that the outcome is unknown.
+            Runtime.getRuntime().addShutdownHook(new Thread(cli::cancelled, "bcmcp-cli-cancel"));
+            int code = cli.run(args, System::getenv);
+            mcpOut.flush();
+            System.exit(code);
+            return;
+        }
         Options options;
         try {
             options = Options.parse(args, System::getenv);
@@ -116,8 +127,9 @@ public final class McpMain {
                 System.exit(1);
                 return;
             }
-            Skills.Result skill = Skills.install(options.setup(), Path.of(System.getProperty("user.home")), options.replace());
-            mcpOut.println(Setup.says(skill, self));
+            Skills.Result skill = Skills.install(options.setup(), Path.of(System.getProperty("user.home")), options.replace(),
+                    options.commandLine());
+            mcpOut.println(Setup.says(skill, self, options.commandLine()));
             if (!skill.ok()) {
                 System.exit(1);
             }
@@ -125,7 +137,8 @@ public final class McpMain {
         }
         if (options.installSkill() != null) {
             // Into the user's own home, on the user's own command, and nothing is started for it.
-            Skills.Result result = Skills.install(options.installSkill(), Path.of(System.getProperty("user.home")), options.replace());
+            Skills.Result result = Skills.install(options.installSkill(), Path.of(System.getProperty("user.home")), options.replace(),
+                    options.commandLine());
             mcpOut.println(result.says());
             if (!result.ok()) {
                 System.exit(1);
@@ -209,6 +222,18 @@ public final class McpMain {
     }
 
     /**
+     * The link of one command of the command line: to the same server, with the same proofs, as
+     * the link of an MCP client's process. No server of its own stands in for one that cannot be had.
+     */
+    private static Link commandLink(java.io.InputStream in, java.io.OutputStream out, Options options) throws java.io.IOException {
+        Path tokenFile = options.tokenFile();
+        Supplier<String> tokens = Pairing.tokenSource(tokenFile, Pairing.loadOrCreateToken(tokenFile));
+        List<Integer> serverPorts = Ports.firsts(options.port(), options.portChosen()).stream().map(Link::port).toList();
+        return new Link(in, out, System.err, tokens, serverPorts, options.panel(), options.quiet(),
+                () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand();
+    }
+
+    /**
      * The one server: every agent's process connects to it. It runs until the user stops it or its
      * last agent has gone.
      */
@@ -222,6 +247,7 @@ public final class McpMain {
         // The token and the settings file are the same wherever the ports begin.
         Agent.Settings settings = configured;
         RUNNING.add(hub::close);
+        hub.commandIdle(options.commandIdleMs());
         hub.whenEmpty(McpMain::end);
         java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
         java.util.concurrent.atomic.AtomicBoolean up = new java.util.concurrent.atomic.AtomicBoolean();
@@ -536,10 +562,14 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --setup <agent>  set TabGoblin up for an agent: claude-code, codex or copilot.
                                                                  It installs the skill, and prints the line that tells
                                                                  the agent about this server, the extension's folder,
-                                                                 and how to pair
+                                                                 and how to pair. With --mode cli it installs the skill
+                                                                 for the command line and prints the command the agent
+                                                                 runs in its terminal instead: nothing is registered
+                                                                 then. --mode mcp is what it does without
               java -jar browser-context-mcp.jar --install-skill <agent>
                                                                  put the skill that tells an agent how to use the tools where
-                                                                 that agent looks for skills: claude-code, codex or copilot
+                                                                 that agent looks for skills: claude-code, codex or copilot.
+                                                                 With --mode cli the skill for the command line
               java -jar browser-context-mcp.jar --list-agents    the agents that have a key of their own, each with its id
               java -jar browser-context-mcp.jar --revoke-agent <name>
                                                                  take one agent's key away: its tools answer AGENT_REVOKED,
@@ -551,6 +581,15 @@ public final class McpMain {
             What your agent runs (this goes into the agent's MCP settings, you do not run it):
               java -jar browser-context-mcp.jar --agent <name>   add --panel to have the window open whenever that agent runs,
                                                                  or --no-panel to never have it come up by itself
+
+            What an agent runs in a terminal, where it has no MCP (the same tools, with the same rules):
+              java -jar browser-context-mcp.jar tools --json     every command, its description and its arguments
+              java -jar browser-context-mcp.jar status --agent <name>
+              java -jar browser-context-mcp.jar click --agent <name> --session s1 --ref 12
+                                                                 a command is a tool's name without browser_, and prints
+                                                                 one JSON object. Exit code 0: done; 1: the tool refused
+                                                                 or failed; 2: not understood; 3: no server; 4: sent, and
+                                                                 the outcome is unknown
 
             Agents: --agent <name> gives an agent a key of its own, kept in the folder agents beside the pairing
             token. By it the agent is the same agent at every start, and has its tabs again after a restart.
@@ -569,10 +608,15 @@ public final class McpMain {
             A domain blocks itself and its subdomains. The file is tabgoblin.properties, beside the pairing token;
             Edit in the server's window opens it. A change is in force as soon as the file is saved.
 
+            An agent of the command line is kept by the server for ten minutes after its last command, so that
+            its next one finds the browser connected; BCMCP_COMMAND_IDLE_SECONDS, set where the server starts,
+            changes that.
+
             Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
                       --agent <name>  who the agent is that starts this server (or BCMCP_AGENT)
                       --settings <path of the settings file>
-                      --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one""";
+                      --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one
+                      --mode <mcp or cli>  with --setup or --install-skill: how the agent is to reach the tools (default mcp)""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -949,7 +993,8 @@ public final class McpMain {
     /** What the command line and the environment ask for. */
     record Options(boolean help, boolean showToken, boolean rotateToken, int port, Path tokenFile, String extensionOrigin,
             boolean panel, boolean hub, boolean standing, Path settings, Skills.Agent installSkill, boolean replace, boolean quiet,
-            Skills.Agent setup, String agent, String revokeAgent, String allowAgent, boolean listAgents, boolean portChosen) {
+            Skills.Agent setup, String agent, String revokeAgent, String allowAgent, boolean listAgents, boolean portChosen,
+            boolean commandLine, long commandIdleMs) {
 
         /**
          * Reads the command line strictly: a mistyped option must not start a server, which then
@@ -975,6 +1020,7 @@ public final class McpMain {
             String revokeAgent = null;
             String allowAgent = null;
             boolean listAgents = false;
+            String mode = null;
             for (int i = 0; i < args.length; i++) {
                 String arg = args[i];
                 switch (arg) {
@@ -989,7 +1035,7 @@ public final class McpMain {
                     case "--standing" -> standing = true;
                     case "--list-agents" -> listAgents = true;
                     case "--port", "--token-file", "--extension-origin", "--settings", "--install-skill", "--setup",
-                            "--agent", "--revoke-agent", "--allow-agent" -> {
+                            "--agent", "--revoke-agent", "--allow-agent", "--mode" -> {
                         if (i + 1 >= args.length || args[i + 1].startsWith("--")) {
                             throw new UsageException(arg + " needs a value.");
                         }
@@ -1010,6 +1056,8 @@ public final class McpMain {
                             revokeAgent = value;
                         } else if (arg.equals("--allow-agent")) {
                             allowAgent = value;
+                        } else if (arg.equals("--mode")) {
+                            mode = value;
                         } else {
                             origin = value;
                         }
@@ -1043,6 +1091,12 @@ public final class McpMain {
             if (replace && installSkill == null && setup == null) {
                 throw new UsageException("--replace goes with --setup or --install-skill.");
             }
+            if (mode != null && setup == null && installSkill == null) {
+                throw new UsageException("--mode goes with --setup or --install-skill.");
+            }
+            if (mode != null && !mode.equals("mcp") && !mode.equals("cli")) {
+                throw new UsageException("--mode is mcp or cli, not \"" + mode + "\".");
+            }
             if (panel && noPanel) {
                 throw new UsageException("--panel and --no-panel exclude each other.");
             }
@@ -1065,7 +1119,24 @@ public final class McpMain {
                     fromStart, hub, standing,
                     list.isEmpty() ? BlockedSites.beside(token) : Path.of(list), installSkill, replace, quiet, setup,
                     agentLabel, revokeAgent == null ? null : agentLabel("--revoke-agent", revokeAgent),
-                    allowAgent == null ? null : agentLabel("--allow-agent", allowAgent), listAgents, ownPort != null);
+                    allowAgent == null ? null : agentLabel("--allow-agent", allowAgent), listAgents, ownPort != null,
+                    "cli".equals(mode), commandIdle(environment.apply("BCMCP_COMMAND_IDLE_SECONDS")));
+        }
+
+        /** How long the server keeps an agent that comes by commands after its last one: the variable, in seconds, or ten minutes. */
+        private static long commandIdle(String seconds) throws UsageException {
+            if (seconds == null || seconds.isBlank()) {
+                return Hub.COMMAND_IDLE_MS;
+            }
+            try {
+                long given = Long.parseLong(seconds.trim());
+                if (given >= 1 && given <= 86_400) {
+                    return given * 1000;
+                }
+            } catch (NumberFormatException e) {
+                // said below
+            }
+            throw new UsageException("BCMCP_COMMAND_IDLE_SECONDS must be a number of seconds between 1 and 86400, not \"" + seconds + "\".");
         }
 
         /** A label for an agent's key, or the reason it is none. */
