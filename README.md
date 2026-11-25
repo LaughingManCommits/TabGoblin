@@ -44,10 +44,12 @@ The agent reaches those tools from a terminal or through MCP, whichever it has.
 
 ## What you get
 
-- **Your existing sign-ins.** The agent reads the page as you see it. No tokens to issue, no
-  API scopes to request.
-- **Any web application.** The tools are generic: read, search, navigate, click, fill, submit.
-  There is no website-specific code in TabGoblin; the agent supplies the understanding.
+- **Your existing sign-ins.** The agent reads the page you have open, signed in as you are. No
+  tokens to issue, no API scopes to request.
+- **No integration per application.** The tools are generic: read, search, navigate, click,
+  fill, submit. There is no website-specific code in TabGoblin; the agent supplies the
+  understanding. How much of a given site can be read and operated depends on how the site is
+  built: see [status and limits](#status-and-limits).
 - **Access per tab.** A tab is available to an agent only after you authorize it, for its exact
   website, at one of three levels: Read, Explore or Read / Write.
 - **Approval before a submission.** A submission is declared by the agent, sent once, and
@@ -64,7 +66,7 @@ The agent reaches those tools from a terminal or through MCP, whichever it has.
 ## Example workflows
 
 These are examples of the generic tools at work. None is a dedicated integration: the same
-tools do the same on any website.
+tools are used on every website, within the [limits](#status-and-limits) below.
 
 | Workflow | What the agent does |
 |---|---|
@@ -105,7 +107,7 @@ TabGoblin is built to offer less:
 | | Unrestricted browser automation | TabGoblin |
 |---|---|---|
 | Reach | Every tab of the profile it drives | Only the tabs you authorized, each on its exact website |
-| Credentials | Cookies, storage and request headers can be read | No tool reads them, and the extension holds no permission for them |
+| Credentials | Cookies, storage and request headers can be read | No tool reads them, and the extension holds no permission for them. A secret that a page displays is still page text |
 | Code | Arbitrary script can run in a page | A fixed set of operations; no tool evaluates script |
 | Network | Arbitrary requests | None. A tab can be navigated within its authorized website |
 | Writes | Performed like any other action | A submission is declared, sent once and verified, and by default shown to you first |
@@ -117,8 +119,11 @@ TabGoblin is built to offer less:
   `alarms`. It has no host permissions: it cannot touch a tab until you click its icon there.
 - **Exact scope.** A session is one tab on the websites you gave it, checked before every
   command and again before each step that touches the page.
-- **No credentials.** No tool reads cookies, headers or browser storage, and the extension
-  holds no permission for them. Password fields are neither read nor filled.
+- **No direct access to credentials.** No tool reads cookies, headers or browser storage, and
+  the extension holds no permission for them. Password fields are neither read nor filled.
+  That is about where credentials are kept. What a page *displays* is page content: a key or
+  a token shown on a page reaches the agent like any other text, unless the best-effort
+  redaction below catches it.
 - **Untrusted content.** Page content is returned as data and marked as such. A page cannot
   change a session, a permission or a setting.
 - **The user decides.** Access is granted in the extension's popup and nowhere else, whether
@@ -145,7 +150,7 @@ MCP support, or if you would rather not register a server with it. Use **MCP** i
 is an MCP client and you want the tools in its tool list. Both give the same tools under the
 same rules; pick one for each agent.
 
-The first and the last steps are the same for both:
+All steps but the second are the same for both:
 
 1. **Download** the file for your system from the
    [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest) and unpack
@@ -155,8 +160,11 @@ The first and the last steps are the same for both:
    unpacked** and choose the download's `extension` folder.
 4. **Pair, once:** `tabgoblin --panel` opens the server's window. Press **Copy** next to
    *Pairing token* and paste the token into the TabGoblin popup in Chrome.
-5. **Authorize a tab:** open a website, click the TabGoblin icon on that tab and press
-   **Authorize**. Then ask your agent for the browser status.
+5. **Let the agent introduce itself:** ask it for the browser status. From then on TabGoblin
+   knows it by its name, and the popup lists it.
+6. **Authorize a tab for it:** open a website, click the TabGoblin icon on that tab, choose the
+   agent and an access level, and press **Authorize**. Ask for the status again: it now lists
+   the tab as a session, and the agent can read the page.
 
 ### Quick start: CLI
 
@@ -212,7 +220,7 @@ browser_extract    { "find": "ERROR", "context_lines": 3 }
 browser_click      { "ref": 12 }
 ```
 
-The [tool reference](docs/mcp-reference.md) has every tool with its input, output and errors.
+The [tool reference](docs/tool-reference.md) has every tool with its input, output and errors.
 
 The [installation guide](docs/installation.md) has each step with what you should see, how to
 verify a download, and how to build from source.
@@ -274,7 +282,7 @@ More, with the access level each needs, are in the
 | [Installation](docs/installation.md) | Set it up from a download or from source, for the CLI or for MCP; verify a download; problems during setup |
 | [Developer guide](docs/developer-guide.md) | Everyday use: authorize tabs, access levels, sessions and workspaces, approvals, pausing and revoking, policy, troubleshooting |
 | [CLI guide](docs/cli.md) | Using TabGoblin without MCP: commands, arguments, discovery, JSON output, exit codes, identity, instructions for an agent |
-| [Tool reference](docs/mcp-reference.md) | Every tool, for both interfaces: required access, input, output, limits, errors |
+| [Tool reference](docs/tool-reference.md) | Every tool, for both interfaces: required access, input, output, limits, errors |
 | [Architecture](docs/architecture.md) | Components, flows, session lifecycle, trust boundaries |
 | [Security model](docs/security-model.md) | Threat model, each control with where it is enforced and where it stops, residual risks |
 | [Corporate assessment](docs/corporate-assessment.md) | The facts an organisation needs to assess TabGoblin: deployment, data flow, permissions, listeners, policy, audit, release integrity |

@@ -1,6 +1,6 @@
 # Current state and handoff
 
-Last updated: 2026-11-25, later the same day. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-25, the evening. Claims here go stale; check the date, then `git status` and `git log`.
 
 ## Where the code is
 
@@ -27,7 +27,7 @@ Last updated: 2026-11-25, later the same day. Claims here go stale; check the da
   hardening and features for developers. Committed there by the session, and pushed to that
   branch on the owner's word ("Push to development branch your work"). Nothing went to `main`, and no pull request was opened. Not merged. It carries a branch `smart-extract`, merged into it.
   The documentation was rewritten there on 2026-11-24, on the owner's word: three pages have
-  new names (`docs/security-model.md`, `docs/developer-guide.md`, `docs/mcp-reference.md`),
+  new names (`docs/security-model.md`, `docs/developer-guide.md`, `docs/tool-reference.md`),
   three are new (`docs/corporate-assessment.md`, `SECURITY.md`, `CONTRIBUTING.md`), and two
   are gone, their content folded into others (`docs/README.md`, `docs/cheatsheet.md`). The
   owner has not read them yet. Two sentences in `SECURITY.md` speak for the owner and want
@@ -108,6 +108,13 @@ Last updated: 2026-11-25, later the same day. Claims here go stale; check the da
 | WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
+
+- **`docs/mcp-reference.md` is `docs/tool-reference.md` since 2026-11-25** (branch
+  `ccr-6350ba03-tntbzp`, made anew from `main` at `cf9bbca`; committed by the session, not
+  pushed). The old name is a short page that points to the new one, so a link to the file
+  still arrives; a link to one of its sections arrives at that pointer and not at the section.
+  `SkillsTest` and `ToolReferenceTest` read the new name. Older entries of the backlog and of
+  the validation log name the file as it is called now.
 
 - **Four diagrams are SVG files now** (`docs/assets/diagrams/`), where they were Mermaid in the
   pages. The proxy at the owner's work that holds back the documentation's pictures (below)

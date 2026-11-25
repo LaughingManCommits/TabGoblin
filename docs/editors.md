@@ -72,7 +72,7 @@ is added when the tab is in the background and the effect could not be confirmed
 
 When a result could not be confirmed, the agent should not fill again. It should take a
 snapshot once the tab is visible. The exact notes are in the
-[tool reference](mcp-reference.md#browser_fill).
+[tool reference](tool-reference.md#browser_fill).
 
 ## Limits
 

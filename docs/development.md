@@ -211,7 +211,7 @@ page that owns it:
 | [Installation](installation.md) | Setting it up from a download or from source, verifying a download, and what goes wrong while doing that |
 | [Developer guide](developer-guide.md) | What the user sees and does: authorizing, access levels, sessions, workspaces, submissions, stopping, the settings file, the server's panel, options and commands, troubleshooting |
 | [CLI guide](cli.md) | The CLI: commands and arguments, discovery, what a command prints, exit codes, how many commands are one agent, instructions for an agent without a skill |
-| [Tool reference](mcp-reference.md) | What each tool takes and returns, for both interfaces: every text an agent reads, every limit, every error code. `ToolReferenceTest` holds it to the server's tool definitions |
+| [Tool reference](tool-reference.md) | What each tool takes and returns, for both interfaces: every text an agent reads, every limit, every error code. `ToolReferenceTest` holds it to the server's tool definitions |
 | [Architecture](architecture.md) | Components, the two interfaces with what they share and where they differ, connections, flows, the session lifecycle, trust boundaries, where things are |
 | [Security model](security-model.md) | The threat model and every rule: what is enforced where, where it stops, what is tested, what remains a risk |
 | [Corporate assessment](corporate-assessment.md) | A summary of the above for an organisation's review. It states facts and links; a rule is changed in the security model first |
@@ -285,7 +285,7 @@ browser has to be paired. How it is built:
   looked at, until it is switched on. A refused handshake is not a failed pairing and counts
   nothing towards the lockout. The extension is not told why. It goes on looking for servers
   every half minute, as for any server it cannot reach, so switching on needs nothing in the
-  popup. Meanwhile a tool call is answered [`NOT_CONNECTED`](mcp-reference.md#errors), with words that
+  popup. Meanwhile a tool call is answered [`NOT_CONNECTED`](tool-reference.md#errors), with words that
   say where the connection was switched off.
 - **The log is kept for the window, which may come up at any time:** the last 300 lines, in
   memory, from the server's first line on. They are the lines written to standard error at the level `BCMCP_LOG`
@@ -447,7 +447,7 @@ Without a valid `auth_ok` before it, any other message is a failed pairing (4401
 the extension, how long it waited before that for its turn in the tab's queue, and how much of
 the running was waiting for the user's answer. The server cannot see inside the round trip; with
 these it says where the time of a tool call went (`Timings.java`,
-[mcp-reference.md](mcp-reference.md#where-the-time-went)). The field is optional: an older server ignores it, and
+[tool-reference.md](tool-reference.md#where-the-time-went)). The field is optional: an older server ignores it, and
 without it the server counts the round trip whole.
 
 `session` comes with the answer of every command that ran in a session, failed ones too: the

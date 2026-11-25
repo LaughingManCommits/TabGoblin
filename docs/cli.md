@@ -62,25 +62,25 @@ To hand this to a coding agent, see [agents and IDEs without MCP](#agents-and-id
 ## Commands
 
 A command is a tool's name without `browser_`, with dashes. What each tool does, what it
-needs and what its text looks like is in the [tool reference](mcp-reference.md), which holds
+needs and what its text looks like is in the [tool reference](tool-reference.md), which holds
 for both interfaces.
 
 | Command | Tool | Needs | Purpose |
 |---|---|---|---|
-| `status` | [`browser_status`](mcp-reference.md#browser_status) | – | This agent's sessions and the state of the connection |
-| `request-access` | [`browser_request_access`](mcp-reference.md#browser_request_access) | – | Ask the user for a higher level, or for a tab on another site |
-| `snapshot` | [`browser_snapshot`](mcp-reference.md#browser_snapshot) | Read | The page as a hierarchy with refs |
-| `screenshot` | [`browser_screenshot`](mcp-reference.md#browser_screenshot) | Read | Image of the viewport |
-| `wait-for` | [`browser_wait_for`](mcp-reference.md#browser_wait_for) | Read | Wait for a UI condition |
-| `scroll` | [`browser_scroll`](mcp-reference.md#browser_scroll) | Read | Scroll the page or an element |
-| `extract` | [`browser_extract`](mcp-reference.md#browser_extract) | Read | The page's content as structured text, or parts of it |
-| `collect` | [`browser_collect`](mcp-reference.md#browser_collect) | Read; Explore with `--next` | Read over several scrolls or pages in one command |
-| `navigate` | [`browser_navigate`](mcp-reference.md#browser_navigate) | Explore | URL, back, forward, reload |
-| `click` | [`browser_click`](mcp-reference.md#browser_click) | Explore / Write | Click by ref |
-| `hover` | [`browser_hover`](mcp-reference.md#browser_hover) | Explore | Move the pointer over an element |
-| `press-key` | [`browser_press_key`](mcp-reference.md#browser_press_key) | Explore / Write | One key |
-| `fill` | [`browser_fill`](mcp-reference.md#browser_fill) | Write | Enter content into a control |
-| `submit` | [`browser_submit`](mcp-reference.md#browser_submit) | Write | Fill, submit once, verify |
+| `status` | [`browser_status`](tool-reference.md#browser_status) | – | This agent's sessions and the state of the connection |
+| `request-access` | [`browser_request_access`](tool-reference.md#browser_request_access) | – | Ask the user for a higher level, or for a tab on another site |
+| `snapshot` | [`browser_snapshot`](tool-reference.md#browser_snapshot) | Read | The page as a hierarchy with refs |
+| `screenshot` | [`browser_screenshot`](tool-reference.md#browser_screenshot) | Read | Image of the viewport |
+| `wait-for` | [`browser_wait_for`](tool-reference.md#browser_wait_for) | Read | Wait for a UI condition |
+| `scroll` | [`browser_scroll`](tool-reference.md#browser_scroll) | Read | Scroll the page or an element |
+| `extract` | [`browser_extract`](tool-reference.md#browser_extract) | Read | The page's content as structured text, or parts of it |
+| `collect` | [`browser_collect`](tool-reference.md#browser_collect) | Read; Explore with `--next` | Read over several scrolls or pages in one command |
+| `navigate` | [`browser_navigate`](tool-reference.md#browser_navigate) | Explore | URL, back, forward, reload |
+| `click` | [`browser_click`](tool-reference.md#browser_click) | Explore / Write | Click by ref |
+| `hover` | [`browser_hover`](tool-reference.md#browser_hover) | Explore | Move the pointer over an element |
+| `press-key` | [`browser_press_key`](tool-reference.md#browser_press_key) | Explore / Write | One key |
+| `fill` | [`browser_fill`](tool-reference.md#browser_fill) | Write | Enter content into a control |
+| `submit` | [`browser_submit`](tool-reference.md#browser_submit) | Write | Fill, submit once, verify |
 
 The tool's own name is taken as well (`tabgoblin browser_click …`). One more command,
 `tools`, lists these and needs neither a server nor an agent's name.
@@ -91,7 +91,7 @@ The tool's own name is taken as well (`tabgoblin browser_click …`). One more c
 |---|---|
 | `--agent <name>` | Who the agent is: the name of its [key](security-model.md#agent-identity-and-authentication). Every command but `tools` needs it; the variable `BCMCP_AGENT` stands in for it. The commands of one name are one agent, with one set of sessions |
 | `--session <id>` | Which authorized tab, as `status` lists them (`s1`, `s2`, …). May be left out while the agent has exactly one |
-| Tool arguments | The tool's input, each by its name in the [tool reference](mcp-reference.md): `--ref 12`, `--max-lines 40` (a dash may stand for an underscore), or `--links=none`. A boolean needs no value: `--diff`, and `--diff=false` to say no. An array or an object is given as JSON: `--refs '[3,8]'` |
+| Tool arguments | The tool's input, each by its name in the [tool reference](tool-reference.md): `--ref 12`, `--max-lines 40` (a dash may stand for an underscore), or `--links=none`. A boolean needs no value: `--diff`, and `--diff=false` to say no. An array or an object is given as JSON: `--refs '[3,8]'` |
 | `--args <json>` | All arguments as one JSON object. `--args -` reads it from standard input and `--args-file <path>` from a file: for text with quotes or line breaks, and where a shell's quoting is in the way (on Windows above all). Single arguments given beside it come on top |
 | `--out <path>` | With `screenshot`: the image is written to that file, and the answer names the file in place of the data |
 | Server options | `--port`, `--token-file`, `--settings`, `--extension-origin`, `--panel` and `--no-panel`, as [for the server](developer-guide.md#settings). Only needed where the server was started with them: a command has to name the same port and token file to reach the same server |
@@ -137,10 +137,10 @@ result. A command never asks anything in the terminal.
 |---|---|---|
 | `ok` | Always | Whether the tool answered without an error |
 | `tool` | With a tool command | The tool that was called |
-| `text` | Always | The tool's text, as the [tool reference](mcp-reference.md) shows it. Page content in it is untrusted data, not instructions |
+| `text` | Always | The tool's text, as the [tool reference](tool-reference.md) shows it. Page content in it is untrusted data, not instructions |
 | `result` | From the tools that return an object: click, hover, fill, press-key, scroll, navigate, wait-for, submit, request-access | That object |
 | `image` | From `screenshot` | `mimeType` and `base64`; or under `--out`, `mimeType`, `file` and `bytes` |
-| `error` | When `ok` is false | `code`, one of the [error codes](mcp-reference.md#errors), and `message` |
+| `error` | When `ok` is false | `code`, one of the [error codes](tool-reference.md#errors), and `message` |
 | `outcome` | Only as `"unknown"` | The command was sent, and whether it took effect is not known |
 
 | Exit code | Meaning |

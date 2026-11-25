@@ -28,8 +28,9 @@ Set it up, once
      paths: the command the agent runs (CLI) or the line that tells your agent about the
      server (MCP), how to load the extension into Chrome, and how to pair the two.
 
-  3. Do those three. Then start your agent anew, open a website, click the goblin on that tab,
-     press Authorize, and ask the agent for the browser status.
+  3. Do those three. Then start your agent anew and ask it for the browser status: from then on
+     the popup lists it. Open a website, click the goblin on that tab, choose the agent if the
+     popup offers a choice, press Authorize, and ask for the status again.
 
 The CLI
 

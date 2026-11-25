@@ -295,7 +295,7 @@ frames of another origin are reported as blocked.
 - **Collect** (`collect.ts`) reads over several scrolls or pages in one call, within limits;
   each step is checked like a command of its own.
 - **Completeness** is computed for every result: `COMPLETE`, `PARTIAL`, `TRUNCATED`, `BLOCKED`
-  or `UNKNOWN` ([tool reference](mcp-reference.md#completeness)).
+  or `UNKNOWN` ([tool reference](tool-reference.md#completeness)).
 
 ### Element refs
 
@@ -445,7 +445,7 @@ stays until it is stopped.
 When the server's process is gone and nobody stopped it, each link that still has its agent
 starts the server again or connects to the one another link started. Three things keep that
 from sending anything twice: the link itself answers every request its agent was waiting for
-(a tool call gets [`CONNECTION_LOST`](mcp-reference.md#errors): outcome unknown, nothing
+(a tool call gets [`CONNECTION_LOST`](tool-reference.md#errors): outcome unknown, nothing
 retried); it proves its agent's key to the new server and replays only the agent's opening
 message; and a message that had not reached the old server goes to the new one once. When the
 user stopped the server, links are told first and do not start it again.

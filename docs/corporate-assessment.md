@@ -126,6 +126,11 @@ Detail: [agent identity](security-model.md#agent-identity-and-authentication),
   headers or browser storage, and refuses to read or fill password and credential-like fields.
   It needs no API token for any web application; it acts within the session the developer
   already has in the browser.
+- **Sensitive information in rendered content is a different matter.** Whatever an authorized
+  page displays is page content and is delivered to the agent: personal data, internal
+  figures, and a secret that the page shows in plain text. Text that looks like a credential
+  is taken out by shape, which is best effort and incomplete
+  ([detail](security-model.md#sensitive-information-handling)).
 - **TabGoblin's own secrets** are the pairing token (`~/.browser-context-mcp/pairing-token`,
   and in the extension's storage) and the agents' keys (`~/.browser-context-mcp/agents/`).
   They are files with owner-only permissions where the system supports that. They are not

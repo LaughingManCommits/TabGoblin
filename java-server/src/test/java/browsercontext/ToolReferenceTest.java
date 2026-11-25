@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * The tool reference, {@code docs/mcp-reference.md}, held to the tools the server defines: every
+ * The tool reference, {@code docs/tool-reference.md}, held to the tools the server defines: every
  * tool has its section and no other has one, and a section names every input its tool takes.
  * What the page says about an input is not checked; that it says something is.
  */
@@ -27,7 +27,7 @@ class ToolReferenceTest {
 
     /** The page without its fenced examples: a line of an example may begin like a heading. */
     private static String page() throws Exception {
-        String text = Files.readString(Path.of("..", "docs", "mcp-reference.md"), StandardCharsets.UTF_8).replace("\r\n", "\n");
+        String text = Files.readString(Path.of("..", "docs", "tool-reference.md"), StandardCharsets.UTF_8).replace("\r\n", "\n");
         return text.replaceAll("(?ms)^```.*?^```$", "");
     }
 

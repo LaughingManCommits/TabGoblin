@@ -112,7 +112,7 @@ class SkillsTest {
 
         // Every word in capitals that the tool reference sets in code: error codes, how complete a
         // result is, how a submission ended.
-        Set<String> known = found(Pattern.compile("`([A-Z][A-Z_]{2,})`"), read(Path.of("..", "docs", "mcp-reference.md")));
+        Set<String> known = found(Pattern.compile("`([A-Z][A-Z_]{2,})`"), read(Path.of("..", "docs", "tool-reference.md")));
         assertTrue(known.containsAll(List.of("SITE_BLOCKED", "STALE_REF", "UNCERTAIN", "TRUNCATED")), known.toString());
 
         for (Map.Entry<String, String> skill : skills().entrySet()) {
@@ -260,7 +260,7 @@ class SkillsTest {
             ((Map<?, ?>) tool.inputSchema().get("properties")).keySet().forEach(name -> options.add("--" + name.toString().replace('_', '-')));
         }
         assertEquals(14, commands.size());
-        Set<String> known = found(Pattern.compile("`([A-Z][A-Z_]{2,})`"), read(Path.of("..", "docs", "mcp-reference.md")));
+        Set<String> known = found(Pattern.compile("`([A-Z][A-Z_]{2,})`"), read(Path.of("..", "docs", "tool-reference.md")));
         for (Map.Entry<String, String> skill : commandLineSkills().entrySet()) {
             String text = skill.getValue();
             assertFalse(text.contains("browser_"), skill.getKey() + ": it speaks of commands, and of no MCP tool");
