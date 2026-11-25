@@ -1,56 +1,26 @@
 # Architecture
 
-TabGoblin has two parts that run on the developer's machine: a local MCP server and a Chrome
-extension. One rule shapes both: **the agent understands websites; TabGoblin provides generic
-browser operations and enforces what the user allowed.** There is no website-specific code,
-selector, parser or workflow in either part.
+TabGoblin is a browser bridge for AI agents. It has two parts that run on the developer's
+machine, a local server and a browser extension for Chrome, and two integration interfaces
+through which an agent reaches them: a CLI and MCP. One rule shapes all of it: **the agent
+understands websites; TabGoblin provides generic browser operations and enforces what the user
+allowed.** There is no website-specific code, selector, parser or workflow in either part.
 
-This page describes the components, how they connect and authenticate, how a tab is authorized,
+This page describes the components, the two interfaces and what they share, how the parts
+connect and authenticate, how a tab is authorized,
 how an operation runs, how a submission is approved, and where the trust boundaries are. The
 rules themselves, with where each is enforced and where it stops, are in the
 [security model](security-model.md).
 
 ## Components
 
-```mermaid
-flowchart LR
-  subgraph local["Developer's machine"]
-    subgraph agentp["Agent's program"]
-      AGENT["Coding agent<br/>IDE or CLI"]
-    end
-    LINK["Link<br/>one per agent"]
-    CMD["Command<br/>one process per tool call"]
-    subgraph serverp["TabGoblin server"]
-      MCP["MCP endpoint<br/>tool definitions"]
-      SVC["Service<br/>validation, policy, submission ids"]
-      WS["WebSocket endpoint<br/>127.0.0.1, pairing"]
-    end
-    subgraph chrome["Chrome"]
-      BG["Extension worker<br/>sessions, rules, flows"]
-      POPUP["Popup<br/>the user's decisions"]
-      CS["Content script<br/>fixed page operations"]
-      TAB["Authorized tab"]
-    end
-    FILES[("Home folder<br/>token, agent keys,<br/>settings, audit log")]
-  end
-  MODEL["Model provider<br/>of the agent"]
-  SITE["Web application"]
-
-  AGENT -- "MCP over stdio" --> LINK -- "local socket,<br/>proof of token and agent key" --> MCP --> SVC --> WS
-  AGENT -- "a command in its terminal" --> CMD -- "the same socket<br/>and proofs" --> MCP
-  WS -- "WebSocket, protocol 3" --> BG
-  POPUP --> BG
-  BG --> CS --> TAB
-  serverp --- FILES
-  AGENT -. "prompts and tool results" .-> MODEL
-  TAB -. "the user's own session" .-> SITE
-```
+![The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a loopback socket to one TabGoblin server with one set of tool definitions, a service and a WebSocket endpoint; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.](assets/diagrams/components.svg)
 
 | Component | Responsibility | Does not |
 |---|---|---|
 | Coding agent | Understand the website, plan, decide which tool to call | Touch the browser except through the tools |
-| Link (`Link.java`) | Pass its agent's MCP messages to the server and the answers back; start the server if none runs; prove the pairing token and the agent's key | Read or change a message; send one twice |
-| Command (`Cli.java`) | For an agent without MCP: read one command line against the tools' own definitions, send it as one tool call through a link, print the answer as JSON | Define a tool, decide what is allowed, or keep anything between commands |
+| CLI (`Cli.java`) | One interface: read one command line against the tools' own definitions, send it as one tool call through a link, print the answer as JSON | Define a tool, decide what is allowed, or keep anything between commands |
+| MCP link (`Link.java`) | The other interface: pass an MCP client's messages to the server and the answers back; start the server if none runs; prove the pairing token and the agent's key | Read or change a message; send one twice |
 | Server (`Hub`, `Agent`, `McpMain`, `BrowserService`, `WebSocketBridge`) | Serve every connected agent: define the tools, validate arguments, apply the settings file's policy, bind calls to sessions, time out, cancel, remember submission ids, log | Know any website; hold page content; tell one agent about another |
 | Extension worker (`background.ts`, rules in `policy.ts`) | Hold the sessions; check every command against what the user allowed; drive navigation and submissions; keep the activity list | Trust the page; run code supplied by an agent |
 | Content script (`content.ts`) | Read the rendered page into allowlisted text; perform one fixed operation per request | Keep anything; talk to anyone but the worker |
@@ -60,7 +30,7 @@ flowchart LR
 
 | Boundary | What crosses it | What protects it |
 |---|---|---|
-| Agent → server | Tool calls and results (text, and a JPEG for a screenshot), over MCP or as commands | The link proves the pairing token and, for a named agent, that agent's key. A command goes through the same link, and always names its agent |
+| Agent → server | Tool calls and results (text, and a JPEG for a screenshot), as CLI commands or over MCP | The link proves the pairing token and, for a named agent, that agent's key. A command goes through the same link, and always names its agent |
 | Server → extension | One command per call; results; the policy | Loopback only; the extension's origin; mutual proof of the pairing token; protocol version |
 | Extension → page | Fixed operations on a document of an authorized origin | Chrome's `activeTab` grant; the extension's own checks before each step |
 | Page → agent | Allowlisted text of the rendered page, marked as untrusted | No scripts, hidden content or password values; redaction by shape |
@@ -73,11 +43,53 @@ in the home folder. TabGoblin opens no connection other than between these, on `
 as when the user browses; and the agent's model provider, which receives whatever the agent
 puts into its prompts, including what it read through TabGoblin. TabGoblin controls neither.
 
+## Integration interfaces: CLI and MCP
+
+An agent reaches TabGoblin as CLI commands or as MCP tools. Both are thin: neither defines a
+tool or decides what is allowed. A CLI command and an MCP tool call become the same message to
+the same server, and everything after that point is one path.
+
+**Shared by both, without exception:**
+
+| | |
+|---|---|
+| Tools | The same fourteen, from one set of definitions; a CLI command's arguments are the MCP tool's input schema |
+| The user's control | A tab is authorized by the user's click in the extension's popup; access levels; approval of submissions, as the user's setting and the policy have it; pause, revoke, disconnect |
+| Scope | One tab, exact origins, one agent per session, checked before every command and step |
+| Policy | Blocked sites, allowed sites, maximum access level, no screenshots, time limits, the strict profile |
+| Authentication | Proof of the pairing token to the server, and of the agent's key; the extension's pairing |
+| What leaves the page | The same allowlisted text, redaction and marking as untrusted |
+| Reliability rules | Nothing is retried; an unknown outcome is reported as unknown; a submission id is used once |
+| Records | The same log lines, activity list and optional audit record |
+
+**Where they differ** is in how a process comes and goes, and in the form of an answer:
+
+| | CLI | MCP |
+|---|---|---|
+| Process | One for each command; it ends with its answer | One link for each agent, for as long as the agent's program runs |
+| When the proofs are given | At every command | When the link connects, and again if the server is started anew |
+| The agent's name (`--agent`) | Required: it is the only thing that makes many commands one agent | Optional: without it the agent has an id for that start, and no tab comes back to it |
+| The agent between calls | Kept by the server for ten minutes after its last command | There while its link is connected; gone when the program closes it |
+| Two processes with one key at once | Are the one agent | The second gets an id of its own |
+| A name in use on the other interface | A command is refused (`AGENT_IN_USE`) while an MCP agent holds the name | An MCP agent that connects while the name is kept for the CLI gets an id for that start only |
+| An answer | One JSON object and an exit code | An MCP result: text, an object, an image |
+| While a call runs | No progress is reported | Progress, for a client that asked for it |
+| Cancelling | Ending the process: the command is stopped in the browser and says `CANCELLED` | `notifications/cancelled`: stopped in the browser, no answer |
+| No server to be had | The command ends with `NO_SERVER`; nothing was sent | The link's process serves its agent alone |
+| The server is lost during a call | `CONNECTION_LOST`; that command starts no server | `CONNECTION_LOST`; the link starts the server anew for the calls that follow |
+
+None of these differences is a difference in what an agent may do. Sessions, permissions and
+approvals are the extension's, bound to the agent's id, and the extension has no rule that
+asks by which interface a command came. The CLI is described for its users in the [CLI guide](cli.md).
+
 ## Vocabulary
 
 | Term | Meaning |
 |---|---|
-| Agent | One MCP client: an IDE's assistant or a CLI; or the commands that are run under one name. Up to eight are served at once |
+| TabGoblin | The browser bridge: the server, the extension and the two interfaces together |
+| Integration interface | How an agent reaches TabGoblin: the CLI (commands) or MCP (tools). Both carry the same tool calls |
+| Browser extension | TabGoblin in Chrome: where the user's decisions are held and where every operation is carried out |
+| Agent | One identity that uses the tools: an MCP client, or the CLI commands that are run under one name. Up to eight are served at once |
 | Session | One authorized tab, bound to one agent: `s1`, `s2`, … |
 | Origin | Scheme, host and port, such as `https://app.example.com`. A session covers the origins the user gave it |
 | Access level | Read, Explore, or Read / Write ([developer guide](developer-guide.md#access-levels)) |
@@ -87,8 +99,11 @@ puts into its prompts, including what it read through TabGoblin. TabGoblin contr
 
 ## Processes and ports
 
-An MCP client starts its server as a child process and talks to it over stdio. So that all
-agents share one server, that child is only a *link*: it connects to the one server on
+There is one server for all agents, whichever interface they use. An agent's process reaches
+it through a *link*, a short local connection on which it first proves itself.
+
+**MCP.** An MCP client starts its server as a child process and talks to it over stdio. So that
+all agents share one server, that child is only a link: it connects to the one server on
 `127.0.0.1` and passes its agent's messages on, line by line. If no server is listening, the
 link starts one as an independent process, which then also serves the agents that come later.
 
@@ -116,8 +131,8 @@ agent anything about another.
 Where the one server cannot be reached or started, for example because another program holds
 its port, the process an agent started serves that agent alone and says so in its log.
 
-**Commands.** An agent without MCP runs a tool as a command in its terminal
-([the command line](mcp-reference.md#the-command-line)). Such a command is a link that lives for
+**CLI.** An agent runs a tool as a command in its terminal ([CLI guide](cli.md)). Such a
+command is a link that lives for
 one call: it connects to the one server, or starts it, proves the token and its agent's key,
 sends one MCP tool call, prints the answer and ends. There is no second protocol, port or
 server for it, and what runs the call is what runs it for an MCP client. Because the extension
@@ -130,17 +145,21 @@ finds no server to be had ends with an error; it does not serve its agent alone.
 
 ```mermaid
 sequenceDiagram
-  participant A as Agent's program
-  participant L as Link
-  participant S as Server
-  participant E as Extension
+  participant A as Coding agent
+  participant L as CLI or MCP link
+  participant S as TabGoblin server
+  participant E as Extension worker
   A->>L: starts the process (--agent name)
   L->>S: connects on 127.0.0.1
   S->>L: hello { nonce }
   L->>S: attach { nonce, proof of the pairing token, agent, agentProof }
   S->>S: check both proofs, derive the agent's id from its key
-  S->>L: attached { proof of the pairing token }
-  Note over A,S: MCP messages now pass unchanged
+  alt a proof does not hold
+    S-->>L: refused, nothing passes
+  else both hold
+    S->>L: attached { proof of the pairing token }
+  end
+  Note over A,S: Tool calls now pass: a CLI command's one call, or an MCP client's calls
   E->>S: WebSocket handshake on the agent's port (Origin: the extension's id)
   S->>E: challenge { nonce, versions: [3], clientId }
   E->>S: auth { nonce, proof of the pairing token, version: 3 }
@@ -181,15 +200,18 @@ sequenceDiagram
   participant C as Chrome
   participant P as Popup
   participant B as Extension worker
-  participant S as Server
+  participant S as TabGoblin server
   U->>C: clicks the TabGoblin icon on a tab
   C->>B: activeTab grant for this tab and its current origin
   U->>P: chooses access level, duration and agent, presses Authorize
   P->>B: authorize
-  B->>B: refuse browser pages, blocked sites, and what the policy rules out
-  B->>B: create the session: tab, origin, level, owner, expiry
-  B->>S: the agent's sessions
-  Note over S: browser_status now lists the session for its owner
+  alt a browser page, a blocked site, or ruled out by the policy
+    B-->>P: refused, no session
+  else allowed
+    B->>B: create the session: tab, origin, level, owner, expiry
+    B->>S: the agent's sessions
+  end
+  Note over S: The agent's status now lists the session
 ```
 
 A session exists only through this path. No tool creates one, raises its level or adds a site
@@ -232,14 +254,14 @@ all mean no.
 
 ```mermaid
 sequenceDiagram
-  participant A as Agent
-  participant S as Server
+  participant A as Coding agent
+  participant S as TabGoblin server
   participant B as Extension worker
   participant P as Content script
-  A->>S: tools/call browser_click { ref: 12, session: "s1" }
-  S->>S: validate arguments, wait for the session's turn
-  S->>S: agent revoked? site blocked? within the policy?
-  S->>B: { id, action: "click", session, params, deadline }
+  A->>S: click { ref: 12, session: "s1" }, as a CLI command or an MCP call
+  S->>S: agent revoked? arguments valid?
+  S->>S: site blocked? within the policy?
+  S->>B: { id, action: "click", session, params, deadline }, in the session's turn
   B->>B: id seen before? rate limit? deadline passed?
   B->>B: gate: owner, expiry, pause, suspension, tab origin, access level, policy
   B->>P: describe ref 12
@@ -250,7 +272,8 @@ sequenceDiagram
   P-->>B: dispatched
   B->>B: settle: new document? route change? left the site? new tab?
   B-->>S: { id, success, result, timing, session }
-  S-->>A: tool result (text)
+  S-->>A: result as text (CLI: inside one JSON object)
+  Note over S,P: A check that fails ends the command there with an error code. Nothing after it runs, and nothing is retried.
 ```
 
 The server sends one command per session at a time, and the extension queues per tab as well,
@@ -300,22 +323,32 @@ gesture, which is every page an agent opened, and can leave the site.
 ## Submission approval and revocation
 
 Anything that sends or changes data is a submission. The agent must declare it; by default the
-user approves each one.
+user approves each one. The user can relax that per session (automatic, or do not ask); it is
+mandatory under the strict profile and for a control recognised as high-impact. The picture
+shows the case in which the user is asked.
 
 ```mermaid
 sequenceDiagram
-  participant A as Agent
-  participant S as Server
+  participant A as Coding agent
+  participant S as TabGoblin server
   participant B as Extension worker
   participant P as Content script
   actor U as User (popup)
-  A->>S: browser_submit { ref, fields, expect_text, submission_id }
+  A->>S: submit { ref, fields, expect_text, submission_id }
   S->>S: submission id used before? then answer from memory, send nothing
   S->>B: submit
-  B->>B: gate (Write access), no other question waiting, not declined recently
+  B->>B: gate (Write access)
   B->>P: prepare: resolve refs, fingerprint control, form fields and content
-  B->>U: prompt: agent, control, website, beginning of the content
-  U-->>B: Allow (not within the first 0.7 s), Deny, or no answer within a minute
+  B->>B: ask the user? Their setting decides, always if strict or high-impact
+  opt the user is asked
+    B->>U: prompt: agent, control, website, beginning of the content
+    alt Deny, or no answer within a minute
+      U-->>B: no
+      B-->>S: SUBMIT_DENIED or SUBMIT_NOT_CONFIRMED, nothing typed
+    else Allow (not within the first 0.7 s)
+      U-->>B: yes
+    end
+  end
   B->>B: recheck the session
   B->>P: fingerprint again: same document, same content?
   alt changed
@@ -332,7 +365,7 @@ sequenceDiagram
 stateDiagram-v2
   [*] --> PREPARED: refs resolve, allowed, not a duplicate
   PREPARED --> [*]: declined, unanswered, cancelled or stale, nothing typed
-  PREPARED --> FILLED: user allows, fields filled
+  PREPARED --> FILLED: allowed by the user, or not asked under their setting
   FILLED --> FAILED: form validation rejects, nothing sent
   FILLED --> SUBMITTING: click or Enter dispatched
   SUBMITTING --> VERIFYING

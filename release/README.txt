@@ -1,7 +1,8 @@
 TabGoblin
 
-Lets the AI agents on your machine read and operate the Chrome tabs you authorize, and nothing
-else of your browser.
+A browser bridge for AI agents: it lets the agents on your machine read and operate the Chrome
+tabs you authorize, and nothing else of your browser. An agent uses it by running commands (the
+CLI) or through MCP; it does not need MCP.
 
 What is in this folder
 
@@ -17,28 +18,27 @@ Set it up, once
   1. Put this folder where it can stay: your agent is told its place.
 
   2. In a terminal in this folder, run setup for your agent, which is one of claude-code, codex
-     and copilot:
+     and copilot. Choose how the agent is to reach TabGoblin:
 
-         tabgoblin --setup claude-code             on Windows
-         ./tabgoblin --setup claude-code           on Linux and macOS
+         tabgoblin --setup claude-code --mode cli  the CLI: the agent runs tabgoblin commands
+         tabgoblin --setup claude-code             MCP: the agent gets TabGoblin's tools
 
-     It installs the skill that tells the agent how to use the tools, and prints the three
-     things that are left for you, with this folder's own paths: the line that tells your agent
-     about the server, how to load the extension into Chrome, and how to pair the two.
+     (On Linux and macOS: ./tabgoblin.) It installs the skill that tells the agent how to use
+     the tools, and prints the three things that are left for you, with this folder's own
+     paths: the command the agent runs (CLI) or the line that tells your agent about the
+     server (MCP), how to load the extension into Chrome, and how to pair the two.
 
   3. Do those three. Then start your agent anew, open a website, click the goblin on that tab,
      press Authorize, and ask the agent for the browser status.
 
-Without MCP
+The CLI
 
-  An agent that runs commands in a terminal and has no MCP uses the same tools as commands of
-  this folder's tabgoblin, under the same rules. Set it up with
+  Any agent that can run a command can use TabGoblin, with or without MCP:
 
-         tabgoblin --setup claude-code --mode cli
+         tabgoblin tools                           the commands
+         tabgoblin status --agent my-agent         is the browser connected, which tabs are mine
 
-  which installs the skill for the command line, registers nothing, and prints the command the
-  agent runs. "tabgoblin tools" lists the
-  commands.
+  Each command is one tool, under the same rules as through MCP, and prints one JSON object.
 
 Update
 

@@ -3,6 +3,52 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-25, on `ccr-6350ba03-tntbzp` from `402aaf8`: WP-30, the documentation for two interfaces
+
+Documentation only. Every command and option that the new and the changed pages name was
+checked against the built jar or against the source: `tools`, `tools --json` and its fields,
+`click --help`, the exit codes, the 150 and 95 seconds, the ten minutes and their variable,
+`--setup` and `--install-skill` with `--mode cli`, and what an MCP agent gets when its name is
+kept for the CLI (`Hub.identify`).
+
+| Command | Result |
+|---|---|
+| `node docs/agents/check-links.mjs` | All links resolve, the new page's among them |
+| `node docs/agents/check-personal.mjs` | Nothing personal found |
+| `mvn -q test -Dtest='SkillsTest,ToolReferenceTest,McpMainTest,SetupTest'` in `java-server` | Pass: the two that read the tool reference still find every tool, argument and code in it |
+
+A last review the same day, documentation only again. Every `tabgoblin` command line that the
+documentation shows, 24 of them, was given to the built jar with `--help` behind it, which
+reads the arguments against the tools' schemas and sends nothing: all were understood. What
+the pages say about approvals was held against `needsAsking` and `askUnder` in `policy.ts`,
+and three statements were found to say more than the code does; they are in WP-30's entry.
+The two checks passed again.
+
+The diagrams, the same day: all twelve Mermaid diagrams of the Markdown files were drawn with
+Mermaid 11 in the container's Chromium, each on a light and on a dark ground, 24 pictures, none
+failed; five were opened and looked at (the README's, the architecture's components on dark,
+the security model's, the corporate assessment's, the CLI's). The first drawing of the
+components had a label cut by a box and was made simpler. The pictures were not kept. Not
+seen: the same diagrams as GitHub draws them, whose Mermaid may be of another version.
+
+The four SVG diagrams, the same day: each was drawn by `node docs/assets/diagrams/build.mjs`,
+shown as an image in the container's Chromium on a white and on a dark ground, and looked at,
+both variants of the overview and one or both of the others. Three rounds: labels that ran
+out of their boxes, a popup drawn outside the extension it belongs to, and a legend cut off
+at the lower edge were mended. Every file a page names exists. Not seen on GitHub.
+
+Every diagram looked at, the same day, on the owner's word to look with a critical eye, after
+a semicolon in a label had drawn three stray states that no earlier look had caught: the four
+SVG files on a light and a dark ground and all eight Mermaid diagrams. Found and mended: two
+container labels crossed by a connector; the coding agent and the result drawn outside the
+box that stands for the one account they run in; a dashed border on a check that is no
+boundary; four Mermaid notes and labels longer than their place. Left as it is: the session's
+state diagram, whose labels lie on its lines as Mermaid sets them.
+
+Not run: the rest of the server's tests, the extension's and the end-to-end suite, since no
+code was changed. Not seen: the changed pages and their two changed pictures as GitHub draws
+them. No picture was regenerated.
+
 ## 2026-11-25, on `ccr-6350ba03-tntbzp`: WP-29, the tools as commands of a terminal
 
 In a session that ran in the cloud: a container on Linux with Java 21 and its own Chromium,
@@ -267,34 +313,11 @@ window's model. The extension and the suite end to end were not run again: neith
 touched. `1-connected` was not compared with the documentation's picture: another system draws
 its letters differently, and the window without a policy is as it was.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `41248d7`: WP-27 on Windows, and the editor lab
-
-The owner asked for the tests to be run on what the three entries below built. They had run in
-a container on Linux without a display, and say so: not on Windows, not the editor lab. This
-is the same tree, unchanged, on Windows 11 with a display, in a copy of it; the session's own
-server runs from the tree's jar, which was not rebuilt.
-
-| Command | Result |
-|---|---|
-| `mvn -B -f java-server/pom.xml verify` | 179 tests, none skipped: the 15 that the container skipped for lack of a display ran here, the server's window among them. And the 8 of the conformance check on the built jar |
-| `npm run check` in `chrome-extension` | 205 tests, with the type-check and the build |
-| `cd e2e && node run.mjs` | 102 passed, 0 failed, in Chrome 157. No server of the copy left running |
-| `cd e2e/editors && node run.mjs` | 222 of 225 checks, tab in front, no `SILENT`: as before this work |
-| `npm audit --audit-level=high`, as the workflow's new job runs it | `chrome-extension` and `e2e`: no vulnerabilities. `e2e/editors`: five, two of them high, in the editors under test, which that job lists and does not fail for |
-
-The server's window with a security policy in force was drawn by its picture tool and looked
-at. The tool has no such state: one was added in the copy only, with a blocked site, the
-strict profile and a limit to one site. Under *Blocked sites* the line reads
-*docs.example.org · security policy in force*, whole, beside **Edit**; the foot says protocol
-3. What the line restricts is under the mouse, and that was not looked at.
-
-Not done: the window itself on the desktop; a real agent by hand; the workflows, which run on
-GitHub only; the editor lab with the tab in the background. Seen and not changed: the policy
-stands under a heading that names blocked sites only, and the picture tool in the repository
-still has no state for it.
-
 ## Earlier, in one line each
 
+- 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `41248d7` (WP-27 on Windows,
+  and the editor lab): the suites passed on Windows 11 as they had in the container; the
+  editor lab was run in front and in the background.
 - 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (WP-27, workspaces and requests for
   access, in a container on Linux): the server 179 tests, 15 skipped for lack of a display, and
   the 8 of the conformance check; the extension 205; end to end 102 of 102. A clock set back

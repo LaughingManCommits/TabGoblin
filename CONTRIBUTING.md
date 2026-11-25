@@ -1,7 +1,7 @@
 # Contributing
 
-TabGoblin is a local MCP server (`java-server/`, Java 21) and a Chrome extension
-(`chrome-extension/`, TypeScript, Manifest V3). This page is the short version; build, tests,
+TabGoblin is a browser bridge for AI agents: a local server with a CLI and an MCP interface
+(`java-server/`, Java 21) and a Chrome extension (`chrome-extension/`, TypeScript, Manifest V3). This page is the short version; build, tests,
 conventions and the protocol are in [development](docs/development.md).
 
 ## Build and test

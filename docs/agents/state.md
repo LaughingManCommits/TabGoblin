@@ -1,6 +1,6 @@
 # Current state and handoff
 
-Last updated: 2026-11-25. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-25, later the same day. Claims here go stale; check the date, then `git status` and `git log`.
 
 ## Where the code is
 
@@ -73,6 +73,14 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
   (`skills/cli`; the ones for MCP are in `skills/mcp` since then), and the documentation. Committed there by the
   session, and pushed to that branch on the owner's word ("Commit an push to a branch"). Not
   merged, and no pull request.
+- `main` = `origin/main` = `402aaf8` since the owner merged WP-29 on 2026-11-25 and removed its
+  branch. Branch `ccr-6350ba03-tntbzp` was then made anew from that `main`, in the same cloud
+  session, for WP-30: the documentation gone over so that TabGoblin is presented as a browser
+  bridge with two interfaces, CLI and MCP, and not as an MCP server first. Documentation only;
+  no code and no skill was changed. Committed there by the session and pushed on the owner's
+  word. A second commit the same day is a last review of it for accuracy: what is said about
+  approvals, the first steps with the CLI, and restrictions on MCP as against restrictions on
+  agents in the browser.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -80,6 +88,7 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
 
 | Item | Status | Authoritative source |
 |---|---|---|
+| WP-30, the documentation for two interfaces | Built on 2026-11-25 on the owner's word, on `ccr-6350ba03-tntbzp`; waits for the owner's review. A new page, `docs/cli.md`; the README, the installation guide and the architecture with CLI and MCP side by side. Three texts that are code still say "MCP server" first, and were left: see its entry | [TODO.md](../../TODO.md) |
 | WP-29, the tools as commands of a terminal | Built on 2026-11-25 on the owner's word, on `ccr-6350ba03-tntbzp`; waits for the owner's review. Three points are open for the owner: how long an agent of the command line is kept, whether a name held by an MCP agent is refused or shared, and how an agent finds the command | [TODO.md](../../TODO.md) |
 | WP-28, ports that the system keeps back | Filed on 2026-11-24, not started. The message is mended and merged; a way around a reserved range is proposed, and four decisions wait for the owner | [TODO.md](../../TODO.md) |
 | WP-27, security hardening and features for developers | Built on 2026-11-24 for all eleven of its backlog items, and waits for the owner's review. Pushed to its branch on the owner's word; not merged, and not to be merged to `main` by a session. An agent is known by a key of its own (`--agent`), and no tab passes by a name; a security policy in the settings file, with a strict profile; every step that touches the page checked again; an approval bound to the content shown; redaction; no picture with a frame of another site in view; protocol version 3; search and regions in `browser_extract`; waiting for a change; three new tools, `browser_collect`, `browser_hover` and `browser_request_access`, which makes fourteen; workspaces; a record on disk; SBOM and a dependency scan in the workflows. Seven decisions the session took are listed for the owner. Left: what its entry lists under "Left, and why", none of it started work | [TODO.md](../../TODO.md) |
@@ -99,6 +108,21 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
 | WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
+
+- **Four diagrams are SVG files now** (`docs/assets/diagrams/`), where they were Mermaid in the
+  pages. The proxy at the owner's work that holds back the documentation's pictures (below)
+  will hold these back too, by what WP-23 found; Mermaid was text and was not affected. Their
+  alternative texts say what each shows. They were looked at in the container's Chromium on a
+  light and a dark ground, not on GitHub. The owner reported the same day that no picture
+  showed in IntelliJ: the four were then made one file each, with a ground of its own, and
+  put into the pages in the plain Markdown form. Not seen in IntelliJ by the session. The
+  thirteen screenshots are `<img>` elements as before; whether those show in IntelliJ is not
+  known. The Mermaid diagrams show there only with a plugin that draws Mermaid.
+
+- **Words in the program still put MCP first,** found in the review of 2026-11-25 and left,
+  since that was for the documentation only: the popup's "Disconnected: is the MCP server
+  running?", the help's heading "TabGoblin MCP server", the first line of `tabgoblin tools`,
+  and the status' "pass session=<id> to every tool", which a CLI agent reads as well.
 
 - **The command line has run on Linux only,** in a container with Java 21 and the container's
   Chromium, started without its sandbox. Not tried: Windows and macOS, `tabgoblin.cmd` with

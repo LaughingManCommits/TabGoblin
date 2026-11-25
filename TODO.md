@@ -2,7 +2,7 @@
 
 ## Overview
 
-Seventeen packages are listed. The newest is WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Eighteen packages are listed. The newest is WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before it, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -1738,7 +1738,7 @@ reserved: an agent is started without `--port`, the popup is left as it is, and
 Asked for by the owner on 2026-11-25: an agent that runs commands in a terminal and has no MCP
 is to use TabGoblin as an MCP agent does, through the same server and under the same rules.
 Built that day on the branch `ccr-6350ba03-tntbzp`, in a session that ran in the cloud. What a
-command is and prints is in the [tool reference](docs/mcp-reference.md#the-command-line); what
+command is and prints is in the [tool reference](docs/cli.md); what
 keeps its agent apart is in the [security model](docs/security-model.md#agent-identity-and-authentication).
 
 ### What was built
@@ -1781,4 +1781,100 @@ keeps its agent apart is in the [security model](docs/security-model.md#agent-id
 - **Not done:** the command line on Windows and macOS, where quoting JSON on a command line is
   harder (`--args-file` and `--args -` are there for it); a real agent using the skill's new
   section; progress while a command waits.
+
+## WP-30: The documentation for two interfaces
+
+Asked for by the owner on 2026-11-25, after WP-29 was merged: TabGoblin is no longer to be
+presented as an MCP server first. It is a browser bridge for AI agents with two integration
+interfaces, CLI and MCP, and it has to be plain at once that an agent does not need MCP.
+Documentation only.
+
+### What was done
+
+- **A page for the CLI,** [docs/cli.md](docs/cli.md): quick start, the commands and their
+  arguments, discovery, output and exit codes, identity and the life of a session, a worked
+  example, and a few lines of instructions for an agent that has no skill. The section it
+  replaces in the tool reference is now a pointer.
+- **The tool reference** (`docs/mcp-reference.md`, its file name kept because two tests read
+  it by that name) is titled "Tool reference" and says that it holds for both interfaces.
+- **The README:** a browser bridge in its first sentence, a table of the two interfaces
+  before anything else, both in the picture, and two quick starts.
+- **The installation guide:** "CLI or MCP" first, then one path with a section for each.
+- **Architecture and security model:** both interfaces as entry points in the picture, and in
+  each page a table of what the two share and where they differ. The security model and the
+  corporate assessment say that the CLI is no way around a restriction.
+
+### Left as it is, and why
+
+- **Three texts say "MCP" first and are code:** the server's `--help` ("TabGoblin MCP server
+  (browser-context-mcp)"), the first line of `tabgoblin tools` ("each is the MCP tool of the
+  same name") and a command's `--help` ("Arguments (the MCP tool …)"). The task was the
+  documentation; `McpMainTest` holds the first of them word for word.
+- **The skills** were not touched: they are in the jar, and `SkillsTest` holds their words.
+- **`docs/mcp-reference.md` keeps its name.** Renaming it needs `SkillsTest` and
+  `ToolReferenceTest` changed with it.
+- **No picture was made or regenerated.** The popup's pictures show no interface; the
+  popup's own words "is the MCP server running?" are quoted as they are.
+
+### A last review, the same day
+
+On the owner's word, for accuracy and not for more text. What it found against the
+implementation, and mended in the documentation:
+
+- **Approval of a submission was said to be unconditional** in the README ("anything that
+  sends data waits for your approval") and in one line of the corporate assessment. In
+  `policy.ts` (`needsAsking`, `askUnder`) it is the default, which the user can set to
+  automatic or to not asking; it is mandatory under the strict profile and for a control
+  whose English label marks it as high-impact. Every page now says that.
+- **"It never receives your cookies or tokens"** promised more than is enforced: no tool reads
+  cookies, storage or headers, but a token that a page displays is text like any other, and
+  taking it out is best effort. The README says what no tool does, and names what is best
+  effort.
+- **The corporate assessment said that the settings file keeps an agent from the CLI.** The
+  file is a guard-rail the user can edit, as the same page says further down. What stops
+  either interface technically is the absence of the extension.
+
+Checked and found right: every `tabgoblin` command and option that the documentation shows,
+run through the built jar's own reading of a command line; the manifest's four permissions;
+the fields that are never read or filled; the tools that return an object.
+
+### The diagrams, the same day
+
+On the owner's word. Nine diagrams were there, in three files; there are twelve now, in six.
+
+- **Redrawn top to bottom, with the same names in all:** the README's (CLI and MCP side by
+  side, the user as the one who decides), the architecture's components, the corporate
+  assessment's data flow, which now names the workstation as one operating-system account
+  and where each side checks.
+- **Corrected against the code:** the submission's sequence drew the question to the user as
+  unconditional, and now has it as a step that the user's setting decides; the command's
+  sequence had the arguments validated before the revoked agent is refused, where
+  `BrowserService.run` does it the other way round, and named the call as MCP's alone; the
+  two sequences for connecting and authorizing gained their refusals.
+- **New:** where a command is checked, with every refusal and the class of each check
+  (security model); the first status, authorization and snapshot (installation, step 7); two
+  commands as two processes and one agent (CLI guide).
+- **Left:** the two state diagrams, but for one label.
+
+### The diagrams as drawings, the same day
+
+On the owner's word, with a picture of the look that is wanted: an agent, the CLI and MCP side
+by side, a green "TabGoblin bridge" with what it checks, the browser extension, and a legend.
+
+- **Four diagrams are SVG files** in `docs/assets/diagrams/`, a light and a dark one each, drawn
+  by `build.mjs` there in one style: the README's overview after the owner's reference, the
+  architecture's components, the security model's checks of a command, and the corporate
+  assessment's deployment boundary and data flow.
+- **Where the overview departs from the reference:** the bridge's third block is "Policy" and
+  not "Permissions", because the access level of a session is checked in the extension and
+  not in the server; the browser extension is green and not slate, since it is TabGoblin's and
+  enforces; and a last row shows the tabs that are authorized and those that are denied.
+- **The eight sequence and state diagrams stay Mermaid,** with GitHub's theme. Colours of our
+  own would be fixed, and wrong on a light page or on a dark one.
+- **Open:** whether the owner's proxy shows them (state); how GitHub draws them.
+- **After the owner's word that no picture showed in IntelliJ:** one file for each diagram,
+  with its own ground and both sets of colours inside (`prefers-color-scheme`), in place of
+  two files in a `<picture>` element, and the plain Markdown form of an image in the pages.
+  Each shape has the light colours as plain attributes too, for a viewer that reads no style
+  sheet.
 

@@ -6,15 +6,47 @@ any corporate policy or regulatory standard. That judgement is the organisation'
 
 ## What it is
 
-A local integration that lets a coding agent (an MCP client in an IDE or CLI) read and operate
-browser tabs the developer explicitly authorizes, in the developer's own Chrome. It is not a
-hosted service and not a general browser automation framework.
+A local browser bridge that lets a coding agent read and operate browser tabs the developer
+explicitly authorizes, in the developer's own Chrome. An agent uses it through one of two
+integration interfaces: a CLI, for any agent that can run a local command, or MCP, for an
+agent that is an MCP client. It is not a hosted service and not a general browser automation
+framework.
+
+Both interfaces are the same product under the same controls: they share the server, the
+extension, the tools, the user's authorization and approvals, and the local policy.
+
+## Restrictions on MCP and the CLI
+
+Two different things can be restricted, and they should not be mistaken for each other:
+
+| Restriction | What it is about | Effect on TabGoblin |
+|---|---|---|
+| On MCP: which MCP servers an agent may load, or whether it may use MCP at all | A protocol and its servers | Covers TabGoblin's MCP interface only |
+| On agents acting in a browser: which agents may read or operate web applications, which applications, with which data | An activity | Covers TabGoblin through either interface |
+
+- **The CLI removes the technical dependency on MCP.** An agent that can run a local program
+  can use TabGoblin without an MCP client. A control that only blocks MCP servers does not
+  prevent this.
+- **The CLI does not override a policy.** It grants nothing that MCP does not, and every
+  control in this document applies to it unchanged. Where browser interaction by agents is
+  not permitted, using the CLI instead of MCP is a violation of that rule, not a way to comply
+  with it. TabGoblin's documentation and its skills say so to users and to agents; what an
+  agent then does is not something TabGoblin enforces.
+- **What stops both interfaces technically** is the absence of the extension: without it,
+  paired and with a tab the user authorized, neither interface reaches a page. A managed
+  browser that forbids unpacked extensions cannot load it (below). The settings file restricts
+  both interfaces alike, within [its limits](#configurable-corporate-restrictions).
+
+The differences between the interfaces, which concern how an agent is identified over time and
+not what it may do, are in the
+[security model](security-model.md#cli-and-mcp-one-set-of-controls).
 
 ## Deployment model
 
 | Aspect | Fact |
 |---|---|
-| Components | A Java server (one jar, started by the agent's program as a local process) and a Chrome extension (Manifest V3) |
+| Components | A Java program (one jar: the server, started as a local process when an agent first needs it, and the CLI) and a Chrome extension (Manifest V3) |
+| Integration interfaces | CLI: the agent runs the program with a command, one process per tool call. MCP: the agent's program starts the jar as an MCP server over stdio. Both connect to the one server on the loopback interface |
 | Where it runs | Entirely on the developer's workstation, under the developer's operating-system account |
 | Hosted parts | None. There is no TabGoblin service, account, telemetry or update channel |
 | Installation | A download per system (Windows x64, Linux x64, macOS on Apple silicon) that includes a Java runtime, or a build from source. The extension is loaded unpacked, which requires Chrome's developer mode |
@@ -28,21 +60,17 @@ a store-based allowlist.
 
 ## Data flow and processing locations
 
-```mermaid
-flowchart LR
-  subgraph ws["Developer's workstation"]
-    AGENT["Coding agent"] <-- "tool calls and results<br/>stdio, then loopback" --> SERVER["TabGoblin server"]
-    SERVER <-- "commands and results<br/>WebSocket on 127.0.0.1" --> EXT["Extension"]
-    EXT <-- "fixed page operations" --> TAB["Authorized tab"]
-    SERVER --- DISK[("Token, agent keys,<br/>settings, optional audit log")]
-  end
-  TAB <-- "HTTPS, the developer's session" --> APP["Web application"]
-  AGENT -- "prompts that include tool results" --> MODEL["Model provider of the agent"]
-```
+![Deployment boundary and data flow: the coding agent, the CLI and MCP interfaces, the TabGoblin server and the TabGoblin extension in Chrome all run on the developer's workstation under one operating-system account. Two flows leave it, neither made by TabGoblin: the agent's prompts to its model provider and the tab's HTTPS session with the web application.](assets/diagrams/data-flow.svg)
+
+The outer box is one operating-system account, not a set of isolated compartments: the checks
+named in it are made by TabGoblin's own programs, and a program that runs as the developer is
+not confined by them ([limitations](#known-limitations-and-residual-risks)). Only the two
+arrows that leave the box cross the workstation's boundary, and neither is a connection that
+TabGoblin makes.
 
 | Data | Where it is processed | Where it goes |
 |---|---|---|
-| Visible text of an authorized page, its structure, addresses, non-password field values | Content script, extension, server (in memory, in transit) | To the agent, as tool results |
+| Visible text of an authorized page, its structure, addresses, non-password field values | Content script, extension, server (in memory, in transit) | To the agent, as tool results: an MCP result, or a CLI command's output |
 | Screenshots of an authorized tab's viewport | Extension, server (in transit) | To the agent |
 | Text the agent enters or submits | Server and extension (in transit) | Into the page, and from there to the web application |
 | Cookies, tokens, headers, browser storage, passwords in fields | Not accessed | Nowhere |
@@ -85,8 +113,8 @@ connections.
 | Between | Mechanism |
 |---|---|
 | Extension and server | A shared pairing token of 256 random bits, proven in both directions by HMAC-SHA256 challenge and response. The token is not transmitted. The WebSocket `Origin` must be this extension's id. Ten failures lock a port for a minute. `--rotate-token` invalidates all pairings |
-| Agent's process and server | Proof of the same pairing token, with a distinct prefix |
-| Agent identity | An optional per-agent key of 256 random bits (`--agent <name>`), proven by HMAC-SHA256. The agent's id is derived from the key. Sessions are bound to that id and never pass to another. `--revoke-agent` deletes a key |
+| Agent's process and server | Proof of the same pairing token, with a distinct prefix. The same for an MCP agent's process and for each CLI command |
+| Agent identity | A per-agent key of 256 random bits (`--agent <name>`; optional through MCP, required by the CLI), proven by HMAC-SHA256. The agent's id is derived from the key. Sessions are bound to that id and never pass to another. `--revoke-agent` deletes a key |
 | User and extension | None beyond the browser profile: whoever operates the browser operates the popup |
 
 Detail: [agent identity](security-model.md#agent-identity-and-authentication),
@@ -121,8 +149,9 @@ No service is contacted at run time. Each release carries two CycloneDX lists of
   one tab, exact origins (scheme, host, port) and one agent.
 - Three access levels: Read; Explore (also navigation within the site); Read / Write (also
   input, and submissions that the agent must declare).
-- A submission is shown to the user with its content for approval, bound to that content, sent
-  once and verified. Approval for each submission is the default and can be made mandatory.
+- A submission has to be declared by the agent, is sent once and is verified. By default it
+  is shown to the user with its content for approval, and an approval is bound to that
+  content. The user can relax this per session; the strict profile makes it mandatory.
 - Checks run in the server before a command is sent, in the extension when it arrives and
   again before each step that touches the page, and in Chrome through `activeTab`.
 - Pause, revoke, disconnect and expiry take effect before the next step of a running command.
@@ -198,8 +227,9 @@ The full list, with reasons, is under
    TabGoblin prevents a page from changing grants; it cannot prevent a model from being misled
    within the access it has.
 3. **State changes.** Interactions can change data in the web application with the developer's
-   authority. Approval is mandatory only for what is declared or recognised as a submission,
-   or for every non-navigation click under the strict profile.
+   authority. The user's approval of a submission is the default and can be relaxed by the
+   user. It is mandatory only under the strict profile, which also covers every
+   non-navigation click, and for controls recognised as high-impact by their English label.
 4. **Secrets in page content.** Redaction is by shape and incomplete. A secret displayed on a
    page is delivered as text.
 5. **No isolation from the user's account.** An agent with a shell or file access under the
@@ -212,6 +242,8 @@ The full list, with reasons, is under
 ## Questions an assessment should answer
 
 - Which coding agents and model providers are approved, and for which classes of data?
+- Is agent-driven browser interaction permitted at all, and does an existing rule about MCP
+  servers express that intent, given that the CLI needs no MCP?
 - Which internal applications may be opened to an agent, and at which access level? Can
   `allowed.sites` and `access.max` express that?
 - Is the strict profile required?
