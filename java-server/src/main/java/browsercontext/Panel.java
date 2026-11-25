@@ -148,6 +148,8 @@ final class Panel {
      * and the label says for a moment that it did. The header also handles window dragging.
      */
     static final class PortLabel extends Label {
+        /** The room above and below the pill that takes a click as the pill does; the stylesheet has the same number. */
+        private static final double TOUCH = 4;
         private final PauseTransition said = new PauseTransition(Duration.seconds(2));
         private String idle = "";
         private int port;
@@ -157,6 +159,17 @@ final class Panel {
             getStyleClass().add("port");
             setAccessibleRole(javafx.scene.AccessibleRole.BUTTON);
             setMinWidth(Region.USE_PREF_SIZE);
+            // It is higher to the pointer than to the eye: the stylesheet gives it room above and below
+            // its pill, and here that room is taken out of the row again, so that nothing around it moves.
+            HBox.setMargin(this, new Insets(-TOUCH, 0, -TOUCH, 0));
+            // It acts as a button does, so the keyboard reaches it and presses it as one: Tab, then Space or Enter.
+            setFocusTraversable(true);
+            setOnKeyPressed(key -> {
+                if (key.getCode() == javafx.scene.input.KeyCode.SPACE || key.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                    key.consume();
+                    copy();
+                }
+            });
             said.setOnFinished(over -> setText(idle));
             // Pressing is taken here as well, so the header does not start a window drag.
             setOnMousePressed(javafx.scene.input.MouseEvent::consume);
@@ -216,7 +229,7 @@ final class Panel {
     private static final double TAB_ROW = 32;
     private static final double TAB_GAP = 6;
     /** How many rows the list shows at a time where a server has several agents: headings and tabs together. */
-    static final int ROWS_IN_VIEW_OF_SEVERAL = 4;
+    static final int ROWS_IN_VIEW_OF_SEVERAL = 3;
     /** How high a line of words in the list is: what stands in the place of an agent's tabs while it has none. */
     private static final double WORDS_ROW = 18;
     /** How wide the two numbers of a heap of the time are: its share, and what a call typically takes in it. */
@@ -228,6 +241,8 @@ final class Panel {
     static final double WIDTH = 400;
     /** As high as the window is where the screen has room for it; on a lower screen it is as high as fits. */
     static final double HEIGHT = 824;
+    /** How near the lower edge of a floating window the pointer takes hold of it, to make it higher or lower. */
+    private static final double EDGE = 8;
     /** Room around the window's body for its shadow, where the window floats. */
     private static final double SHADOW = 22;
     /** The ground of the panel, as the stylesheet has it: what a window in the system's frame is filled with. */
@@ -258,8 +273,15 @@ final class Panel {
             Platform.setImplicitExit(false);
             var first = model.get();
             var view = new View(commands);
-            view.fit(Math.min(HEIGHT, Screen.getPrimary().getVisualBounds().getHeight() - 48));
+            var kept = Place.kept();
+            double highest = Screen.getPrimary().getVisualBounds().getHeight() - 48;
+            view.fit(Math.max(LOWEST, Math.min(kept.height() > 0 ? kept.height() : HEIGHT, highest)));
             view.show(first);
+            // As the system is set: light or dark as the popup is, and still where less motion is asked for.
+            var system = Platform.getPreferences();
+            view.light(system.getColorScheme() == javafx.application.ColorScheme.LIGHT);
+            calm = lessMotion(system);
+            system.addListener((javafx.collections.MapChangeListener<String, Object>) change -> calm = lessMotion(system));
 
             boolean floating = floats(System.getProperty("os.name", ""), Platform.isSupported(ConditionalFeature.TRANSPARENT_WINDOW));
             var stage = new Stage(floating ? StageStyle.TRANSPARENT : StageStyle.DECORATED);
@@ -268,14 +290,44 @@ final class Panel {
             stage.setScene(scene);
             stage.setTitle("TabGoblin server · " + first.agent());
             stage.getIcons().setAll(Goblin.icons());
-            stage.setResizable(false);
+            system.colorSchemeProperty().addListener((property, was, scheme) -> {
+                boolean light = scheme == javafx.application.ColorScheme.LIGHT;
+                view.light(light);
+                if (!floating) {
+                    scene.setFill(light ? GROUND_LIGHT : GROUND);
+                }
+            });
+            if (!floating) {
+                scene.setFill(system.getColorScheme() == javafx.application.ColorScheme.LIGHT ? GROUND_LIGHT : GROUND);
+            }
+            // As wide as it is, always. As high as the user makes it: by the system's frame where it
+            // has one, and by its lower edge where it floats.
+            stage.setResizable(!floating);
             view.movesAndMinimizes(stage);
+            view.resizes(stage, floating, highest);
             stage.setOnCloseRequest(request -> {
                 request.consume();
                 stage.setIconified(true);
             });
             place(stage, first.port(), floating ? SHADOW : 0);
+            if (kept.onAScreen(WIDTH)) {
+                // Where the user left it, as long as that is still on a screen.
+                stage.setX(kept.x());
+                stage.setY(kept.y());
+            }
             stage.show();
+            if (!floating) {
+                stage.setMinWidth(stage.getWidth());
+                stage.setMaxWidth(stage.getWidth());
+                stage.setMinHeight(LOWEST);
+            }
+            // Its place and height are kept for the next time, whenever they have come to rest.
+            var keep = new PauseTransition(Duration.millis(600));
+            keep.setOnFinished(rest -> Place.keep(stage.getX(), stage.getY(), view.height()));
+            javafx.beans.value.ChangeListener<Number> moved = (property, was, now) -> keep.playFromStart();
+            stage.xProperty().addListener(moved);
+            stage.yProperty().addListener(moved);
+            stage.heightProperty().addListener(moved);
             window = stage;
             Log.debug("panel window style=" + stage.getStyle());
             // Nothing that acts has the keyboard when the window appears: a key meant for another
@@ -294,6 +346,67 @@ final class Panel {
 
     /** The window, once it is open. Used on JavaFX's thread only. */
     private static Stage window;
+
+    /** The lowest the window is made: its header, one card's worth of the middle, and the controls. */
+    static final double LOWEST = 560;
+    /** The ground of the light theme, for a window in the system's frame. */
+    private static final Color GROUND_LIGHT = Color.web("#f4f7f3");
+
+    /**
+     * Whether the user has asked the system for less motion. Nothing in the window moves then: the
+     * goblin does not blink and the switch does not slide. Used on JavaFX's thread only.
+     */
+    static boolean calm;
+
+    /**
+     * What the system says about motion, as far as this JavaFX is told it: on Windows, that
+     * animations in windows are switched off. A JavaFX that is told nothing says no, and the
+     * window moves as it always did.
+     */
+    static boolean lessMotion(java.util.Map<String, Object> system) {
+        return Boolean.FALSE.equals(system.get("Windows.SPI.ClientAreaAnimation"))
+                || Boolean.FALSE.equals(system.get("GTK.enable_animations"))
+                || Boolean.TRUE.equals(system.get("macOS.NSWorkspace.accessibilityDisplayShouldReduceMotion"));
+    }
+
+    /**
+     * Where the user left the window, and how high: kept in the user's own preferences of Java, and
+     * nothing else is. Read once when the window opens.
+     *
+     * @param height 0 where none was kept
+     */
+    record Place(double x, double y, double height, boolean known) {
+        private static java.util.prefs.Preferences store() {
+            return java.util.prefs.Preferences.userNodeForPackage(Panel.class).node("panel");
+        }
+
+        static Place kept() {
+            try {
+                var store = store();
+                double x = store.getDouble("x", Double.NaN);
+                double y = store.getDouble("y", Double.NaN);
+                return new Place(x, y, store.getDouble("height", 0), !Double.isNaN(x) && !Double.isNaN(y));
+            } catch (RuntimeException unreadable) {
+                return new Place(0, 0, 0, false);
+            }
+        }
+
+        static void keep(double x, double y, double height) {
+            try {
+                var store = store();
+                store.putDouble("x", x);
+                store.putDouble("y", y);
+                store.putDouble("height", height);
+            } catch (RuntimeException unwritable) {
+                // Then it opens in its usual place the next time.
+            }
+        }
+
+        /** Whether a window this wide, put there, has its header on one of the screens that are there now. */
+        boolean onAScreen(double width) {
+            return known && !Screen.getScreensForRectangle(x + 40, y + 20, Math.max(1, width - 80), 40).isEmpty();
+        }
+    }
 
     /**
      * Brings the window up where it was put away or lies under others: the user asked for it again.
@@ -366,7 +479,7 @@ final class Panel {
             blink.setCycleCount(2);
             blink.setAutoReverse(true);
             var every = new Timeline(new KeyFrame(Duration.seconds(4.2), beat -> {
-                if (eyes.getScaleY() == 1) {
+                if (eyes.getScaleY() == 1 && !calm) {
                     blink.playFromStart();
                 }
             }));
@@ -570,6 +683,10 @@ final class Panel {
             browser.setSelected(true);
             knob.setTranslateX(20);
             browser.selectedProperty().addListener((property, was, on) -> {
+                if (calm) {
+                    knob.setTranslateX(on ? 20 : 0);
+                    return;
+                }
                 var slide = new TranslateTransition(Duration.millis(130), knob);
                 slide.setToX(on ? 20 : 0);
                 slide.play();
@@ -631,8 +748,8 @@ final class Panel {
             var blockedSites = new HBox(blockedWords, edit);
             blockedSites.getStyleClass().add("row");
 
-            var ending = label("Stop ends the server for every agent. Kill is for a server that hangs: "
-                    + "agents that are still running start it again.", "hint");
+            // One line: what is beside it is the log's room. The rest is under the pointer.
+            var ending = label("Kill is for a server that hangs: running agents start a new one.", "hint");
             ending.setWrapText(true);
             ending.setMinHeight(Region.USE_PREF_SIZE);
             var control = card("Control", null, connect, pairing, blockedSites, ends, ending);
@@ -659,6 +776,61 @@ final class Panel {
             root.setPrefHeight(height);
             root.setMinHeight(height);
             root.setMaxHeight(height);
+        }
+
+        /** How high the body is made. */
+        double height() {
+            return root.getPrefHeight();
+        }
+
+        /** The daylight colours, where the system is set to light; the cave's otherwise. */
+        void light(boolean on) {
+            root.getStyleClass().remove("light");
+            if (on) {
+                root.getStyleClass().add("light");
+            }
+        }
+
+        /**
+         * Lets the user make the window higher or lower, and never wider. In the system's frame the
+         * frame does it and the body follows. Floating, the body's lower edge is the handle: the
+         * pointer says so there, and a drag sets the height.
+         */
+        void resizes(Stage stage, boolean floating, double highest) {
+            if (!floating) {
+                stage.getScene().heightProperty().addListener((property, was, high) -> fit(Math.max(LOWEST, high.doubleValue())));
+                return;
+            }
+            boolean[] dragging = new boolean[1];
+            java.util.function.Predicate<javafx.scene.input.MouseEvent> atTheEdge =
+                    mouse -> mouse.getY() >= root.getHeight() - EDGE && mouse.getY() <= root.getHeight();
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_MOVED, mouse ->
+                    root.setCursor(atTheEdge.test(mouse) ? javafx.scene.Cursor.S_RESIZE : null));
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_EXITED, mouse -> {
+                if (!dragging[0]) {
+                    root.setCursor(null);
+                }
+            });
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, mouse -> {
+                dragging[0] = atTheEdge.test(mouse);
+                if (dragging[0]) {
+                    mouse.consume();
+                }
+            });
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_DRAGGED, mouse -> {
+                if (dragging[0]) {
+                    mouse.consume();
+                    setHeight(stage, mouse.getY(), highest);
+                }
+            });
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_RELEASED, mouse -> dragging[0] = false);
+        }
+
+        /** Makes a floating window's body this high, within what is allowed, and the window around it. */
+        void setHeight(Stage stage, double wanted, double highest) {
+            double high = Math.max(LOWEST, Math.min(wanted, highest));
+            fit(high);
+            stage.setHeight(high + 2 * SHADOW);
         }
 
         /** The view's own node: the window's body. */
@@ -697,12 +869,16 @@ final class Panel {
 
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */
         void show(PanelModel model) {
-            firstPort.showing("First port " + model.firstPort(), model.firstPort());
+            firstPort.showing("Port " + model.firstPort(), model.firstPort());
+            firstPort.setTooltip(new Tooltip("The port to set in the extension's popup, under Connection. "
+                    + "Click to copy " + model.firstPort() + "."));
             agent.setText(model.identity());
             // One agent: its port ends the line about its connection. Several have theirs in their rows.
-            agentPort.setVisible(model.agentPort() > 0);
-            agentPort.setManaged(model.agentPort() > 0);
-            agentPort.showing("port " + model.agentPort(), model.agentPort());
+            // Only where it is another than the port in the header: the same number twice says nothing.
+            boolean another = model.agentPort() > 0 && model.agentPort() != model.firstPort();
+            agentPort.setVisible(another);
+            agentPort.setManaged(another);
+            agentPort.showing("agent port " + model.agentPort(), model.agentPort());
             connection.setText(model.connection());
             dot.getStyleClass().setAll("dot", model.connected() ? "connected" : model.switchedOff() ? "off" : "waiting");
             if (!Objects.equals(shownConnected, !model.switchedOff())) {
@@ -711,7 +887,8 @@ final class Panel {
             }
             pair.setVisible(model.pairingWanted());
             pair.setManaged(model.pairingWanted());
-            problem.setText(model.problem() == null ? "" : model.problem());
+            // A long one is three things in a row: what is wrong, why, and what to do. A line each.
+            problem.setText(model.problem() == null ? "" : model.problem().replaceAll("(?<=[.]) (?=[A-Z])", "\n"));
             problem.setVisible(model.problem() != null);
             problem.setManaged(model.problem() != null);
             // Whose work does not show here: said by a server that no agent talks to, and by no other.
@@ -873,10 +1050,15 @@ final class Panel {
         private static Node timeHead(List<PanelModel.Share> shares) {
             var share = label("share", "time-head");
             share.setMinWidth(SHARE_WIDE);
+            share.setTooltip(new Tooltip("How much of all the time of these calls went here."));
             var row = new HBox(grow(), share);
             if (shares.stream().anyMatch(each -> !each.typical().isEmpty())) {
-                var typical = label("per call", "time-head");
+                // The middle one of the calls, not the mean: one long wait does not move it. So a heap
+                // that few calls spend time in, such as the waiting for the user, can have a share and 0 ms.
+                var typical = label("typical", "time-head");
                 typical.setMinWidth(TYPICAL_WIDE);
+                typical.setTooltip(new Tooltip("What one call typically spends here: the middle one of the calls. "
+                        + "Where only a few calls spend time, as in waiting for you, this is 0 ms though the share is not."));
                 row.getChildren().add(typical);
             }
             row.getStyleClass().addAll("row", "time-head-row");

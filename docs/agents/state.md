@@ -12,7 +12,7 @@ All three CLI skills now cover reusing a configured first port and investigating
 
 ## Review of `smoke-tests`, 2026-11-25
 
-Four of the review's nine findings are mended, committed on `smoke-tests` (`ff65692`) on the owner's word, not pushed: three in the MCP test client (`e2e/mcp-client.mjs`) and the panel's first port, which is counted back from the server's link port. The end-to-end suite passed with the changed client, 110 of 110. Two more are mended since: the failed-build section is in the three MCP skills as well, in the words of tools, and `SkillsTest` lets a CLI skill name `--agent` and `--port` of the server's options and no other. The last three are mended as well, on the owner's word: an agent's port shows again, at the end of the connection line for one agent and in its heading for several; a folded Log card is written on and holds nothing; and an `error` event ends the test client only when the process never started. None of the review's findings is open. The window was drawn, not seen: the jar is not built.
+Four of the review's nine findings are mended, committed on `smoke-tests` (`ff65692`) on the owner's word, not pushed: three in the MCP test client (`e2e/mcp-client.mjs`) and the panel's first port, which is counted back from the server's link port. The end-to-end suite passed with the changed client, 110 of 110. Two more are mended since: the failed-build section is in the three MCP skills as well, in the words of tools, and `SkillsTest` lets a CLI skill name `--agent` and `--port` of the server's options and no other. The last three are mended as well, on the owner's word: an agent's port shows again, in its heading where a server has several, and for one agent at the end of the connection line where it is another than the port under the title; a folded Log card is written on and holds nothing; and an `error` event ends the test client only when the process never started. None of the review's findings is open. The window was drawn, not seen: the jar is not built.
 
 ## The command line on Windows, 2026-11-25
 
@@ -21,6 +21,28 @@ Used by hand with the real extension and a tab the owner gave with Explore: read
 ## Whose a tab is, 2026-11-25
 
 A tab given to *Any agent* is the first agent's that uses it, and closed to every other: the owner met that with an agent of the command line and found it hard to see. The popup's row now says `Owner: <agent>`, and the server's window `owner: <agent>` in a tab's row where it has several agents. In the same commit; the suite passed with it, 110 of 110. Not seen in the real window, which needs a new jar. Left as it is: the option's name *Any agent*, and that an agent which is refused is not told that another agent has the tab.
+
+## The window's port, 2026-11-25
+
+The chip under the title reads **Port** and no longer *First port*, on the owner's word; its tooltip says that it is the number for the popup's Connection. The popup's own field is still called *First port*, and so is the setting in the documentation: whether those follow is the owner's to say. In the working tree, not committed.
+
+## The window gone over critically, 2026-11-25
+
+On the owner's word, after a review of twelve of its drawn states. In the working tree, not committed, and drawn, not seen in the real window. A tool call's line in the Log is short (`s1 navigate  31 ms  NAVIGATION_BLOCKED`), where it took four rows; the note under Stop and Kill is one line, and the rest is under the pointer; Metrics' second column is headed *typical*, with what it means under the pointer; a server that waits for the extension says what to do; a long problem is a line for each sentence; and where no browser is connected the Sessions card says that tabs show once it is. With several agents the list shows three rows since, and the window does not scroll there. Left on purpose: `owner: <agent>` under that agent's heading, which says the name twice and was asked for; and the label Kill, since it does end the process and needs two clicks as Stop does. Open for the owner: the popup's field and the documentation still say *First port*, and so does the message of a server without a port.
+
+## The window under the keyboard, 2026-11-25
+
+Looked at with two programs that drive the window's own code (in the session's scratch folder, not in the repository): Tab reaches every control in the order they are shown, Space and Enter press them, no label is cut short, and text has a contrast of 6.3 to 1 or more. What was found is mended, on the owner's word: the port chip is reached and pressed by the keyboard and takes a click 25 high; the window is light where the system is, as the popup is; its lower edge makes it higher or lower, down to 560, and it opens where and as high as it was left, kept in Java's preferences of the user, if that place is still on a screen; a switch that is off has an edge that is seen; a card's heading is 24 high; and with several agents the list shows three rows as with one, so the window itself does not scroll there. Seen in the real window on Windows, opened as the server opens it: the dark theme on a system set to dark, the edge's pointer and a drag by it, and a place kept and read back.
+
+**JavaFX is 23.0.2 now, where it was 21:** that is what tells the window the system's theme, and it is the newest that runs on Java 21. **Less motion is not mended in effect:** the window keeps still where the system says so, but JavaFX 23 does not say it; JavaFX 24 and later do, and 27 needs Java 25. Whether the project goes to Java 25 for it is the owner's: it would end the server for every setup that starts it with Java 21, the owner's own among them. Not seen: the light theme in a real window (drawn only), a change of the system's theme while the window is open, Linux and macOS, a scaled screen, a screen reader. Still as it was: no button closes the window.
+
+## The window gone over critically, 2026-11-25
+
+On the owner's word, after a review of twelve of its drawn states. In the working tree, not committed, and drawn, not seen in the real window. A tool call's line in the Log is short (`s1 navigate  31 ms  NAVIGATION_BLOCKED`), where it took four rows; the note under Stop and Kill is one line, and the rest is under the pointer; Metrics' second column is headed *typical*, with what it means under the pointer; a server that waits for the extension says what to do; a long problem is a line for each sentence; and where no browser is connected the Sessions card says that tabs show once it is. With several agents the list shows three rows since, and the window does not scroll there. Left on purpose: `owner: <agent>` under that agent's heading, which says the name twice and was asked for; and the label Kill, since it does end the process and needs two clicks as Stop does. Open for the owner: the popup's field and the documentation still say *First port*, and so does the message of a server without a port.
+
+## The window under the keyboard, 2026-11-25
+
+Looked at with a program that drives the window's own controls (not in the repository): Tab reaches every control in the order they are shown, Space and Enter press them, no label is cut short, and text has a contrast of 6.3 to 1 or more. One fault found and mended, in the working tree: the port chip could be copied by the mouse only, and is now reached by Tab and pressed by Enter or Space. **Found and not mended:** the window is dark whatever the system's theme, while the popup follows it; its motion does not stop where the system asks for less; the port chip is 17 high and a card's heading 23, under the 24 that is asked of something to press, and making them higher cost the Log a row; a switch that is off differs from its card by 1.4 to 1; the window cannot be made larger, nor closed but by Stop; and its place is not remembered. Not tried: a screen reader, a scaled screen, the real window.
 
 ## Where the code is
 
@@ -155,12 +177,13 @@ A tab given to *Any agent* is the first agent's that uses it, and closed to ever
   Chromium, started without its sandbox. Not tried: Windows and macOS, `tabgoblin.cmd` with
   arguments that have quotes in them, a download's launcher, and a real agent with the skill's
   new section. The server's window was not seen with an agent of the command line in it.
-- **One step of the end-to-end suite failed once in four runs** on 2026-11-25, in the
-  container: "an agent whose server restarts gets its sessions back", on a wait in the popup.
-  No command of the command line takes part in it, and the server was the same in the runs
-  where it passed. The cause was not found. The harness now names each popup wait and rejects MCP requests when
-  the child exits. If the restart fails again, capture the wait label and the server logs with
-  `SHOW_STDERR=1`.
+- **The step of the end-to-end suite that failed once in four runs is explained, by what mended it:** "an agent
+  whose server restarts gets its sessions back" waited for the tab's row to read `agent-one (not connected)`
+  while a second program under the same name was connected. The popup tells two agents of one name apart by
+  adding the owner's id, so that text is there only until the popup has the second one's name: a race. On the
+  jar built on 2026-11-25 at 20:06 it failed twice in two runs, and the steps after it with it; with the wait
+  taking the name with or without the id it passed, 110 of 110. The popup's text at the failing moment was
+  not read. A popup wait that fails now says what the popup showed.
 - **An agent of the command line holds one of the eight ports for ten minutes after its last
   command.** Many names in a short time can use the ports up; the message is the one for
   eight connected agents.

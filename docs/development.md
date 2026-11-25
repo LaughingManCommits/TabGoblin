@@ -90,7 +90,7 @@ panels folded to one line. Look at them after any change to the prompt. The end-
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 The picture of the server's panel, `docs/images/server-panel.png`, is not a capture: a class
-among the server's tests, `PanelPictures`, draws the panel in nineteen states with the server's own
+among the server's tests, `PanelPictures`, draws the panel in twenty states with the server's own
 code, without a window. The command, and what to look at in the real window besides, is in the
 [runbook](agents/runbook.md#look-at-the-servers-panel).
 
@@ -309,7 +309,7 @@ browser has to be paired. How it is built:
   as a picture that holds its pixels as bytes; a drawing comes as one number per pixel and is
   passed over without a word, which leaves Java's icon on the taskbar. So the icons are copied
   into the kind that is taken, and a test holds that.
-- **JavaFX 21 is in the jar,** with its native part for Windows on x64, Linux on x64 and macOS
+- **JavaFX 23 is in the jar,** the newest that runs on Java 21 (each later one needs a later Java: 27 needs Java 25). It is what tells the window whether the system is set to light or dark. What it does not tell is whether the user asked for less motion: that came with JavaFX 24, so the window keeps still for it only on a newer JavaFX than the jar has. JavaFX is there with its native part for Windows on x64, Linux on x64 and macOS
   on Apple silicon; that took the jar from 7.1 MB to 17.6 MB when it was added. A jar holds one
   set of native files per system, because those for Intel and for ARM have the same names.
   JavaFX unpacks them into

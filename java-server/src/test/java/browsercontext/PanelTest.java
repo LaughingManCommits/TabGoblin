@@ -99,7 +99,7 @@ class PanelTest {
             return view.words();
         });
         String all = String.join("\n", words);
-        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d", "port 47821", "First port 47821",
+        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d", "Port 47821",
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
@@ -276,9 +276,15 @@ class PanelTest {
                 var view = new Panel.View(sent::add);
                 view.show(model(true, false));
                 var steps = new ArrayList<String>();
-                // Two ports show: the first port the popup is told, in the header, and the one agent's own.
-                steps.add(view.root().lookupAll(".port").stream().map(javafx.scene.control.Label.class::cast)
-                        .map(javafx.scene.control.Label::getText).toList().toString());
+                java.util.function.Supplier<String> ports = () -> view.root().lookupAll(".port").stream()
+                        .filter(javafx.scene.Node::isVisible).map(javafx.scene.control.Label.class::cast)
+                        .map(javafx.scene.control.Label::getText).toList().toString();
+                // The port the popup is told is in the header. The one agent's own shows only where it is another.
+                steps.add(ports.get());
+                view.show(PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47823, null, true, 1_000, 0,
+                        List.of(), TIME, java.util.Map.of())), Link.port(47821), "9.8.7", false, List.of(), ZoneId.of("UTC")));
+                steps.add(ports.get());
+                view.show(model(true, false));
                 var port = (Panel.PortLabel) view.root().lookup(".header .port");
                 steps.add(port.getText() + " shown=" + port.isVisible() + " -> " + clipboard[0]);
                 port.copy();
@@ -292,11 +298,21 @@ class PanelTest {
                 steps.add(port.getText());
                 port.copy();
                 steps.add(clipboard[0]);
+                // The keyboard reaches it as it reaches a button, and Enter or Space presses it.
+                clipboard[0] = "what the user had";
+                for (var code : List.of(javafx.scene.input.KeyCode.ENTER, javafx.scene.input.KeyCode.SPACE, javafx.scene.input.KeyCode.A)) {
+                    javafx.event.Event.fireEvent(port, new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED, "", "",
+                            code, false, false, false, false));
+                    steps.add(code + " -> " + clipboard[0]);
+                    clipboard[0] = "what the user had";
+                }
+                steps.add("reached by Tab: " + port.isFocusTraversable());
                 return steps;
             });
-            assertEquals(List.of("[First port 47821, port 47821]",
-                    "First port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied",
-                    "First port 37821", "37821"), seen);
+            assertEquals(List.of("[Port 47821]", "[Port 47821, agent port 47823]",
+                    "Port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied",
+                    "Port 37821", "37821", "ENTER -> 37821", "SPACE -> 37821", "A -> what the user had",
+                    "reached by Tab: true"), seen);
         } finally {
             Panel.portClipboard = system;
         }
@@ -375,10 +391,11 @@ class PanelTest {
                     false, false, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), List.of(), ZoneId.of("UTC")));
             return view.words();
         });
-        for (String shown : List.of("Agent c-1a2b3c4d", "First port 47821",
+        for (String shown : List.of("Agent c-1a2b3c4d", "Port 47821",
                 "Not connected: this server has no port to listen on",
-                Agent.noPort(47821, 0),
-                "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
+                // What is wrong, why, and what to do: a line each, and no word of it changed.
+                Agent.noPort(47821, 0).replace(". On Windows", ".\nOn Windows").replace(". Start the server", ".\nStart the server"),
+                "Tabs show here once the browser is connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));
         }
     }
@@ -440,9 +457,9 @@ class PanelTest {
             assertTrue(seen.one().contains(shown), shown + " is not among:\n" + String.join("\n", seen.one()));
         }
         String ofOne = String.join("\n", seen.one());
-        assertTrue(ofOne.contains("command id=2 session=s2 action=fill"), ofOne);
+        assertTrue(ofOne.contains("s2 fill  4 ms  PAUSED"), ofOne);
         assertFalse(ofOne.contains("extension connected"), "a line of no tab is not a chosen tab's");
-        assertFalse(ofOne.contains("session=s1"), ofOne);
+        assertFalse(ofOne.contains("s1 snapshot"), ofOne);
         assertTrue(seen.marked(), "the chosen row is marked and the other is not");
 
         // The first tab instead.
@@ -450,7 +467,7 @@ class PanelTest {
                 "showing s1 only  ·  click again for all")) {
             assertTrue(seen.other().contains(shown), shown + " is not among:\n" + String.join("\n", seen.other()));
         }
-        assertTrue(String.join("\n", seen.other()).contains("command id=1 session=s1 action=snapshot"));
+        assertTrue(String.join("\n", seen.other()).contains("s1 snapshot  12 ms  ok"));
 
         // Given up: as at the start.
         assertEquals(seen.all(), seen.again());
@@ -482,7 +499,7 @@ class PanelTest {
         }
         assertFalse(empty.note().isEmpty());
         assertFalse(shown.withOne().contains(empty.note()), String.join("\n", shown.withOne()));
-        assertTrue(shown.withOne().containsAll(List.of("claude-code  ·  c-1a2b3c4d", "First port 47821")));
+        assertTrue(shown.withOne().containsAll(List.of("claude-code  ·  c-1a2b3c4d", "Port 47821")));
     }
 
     @Test
@@ -519,7 +536,7 @@ class PanelTest {
         // Both agents, each with what it has: the first its tabs, the second the words in their place.
         for (String shown : List.of("2 agents", "1 of 2 agents is connected to the browser", "2 agents  ·  2 tabs",
                 "claude-code", "c-11111111", ":47821", "s1", "mail.example.com", "owner: claude-code", "s3", "wiki.example.net", "any agent",
-                "IntelliJ IDEA", "c-22222222", "First port 47821", "not connected", "Not known while the browser is not connected",
+                "IntelliJ IDEA", "c-22222222", "Port 47821", "not connected", "Tabs show here once the browser is connected",
                 "time of the last 5 calls", "the last 300 lines")) {
             assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
         }
@@ -586,7 +603,7 @@ class PanelTest {
         });
         // Over the numbers stands what they are; each heap has its share and its typical time.
         int at = words.indexOf("share");
-        assertEquals(List.of("share", "per call",
+        assertEquals(List.of("share", "typical",
                 "Agent and its model", "98%", "6.0 s",
                 "This server", "0%", "2 ms",
                 "Extension and page", "2%", "28 ms",
@@ -693,5 +710,40 @@ class PanelTest {
                 "marked again: held while you read | button '1 newer line  ↓'",
                 "folded: the last 300 lines | no button, last is '00:01:57  line 117'",
                 "opened again: the last 300 lines | no button, last is '00:01:58  line 118'"), seen);
+    }
+
+    @Test
+    void theWindowTakesTheSystemsThemeKeepsStillWhereAskedAndIsPutBackOnlyOnAScreen() throws Exception {
+        // Daylight is a class on the body, which the stylesheet has the light colours for; taken off, it is the cave again.
+        List<String> classes = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            var seen = new ArrayList<String>();
+            seen.add(String.valueOf(view.root().getStyleClass().contains("light")));
+            view.light(true);
+            view.light(true);
+            seen.add(String.valueOf(view.root().getStyleClass().stream().filter("light"::equals).count()));
+            view.light(false);
+            seen.add(String.valueOf(view.root().getStyleClass().contains("light")));
+            return seen;
+        });
+        assertEquals(List.of("false", "1", "false"), classes);
+        // Less motion: what each system says when the user asked for it. A JavaFX that is told nothing says nothing.
+        assertFalse(Panel.lessMotion(java.util.Map.of()));
+        assertFalse(Panel.lessMotion(java.util.Map.of("Windows.SPI.ClientAreaAnimation", true)));
+        assertTrue(Panel.lessMotion(java.util.Map.of("Windows.SPI.ClientAreaAnimation", false)));
+        assertTrue(Panel.lessMotion(java.util.Map.of("GTK.enable_animations", false)));
+        assertTrue(Panel.lessMotion(java.util.Map.of("macOS.NSWorkspace.accessibilityDisplayShouldReduceMotion", true)));
+        // A place that was kept is used only while it is on a screen: a screen that is gone does not take the window with it.
+        assertFalse(new Panel.Place(0, 0, 0, false).onAScreen(Panel.WIDTH), "nothing was kept");
+        boolean[] on = inTheWindow(sent -> {
+            var screen = javafx.stage.Screen.getPrimary().getVisualBounds();
+            return new boolean[] {
+                new Panel.Place(screen.getMinX() + 10, screen.getMinY() + 10, 700, true).onAScreen(Panel.WIDTH),
+                new Panel.Place(-90_000, -90_000, 700, true).onAScreen(Panel.WIDTH)};
+        });
+        assertTrue(on[0], "a place on the main screen");
+        assertFalse(on[1], "a place on no screen");
+        // With several agents the list shows as many rows as with one: the window itself need not scroll.
+        assertEquals(Panel.TABS_IN_VIEW, Panel.ROWS_IN_VIEW_OF_SEVERAL);
     }
 }

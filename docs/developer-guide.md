@@ -392,15 +392,16 @@ focus a heading with Tab and toggle it with Space.
 
 | Part | What it shows or does |
 |---|---|
-| The line under the title | Click **First port** beside the agent information to copy the number for the extension popup. It is available before an agent or browser connects |
-| The line with the dot | Whether the extension is connected, and if not, why. With one agent the line ends with that agent's port, the one its status names; a click copies it |
+| The line under the title | Click **Port** beside the agent information to copy the number for the extension popup, where it is set as *First port* under *Connection…*. It is available before an agent or browser connects |
+| The line with the dot | Whether the extension is connected, and if not, why. While it waits for the extension, a line below says what to do: open the popup, and pair it if it says so. With one agent whose port is another than the one under the title, the line ends with it (*agent port …*), as that agent's status names it; a click copies it |
 | Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id and its port, and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
-| Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers |
-| Log | The server's last 300 lines: connections, and one line per tool call with its tab, action, duration and outcome. Nothing of a page |
+| Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers. *share* is the part of all that time; *typical* is what the middle one of the calls spent there, so waiting for you can have a share and 0 ms |
+| Log | The server's last 300 lines: connections, and one line per tool call in short, as `s1 navigate  31 ms  NAVIGATION_BLOCKED`: its tab, action, duration, and `ok` or the error code. Nothing of a page |
 | Connection to the browser | A switch. Off, the server closes its connection to the extension until you switch it on. The agent's tabs stay authorized |
 | Pairing token | **Copy** copies the pairing token, which leaves the clipboard after a minute |
 | Blocked sites | The sites on your list and, while a policy is in force, a line *Policy: …*. **Edit** opens the settings file |
-| Stop server, Kill | Stop ends the server in order, for every agent. Kill ends the process at once, for a server that hangs. Each takes two clicks |
+| Stop server, Kill | Stop ends the server in order, for every agent. Kill ends the process at once, for a server that hangs; agents that are still running start a new one. Each takes two clicks |
+| The window itself | It is light or dark as your system is, like the popup. Drag its header to move it and its lower edge to make it higher or lower; it opens where and as high as you left it, kept in Java's preferences for your user. It has no button to close it: it is put away with its minimize button, and the server is ended with Stop |
 
 One case brings the window up by itself: the browser came with a token that is not the
 server's, because it was mistyped or replaced with `--rotate-token`. The window then says

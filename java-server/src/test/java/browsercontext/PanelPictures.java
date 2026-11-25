@@ -55,6 +55,12 @@ final class PanelPictures {
                     write(view.picture(2, !state.framed(), state.later()), out.resolve(state.name() + ".png"));
                     System.out.println(state.name() + ".png");
                 }
+                // The first state again in daylight, as on a system that is set to light.
+                var light = new Panel.View(command -> { });
+                light.show(states().get(0).model());
+                light.light(true);
+                write(light.picture(2, true, null), out.resolve("20-light.png"));
+                System.out.println("20-light.png");
                 done.complete(null);
             } catch (Throwable e) {
                 done.completeExceptionally(e);

@@ -313,7 +313,35 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
 
     /** A line of the log as the panel shows it: the time of day, a mark on a warning, and the line as it was logged. */
     static String logLine(Log.Line line, ZoneId zone) {
-        return clock(line.at(), zone) + "  " + (line.level().equals("warn") ? "! " : "") + line.text();
+        return clock(line.at(), zone) + "  " + (line.level().equals("warn") ? "! " : "") + brief(line.text());
+    }
+
+    /**
+     * A tool call's line as the window shows it: the tab, the action, how long it took and how it
+     * ended, as "s1 navigate  31 ms  NAVIGATION_BLOCKED". The window is narrow, and the whole line
+     * with its id and category takes four of its rows; that one is in the server's log as it was
+     * written. Any other line is shown as it is.
+     */
+    static String brief(String text) {
+        if (!text.startsWith("command id=")) {
+            return text;
+        }
+        Map<String, String> said = new LinkedHashMap<>();
+        for (String part : text.split(" ")) {
+            int at = part.indexOf('=');
+            if (at > 0) {
+                said.put(part.substring(0, at), part.substring(at + 1));
+            }
+        }
+        String action = said.get("action");
+        String took = said.get("ms");
+        String outcome = said.get("outcome");
+        if (action == null || took == null || outcome == null) {
+            return text;
+        }
+        String tab = said.getOrDefault("session", "-");
+        return (tab.equals("-") ? "" : tab + " ") + action + "  " + took + " ms  "
+                + (outcome.equals("ok") ? "ok" : said.getOrDefault("code", outcome));
     }
 
     /** The site as the popup shows it: without the scheme when that is https. */
@@ -504,11 +532,18 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
     }
 
     /**
-     * What stands under the status line of a server that has no agent, and is empty for any other:
-     * what the user does to have one. The line above says that there is none; this does not say it again.
+     * What stands under the status line where the next step is the user's: a server that has no
+     * agent, and one whose agents wait for the browser. Empty otherwise. The line above says what
+     * is so; this says what to do about it.
      */
     String note() {
-        return agents.isEmpty() ? "Start your agent (IDE or CLI): it connects by itself." : "";
+        if (agents.isEmpty()) {
+            return "Start your agent (IDE or CLI): it connects by itself.";
+        }
+        // Waiting for a browser that has not come, and for no reason the lines above name: the next step is the user's.
+        boolean waiting = problem == null && !switchedOff && !pairingWanted() && agents.stream().noneMatch(Member::connected);
+        return waiting ? "Open the TabGoblin popup in Chrome: the extension then finds this server at once. "
+                + "If the popup says it is not paired, copy the pairing token below into it." : "";
     }
 
     /** What stands in place of the sessions while none is listed. */
@@ -521,7 +556,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
 
     /** What stands in place of one agent's sessions while it has none. */
     static String noSessions(Member agent) {
-        return agent.connected() ? "No tab is authorized for this agent" : "Not known while the browser is not connected";
+        return agent.connected() ? "No tab is authorized for this agent" : "Tabs show here once the browser is connected";
     }
 
     /** What stands in place of the times while there are none to show. */

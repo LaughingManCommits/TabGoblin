@@ -109,8 +109,12 @@ class PanelModelTest {
         assertEquals(10, shown.metrics("s1").calls());
         assertEquals(PanelModel.shares(ofOne), shown.metrics("s1").shares());
         assertEquals("s1  ·  time of the last 10 calls", shown.callsCount("s1"));
-        assertEquals(List.of("00:00:02  command id=1 session=s1 action=snapshot ms=12 outcome=ok",
-                "00:00:04  command id=3 session=s1 action=click ms=31 outcome=ok"), shown.log("s1"));
+        assertEquals(List.of("00:00:02  s1 snapshot  12 ms  ok", "00:00:04  s1 click  31 ms  ok"), shown.log("s1"));
+        // A call that failed ends with its code, and one for no tab names none. A line that is no call is as it was written.
+        assertEquals(List.of("00:00:03  s2 fill  4 ms  PAUSED"), shown.log("s2"));
+        assertTrue(shown.log().contains("00:00:05  status  1 ms  ok"), shown.log().toString());
+        assertEquals("extension connected client=c-1 protocol=3", PanelModel.brief("extension connected client=c-1 protocol=3"));
+        assertEquals("command id=9 and nothing else", PanelModel.brief("command id=9 and nothing else"));
         assertEquals("s1  ·  2 of the last 300 lines", shown.logCount("s1", 300));
         assertEquals("s2  ·  time of the last call", shown.callsCount("s2"));
         assertEquals(1, shown.log("s2").size());
@@ -197,6 +201,12 @@ class PanelModelTest {
         // The one server, started by the user, before any agent's program has connected to it.
         PanelModel empty = PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), UTC);
         assertEquals("no agent", empty.agent());
+        // An agent that waits for the browser: the next step is the user's, and the window says which.
+        assertTrue(model(false, false, 0, 0, List.of()).note().startsWith("Open the TabGoblin popup in Chrome"));
+        // Not where the line above already says why, or where nothing is to do.
+        assertEquals("", model(true, false, 1_000, 0, List.of()).note());
+        assertEquals("", model(false, true, 0, 0, List.of()).note());
+        assertEquals("", model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).note());
         assertEquals(47821, empty.firstPort());
         assertEquals("one server for all your agents", empty.identity());
         assertFalse(empty.connected());
@@ -215,7 +225,7 @@ class PanelModelTest {
         assertEquals("", one.note());
         assertEquals("No tab is authorized for this agent", one.noSessions());
         assertEquals("No tool call has ended yet", one.noTimes());
-        assertEquals("Not known while the browser is not connected", model(false, false, 0, 0, List.of()).noSessions());
+        assertEquals("Tabs show here once the browser is connected", model(false, false, 0, 0, List.of()).noSessions());
     }
 
     @Test
@@ -274,7 +284,7 @@ class PanelModelTest {
         assertEquals("Both agents are connected to the browser", quiet.connection());
         assertTrue(quiet.connected());
         assertEquals("No tab is authorized for this agent", PanelModel.noSessions(quiet.agents().get(1)));
-        assertEquals("Not known while the browser is not connected", PanelModel.noSessions(shown.agents().get(1)));
+        assertEquals("Tabs show here once the browser is connected", PanelModel.noSessions(shown.agents().get(1)));
         assertEquals("All 3 agents are connected to the browser", PanelModel.connection(List.of(quiet.agents().get(0),
                 quiet.agents().get(1), quiet.agents().get(0)), false));
         assertEquals("No agent is connected to the browser", PanelModel.connection(List.of(shown.agents().get(1)), false));

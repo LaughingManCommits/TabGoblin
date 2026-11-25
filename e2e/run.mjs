@@ -2112,7 +2112,10 @@ try {
       try {
         await popup.waitForFunction(predicate, {}, ...args);
       } catch (cause) {
-        throw new Error(`Waiting for ${description}: ${cause.message}`, { cause });
+        // What the popup did say, so that a wait that fails names what it saw and not only how long it waited.
+        const saw = await popup.evaluate((sel) => (typeof sel === 'string' ? document.querySelector(sel)?.textContent : null)
+          ?? document.getElementById('connection')?.textContent ?? '', args[0]).catch(() => '(the popup could not be read)');
+        throw new Error(`Waiting for ${description}: ${cause.message}. The popup said: "${saw}"`, { cause });
       }
     }
     await waitForPopupState('one agent to remain connected after agent-one exits',
@@ -2134,8 +2137,11 @@ try {
     lacks(seen, 'Demo Tracker');
     fails(await impostor.tool('browser_snapshot', { session: sA }), 'SESSION_NOT_OWNED');
     fails(await impostor.tool('browser_extract', { session: sC }), 'SESSION_NOT_OWNED');
+    // The owner is still named and still away. With another agent of the same name connected, the popup
+    // tells the two apart by adding the owner's id to its name; whether it has learned that name yet
+    // depends on which came first, the browser's connection or the agent's own word of its name.
     await waitForPopupState('the session to keep its disconnected owner while the unkeyed agent is connected',
-      (sel) => document.querySelector(sel)?.textContent.includes('agent-one (not connected)'), row(sA, '.meta'));
+      (sel) => /^Owner: agent-one( \([^)]+\))? \(not connected\)/.test(document.querySelector(sel)?.textContent ?? ''), row(sA, '.meta'));
     assert(await impostor.close() === 0, 'the agent without a key ends in order');
 
     one = new McpClient('java', argsOf('agent-one'), 'agent-one');
