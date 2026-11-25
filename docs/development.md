@@ -52,6 +52,22 @@ Other scripts in `e2e/`:
 | `node notice-pictures.mjs` | Pictures the notice in the page in every state, drawn by `notice.ts` in a plain page, to look at |
 | `node make-icons.mjs` | Renders the icon PNGs from `chrome-extension/icons/goblin.svg` |
 
+### About the diagrams
+
+Four diagrams are SVG files in `docs/assets/diagrams/`, each in a light and a dark variant,
+and a page shows the one that fits the reader's theme with a `<picture>` element. They are
+drawn by one script, which holds their common style (three colours: slate for components,
+green for TabGoblin, red for what is denied or refused; rounded boxes, thin lines, dashed
+borders for boundaries):
+
+```sh
+node docs/assets/diagrams/build.mjs
+```
+
+Change a diagram in that script, not in an SVG file, and open both variants afterwards. The
+sequence and state diagrams are Mermaid in the pages themselves, with GitHub's own theme: a
+fixed set of colours there would be right on a light page or on a dark one, not on both.
+
 ### About the screenshots
 
 The popup pictures are captures of the real popup window, taken through the browser's debugging

@@ -77,35 +77,14 @@ tools do the same on any website.
 
 ## How it works
 
-```mermaid
-flowchart TB
-  AGENT["Coding agent<br/>in an IDE or a terminal"]
-  YOU(["You, in the extension's popup"])
-  subgraph tg["TabGoblin, on your machine"]
-    CLI["CLI<br/>tabgoblin commands"]
-    MCP["MCP<br/>browser_* tools"]
-    SERVER["TabGoblin server<br/>one for all agents"]
-    EXT["TabGoblin extension<br/>in your Chrome"]
-  end
-  TAB["Tabs you authorized"]
-  OTHER["Every other tab"]
-  APP["Web application"]
-  MODEL["The agent's model provider"]
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/overview-dark.svg">
+  <img src="docs/assets/diagrams/overview.svg" width="760" alt="TabGoblin at a glance: an AI coding agent uses the CLI or MCP, side by side; both lead into the TabGoblin bridge, which checks identity, validates every request and applies the policy; the bridge leads to the browser extension, where execution is under your control; it reaches the tabs you authorized, and every other tab is denied.">
+</picture>
 
-  AGENT -- "runs" --> CLI
-  AGENT -- "calls" --> MCP
-  CLI --> SERVER
-  MCP --> SERVER
-  SERVER -- "127.0.0.1 only,<br/>paired with a token" --> EXT
-  YOU -- "authorize, approve,<br/>pause, revoke" --> EXT
-  EXT -- "what you allowed" --> TAB
-  EXT -. "no access" .-> OTHER
-  TAB -- "your own sign-in" --> APP
-  AGENT -. "what it read goes<br/>with its prompts" .-> MODEL
-  %% An empty place below: GitHub lays its zoom buttons over the bottom right corner.
-  APP ~~~ ROOM[" "]
-  style ROOM fill:none,stroke:none
-```
+The bridge is TabGoblin's local server: one process for all your agents, on `127.0.0.1`. The
+browser extension is TabGoblin in your Chrome, where you authorize tabs, approve, pause and
+revoke.
 
 1. **You authorize a tab.** Click the TabGoblin icon on the tab, choose an access level and
    press **Authorize**. That tab, on that website, is now a session your agent can use.

@@ -60,32 +60,10 @@ a store-based allowlist.
 
 ## Data flow and processing locations
 
-```mermaid
-flowchart TB
-  MODEL["Model provider of the agent"]
-  subgraph ws["Developer's workstation, one operating-system account"]
-    AGENT["Coding agent"]
-    CLI["CLI"]
-    MCP["MCP"]
-    SERVER["TabGoblin server<br/>checks: agent key, arguments,<br/>blocked sites, policy"]
-    DISK[("Home folder<br/>token, agent keys, settings,<br/>optional audit record")]
-    subgraph chrome["Chrome, the developer's profile"]
-      EXT["TabGoblin extension<br/>checks: session, origin, access level,<br/>policy, approval"]
-      TAB["Authorized tab"]
-    end
-  end
-  APP["Web application"]
-
-  AGENT -- "prompts that include<br/>tool results" --> MODEL
-  AGENT <-- "commands, JSON" --> CLI
-  AGENT <-- "MCP over stdio" --> MCP
-  CLI <-- "loopback socket" --> SERVER
-  MCP <-- "loopback socket" --> SERVER
-  SERVER --- DISK
-  SERVER <-- "WebSocket on 127.0.0.1:<br/>commands and results" --> EXT
-  EXT <-- "fixed page operations" --> TAB
-  TAB <-- "HTTPS, the developer's session" --> APP
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/data-flow-dark.svg">
+  <img src="assets/diagrams/data-flow.svg" width="760" alt="Deployment boundary and data flow: the coding agent, the CLI and MCP interfaces, the TabGoblin server and the TabGoblin extension in Chrome all run on the developer's workstation under one operating-system account. Two flows leave it, neither made by TabGoblin: the agent's prompts to its model provider and the tab's HTTPS session with the web application.">
+</picture>
 
 The outer box is one operating-system account, not a set of isolated compartments: the checks
 named in it are made by TabGoblin's own programs, and a program that runs as the developer is

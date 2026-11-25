@@ -85,44 +85,10 @@ Every control is labelled with one of three classes:
 
 ### Where a command is checked
 
-```mermaid
-flowchart TB
-  A["Coding agent<br/>CLI command or MCP call"]
-  subgraph os["One operating-system account: application checks, not isolation between programs"]
-    subgraph srv["TabGoblin server"]
-      S1{"Pairing token and<br/>agent key proven?<br/>Agent not revoked?"}
-      S2{"Arguments valid?<br/>Site not blocked,<br/>within the policy?"}
-    end
-    subgraph ext["TabGoblin extension"]
-      E1{"Session is this agent's,<br/>not paused or expired,<br/>tab on its origins?"}
-      E2{"Access level covers<br/>the action? Site not<br/>blocked, within the policy?"}
-      E3{"A submission:<br/>is the user<br/>to be asked?"}
-      E4{"Still allowed, right<br/>before the page<br/>is touched?"}
-    end
-    U(["User, in the popup"])
-    P["Authorized tab:<br/>one fixed operation"]
-    O["Result: allowlisted text.<br/>Credential-like text taken out"]
-  end
-  R["Refused, with an error code.<br/>Nothing after it runs,<br/>nothing is retried"]
-
-  A --> S1
-  S1 -- "yes" --> S2
-  S2 -- "yes" --> E1
-  E1 -- "yes" --> E2
-  E2 -- "yes" --> E3
-  E3 -- "no" --> E4
-  E3 -- "yes" --> U
-  U -- "Allow" --> E4
-  E4 -- "yes" --> P
-  P --> O
-  O --> A
-  S1 -- "no" --> R
-  S2 -- "no" --> R
-  E1 -- "no" --> R
-  E2 -- "no" --> R
-  U -- "Deny, or<br/>no answer" --> R
-  E4 -- "no" --> R
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/command-checks-dark.svg">
+  <img src="assets/diagrams/command-checks.svg" width="800" alt="Where a command is checked: two checks in the TabGoblin server and four in the TabGoblin extension, each with the error codes it refuses with, before one fixed operation runs in the authorized tab. Asking the user about a submission is configurable; the other checks are enforced; taking credentials out of the result is best effort.">
+</picture>
 
 | Step in the picture | Class |
 |---|---|

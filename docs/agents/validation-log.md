@@ -31,6 +31,12 @@ the security model's, the corporate assessment's, the CLI's). The first drawing 
 components had a label cut by a box and was made simpler. The pictures were not kept. Not
 seen: the same diagrams as GitHub draws them, whose Mermaid may be of another version.
 
+The four SVG diagrams, the same day: each was drawn by `node docs/assets/diagrams/build.mjs`,
+shown as an image in the container's Chromium on a white and on a dark ground, and looked at,
+both variants of the overview and one or both of the others. Three rounds: labels that ran
+out of their boxes, a popup drawn outside the extension it belongs to, and a legend cut off
+at the lower edge were mended. Every file a page names exists. Not seen on GitHub.
+
 Not run: the rest of the server's tests, the extension's and the end-to-end suite, since no
 code was changed. Not seen: the changed pages and their two changed pictures as GitHub draws
 them. No picture was regenerated.

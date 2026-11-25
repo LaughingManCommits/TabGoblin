@@ -14,37 +14,10 @@ rules themselves, with where each is enforced and where it stops, are in the
 
 ## Components
 
-```mermaid
-flowchart TB
-  AGENT["Coding agent"]
-  subgraph ifs["Integration interfaces"]
-    CLI["CLI<br/>one process per command"]
-    LINK["MCP link<br/>one process per agent"]
-  end
-  subgraph serverp["TabGoblin server"]
-    TOOLS["Tool definitions<br/>one set for both interfaces"]
-    SVC["Service<br/>validation, blocked sites,<br/>policy, submission ids"]
-    WS["WebSocket endpoint<br/>one port per agent"]
-  end
-  subgraph chrome["Chrome"]
-    POPUP["Popup<br/>the user's decisions"]
-    BG["Extension worker<br/>sessions, rules, flows"]
-    CS["Content script<br/>fixed page operations"]
-    TAB["Authorized tab"]
-  end
-  FILES[("Home folder<br/>token, agent keys,<br/>settings, audit record")]
-
-  AGENT -- "runs a command" --> CLI
-  AGENT -- "MCP over stdio" --> LINK
-  CLI -- "loopback socket:<br/>proofs, then one tool call" --> TOOLS
-  LINK -- "same socket and proofs,<br/>then the client's tool calls" --> TOOLS
-  TOOLS --> SVC --> WS
-  WS -- "WebSocket on 127.0.0.1,<br/>paired, protocol 3" --> BG
-  POPUP -- "grants and answers" --> BG
-  BG -- "one operation" --> CS
-  CS --> TAB
-  SVC -.- FILES
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/components-dark.svg">
+  <img src="assets/diagrams/components.svg" width="760" alt="The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a loopback socket to one TabGoblin server with one set of tool definitions, a service and a WebSocket endpoint; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.">
+</picture>
 
 | Component | Responsibility | Does not |
 |---|---|---|

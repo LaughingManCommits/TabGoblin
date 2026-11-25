@@ -109,6 +109,12 @@ Last updated: 2026-11-25, later the same day. Claims here go stale; check the da
 
 ## Blockers and unknowns
 
+- **Four diagrams are SVG files now** (`docs/assets/diagrams/`), where they were Mermaid in the
+  pages. The proxy at the owner's work that holds back the documentation's pictures (below)
+  will hold these back too, by what WP-23 found; Mermaid was text and was not affected. Their
+  alternative texts say what each shows. They were looked at in the container's Chromium on a
+  light and a dark ground, not on GitHub.
+
 - **Words in the program still put MCP first,** found in the review of 2026-11-25 and left,
   since that was for the documentation only: the popup's "Disconnected: is the MCP server
   running?", the help's heading "TabGoblin MCP server", the first line of `tabgoblin tools`,

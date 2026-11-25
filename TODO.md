@@ -1856,3 +1856,20 @@ On the owner's word. Nine diagrams were there, in three files; there are twelve 
   commands as two processes and one agent (CLI guide).
 - **Left:** the two state diagrams, but for one label.
 
+### The diagrams as drawings, the same day
+
+On the owner's word, with a picture of the look that is wanted: an agent, the CLI and MCP side
+by side, a green "TabGoblin bridge" with what it checks, the browser extension, and a legend.
+
+- **Four diagrams are SVG files** in `docs/assets/diagrams/`, a light and a dark one each, drawn
+  by `build.mjs` there in one style: the README's overview after the owner's reference, the
+  architecture's components, the security model's checks of a command, and the corporate
+  assessment's deployment boundary and data flow.
+- **Where the overview departs from the reference:** the bridge's third block is "Policy" and
+  not "Permissions", because the access level of a session is checked in the extension and
+  not in the server; the browser extension is green and not slate, since it is TabGoblin's and
+  enforces; and a last row shows the tabs that are authorized and those that are denied.
+- **The eight sequence and state diagrams stay Mermaid,** with GitHub's theme. Colours of our
+  own would be fixed, and wrong on a light page or on a dark one.
+- **Open:** whether the owner's proxy shows them (state); how GitHub draws them.
+
