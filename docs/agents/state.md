@@ -69,7 +69,8 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
   ran in the cloud: WP-29, the tools as commands of a terminal (`tabgoblin status --agent
   <name>`), for an agent without MCP. A command is one MCP tool call through the same link to
   the same server; the server keeps such an agent between its commands. `--setup <agent>
-  --mode cli`, a section in the three skills, and the documentation. Committed there by the
+  --mode cli`, a skill of its own for the command line for each of the three agents
+  (`skills/cli`), and the documentation. Committed there by the
   session. Not pushed: the owner pushes, and was not asked. The session's container does not
   last, so the commit is lost with it unless it is pushed first. Not merged, and no pull
   request.
@@ -171,6 +172,8 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
 - **A proxy at the owner's work holds back the documentation's pictures on GitHub,** PNG and
   SVG alike (WP-23, dropped). What the block page names when a picture's address is opened was
   not read, so the cause is not known.
+- **The three skills for the command line have not been loaded in an agent either;** they
+  were installed in a test only.
 - **The three skills have not been loaded in an agent,** and none is in the owner's own home
   folder: the command that installs one was tried against a folder made for the purpose. Their
   places and fields are from each agent's documentation as read on 2026-11-22. How the server is added to Codex and to Copilot

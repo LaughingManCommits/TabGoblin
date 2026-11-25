@@ -54,7 +54,8 @@ is in the download.
    tabgoblin --setup claude-code --mode cli
    ```
 
-   Nothing is registered then. Setup installs the same skill and prints the command the agent
+   Nothing is registered then. Setup installs the agent's skill for the command line, in the
+   place of the one for MCP, and prints the command the agent
    runs, `tabgoblin status --agent claude-code` with your folder's path, and says to put the
    folder on your `PATH` or to tell the agent that line once. `--mode mcp` is what setup does
    without the option. The tools and every rule are the same on both ways

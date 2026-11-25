@@ -16,6 +16,11 @@ import java.util.stream.Stream;
  * for skills. A skill tells an agent how to work with the tools; the texts are in the
  * repository's {@code skills} folder, one for each agent, and the build takes them into the jar.
  *
+ * <p>Each agent has two: one for the MCP tools, and one for the same tools as commands of a
+ * terminal ({@link Cli}), in {@code skills/cli}. They have one name and one place, so an agent
+ * has the one for the way it was set up and not both: a skill says how to reach the tools, and
+ * an agent is not to change from one way to the other by itself.
+ *
  * <p>A skill is put into a folder of the user's home, and only on the user's own command. One
  * that is there already and is not this one is left as it is, unless the user says to replace it:
  * it may be theirs.
@@ -96,7 +101,11 @@ final class Skills {
     }
 
     /** Where a skill went, or would have gone, and how that ended. */
-    record Result(Agent agent, Path folder, Outcome outcome) {
+    record Result(Agent agent, Path folder, Outcome outcome, boolean commandLine) {
+
+        Result(Agent agent, Path folder, Outcome outcome) {
+            this(agent, folder, outcome, false);
+        }
 
         /** Whether the skill is in its place now. */
         boolean ok() {
@@ -105,11 +114,14 @@ final class Skills {
 
         /** What the user is told. */
         String says() {
-            String skill = "the TabGoblin skill for " + agent.called();
+            String skill = "the TabGoblin skill for " + agent.called() + (commandLine ? ", for the command line," : "");
             return switch (outcome) {
                 case INSTALLED -> "Installed " + skill + " in " + folder + "\n"
-                        + "Start " + agent.called() + " again if it does not show the skill. A skill does not add the server:\n"
-                        + "the agent has to be told about the server as well (installation guide, step 5).";
+                        + "Start " + agent.called() + " again if it does not show the skill. " + (commandLine
+                                ? "Nothing is registered for the command line:\nthe agent has to find the command tabgoblin, "
+                                        + "or be told its line (--setup " + agent.id() + " --mode cli prints it)."
+                                : "A skill does not add the server:\n"
+                                        + "the agent has to be told about the server as well (installation guide, step 5).");
                 case UP_TO_DATE -> "Nothing to do: " + skill + " is already in " + folder;
                 case REPLACED -> "Replaced " + skill + " in " + folder + "\n"
                         + "Start " + agent.called() + " again if it still shows the old one.";
@@ -125,28 +137,42 @@ final class Skills {
      * @param replace overwrite a skill that is there and is not this one
      */
     static Result install(Agent agent, Path home, boolean replace) throws IOException {
+        return install(agent, home, replace, false);
+    }
+
+    /**
+     * @param commandLine the skill for the tools as commands of a terminal, in place of the one
+     *                    for the MCP tools. Either takes the other's place without being told to
+     *                    replace it: that one is this server's own, and not the user's
+     */
+    static Result install(Agent agent, Path home, boolean replace, boolean commandLine) throws IOException {
         Path folder = agent.folder(home);
-        Map<String, byte[]> files = bundled(agent);
+        Map<String, byte[]> files = bundled(agent, commandLine);
         boolean taken = taken(folder);
         if (taken && same(folder, files)) {
-            return new Result(agent, folder, Outcome.UP_TO_DATE);
+            return new Result(agent, folder, Outcome.UP_TO_DATE, commandLine);
         }
-        if (taken && !replace) {
-            return new Result(agent, folder, Outcome.DIFFERENT);
+        if (taken && !replace && !same(folder, bundled(agent, !commandLine))) {
+            return new Result(agent, folder, Outcome.DIFFERENT, commandLine);
         }
         for (Map.Entry<String, byte[]> file : files.entrySet()) {
             Path to = resolve(folder, file.getKey());
             Files.createDirectories(to.getParent());
             Files.write(to, file.getValue());
         }
-        return new Result(agent, folder, taken ? Outcome.REPLACED : Outcome.INSTALLED);
+        return new Result(agent, folder, taken ? Outcome.REPLACED : Outcome.INSTALLED, commandLine);
     }
 
     /** The files of an agent's skill as the jar carries them, by their path below the skill's folder. */
     static Map<String, byte[]> bundled(Agent agent) throws IOException {
+        return bundled(agent, false);
+    }
+
+    /** @param commandLine the agent's skill for the command line, which the jar has under {@code skills/cli} */
+    static Map<String, byte[]> bundled(Agent agent, boolean commandLine) throws IOException {
         Map<String, byte[]> files = new LinkedHashMap<>();
         for (String file : agent.files()) {
-            String resource = "/skills/" + agent.id() + "/" + NAME + "/" + file;
+            String resource = "/skills/" + (commandLine ? "cli/" : "") + agent.id() + "/" + NAME + "/" + file;
             try (InputStream in = Skills.class.getResourceAsStream(resource)) {
                 if (in == null) {
                     throw new IOException("This build carries no " + resource.substring(1) + ". Build the server again.");

@@ -256,8 +256,10 @@ class McpMainTest {
         assertTrue(parse(Map.of(), "--setup", "codex", "--mode", "cli").commandLine());
         assertEquals("--mode is mcp or cli, not \"rest\".",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--setup", "codex", "--mode", "rest")).getMessage());
-        assertEquals("--mode goes with --setup.",
+        assertEquals("--mode goes with --setup or --install-skill.",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--mode", "cli")).getMessage());
+        assertTrue(parse(Map.of(), "--install-skill", "copilot", "--mode", "cli").commandLine());
+        assertFalse(parse(Map.of(), "--install-skill", "copilot").commandLine());
         assertEquals("--mode needs a value.",
                 assertThrows(UsageException.class, () -> parse(Map.of(), "--setup", "codex", "--mode")).getMessage());
     }

@@ -468,8 +468,8 @@ Commands you run yourself, each of which does its part and returns:
 
 | Command | Does |
 |---|---|
-| `tabgoblin --setup <agent>` | Installs the agent's skill and prints how to register the server, load the extension and pair. `<agent>` is `claude-code`, `codex` or `copilot`. With `--mode cli` it prints the command the agent runs in its terminal instead, and nothing is registered; `--mode mcp` is the default |
-| `tabgoblin --install-skill <agent>` | Installs the skill only. `--replace` overwrites one that is there and differs |
+| `tabgoblin --setup <agent>` | Installs the agent's skill and prints how to register the server, load the extension and pair. `<agent>` is `claude-code`, `codex` or `copilot`. With `--mode cli` it installs the skill for the command line and prints the command the agent runs in its terminal instead, and nothing is registered; `--mode mcp` is the default |
+| `tabgoblin --install-skill <agent>` | Installs the skill only: the one for MCP, or with `--mode cli` the one for the command line, which take each other's place. `--replace` overwrites one that is there and is neither |
 | `tabgoblin --panel` | Brings up the server's window |
 | `tabgoblin --show-token` | Prints the pairing token and the port |
 | `tabgoblin --rotate-token` | Replaces the pairing token. Every pairing ends at once and the popup asks for the new token |

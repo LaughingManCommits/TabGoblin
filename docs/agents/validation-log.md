@@ -12,7 +12,7 @@ under one name against a server the first command started, on the same port both
 
 | Command | Result |
 |---|---|
-| `mvn -f java-server/pom.xml verify` | 222 tests, 16 skipped for lack of a display, and the conformance check on the built jar. 14 are new in `CliTest`, 1 in `SetupTest`, 3 in `McpMainTest`. No test that was there was changed |
+| `mvn -f java-server/pom.xml verify` | 225 tests, 16 skipped for lack of a display, and the conformance check on the built jar. 14 are new in `CliTest`, 1 in `SetupTest`, 3 in `McpMainTest`, 3 in `SkillsTest`. No test that was there was changed |
 | `npm run check` in `chrome-extension` | Passes, with the type-check and the build. No source of the extension was changed |
 | `cd e2e && node run.mjs` | 109 passed, 0 failed. Six steps are new, the section "The command line": no MCP client takes part in what they run |
 | `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | Pass |
@@ -23,6 +23,15 @@ wrong words). The third failed in a step that was there before and that no comma
 in, "an agent whose server restarts gets its sessions back", on a wait in the popup, and the
 steps after it timed out on the agent that step had closed; it had passed in the two runs
 before with the same server, and passed in the fourth. Why it failed once was not found.
+
+Afterwards, on the owner's word, a skill of its own for the command line for each agent
+(`skills/cli`). The 225 tests above are with it. The built jar was then run against a home
+folder made for the purpose: `--setup codex --mode cli` put the skill for the command line
+there, with `agents/openai.yaml`; `--install-skill codex` put the one for MCP in its place, and
+`--install-skill codex --mode cli` the first again, each saying that it replaced. The
+end-to-end suite was not run again after that: no skill takes part in it, and the server's
+code changed only where a skill is installed. One test of `CliTest` failed once on the way, by
+a fault of its own: it took an agent that was just leaving for the new one.
 
 Not run: Windows and macOS; `tabgoblin.cmd` and a download's launcher with a command; the
 editor lab; the workflows; the server's window with an agent of the command line in it; a real

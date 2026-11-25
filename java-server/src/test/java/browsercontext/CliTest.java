@@ -425,7 +425,8 @@ class CliTest {
                 && hub.agents().stream().anyMatch(agent -> agent.bridge().clientId().equals(AgentKeys.idOf(AgentKeys.read(dir, "ide")))),
                 "the agent of the new key");
         assertNotEquals(id, AgentKeys.idOf(AgentKeys.read(dir, "ide")), "a new agent: what the old one had does not come to it");
-        Agent fresh = hub.agents().stream().filter(agent -> !agent.bridge().clientId().equals(id)).findFirst().orElseThrow();
+        String newId = AgentKeys.idOf(AgentKeys.read(dir, "ide"));
+        Agent fresh = hub.agents().stream().filter(agent -> agent.bridge().clientId().equals(newId)).findFirst().orElseThrow();
         extensions.add(FakeExtension.paired(fresh.bridge().getPort(), TOKEN));
         assertEquals(Cli.EXIT_OK, again.get(15, TimeUnit.SECONDS).exit());
         assertTrue(fresh.bridge().sessions().isEmpty());

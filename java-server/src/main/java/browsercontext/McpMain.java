@@ -127,7 +127,8 @@ public final class McpMain {
                 System.exit(1);
                 return;
             }
-            Skills.Result skill = Skills.install(options.setup(), Path.of(System.getProperty("user.home")), options.replace());
+            Skills.Result skill = Skills.install(options.setup(), Path.of(System.getProperty("user.home")), options.replace(),
+                    options.commandLine());
             mcpOut.println(Setup.says(skill, self, options.commandLine()));
             if (!skill.ok()) {
                 System.exit(1);
@@ -136,7 +137,8 @@ public final class McpMain {
         }
         if (options.installSkill() != null) {
             // Into the user's own home, on the user's own command, and nothing is started for it.
-            Skills.Result result = Skills.install(options.installSkill(), Path.of(System.getProperty("user.home")), options.replace());
+            Skills.Result result = Skills.install(options.installSkill(), Path.of(System.getProperty("user.home")), options.replace(),
+                    options.commandLine());
             mcpOut.println(result.says());
             if (!result.ok()) {
                 System.exit(1);
@@ -560,12 +562,14 @@ public final class McpMain {
               java -jar browser-context-mcp.jar --setup <agent>  set TabGoblin up for an agent: claude-code, codex or copilot.
                                                                  It installs the skill, and prints the line that tells
                                                                  the agent about this server, the extension's folder,
-                                                                 and how to pair. With --mode cli it prints the command
-                                                                 the agent runs in its terminal instead: nothing is
-                                                                 registered then. --mode mcp is what it does without
+                                                                 and how to pair. With --mode cli it installs the skill
+                                                                 for the command line and prints the command the agent
+                                                                 runs in its terminal instead: nothing is registered
+                                                                 then. --mode mcp is what it does without
               java -jar browser-context-mcp.jar --install-skill <agent>
                                                                  put the skill that tells an agent how to use the tools where
-                                                                 that agent looks for skills: claude-code, codex or copilot
+                                                                 that agent looks for skills: claude-code, codex or copilot.
+                                                                 With --mode cli the skill for the command line
               java -jar browser-context-mcp.jar --list-agents    the agents that have a key of their own, each with its id
               java -jar browser-context-mcp.jar --revoke-agent <name>
                                                                  take one agent's key away: its tools answer AGENT_REVOKED,
@@ -612,7 +616,7 @@ public final class McpMain {
                       --agent <name>  who the agent is that starts this server (or BCMCP_AGENT)
                       --settings <path of the settings file>
                       --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one
-                      --mode <mcp or cli>  with --setup: how the agent is to reach the tools (default mcp)""";
+                      --mode <mcp or cli>  with --setup or --install-skill: how the agent is to reach the tools (default mcp)""";
 
     /**
      * Whether a person started the server in a terminal, as opposed to an MCP client that talks to
@@ -1087,8 +1091,8 @@ public final class McpMain {
             if (replace && installSkill == null && setup == null) {
                 throw new UsageException("--replace goes with --setup or --install-skill.");
             }
-            if (mode != null && setup == null) {
-                throw new UsageException("--mode goes with --setup.");
+            if (mode != null && setup == null && installSkill == null) {
+                throw new UsageException("--mode goes with --setup or --install-skill.");
             }
             if (mode != null && !mode.equals("mcp") && !mode.equals("cli")) {
                 throw new UsageException("--mode is mcp or cli, not \"" + mode + "\".");

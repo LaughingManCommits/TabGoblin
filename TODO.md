@@ -1758,8 +1758,12 @@ keeps its agent apart is in the [security model](docs/security-model.md#agent-id
   at once. A command whose key an MCP-connected agent holds is refused (`AGENT_IN_USE`); it
   gets no id of its own, which would be an agent that no tab ever comes to.
 - **Setup:** `--setup <agent> --mode cli` prints the command in place of the line that
-  registers the server; `--mode mcp`, and no mode, is what setup did. The three skills have a
-  section on the command line, the same in all three.
+  registers the server; `--mode mcp`, and no mode, is what setup did.
+- **A skill of its own,** on the owner's word the same day ("Separate CLI-only skill"): three
+  skills in `skills/cli`, one for each agent, in terms of commands and naming no MCP tool. The
+  skills for MCP name no command. `--mode cli` installs it, with `--setup` or
+  `--install-skill`; the two of an agent have one name and one place and take each other's
+  place.
 
 ### Open, for the owner
 

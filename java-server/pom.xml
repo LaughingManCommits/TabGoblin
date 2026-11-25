@@ -87,6 +87,8 @@
                 <filtering>false</filtering>
                 <includes>
                     <include>*/tabgoblin/**</include>
+                    <!-- The same agents' skills for the command line, which the mode "cli" installs. -->
+                    <include>cli/*/tabgoblin/**</include>
                 </includes>
             </resource>
             <resource>

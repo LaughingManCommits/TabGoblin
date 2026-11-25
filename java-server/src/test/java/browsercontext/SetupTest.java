@@ -130,7 +130,7 @@ class SetupTest {
         Path folder = download(dir, true);
         Setup.Self self = Setup.Self.at(folder.resolve("runtime").resolve("bin").resolve("java.exe"),
                 folder.resolve("browser-context-mcp.jar"), "Windows 11");
-        Skills.Result skill = Skills.install(Skills.Agent.CODEX, dir.resolve("home"), false);
+        Skills.Result skill = Skills.install(Skills.Agent.CODEX, dir.resolve("home"), false, true);
         String said = Setup.says(skill, self, true);
         assertTrue(said.contains("1. The skill, which tells the agent how to use the tools: installed in "), said);
         assertTrue(said.contains("2. The command. Nothing is registered: Codex runs the tools as commands in its\n"), said);

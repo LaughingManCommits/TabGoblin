@@ -36,7 +36,8 @@ Without MCP
 
          tabgoblin --setup claude-code --mode cli
 
-  which registers nothing and prints the command the agent runs. "tabgoblin tools" lists the
+  which installs the skill for the command line, registers nothing, and prints the command the
+  agent runs. "tabgoblin tools" lists the
   commands.
 
 Update
