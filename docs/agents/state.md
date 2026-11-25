@@ -113,7 +113,11 @@ Last updated: 2026-11-25, later the same day. Claims here go stale; check the da
   pages. The proxy at the owner's work that holds back the documentation's pictures (below)
   will hold these back too, by what WP-23 found; Mermaid was text and was not affected. Their
   alternative texts say what each shows. They were looked at in the container's Chromium on a
-  light and a dark ground, not on GitHub.
+  light and a dark ground, not on GitHub. The owner reported the same day that no picture
+  showed in IntelliJ: the four were then made one file each, with a ground of its own, and
+  put into the pages in the plain Markdown form. Not seen in IntelliJ by the session. The
+  thirteen screenshots are `<img>` elements as before; whether those show in IntelliJ is not
+  known. The Mermaid diagrams show there only with a plugin that draws Mermaid.
 
 - **Words in the program still put MCP first,** found in the review of 2026-11-25 and left,
   since that was for the documentation only: the popup's "Disconnected: is the MCP server

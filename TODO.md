@@ -1872,4 +1872,9 @@ by side, a green "TabGoblin bridge" with what it checks, the browser extension, 
 - **The eight sequence and state diagrams stay Mermaid,** with GitHub's theme. Colours of our
   own would be fixed, and wrong on a light page or on a dark one.
 - **Open:** whether the owner's proxy shows them (state); how GitHub draws them.
+- **After the owner's word that no picture showed in IntelliJ:** one file for each diagram,
+  with its own ground and both sets of colours inside (`prefers-color-scheme`), in place of
+  two files in a `<picture>` element, and the plain Markdown form of an image in the pages.
+  Each shape has the light colours as plain attributes too, for a viewer that reads no style
+  sheet.
 

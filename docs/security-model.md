@@ -85,10 +85,7 @@ Every control is labelled with one of three classes:
 
 ### Where a command is checked
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/command-checks-dark.svg">
-  <img src="assets/diagrams/command-checks.svg" width="800" alt="Where a command is checked: two checks in the TabGoblin server and four in the TabGoblin extension, each with the error codes it refuses with, before one fixed operation runs in the authorized tab. Asking the user about a submission is configurable; the other checks are enforced; taking credentials out of the result is best effort.">
-</picture>
+![Where a command is checked: two checks in the TabGoblin server and four in the TabGoblin extension, each with the error codes it refuses with, before one fixed operation runs in the authorized tab. Asking the user about a submission is configurable; the other checks are enforced; taking credentials out of the result is best effort.](assets/diagrams/command-checks.svg)
 
 | Step in the picture | Class |
 |---|---|

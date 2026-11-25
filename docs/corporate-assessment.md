@@ -60,10 +60,7 @@ a store-based allowlist.
 
 ## Data flow and processing locations
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/data-flow-dark.svg">
-  <img src="assets/diagrams/data-flow.svg" width="760" alt="Deployment boundary and data flow: the coding agent, the CLI and MCP interfaces, the TabGoblin server and the TabGoblin extension in Chrome all run on the developer's workstation under one operating-system account. Two flows leave it, neither made by TabGoblin: the agent's prompts to its model provider and the tab's HTTPS session with the web application.">
-</picture>
+![Deployment boundary and data flow: the coding agent, the CLI and MCP interfaces, the TabGoblin server and the TabGoblin extension in Chrome all run on the developer's workstation under one operating-system account. Two flows leave it, neither made by TabGoblin: the agent's prompts to its model provider and the tab's HTTPS session with the web application.](assets/diagrams/data-flow.svg)
 
 The outer box is one operating-system account, not a set of isolated compartments: the checks
 named in it are made by TabGoblin's own programs, and a program that runs as the developer is

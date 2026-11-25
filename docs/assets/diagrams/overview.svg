@@ -1,51 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 742" width="760" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 742" width="760" height="742" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
 <title id="t">TabGoblin at a glance</title>
 <desc id="d">An AI coding agent reaches TabGoblin through the CLI or through MCP, side by side. Both lead into the TabGoblin bridge, which checks identity, validates the request and applies the policy. The bridge leads to the browser extension, where execution is under the user's control: it reaches the tabs the user authorized, and every other tab is denied.</desc>
+<style>
+svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; }
+@media (prefers-color-scheme: dark) {
+  svg { --ground: #0D1117; --edge: #30363D; --text: #E2E8F0; --soft: #94A3B8; --line: #94A3B8; --tint: 0.14; --red-text: #F87171; --green-text: #4ADE80; }
+}
+.ground { fill: var(--ground); stroke: var(--edge); }
+.name { fill: var(--text); font-weight: 600; }
+.sub { fill: var(--soft); }
+.red-text { fill: var(--red-text); }
+.green-text { fill: var(--green-text); }
+.tint { fill-opacity: var(--tint); }
+.half { fill-opacity: calc(var(--tint) / 2); }
+.wire { fill: none; stroke: var(--line); stroke-width: 1.25; }
+.wire.red { stroke: #DC2626; }
+.wire.green { stroke: #16A34A; }
+.tip { fill: var(--line); }
+.rule { stroke: var(--line); stroke-opacity: 0.35; }
+</style>
 <defs>
-<marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#64748B"/></marker>
-<marker id="tail" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#64748B"/></marker>
-<marker id="head-red" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#DC2626"/></marker>
-<marker id="head-green" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#16A34A"/></marker>
+<marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" class="tip" fill="#64748B"/></marker>
+<marker id="head-red" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#DC2626"/></marker>
+<marker id="head-green" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#16A34A"/></marker>
 </defs>
-<rect x="210" y="20" width="340" height="64" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="380" y="58" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">AI coding agent</text>
-<rect x="40" y="132" width="320" height="80" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="200" y="167" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">CLI</text>
-<text x="200" y="189" text-anchor="middle" font-size="14" fill="#475569">Local execution</text>
-<rect x="400" y="132" width="320" height="80" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="560" y="167" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">MCP</text>
-<text x="560" y="189" text-anchor="middle" font-size="14" fill="#475569">Native integration</text>
-<polyline points="380,84 380,108" fill="none" stroke="#64748B" stroke-width="1.25"/>
-<polyline points="200,132 200,108 560,108 560,132" fill="none" stroke="#64748B" stroke-width="1.25"/>
-<polyline points="200,212 200,236 560,236 560,212" fill="none" stroke="#64748B" stroke-width="1.25"/>
-<polyline points="380,236 380,260" fill="none" stroke="#64748B" stroke-width="1.25"/>
-<rect x="80" y="260" width="600" height="168" rx="12" fill="#16A34A" fill-opacity="0.035" stroke="#16A34A" stroke-width="1.5"/>
-<text x="380" y="296" text-anchor="middle" font-size="19" font-weight="600" fill="#0F172A">TabGoblin bridge</text>
-<rect x="104" y="318" width="172" height="84" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="190" y="355" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">Identity</text>
-<text x="190" y="377" text-anchor="middle" font-size="14" fill="#475569">agent key</text>
-<rect x="294" y="318" width="172" height="84" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="380" y="355" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">Validation</text>
-<text x="380" y="377" text-anchor="middle" font-size="14" fill="#475569">every request</text>
-<rect x="484" y="318" width="172" height="84" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="570" y="355" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">Policy</text>
-<text x="570" y="377" text-anchor="middle" font-size="14" fill="#475569">sites and limits</text>
-<rect x="160" y="476" width="440" height="80" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="380" y="511" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">Browser extension</text>
-<text x="380" y="533" text-anchor="middle" font-size="14" fill="#475569">User-controlled execution</text>
-<polyline points="380,428 380,476" fill="none" stroke="#64748B" stroke-width="1.25"/>
-<rect x="40" y="604" width="320" height="56" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="200" y="638" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">Tabs you authorized</text>
-<rect x="400" y="604" width="320" height="56" rx="8" fill="#DC2626" fill-opacity="0.07" stroke="#DC2626" stroke-width="1.25" stroke-dasharray="5 4"/>
-<text x="560" y="638" text-anchor="middle" font-size="18" font-weight="600" fill="#0F172A">Every other tab</text>
-<polyline points="380,556 380,580" fill="none" stroke="#64748B" stroke-width="1.25"/>
-<polyline points="200,604 200,580 380,580" fill="none" stroke="#64748B" stroke-width="1.25"/>
-<polyline points="380,580 560,580 560,604" fill="none" stroke="#DC2626" stroke-width="1.25" stroke-dasharray="4 4"/>
-<line x1="24" y1="692" x2="736" y2="692" stroke="#64748B" stroke-opacity="0.35" stroke-width="1"/>
-<circle cx="213" cy="716" r="5" fill="#64748B"/>
-<text x="225" y="720" font-size="12" fill="#475569">Components</text>
-<circle cx="331" cy="716" r="5" fill="#16A34A"/>
-<text x="343" y="720" font-size="12" fill="#475569">TabGoblin</text>
-<circle cx="449" cy="716" r="5" fill="#DC2626"/>
-<text x="461" y="720" font-size="12" fill="#475569">Denied</text>
+<rect class="ground" fill="#FFFFFF" stroke="#D0D7DE" x="0.5" y="0.5" width="759" height="741" rx="12" stroke-width="1"/>
+<rect class="tint" fill-opacity="0.07" x="210" y="20" width="340" height="64" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="380" y="58" text-anchor="middle" font-size="18">AI coding agent</text>
+<rect class="tint" fill-opacity="0.07" x="40" y="132" width="320" height="80" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="200" y="167" text-anchor="middle" font-size="18">CLI</text>
+<text class="sub" fill="#475569" x="200" y="189" text-anchor="middle" font-size="14">Local execution</text>
+<rect class="tint" fill-opacity="0.07" x="400" y="132" width="320" height="80" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="560" y="167" text-anchor="middle" font-size="18">MCP</text>
+<text class="sub" fill="#475569" x="560" y="189" text-anchor="middle" font-size="14">Native integration</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,84 380,108"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,132 200,108 560,108 560,132"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,212 200,236 560,236 560,212"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,236 380,260"/>
+<rect class="half" fill-opacity="0.035" fill="#16A34A" x="80" y="260" width="600" height="168" rx="12" stroke="#16A34A" stroke-width="1.5"/>
+<text class="name" fill="#0F172A" font-weight="600" x="380" y="296" text-anchor="middle" font-size="19">TabGoblin bridge</text>
+<rect class="tint" fill-opacity="0.07" x="104" y="318" width="172" height="84" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="190" y="355" text-anchor="middle" font-size="18">Identity</text>
+<text class="sub" fill="#475569" x="190" y="377" text-anchor="middle" font-size="14">agent key</text>
+<rect class="tint" fill-opacity="0.07" x="294" y="318" width="172" height="84" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="380" y="355" text-anchor="middle" font-size="18">Validation</text>
+<text class="sub" fill="#475569" x="380" y="377" text-anchor="middle" font-size="14">every request</text>
+<rect class="tint" fill-opacity="0.07" x="484" y="318" width="172" height="84" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="570" y="355" text-anchor="middle" font-size="18">Policy</text>
+<text class="sub" fill="#475569" x="570" y="377" text-anchor="middle" font-size="14">sites and limits</text>
+<rect class="tint" fill-opacity="0.07" x="160" y="476" width="440" height="80" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="380" y="511" text-anchor="middle" font-size="18">Browser extension</text>
+<text class="sub" fill="#475569" x="380" y="533" text-anchor="middle" font-size="14">User-controlled execution</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,428 380,476"/>
+<rect class="tint" fill-opacity="0.07" x="40" y="604" width="320" height="56" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="200" y="638" text-anchor="middle" font-size="18">Tabs you authorized</text>
+<rect class="tint" fill-opacity="0.07" x="400" y="604" width="320" height="56" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25" stroke-dasharray="5 4"/>
+<text class="name" fill="#0F172A" font-weight="600" x="560" y="638" text-anchor="middle" font-size="18">Every other tab</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,556 380,580"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,604 200,580 380,580"/>
+<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="380,580 560,580 560,604" stroke-dasharray="4 4"/>
+<line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="692" x2="736" y2="692" stroke-width="1"/>
+<circle cx="250" cy="716" r="5" fill="#64748B"/>
+<text class="sub" fill="#475569" x="262" y="720" font-size="12">Components</text>
+<circle cx="354" cy="716" r="5" fill="#16A34A"/>
+<text class="sub" fill="#475569" x="366" y="720" font-size="12">TabGoblin</text>
+<circle cx="451.6" cy="716" r="5" fill="#DC2626"/>
+<text class="sub" fill="#475569" x="463.6" y="720" font-size="12">Denied</text>
 </svg>

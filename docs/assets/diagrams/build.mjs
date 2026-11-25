@@ -1,7 +1,13 @@
-// Draws the documentation's diagrams as SVG files, each once for a light and once for a dark page.
+// Draws the documentation's diagrams as SVG files.
 //   node docs/assets/diagrams/build.mjs        from the repository root
 // One style for all of them is kept here: change it in one place and draw them again. The files
 // it writes are committed; nothing else reads this script. Open each picture after a change.
+//
+// Each picture is one file that carries its own ground and both sets of colours: it is light
+// or dark by the reader's own setting (prefers-color-scheme), and readable on any page, since
+// it does not rely on the page's ground. Every shape also has the light colours as plain
+// attributes, for a viewer that does not read the style sheet. A page shows it with the plain Markdown form of an
+// image, which every viewer of Markdown understands.
 
 import { writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -9,88 +15,102 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-// The three colours, and the text for each ground. A fill is its colour at low opacity.
+// The three colours. A fill is its colour at low opacity; text and ground differ by theme.
 const SLATE = '#64748B';
 const GREEN = '#16A34A';
 const RED = '#DC2626';
-const THEMES = {
-  light: { text: '#0F172A', soft: '#475569', line: SLATE, fill: 0.07, redText: '#B91C1C', greenText: '#15803D' },
-  dark: { text: '#E2E8F0', soft: '#94A3B8', line: '#94A3B8', fill: 0.14, redText: '#F87171', greenText: '#4ADE80' },
-};
-const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 const COLOUR = { slate: SLATE, green: GREEN, red: RED };
+const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
+const STYLE = `
+svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; }
+@media (prefers-color-scheme: dark) {
+  svg { --ground: #0D1117; --edge: #30363D; --text: #E2E8F0; --soft: #94A3B8; --line: #94A3B8; --tint: 0.14; --red-text: #F87171; --green-text: #4ADE80; }
+}
+.ground { fill: var(--ground); stroke: var(--edge); }
+.name { fill: var(--text); font-weight: 600; }
+.sub { fill: var(--soft); }
+.red-text { fill: var(--red-text); }
+.green-text { fill: var(--green-text); }
+.tint { fill-opacity: var(--tint); }
+.half { fill-opacity: calc(var(--tint) / 2); }
+.wire { fill: none; stroke: var(--line); stroke-width: 1.25; }
+.wire.red { stroke: ${RED}; }
+.wire.green { stroke: ${GREEN}; }
+.tip { fill: var(--line); }
+.rule { stroke: var(--line); stroke-opacity: 0.35; }
+`;
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** One picture: shapes are added to it, and it writes itself for a theme. */
+/** One picture: shapes are added to it, and it is written as one file. */
 function picture(width, height, title, desc, draw) {
-  for (const [name, t] of Object.entries(THEMES)) {
-    const out = [];
-    const api = {
-      t,
-      /** A component: a bold name and smaller lines under it. Returns where its edges are. */
-      node(x, y, w, h, name, lines = [], kind = 'slate', opts = {}) {
-        const c = COLOUR[kind];
-        out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${c}" fill-opacity="${t.fill}" stroke="${c}" stroke-width="1.25"${opts.dashed ? ' stroke-dasharray="5 4"' : ''}/>`);
-        const rows = 1 + lines.length;
-        const [big, small, step] = opts.big ? [18, 14, 22] : [14, 12, 16];
-        const first = y + h / 2 - ((rows - 1) * step) / 2 + big / 3;
-        out.push(`<text x="${x + w / 2}" y="${first}" text-anchor="middle" font-size="${big}" font-weight="600" fill="${t.text}">${esc(name)}</text>`);
-        lines.forEach((line, i) => out.push(
-          `<text x="${x + w / 2}" y="${first + step * (i + 1)}" text-anchor="middle" font-size="${small}" fill="${t.soft}">${esc(line)}</text>`));
-        return { x, y, w, h, cx: x + w / 2, cy: y + h / 2, top: y, bottom: y + h, left: x, right: x + w };
-      },
-      /** A container. Dashed is a trust boundary; solid says only what belongs together. */
-      box(x, y, w, h, label, kind = 'slate', dashed = false) {
-        const c = COLOUR[kind];
-        out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="${c}" fill-opacity="${dashed ? 0 : t.fill / 2}" stroke="${c}" stroke-width="${label ? 1 : 1.5}"${dashed ? ' stroke-dasharray="6 5"' : label ? ' stroke-opacity="0.55"' : ''}/>`);
-        if (label) out.push(`<text x="${x + 14}" y="${y + 20}" font-size="11" font-weight="600" letter-spacing="0.6" fill="${kind === 'green' ? t.greenText : t.soft}">${esc(label.toUpperCase())}</text>`);
-      },
-      /** A connector through points, with an arrow head at its end unless told otherwise. */
-      line(points, opts = {}) {
-        const c = opts.kind === 'red' ? RED : opts.kind === 'green' ? GREEN : t.line;
-        const head = opts.head === false ? '' : ` marker-end="url(#${opts.kind === 'red' ? 'head-red' : opts.kind === 'green' ? 'head-green' : 'head'})"`;
-        const tail = opts.both ? ` marker-start="url(#tail)"` : '';
-        out.push(`<polyline points="${points.map((p) => p.join(',')).join(' ')}" fill="none" stroke="${c}" stroke-width="1.25"${opts.dashed ? ' stroke-dasharray="4 4"' : ''}${head}${tail}/>`);
-      },
-      /** A heading inside a container, centred. */
-      heading(x, y, text) {
-        out.push(`<text x="${x}" y="${y}" text-anchor="middle" font-size="19" font-weight="600" fill="${t.text}">${esc(text)}</text>`);
-      },
-      /** What the colours mean, said in words under the picture: a thin rule, then a dot and a word for each. */
-      legend(y, items = [['slate', 'Components'], ['green', 'TabGoblin'], ['red', 'Denied']]) {
-        out.push(`<line x1="24" y1="${y}" x2="${width - 24}" y2="${y}" stroke="${t.line}" stroke-opacity="0.35" stroke-width="1"/>`);
-        const each = 118;
-        let x = width / 2 - (items.length * each) / 2 + 10;
-        for (const [kind, word] of items) {
-          out.push(`<circle cx="${x}" cy="${y + 24}" r="5" fill="${COLOUR[kind]}"/>`);
-          out.push(`<text x="${x + 12}" y="${y + 28}" font-size="12" fill="${t.soft}">${esc(word)}</text>`);
-          x += each;
-        }
-      },
-      /** A small label beside a connector. */
-      label(x, y, text, opts = {}) {
-        const fill = opts.kind === 'red' ? t.redText : opts.kind === 'green' ? t.greenText : t.soft;
-        const lines = Array.isArray(text) ? text : [text];
-        lines.forEach((line, i) => out.push(
-          `<text x="${x}" y="${y + i * 14}" text-anchor="${opts.anchor ?? 'start'}" font-size="11"${opts.bold ? ' font-weight="600"' : ''}${opts.spaced ? ' letter-spacing="0.6"' : ''} fill="${fill}">${esc(line)}</text>`));
-      },
-    };
-    draw(api);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" role="img" aria-labelledby="t d" font-family="${FONT}">
+  const out = [];
+  const api = {
+    /** A component: a bold name and smaller lines under it. Returns where its edges are. */
+    node(x, y, w, h, name, lines = [], kind = 'slate', opts = {}) {
+      const c = COLOUR[kind];
+      out.push(`<rect class="tint" fill-opacity="0.07" x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${c}" stroke="${c}" stroke-width="1.25"${opts.dashed ? ' stroke-dasharray="5 4"' : ''}/>`);
+      const rows = 1 + lines.length;
+      const [big, small, step] = opts.big ? [18, 14, 22] : [14, 12, 16];
+      const first = y + h / 2 - ((rows - 1) * step) / 2 + big / 3;
+      out.push(`<text class="name" fill="#0F172A" font-weight="600" x="${x + w / 2}" y="${first}" text-anchor="middle" font-size="${big}">${esc(name)}</text>`);
+      lines.forEach((line, i) => out.push(
+        `<text class="sub" fill="#475569" x="${x + w / 2}" y="${first + step * (i + 1)}" text-anchor="middle" font-size="${small}">${esc(line)}</text>`));
+      return { x, y, w, h, cx: x + w / 2, cy: y + h / 2, top: y, bottom: y + h, left: x, right: x + w };
+    },
+    /** A container. Dashed is a trust boundary; solid says only what belongs together. */
+    box(x, y, w, h, label, kind = 'slate', dashed = false) {
+      const c = COLOUR[kind];
+      out.push(`<rect${dashed ? ' fill="none"' : ` class="half" fill-opacity="0.035" fill="${c}"`} x="${x}" y="${y}" width="${w}" height="${h}" rx="12" stroke="${c}" stroke-width="${label ? 1 : 1.5}"${dashed ? ' stroke-dasharray="6 5"' : label ? ' stroke-opacity="0.55"' : ''}/>`);
+      if (label) out.push(`<text class="${kind === 'green' ? 'green-text' : 'sub'}" fill="${kind === 'green' ? '#15803D' : '#475569'}" x="${x + 14}" y="${y + 20}" font-size="11" font-weight="600" letter-spacing="0.6">${esc(label.toUpperCase())}</text>`);
+    },
+    /** A connector through points, with an arrow head at its end unless told otherwise. */
+    line(points, opts = {}) {
+      const kind = opts.kind === 'red' || opts.kind === 'green' ? opts.kind : '';
+      const head = opts.head === false ? '' : ` marker-end="url(#head${kind ? `-${kind}` : ''})"`;
+      const tail = opts.both ? ' marker-start="url(#head)"' : '';
+      out.push(`<polyline class="wire${kind ? ` ${kind}` : ''}" fill="none" stroke="${kind ? COLOUR[kind] : SLATE}" stroke-width="1.25" points="${points.map((p) => p.join(',')).join(' ')}"${opts.dashed ? ' stroke-dasharray="4 4"' : ''}${head}${tail}/>`);
+    },
+    /** A heading inside a container, centred. */
+    heading(x, y, text) {
+      out.push(`<text class="name" fill="#0F172A" font-weight="600" x="${x}" y="${y}" text-anchor="middle" font-size="19">${esc(text)}</text>`);
+    },
+    /** What the colours mean, said in words under the picture: a thin rule, then a dot and a word for each. */
+    legend(y, items = [['slate', 'Components'], ['green', 'TabGoblin'], ['red', 'Denied']]) {
+      out.push(`<line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="${y}" x2="${width - 24}" y2="${y}" stroke-width="1"/>`);
+      // Each word has the room its length needs: a long one does not run into the next dot.
+      const room = (word) => 12 + word.length * 6.4 + 28;
+      let x = width / 2 - items.reduce((sum, [, word]) => sum + room(word), 0) / 2 + 10;
+      for (const [kind, word] of items) {
+        out.push(`<circle cx="${x}" cy="${y + 24}" r="5" fill="${COLOUR[kind]}"/>`);
+        out.push(`<text class="sub" fill="#475569" x="${x + 12}" y="${y + 28}" font-size="12">${esc(word)}</text>`);
+        x += room(word);
+      }
+    },
+    /** A small label beside a connector. */
+    label(x, y, text, opts = {}) {
+      const cls = opts.kind === 'red' ? 'red-text' : opts.kind === 'green' ? 'green-text' : 'sub';
+      const lines = Array.isArray(text) ? text : [text];
+      lines.forEach((line, i) => out.push(
+        `<text class="${cls}" fill="${opts.kind === 'red' ? '#B91C1C' : opts.kind === 'green' ? '#15803D' : '#475569'}" x="${x}" y="${y + i * 14}" text-anchor="${opts.anchor ?? 'start'}" font-size="11"${opts.bold ? ' font-weight="600"' : ''}${opts.spaced ? ' letter-spacing="0.6"' : ''}>${esc(line)}</text>`));
+    },
+  };
+  draw(api);
+  const tip = (id, fill) => `<marker id="${id}" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" ${fill}/></marker>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d" font-family="${FONT}">
 <title id="t">${esc(title)}</title>
 <desc id="d">${esc(desc)}</desc>
+<style>${STYLE}</style>
 <defs>
-<marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="${t.line}"/></marker>
-<marker id="tail" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="${t.line}"/></marker>
-<marker id="head-red" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.8 L7,4 L0,7.2 z" fill="${RED}"/></marker>
-<marker id="head-green" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.8 L7,4 L0,7.2 z" fill="${GREEN}"/></marker>
+${tip('head', `class="tip" fill="${SLATE}"`)}
+${tip('head-red', `fill="${RED}"`)}
+${tip('head-green', `fill="${GREEN}"`)}
 </defs>
+<rect class="ground" fill="#FFFFFF" stroke="#D0D7DE" x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="12" stroke-width="1"/>
 ${out.join('\n')}
 </svg>
 `;
-    writeFileSync(join(HERE, name === 'light' ? `${title.file}.svg` : `${title.file}-dark.svg`), svg);
-  }
+  writeFileSync(join(HERE, `${title.file}.svg`), svg);
 }
 
 /** A title that also carries the file's name. */
@@ -259,4 +279,4 @@ picture(760, 830, named('data-flow', 'Deployment boundary and data flow'),
     d.legend(786, [['slate', 'Components'], ['green', 'TabGoblin']]);
   });
 
-console.log('8 files written to docs/assets/diagrams');
+console.log('4 files written to docs/assets/diagrams');

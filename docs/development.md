@@ -54,19 +54,21 @@ Other scripts in `e2e/`:
 
 ### About the diagrams
 
-Four diagrams are SVG files in `docs/assets/diagrams/`, each in a light and a dark variant,
-and a page shows the one that fits the reader's theme with a `<picture>` element. They are
-drawn by one script, which holds their common style (three colours: slate for components,
-green for TabGoblin, red for what is denied or refused; rounded boxes, thin lines, dashed
-borders for boundaries):
+Four diagrams are SVG files in `docs/assets/diagrams/`. Each is one file that carries its own
+ground and both sets of colours: it is light or dark by the reader's own setting, and readable
+on any page. A page shows one with the plain Markdown form of an image, `![…](…)`, which
+GitHub and an editor's preview both understand; a `<picture>` element with two files, as they
+had at first, did not show in IntelliJ's preview. They are drawn by one script, which holds
+their common style (three colours: slate for components, green for TabGoblin, red for what is
+denied or refused; rounded boxes, thin lines, dashed borders for boundaries):
 
 ```sh
 node docs/assets/diagrams/build.mjs
 ```
 
-Change a diagram in that script, not in an SVG file, and open both variants afterwards. The
-sequence and state diagrams are Mermaid in the pages themselves, with GitHub's own theme: a
-fixed set of colours there would be right on a light page or on a dark one, not on both.
+Change a diagram in that script, not in an SVG file, and open it afterwards, with the system
+set to light and to dark. The sequence and state diagrams are Mermaid in the pages
+themselves, with the viewer's own theme; an editor shows them only if it draws Mermaid.
 
 ### About the screenshots
 

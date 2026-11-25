@@ -1,75 +1,93 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 1040" width="760" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 1040" width="760" height="1040" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
 <title id="t">The components of TabGoblin</title>
 <desc id="d">The CLI and the MCP link are two interfaces to one TabGoblin server, which has one set of tool definitions, one service and one WebSocket endpoint. In Chrome, the extension has a popup for the user, a worker that holds the rules, and a content script that works in the authorized tab.</desc>
+<style>
+svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; }
+@media (prefers-color-scheme: dark) {
+  svg { --ground: #0D1117; --edge: #30363D; --text: #E2E8F0; --soft: #94A3B8; --line: #94A3B8; --tint: 0.14; --red-text: #F87171; --green-text: #4ADE80; }
+}
+.ground { fill: var(--ground); stroke: var(--edge); }
+.name { fill: var(--text); font-weight: 600; }
+.sub { fill: var(--soft); }
+.red-text { fill: var(--red-text); }
+.green-text { fill: var(--green-text); }
+.tint { fill-opacity: var(--tint); }
+.half { fill-opacity: calc(var(--tint) / 2); }
+.wire { fill: none; stroke: var(--line); stroke-width: 1.25; }
+.wire.red { stroke: #DC2626; }
+.wire.green { stroke: #16A34A; }
+.tip { fill: var(--line); }
+.rule { stroke: var(--line); stroke-opacity: 0.35; }
+</style>
 <defs>
-<marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#64748B"/></marker>
-<marker id="tail" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#64748B"/></marker>
-<marker id="head-red" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#DC2626"/></marker>
-<marker id="head-green" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#16A34A"/></marker>
+<marker id="head" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" class="tip" fill="#64748B"/></marker>
+<marker id="head-red" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#DC2626"/></marker>
+<marker id="head-green" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#16A34A"/></marker>
 </defs>
-<rect x="190" y="20" width="240" height="48" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="310" y="48.666666666666664" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Coding agent</text>
-<rect x="40" y="108" width="540" height="110" rx="12" fill="#64748B" fill-opacity="0.035" stroke="#64748B" stroke-width="1" stroke-opacity="0.55"/>
-<text x="54" y="128" font-size="11" font-weight="600" letter-spacing="0.6" fill="#475569">INTEGRATION INTERFACES</text>
-<rect x="70" y="140" width="220" height="56" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="180" y="164.66666666666666" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">CLI</text>
-<text x="180" y="180.66666666666666" text-anchor="middle" font-size="12" fill="#475569">one process per command</text>
-<rect x="330" y="140" width="220" height="56" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="440" y="164.66666666666666" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">MCP link</text>
-<text x="440" y="180.66666666666666" text-anchor="middle" font-size="12" fill="#475569">one process per agent</text>
-<polyline points="270,68 270,88 180,88 180,140" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<polyline points="350,68 350,88 440,88 440,140" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<text x="172" y="102" text-anchor="end" font-size="11" fill="#475569">runs a command</text>
-<text x="448" y="102" text-anchor="start" font-size="11" fill="#475569">MCP over stdio</text>
-<rect x="40" y="268" width="540" height="314" rx="12" fill="#16A34A" fill-opacity="0.035" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
-<text x="54" y="288" font-size="11" font-weight="600" letter-spacing="0.6" fill="#15803D">TABGOBLIN SERVER</text>
-<rect x="170" y="300" width="280" height="56" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="310" y="324.6666666666667" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Tool definitions</text>
-<text x="310" y="340.6666666666667" text-anchor="middle" font-size="12" fill="#475569">one set for both interfaces</text>
-<polyline points="180,196 180,244 260,244 260,300" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<polyline points="440,196 440,244 360,244 360,300" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<text x="450" y="226" text-anchor="start" font-size="11" fill="#475569">loopback socket: proof of token</text>
-<text x="450" y="240" text-anchor="start" font-size="11" fill="#475569">and agent key, then tool calls</text>
-<rect x="170" y="396" width="280" height="72" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="310" y="420.6666666666667" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Service</text>
-<text x="310" y="436.6666666666667" text-anchor="middle" font-size="12" fill="#475569">validation · blocked sites</text>
-<text x="310" y="452.6666666666667" text-anchor="middle" font-size="12" fill="#475569">policy · submission ids</text>
-<polyline points="310,356 310,396" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<rect x="170" y="508" width="280" height="56" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="310" y="532.6666666666666" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">WebSocket endpoint</text>
-<text x="310" y="548.6666666666666" text-anchor="middle" font-size="12" fill="#475569">one port per agent</text>
-<polyline points="310,468 310,508" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<rect x="606" y="396" width="140" height="72" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="676" y="420.6666666666667" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Home folder</text>
-<text x="676" y="436.6666666666667" text-anchor="middle" font-size="12" fill="#475569">token · agent keys</text>
-<text x="676" y="452.6666666666667" text-anchor="middle" font-size="12" fill="#475569">settings · audit</text>
-<polyline points="450,432 606,432" fill="none" stroke="#64748B" stroke-width="1.25" stroke-dasharray="4 4"/>
-<rect x="40" y="632" width="706" height="342" rx="12" fill="#64748B" fill-opacity="0" stroke="#64748B" stroke-width="1" stroke-dasharray="6 5"/>
-<text x="54" y="652" font-size="11" font-weight="600" letter-spacing="0.6" fill="#475569">CHROME</text>
-<rect x="60" y="660" width="666" height="208" rx="12" fill="#16A34A" fill-opacity="0.035" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
-<text x="74" y="680" font-size="11" font-weight="600" letter-spacing="0.6" fill="#15803D">TABGOBLIN EXTENSION</text>
-<rect x="170" y="690" width="280" height="56" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="310" y="714.6666666666666" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Extension worker</text>
-<text x="310" y="730.6666666666666" text-anchor="middle" font-size="12" fill="#475569">sessions · rules · flows</text>
-<polyline points="310,564 310,690" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<text x="320" y="604" text-anchor="start" font-size="11" fill="#475569">WebSocket on 127.0.0.1</text>
-<text x="320" y="618" text-anchor="start" font-size="11" fill="#475569">paired · protocol 3</text>
-<rect x="170" y="790" width="280" height="56" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="310" y="814.6666666666666" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Content script</text>
-<text x="310" y="830.6666666666666" text-anchor="middle" font-size="12" fill="#475569">fixed page operations</text>
-<polyline points="310,746 310,790" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<text x="320" y="772" text-anchor="start" font-size="11" fill="#475569">one operation</text>
-<rect x="560" y="690" width="146" height="56" rx="8" fill="#16A34A" fill-opacity="0.07" stroke="#16A34A" stroke-width="1.25"/>
-<text x="633" y="714.6666666666666" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Popup</text>
-<text x="633" y="730.6666666666666" text-anchor="middle" font-size="12" fill="#475569">the user's decisions</text>
-<polyline points="560,718 450,718" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<text x="505" y="710" text-anchor="middle" font-size="11" fill="#475569">grants, answers</text>
-<rect x="170" y="902" width="280" height="48" rx="8" fill="#64748B" fill-opacity="0.07" stroke="#64748B" stroke-width="1.25"/>
-<text x="310" y="930.6666666666666" text-anchor="middle" font-size="14" font-weight="600" fill="#0F172A">Authorized tab</text>
-<polyline points="310,846 310,902" fill="none" stroke="#64748B" stroke-width="1.25" marker-end="url(#head)"/>
-<line x1="24" y1="996" x2="736" y2="996" stroke="#64748B" stroke-opacity="0.35" stroke-width="1"/>
-<circle cx="272" cy="1020" r="5" fill="#64748B"/>
-<text x="284" y="1024" font-size="12" fill="#475569">Components</text>
-<circle cx="390" cy="1020" r="5" fill="#16A34A"/>
-<text x="402" y="1024" font-size="12" fill="#475569">TabGoblin</text>
+<rect class="ground" fill="#FFFFFF" stroke="#D0D7DE" x="0.5" y="0.5" width="759" height="1039" rx="12" stroke-width="1"/>
+<rect class="tint" fill-opacity="0.07" x="190" y="20" width="240" height="48" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="310" y="48.666666666666664" text-anchor="middle" font-size="14">Coding agent</text>
+<rect class="half" fill-opacity="0.035" fill="#64748B" x="40" y="108" width="540" height="110" rx="12" stroke="#64748B" stroke-width="1" stroke-opacity="0.55"/>
+<text class="sub" fill="#475569" x="54" y="128" font-size="11" font-weight="600" letter-spacing="0.6">INTEGRATION INTERFACES</text>
+<rect class="tint" fill-opacity="0.07" x="70" y="140" width="220" height="56" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="180" y="164.66666666666666" text-anchor="middle" font-size="14">CLI</text>
+<text class="sub" fill="#475569" x="180" y="180.66666666666666" text-anchor="middle" font-size="12">one process per command</text>
+<rect class="tint" fill-opacity="0.07" x="330" y="140" width="220" height="56" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="440" y="164.66666666666666" text-anchor="middle" font-size="14">MCP link</text>
+<text class="sub" fill="#475569" x="440" y="180.66666666666666" text-anchor="middle" font-size="12">one process per agent</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="270,68 270,88 180,88 180,140" marker-end="url(#head)"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="350,68 350,88 440,88 440,140" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="172" y="102" text-anchor="end" font-size="11">runs a command</text>
+<text class="sub" fill="#475569" x="448" y="102" text-anchor="start" font-size="11">MCP over stdio</text>
+<rect class="half" fill-opacity="0.035" fill="#16A34A" x="40" y="268" width="540" height="314" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
+<text class="green-text" fill="#15803D" x="54" y="288" font-size="11" font-weight="600" letter-spacing="0.6">TABGOBLIN SERVER</text>
+<rect class="tint" fill-opacity="0.07" x="170" y="300" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="310" y="324.6666666666667" text-anchor="middle" font-size="14">Tool definitions</text>
+<text class="sub" fill="#475569" x="310" y="340.6666666666667" text-anchor="middle" font-size="12">one set for both interfaces</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="180,196 180,244 260,244 260,300" marker-end="url(#head)"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="440,196 440,244 360,244 360,300" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="450" y="226" text-anchor="start" font-size="11">loopback socket: proof of token</text>
+<text class="sub" fill="#475569" x="450" y="240" text-anchor="start" font-size="11">and agent key, then tool calls</text>
+<rect class="tint" fill-opacity="0.07" x="170" y="396" width="280" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="310" y="420.6666666666667" text-anchor="middle" font-size="14">Service</text>
+<text class="sub" fill="#475569" x="310" y="436.6666666666667" text-anchor="middle" font-size="12">validation · blocked sites</text>
+<text class="sub" fill="#475569" x="310" y="452.6666666666667" text-anchor="middle" font-size="12">policy · submission ids</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="310,356 310,396" marker-end="url(#head)"/>
+<rect class="tint" fill-opacity="0.07" x="170" y="508" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="310" y="532.6666666666666" text-anchor="middle" font-size="14">WebSocket endpoint</text>
+<text class="sub" fill="#475569" x="310" y="548.6666666666666" text-anchor="middle" font-size="12">one port per agent</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="310,468 310,508" marker-end="url(#head)"/>
+<rect class="tint" fill-opacity="0.07" x="606" y="396" width="140" height="72" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="676" y="420.6666666666667" text-anchor="middle" font-size="14">Home folder</text>
+<text class="sub" fill="#475569" x="676" y="436.6666666666667" text-anchor="middle" font-size="12">token · agent keys</text>
+<text class="sub" fill="#475569" x="676" y="452.6666666666667" text-anchor="middle" font-size="12">settings · audit</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="450,432 606,432" stroke-dasharray="4 4"/>
+<rect fill="none" x="40" y="632" width="706" height="342" rx="12" stroke="#64748B" stroke-width="1" stroke-dasharray="6 5"/>
+<text class="sub" fill="#475569" x="54" y="652" font-size="11" font-weight="600" letter-spacing="0.6">CHROME</text>
+<rect class="half" fill-opacity="0.035" fill="#16A34A" x="60" y="660" width="666" height="208" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
+<text class="green-text" fill="#15803D" x="74" y="680" font-size="11" font-weight="600" letter-spacing="0.6">TABGOBLIN EXTENSION</text>
+<rect class="tint" fill-opacity="0.07" x="170" y="690" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="310" y="714.6666666666666" text-anchor="middle" font-size="14">Extension worker</text>
+<text class="sub" fill="#475569" x="310" y="730.6666666666666" text-anchor="middle" font-size="12">sessions · rules · flows</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="310,564 310,690" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="320" y="604" text-anchor="start" font-size="11">WebSocket on 127.0.0.1</text>
+<text class="sub" fill="#475569" x="320" y="618" text-anchor="start" font-size="11">paired · protocol 3</text>
+<rect class="tint" fill-opacity="0.07" x="170" y="790" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="310" y="814.6666666666666" text-anchor="middle" font-size="14">Content script</text>
+<text class="sub" fill="#475569" x="310" y="830.6666666666666" text-anchor="middle" font-size="12">fixed page operations</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="310,746 310,790" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="320" y="772" text-anchor="start" font-size="11">one operation</text>
+<rect class="tint" fill-opacity="0.07" x="560" y="690" width="146" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="633" y="714.6666666666666" text-anchor="middle" font-size="14">Popup</text>
+<text class="sub" fill="#475569" x="633" y="730.6666666666666" text-anchor="middle" font-size="12">the user's decisions</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="560,718 450,718" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="505" y="710" text-anchor="middle" font-size="11">grants, answers</text>
+<rect class="tint" fill-opacity="0.07" x="170" y="902" width="280" height="48" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="310" y="930.6666666666666" text-anchor="middle" font-size="14">Authorized tab</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="310,846 310,902" marker-end="url(#head)"/>
+<line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="996" x2="736" y2="996" stroke-width="1"/>
+<circle cx="289.2" cy="1020" r="5" fill="#64748B"/>
+<text class="sub" fill="#475569" x="301.2" y="1024" font-size="12">Components</text>
+<circle cx="393.2" cy="1020" r="5" fill="#16A34A"/>
+<text class="sub" fill="#475569" x="405.2" y="1024" font-size="12">TabGoblin</text>
 </svg>

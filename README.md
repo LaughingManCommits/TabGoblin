@@ -77,10 +77,7 @@ tools do the same on any website.
 
 ## How it works
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/overview-dark.svg">
-  <img src="docs/assets/diagrams/overview.svg" width="760" alt="TabGoblin at a glance: an AI coding agent uses the CLI or MCP, side by side; both lead into the TabGoblin bridge, which checks identity, validates every request and applies the policy; the bridge leads to the browser extension, where execution is under your control; it reaches the tabs you authorized, and every other tab is denied.">
-</picture>
+![TabGoblin at a glance: an AI coding agent uses the CLI or MCP, side by side; both lead into the TabGoblin bridge, which checks identity, validates every request and applies the policy; the bridge leads to the browser extension, where execution is under your control; it reaches the tabs you authorized, and every other tab is denied.](docs/assets/diagrams/overview.svg)
 
 The bridge is TabGoblin's local server: one process for all your agents, on `127.0.0.1`. The
 browser extension is TabGoblin in your Chrome, where you authorize tabs, approve, pause and

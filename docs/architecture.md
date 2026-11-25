@@ -14,10 +14,7 @@ rules themselves, with where each is enforced and where it stops, are in the
 
 ## Components
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/components-dark.svg">
-  <img src="assets/diagrams/components.svg" width="760" alt="The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a loopback socket to one TabGoblin server with one set of tool definitions, a service and a WebSocket endpoint; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.">
-</picture>
+![The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a loopback socket to one TabGoblin server with one set of tool definitions, a service and a WebSocket endpoint; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.](assets/diagrams/components.svg)
 
 | Component | Responsibility | Does not |
 |---|---|---|
