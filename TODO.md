@@ -1838,3 +1838,21 @@ Checked and found right: every `tabgoblin` command and option that the documenta
 run through the built jar's own reading of a command line; the manifest's four permissions;
 the fields that are never read or filled; the tools that return an object.
 
+### The diagrams, the same day
+
+On the owner's word. Nine diagrams were there, in three files; there are twelve now, in six.
+
+- **Redrawn top to bottom, with the same names in all:** the README's (CLI and MCP side by
+  side, the user as the one who decides), the architecture's components, the corporate
+  assessment's data flow, which now names the workstation as one operating-system account
+  and where each side checks.
+- **Corrected against the code:** the submission's sequence drew the question to the user as
+  unconditional, and now has it as a step that the user's setting decides; the command's
+  sequence had the arguments validated before the revoked agent is refused, where
+  `BrowserService.run` does it the other way round, and named the call as MCP's alone; the
+  two sequences for connecting and authorizing gained their refusals.
+- **New:** where a command is checked, with every refusal and the class of each check
+  (security model); the first status, authorization and snapshot (installation, step 7); two
+  commands as two processes and one agent (CLI guide).
+- **Left:** the two state diagrams, but for one label.
+

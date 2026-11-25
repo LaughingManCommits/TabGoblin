@@ -61,16 +61,37 @@ a store-based allowlist.
 ## Data flow and processing locations
 
 ```mermaid
-flowchart LR
-  subgraph ws["Developer's workstation"]
-    AGENT["Coding agent"] <-- "tool calls and results<br/>CLI commands or MCP over stdio,<br/>then loopback" --> SERVER["TabGoblin server"]
-    SERVER <-- "commands and results<br/>WebSocket on 127.0.0.1" --> EXT["Extension"]
-    EXT <-- "fixed page operations" --> TAB["Authorized tab"]
-    SERVER --- DISK[("Token, agent keys,<br/>settings, optional audit log")]
+flowchart TB
+  MODEL["Model provider of the agent"]
+  subgraph ws["Developer's workstation, one operating-system account"]
+    AGENT["Coding agent"]
+    CLI["CLI"]
+    MCP["MCP"]
+    SERVER["TabGoblin server<br/>checks: agent key, arguments,<br/>blocked sites, policy"]
+    DISK[("Home folder<br/>token, agent keys, settings,<br/>optional audit record")]
+    subgraph chrome["Chrome, the developer's profile"]
+      EXT["TabGoblin extension<br/>checks: session, origin, access level,<br/>policy, approval"]
+      TAB["Authorized tab"]
+    end
   end
-  TAB <-- "HTTPS, the developer's session" --> APP["Web application"]
-  AGENT -- "prompts that include tool results" --> MODEL["Model provider of the agent"]
+  APP["Web application"]
+
+  AGENT -- "prompts that include<br/>tool results" --> MODEL
+  AGENT <-- "commands, JSON" --> CLI
+  AGENT <-- "MCP over stdio" --> MCP
+  CLI <-- "loopback socket" --> SERVER
+  MCP <-- "loopback socket" --> SERVER
+  SERVER --- DISK
+  SERVER <-- "WebSocket on 127.0.0.1:<br/>commands and results" --> EXT
+  EXT <-- "fixed page operations" --> TAB
+  TAB <-- "HTTPS, the developer's session" --> APP
 ```
+
+The outer box is one operating-system account, not a set of isolated compartments: the checks
+named in it are made by TabGoblin's own programs, and a program that runs as the developer is
+not confined by them ([limitations](#known-limitations-and-residual-risks)). Only the two
+arrows that leave the box cross the workstation's boundary, and neither is a connection that
+TabGoblin makes.
 
 | Data | Where it is processed | Where it goes |
 |---|---|---|

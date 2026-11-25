@@ -15,42 +15,35 @@ rules themselves, with where each is enforced and where it stops, are in the
 ## Components
 
 ```mermaid
-flowchart LR
-  subgraph local["Developer's machine"]
-    subgraph agentp["Agent's program"]
-      AGENT["Coding agent<br/>IDE or terminal"]
-    end
-    subgraph ifs["Integration interfaces"]
-      CMD["CLI<br/>one process per command"]
-      LINK["MCP<br/>one link process per agent"]
-    end
-    subgraph serverp["TabGoblin server"]
-      MCP["Tool endpoint<br/>tool definitions"]
-      SVC["Service<br/>validation, policy, submission ids"]
-      WS["WebSocket endpoint<br/>127.0.0.1, pairing"]
-    end
-    subgraph chrome["Chrome"]
-      BG["Extension worker<br/>sessions, rules, flows"]
-      POPUP["Popup<br/>the user's decisions"]
-      CS["Content script<br/>fixed page operations"]
-      TAB["Authorized tab"]
-    end
-    FILES[("Home folder<br/>token, agent keys,<br/>settings, audit log")]
+flowchart TB
+  AGENT["Coding agent"]
+  subgraph ifs["Integration interfaces"]
+    CLI["CLI<br/>one process per command"]
+    LINK["MCP link<br/>one process per agent"]
   end
-  MODEL["Model provider<br/>of the agent"]
-  SITE["Web application"]
+  subgraph serverp["TabGoblin server"]
+    TOOLS["Tool definitions<br/>one set for both interfaces"]
+    SVC["Service<br/>validation, blocked sites,<br/>policy, submission ids"]
+    WS["WebSocket endpoint<br/>one port per agent"]
+  end
+  subgraph chrome["Chrome"]
+    POPUP["Popup<br/>the user's decisions"]
+    BG["Extension worker<br/>sessions, rules, flows"]
+    CS["Content script<br/>fixed page operations"]
+    TAB["Authorized tab"]
+  end
+  FILES[("Home folder<br/>token, agent keys,<br/>settings, audit record")]
 
-  AGENT -- "runs tabgoblin commands" --> CMD
+  AGENT -- "runs a command" --> CLI
   AGENT -- "MCP over stdio" --> LINK
-  CMD -- "local socket,<br/>proof of token and agent key" --> MCP
-  LINK -- "the same socket<br/>and proofs" --> MCP
-  MCP --> SVC --> WS
-  WS -- "WebSocket, protocol 3" --> BG
-  POPUP --> BG
-  BG --> CS --> TAB
-  serverp --- FILES
-  AGENT -. "prompts and tool results" .-> MODEL
-  TAB -. "the user's own session" .-> SITE
+  CLI -- "loopback socket:<br/>proofs, then one tool call" --> TOOLS
+  LINK -- "same socket and proofs,<br/>then the client's tool calls" --> TOOLS
+  TOOLS --> SVC --> WS
+  WS -- "WebSocket on 127.0.0.1,<br/>paired, protocol 3" --> BG
+  POPUP -- "grants and answers" --> BG
+  BG -- "one operation" --> CS
+  CS --> TAB
+  SVC -.- FILES
 ```
 
 | Component | Responsibility | Does not |
@@ -182,17 +175,21 @@ finds no server to be had ends with an error; it does not serve its agent alone.
 
 ```mermaid
 sequenceDiagram
-  participant A as Agent's program
-  participant L as Link (MCP) or CLI command
-  participant S as Server
-  participant E as Extension
+  participant A as Coding agent
+  participant L as CLI or MCP link
+  participant S as TabGoblin server
+  participant E as Extension worker
   A->>L: starts the process (--agent name)
   L->>S: connects on 127.0.0.1
   S->>L: hello { nonce }
   L->>S: attach { nonce, proof of the pairing token, agent, agentProof }
   S->>S: check both proofs, derive the agent's id from its key
-  S->>L: attached { proof of the pairing token }
-  Note over A,S: Tool calls now pass: an MCP client's messages, or a command's one call
+  alt a proof does not hold
+    S-->>L: refused, nothing passes
+  else both hold
+    S->>L: attached { proof of the pairing token }
+  end
+  Note over A,S: Tool calls now pass: a CLI command's one call, or an MCP client's calls
   E->>S: WebSocket handshake on the agent's port (Origin: the extension's id)
   S->>E: challenge { nonce, versions: [3], clientId }
   E->>S: auth { nonce, proof of the pairing token, version: 3 }
@@ -233,15 +230,18 @@ sequenceDiagram
   participant C as Chrome
   participant P as Popup
   participant B as Extension worker
-  participant S as Server
+  participant S as TabGoblin server
   U->>C: clicks the TabGoblin icon on a tab
   C->>B: activeTab grant for this tab and its current origin
   U->>P: chooses access level, duration and agent, presses Authorize
   P->>B: authorize
-  B->>B: refuse browser pages, blocked sites, and what the policy rules out
-  B->>B: create the session: tab, origin, level, owner, expiry
-  B->>S: the agent's sessions
-  Note over S: browser_status now lists the session for its owner
+  alt a browser page, a blocked site, or ruled out by the policy
+    B-->>P: refused, no session
+  else allowed
+    B->>B: create the session: tab, origin, level, owner, expiry
+    B->>S: the agent's sessions
+  end
+  Note over S: The status now lists the session for its owner, on either interface
 ```
 
 A session exists only through this path. No tool creates one, raises its level or adds a site
@@ -284,14 +284,14 @@ all mean no.
 
 ```mermaid
 sequenceDiagram
-  participant A as Agent
-  participant S as Server
+  participant A as Coding agent
+  participant S as TabGoblin server
   participant B as Extension worker
   participant P as Content script
-  A->>S: tools/call browser_click { ref: 12, session: "s1" }
-  S->>S: validate arguments, wait for the session's turn
-  S->>S: agent revoked? site blocked? within the policy?
-  S->>B: { id, action: "click", session, params, deadline }
+  A->>S: click { ref: 12, session: "s1" }, as a CLI command or an MCP call
+  S->>S: agent revoked? arguments valid?
+  S->>S: site blocked? within the policy?
+  S->>B: { id, action: "click", session, params, deadline }, in the session's turn
   B->>B: id seen before? rate limit? deadline passed?
   B->>B: gate: owner, expiry, pause, suspension, tab origin, access level, policy
   B->>P: describe ref 12
@@ -302,7 +302,8 @@ sequenceDiagram
   P-->>B: dispatched
   B->>B: settle: new document? route change? left the site? new tab?
   B-->>S: { id, success, result, timing, session }
-  S-->>A: tool result (text)
+  S-->>A: result as text (CLI: inside one JSON object)
+  Note over S,P: A check that fails ends the command there with an error code. Nothing after it runs, and nothing is retried.
 ```
 
 The server sends one command per session at a time, and the extension queues per tab as well,
@@ -358,18 +359,26 @@ shows the case in which the user is asked.
 
 ```mermaid
 sequenceDiagram
-  participant A as Agent
-  participant S as Server
+  participant A as Coding agent
+  participant S as TabGoblin server
   participant B as Extension worker
   participant P as Content script
   actor U as User (popup)
-  A->>S: browser_submit { ref, fields, expect_text, submission_id }
+  A->>S: submit { ref, fields, expect_text, submission_id }
   S->>S: submission id used before? then answer from memory, send nothing
   S->>B: submit
-  B->>B: gate (Write access), no other question waiting, not declined recently
+  B->>B: gate (Write access)
   B->>P: prepare: resolve refs, fingerprint control, form fields and content
-  B->>U: prompt: agent, control, website, beginning of the content
-  U-->>B: Allow (not within the first 0.7 s), Deny, or no answer within a minute
+  B->>B: is the user to be asked? Their setting decides. Always under the strict profile and for a high-impact control
+  opt the user is asked
+    B->>U: prompt: agent, control, website, beginning of the content
+    alt Deny, or no answer within a minute
+      U-->>B: no
+      B-->>S: SUBMIT_DENIED or SUBMIT_NOT_CONFIRMED, nothing typed
+    else Allow (not within the first 0.7 s)
+      U-->>B: yes
+    end
+  end
   B->>B: recheck the session
   B->>P: fingerprint again: same document, same content?
   alt changed
@@ -386,7 +395,7 @@ sequenceDiagram
 stateDiagram-v2
   [*] --> PREPARED: refs resolve, allowed, not a duplicate
   PREPARED --> [*]: declined, unanswered, cancelled or stale, nothing typed
-  PREPARED --> FILLED: user allows, fields filled
+  PREPARED --> FILLED: allowed by the user, or not asked under their setting; fields filled
   FILLED --> FAILED: form validation rejects, nothing sent
   FILLED --> SUBMITTING: click or Enter dispatched
   SUBMITTING --> VERIFYING

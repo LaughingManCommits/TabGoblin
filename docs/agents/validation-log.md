@@ -24,6 +24,13 @@ the pages say about approvals was held against `needsAsking` and `askUnder` in `
 and three statements were found to say more than the code does; they are in WP-30's entry.
 The two checks passed again.
 
+The diagrams, the same day: all twelve Mermaid diagrams of the Markdown files were drawn with
+Mermaid 11 in the container's Chromium, each on a light and on a dark ground, 24 pictures, none
+failed; five were opened and looked at (the README's, the architecture's components on dark,
+the security model's, the corporate assessment's, the CLI's). The first drawing of the
+components had a label cut by a box and was made simpler. The pictures were not kept. Not
+seen: the same diagrams as GitHub draws them, whose Mermaid may be of another version.
+
 Not run: the rest of the server's tests, the extension's and the end-to-end suite, since no
 code was changed. Not seen: the changed pages and their two changed pictures as GitHub draws
 them. No picture was regenerated.

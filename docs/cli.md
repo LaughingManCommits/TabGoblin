@@ -165,6 +165,30 @@ system's for that ending. Progress is not reported.
 
 Each command is a process of its own, so what makes many commands one agent is the name:
 
+```mermaid
+sequenceDiagram
+  participant A as Coding agent
+  participant C as CLI process
+  participant S as TabGoblin server
+  participant X as TabGoblin extension
+  A->>C: tabgoblin status --agent my-agent
+  C->>S: connect (start the server if none runs), prove token and agent key
+  S->>S: first command of this key: make the agent, open its port
+  X->>S: finds the agent's port and pairs
+  C->>S: one tool call
+  S-->>C: result
+  C-->>A: one JSON object and an exit code
+  Note over C: the process ends
+  Note over S,X: the agent, its port and its sessions stay
+  A->>C: tabgoblin snapshot --agent my-agent (a new process)
+  C->>S: prove token and agent key: same key, same agent
+  S->>X: snapshot
+  X-->>S: the page as text
+  S-->>C: result
+  C-->>A: one JSON object and an exit code
+  Note over S: no command for ten minutes: the agent is let go, its port closed
+```
+
 1. **`--agent <name>` selects a key.** The key is a file in your home folder, made at the
    name's first use. The command proves the key to the server, and the server derives the
    agent's id from it. The key is never an argument and never printed.

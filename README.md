@@ -78,21 +78,33 @@ tools do the same on any website.
 ## How it works
 
 ```mermaid
-flowchart LR
-  subgraph local["Your machine"]
-    AGENT["Coding agent<br/>(IDE or terminal)"]
-    AGENT -- "CLI: tabgoblin commands" --> SERVER["TabGoblin server<br/>one for all agents"]
-    AGENT -- "MCP: browser_* tools" --> SERVER
-    SERVER -- "WebSocket on 127.0.0.1<br/>paired with a token" --> EXT["TabGoblin extension<br/>in your Chrome"]
-    EXT --> TAB["Tabs you authorized"]
-    EXT -. "no access" .-> OTHER["Every other tab"]
+flowchart TB
+  AGENT["Coding agent<br/>in an IDE or a terminal"]
+  YOU(["You, in the extension's popup"])
+  subgraph tg["TabGoblin, on your machine"]
+    CLI["CLI<br/>tabgoblin commands"]
+    MCP["MCP<br/>browser_* tools"]
+    SERVER["TabGoblin server<br/>one for all agents"]
+    EXT["TabGoblin extension<br/>in your Chrome"]
   end
-  AGENT -- "prompts, with what<br/>the agent read" --> MODEL["The agent's<br/>model provider"]
-  TAB -- "your own sign-in" --> APP["Web application"]
-  %% Empty places at the right edge: GitHub lays its zoom buttons over the bottom right corner.
-  APP ~~~ ROOM1[" "] ~~~ ROOM2[" "]
-  style ROOM1 fill:none,stroke:none
-  style ROOM2 fill:none,stroke:none
+  TAB["Tabs you authorized"]
+  OTHER["Every other tab"]
+  APP["Web application"]
+  MODEL["The agent's model provider"]
+
+  AGENT -- "runs" --> CLI
+  AGENT -- "calls" --> MCP
+  CLI --> SERVER
+  MCP --> SERVER
+  SERVER -- "127.0.0.1 only,<br/>paired with a token" --> EXT
+  YOU -- "authorize, approve,<br/>pause, revoke" --> EXT
+  EXT -- "what you allowed" --> TAB
+  EXT -. "no access" .-> OTHER
+  TAB -- "your own sign-in" --> APP
+  AGENT -. "what it read goes<br/>with its prompts" .-> MODEL
+  %% An empty place below: GitHub lays its zoom buttons over the bottom right corner.
+  APP ~~~ ROOM[" "]
+  style ROOM fill:none,stroke:none
 ```
 
 1. **You authorize a tab.** Click the TabGoblin icon on the tab, choose an access level and

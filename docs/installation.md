@@ -311,6 +311,25 @@ folder. You pair once; it stays valid until you rotate it.
 
 ## 7. Check that it works
 
+What happens the first time, with either interface:
+
+```mermaid
+sequenceDiagram
+  actor U as You
+  participant A as Coding agent
+  participant T as TabGoblin server
+  participant X as TabGoblin extension
+  A->>T: status, under its name (CLI: --agent, MCP: as registered)
+  T-->>A: connected, no tab authorized
+  Note over X: the agent is now listed in the popup
+  U->>X: click the icon on a tab, choose the agent and a level, Authorize
+  X-->>T: session s1 belongs to this agent
+  A->>T: snapshot
+  T->>X: snapshot of s1
+  X-->>T: the page as text
+  T-->>A: the page, with numbered elements
+```
+
 1. Make sure TabGoblin's server is up: through MCP, start your agent; through the CLI, run
    `tabgoblin status --agent <name>` once. The line under *TabGoblin* in the popup should read
    **1 agent connected**.
