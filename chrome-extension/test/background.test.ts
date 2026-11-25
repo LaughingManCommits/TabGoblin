@@ -2194,32 +2194,48 @@ test('a tab sent to an address that answers late is waited for, and is not said 
   const tab = tabs.get(95) as FakeTab;
   // The site takes its time: for two seconds the tab is where it was and loads nothing, as a
   // browser shows it while it waits for the first answer. Only then does the new page come.
+  const loading = (id: number): void => {
+    tab.status = 'loading';
+    fakeChrome.tabs.onUpdated.emit(id, { status: 'loading' }, { ...tab });
+  };
+  const complete = (id: number, doc: string): void => {
+    tab.status = 'complete';
+    docOf.set(id, doc);
+    fakeChrome.tabs.onUpdated.emit(id, { status: 'complete' }, { ...tab });
+  };
   onTabUpdate = (id, to) => {
-    setTimeout(() => { tab.status = 'loading'; }, 2000);
-    setTimeout(() => {
-      Object.assign(tab, { url: to.url, title: 'Later', status: 'complete' });
-      docOf.set(id, 'doc-95-later');
-    }, 2300);
+    setTimeout(() => loading(id), 2000);
+    setTimeout(() => { Object.assign(tab, { url: to.url, title: 'Later' }); complete(id, 'doc-95-later'); }, 2300);
   };
   try {
     const went = await one.command('navigate', { session, params: { url: '/later' } });
     assert.equal(code(went), 'ok');
     assert.deepEqual(went.result, { navigation: 'new-document', url: 'https://slow.example/later', title: 'Later' });
 
-    // The address the tab is at, asked for again, is loaded again: that is waited for as well.
+    // The address the tab is at, asked for again, is loaded again: that is waited for as well,
+    // and seen when it comes, however quickly it is over.
     onTabUpdate = (id) => {
-      setTimeout(() => { tab.status = 'loading'; }, 2000);
-      setTimeout(() => { tab.status = 'complete'; docOf.set(id, 'doc-95-again'); }, 2300);
+      setTimeout(() => { loading(id); complete(id, 'doc-95-again'); }, 1600);
     };
+    let began = Date.now();
     const again = await one.command('navigate', { session, params: { url: '/later' } });
     assert.deepEqual(again.result, { navigation: 'new-document', url: 'https://slow.example/later', title: 'Later' });
+    assert.ok(Date.now() - began < 4000, 'the quick load was seen when it came');
 
     // A place in the page that is shown needs no load, and is not waited for as one.
     onTabUpdate = (_, to) => { tab.url = to.url; };
-    const began = Date.now();
+    began = Date.now();
     const within = await one.command('navigate', { session, params: { url: '/later#part' } });
     assert.equal(within.result.navigation, 'same-document');
     assert.ok(Date.now() - began < 4000, 'no load was waited for');
+
+    // The same address without its fragment is a new document, and a slow one is waited for.
+    onTabUpdate = (id, to) => {
+      setTimeout(() => loading(id), 2000);
+      setTimeout(() => { tab.url = to.url; complete(id, 'doc-95-whole'); }, 2300);
+    };
+    const whole = await one.command('navigate', { session, params: { url: '/later' } });
+    assert.deepEqual(whole.result, { navigation: 'new-document', url: 'https://slow.example/later', title: 'Later' });
   } finally {
     onTabUpdate = () => undefined;
     docOf.delete(95);

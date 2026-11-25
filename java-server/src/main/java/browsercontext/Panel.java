@@ -153,8 +153,12 @@ final class Panel {
         private final PauseTransition said = new PauseTransition(Duration.seconds(2));
         private String idle = "";
         private int port;
+        /** Made once: a tooltip put in its place while it waits to show, or shows, is gone. */
+        private final Tooltip tip = new Tooltip();
+        private java.util.function.IntFunction<String> about = port -> "Click to copy the port number " + port;
 
         PortLabel(String... classes) {
+            setTooltip(tip);
             getStyleClass().addAll(classes);
             getStyleClass().add("port");
             setAccessibleRole(javafx.scene.AccessibleRole.BUTTON);
@@ -192,8 +196,23 @@ final class Panel {
                 setText(text);
             }
             setAccessibleText("Port " + port + ". Copy the number to the clipboard");
-            setTooltip(new Tooltip("Click to copy the port number " + port));
+            explain();
             return this;
+        }
+
+        /** What its tooltip says, for the port it holds. */
+        PortLabel about(java.util.function.IntFunction<String> words) {
+            this.about = words;
+            explain();
+            return this;
+        }
+
+        /** Changes the tooltip's text only where it says something else now. */
+        private void explain() {
+            String words = about.apply(port);
+            if (!words.equals(tip.getText())) {
+                tip.setText(words);
+            }
         }
 
         void copy() {
@@ -265,6 +284,7 @@ final class Panel {
      * @throws RuntimeException if the window system cannot be started; the server then runs without
      */
     static void open(Supplier<PanelModel> model, Consumer<Command> commands) {
+        onScreen = true;
         onFxThread(() -> {
             if (window != null) {
                 return;
@@ -275,7 +295,7 @@ final class Panel {
             var view = new View(commands);
             var kept = Place.kept();
             double highest = Screen.getPrimary().getVisualBounds().getHeight() - 48;
-            view.fit(Math.max(LOWEST, Math.min(kept.height() > 0 ? kept.height() : HEIGHT, highest)));
+            view.fit(Math.min(highest, Math.max(LOWEST, kept.height() > 0 ? kept.height() : HEIGHT)));
             view.show(first);
             // As the system is set: light or dark as the popup is, and still where less motion is asked for.
             var system = Platform.getPreferences();
@@ -338,7 +358,10 @@ final class Panel {
             if (!floating) {
                 stage.setMinWidth(stage.getWidth());
                 stage.setMaxWidth(stage.getWidth());
-                stage.setMinHeight(LOWEST);
+                // The stage's height holds the system's title bar where it has one, and the body is
+                // fitted to the scene: the lowest the stage is made is the lowest body and that bar.
+                // On a screen lower than that, the screen wins, and the middle scrolls.
+                stage.setMinHeight(lowest(highest) + Math.max(0, stage.getHeight() - scene.getHeight()));
             }
             // Its place and height are kept for the next time, whenever they have come to rest.
             var keep = new PauseTransition(Duration.millis(600));
@@ -348,6 +371,10 @@ final class Panel {
             stage.yProperty().addListener(moved);
             stage.heightProperty().addListener(moved);
             window = stage;
+            Runnable seen = () -> onScreen = stage.isShowing() && !stage.isIconified();
+            stage.showingProperty().addListener((property, was, now) -> seen.run());
+            stage.iconifiedProperty().addListener((property, was, now) -> seen.run());
+            seen.run();
             Log.debug("panel window style=" + stage.getStyle());
             // Nothing that acts has the keyboard when the window appears: a key meant for another
             // window, typed as this one came up, presses no button here.
@@ -368,6 +395,22 @@ final class Panel {
 
     /** The lowest the window is made: its header, one card's worth of the middle, and the controls. */
     static final double LOWEST = 560;
+
+    /** The lowest the body is made on a screen where it may be this high at most: the screen wins. */
+    static double lowest(double highest) {
+        return Math.min(LOWEST, highest);
+    }
+
+    /**
+     * Whether the window is on the user's screen: shown, and neither hidden by its close button nor
+     * put away. True as well from the moment it is asked to open, so that an agent told of it then
+     * is told what the user will see. Read by the server's threads, so it is kept here.
+     */
+    private static volatile boolean onScreen;
+
+    static boolean onScreen() {
+        return onScreen;
+    }
     /** The ground of the light theme, for a window in the system's frame. */
     private static final Color GROUND_LIGHT = Color.web("#f4f7f3");
 
@@ -576,7 +619,8 @@ final class Panel {
         private final Button close = new Button();
         private final Label agent = label("", "sub");
         /** The first port the extension scans, available before any agent connects. */
-        private final PortLabel firstPort = new PortLabel("chip");
+        private final PortLabel firstPort = new PortLabel("chip").about(port -> "The port to set in the extension's popup, "
+                + "under Connection. Click to copy " + port + ".");
         /** The port of the one agent a server has: where the extension reaches that agent, in the line about that. A click copies it. */
         private final PortLabel agentPort = new PortLabel("chip");
         private final Region dot = new Region();
@@ -829,7 +873,11 @@ final class Panel {
          */
         void resizes(Stage stage, boolean floating, double highest) {
             if (!floating) {
-                stage.getScene().heightProperty().addListener((property, was, high) -> fit(Math.max(LOWEST, high.doubleValue())));
+                stage.getScene().heightProperty().addListener((property, was, high) -> {
+                    if (high.doubleValue() > 0) {
+                        fit(Math.max(lowest(highest), high.doubleValue()));
+                    }
+                });
                 return;
             }
             boolean[] dragging = new boolean[1];
@@ -859,7 +907,7 @@ final class Panel {
 
         /** Makes a floating window's body this high, within what is allowed, and the window around it. */
         void setHeight(Stage stage, double wanted, double highest) {
-            double high = Math.max(LOWEST, Math.min(wanted, highest));
+            double high = Math.min(highest, Math.max(LOWEST, wanted));
             fit(high);
             stage.setHeight(high + 2 * SHADOW);
         }
@@ -933,8 +981,6 @@ final class Panel {
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */
         void show(PanelModel model) {
             firstPort.showing("Port " + model.firstPort(), model.firstPort());
-            firstPort.setTooltip(new Tooltip("The port to set in the extension's popup, under Connection. "
-                    + "Click to copy " + model.firstPort() + "."));
             agent.setText(model.identity());
             // One agent: its port ends the line about its connection. Several have theirs in their rows.
             // Only where it is another than the port in the header: the same number twice says nothing.

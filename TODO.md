@@ -382,7 +382,7 @@ Goal: from nothing to a working TabGoblin in a few simple steps, without buildin
 Read from [docs/installation.md](docs/installation.md), the runbook and the source on
 2026-11-21.
 
-- **Five things to have first:** a JDK 21, Maven, Node 24, Chrome 120 and Git. Then a clone, two
+- **Five things to have first:** a JDK 25 (21 when this was read; 25 since 2026-11-25), Maven, Node 24, Chrome 120 and Git. Then a clone, two
   builds, and seven steps. The page says to allow about ten minutes; how long it takes a new
   user was never measured.
 - **The extension is loaded unpacked**, with Chrome's developer mode on. A managed browser

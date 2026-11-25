@@ -811,7 +811,7 @@ fields of the page that was left which held text that was entered and not sent) 
 | `new-document` | A new page loaded |
 | `same-document` | The address changed inside the same page (single-page app route) |
 | `no-change` | Nothing moved: a place in the page that was already shown, or an address that gave no page within 20 seconds (a file to save, for one) |
-| `timeout` | Still loading after 20 seconds |
+| `timeout` | Still loading after 20 seconds, or the site had not answered by then: where the tab ends up is not known |
 | `needs-user` | The tab moved to another site of the session, and the session is suspended (`suspended: true`); the user has to resume it there |
 | `unknown` | The page did not answer after the move, so it could not be told |
 

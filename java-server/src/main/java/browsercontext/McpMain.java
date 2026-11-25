@@ -262,7 +262,7 @@ public final class McpMain {
             } else {
                 Panel.raise();
             }
-        }, up::get);
+        }, () -> up.get() && Panel.onScreen());
         if (options.panel()) {
             hub.showWindow();
         }
@@ -331,7 +331,7 @@ public final class McpMain {
             if (refused && !options.quiet() && cameUp.compareAndSet(false, true)) {
                 window.run();
             }
-            return new BrowserService.Unpaired(false, refused, up.get());
+            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen());
         }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();

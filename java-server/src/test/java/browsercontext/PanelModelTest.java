@@ -115,6 +115,9 @@ class PanelModelTest {
         assertTrue(shown.log().contains("00:00:05  status  1 ms  ok"), shown.log().toString());
         assertEquals("extension connected client=c-1 protocol=3", PanelModel.brief("extension connected client=c-1 protocol=3"));
         assertEquals("command id=9 and nothing else", PanelModel.brief("command id=9 and nothing else"));
+        // A call refused for going outside its session's sites is marked as such.
+        assertEquals("s1 navigate  31 ms  NAVIGATION_BLOCKED  outside scope", PanelModel.brief(
+                "command id=7 session=s1 action=navigate ms=31 outcome=error code=NAVIGATION_BLOCKED category=SCOPE scope_violation=true"));
         assertEquals("s1  ·  2 of the last 300 lines", shown.logCount("s1", 300));
         assertEquals("s2  ·  time of the last call", shown.callsCount("s2"));
         assertEquals(1, shown.log("s2").size());

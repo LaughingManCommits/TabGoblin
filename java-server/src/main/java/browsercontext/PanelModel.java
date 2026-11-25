@@ -318,9 +318,10 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
 
     /**
      * A tool call's line as the window shows it: the tab, the action, how long it took and how it
-     * ended, as "s1 navigate  31 ms  NAVIGATION_BLOCKED". The window is narrow, and the whole line
-     * with its id and category takes four of its rows; that one is in the server's log as it was
-     * written. Any other line is shown as it is.
+     * ended, as "s1 navigate  31 ms  NAVIGATION_BLOCKED". A call refused for going outside the
+     * sites of its session says so at the end ("outside scope"): that is what the user most needs
+     * to see of it. The window is narrow, and the whole line with its id and category takes four of
+     * its rows; that one is in the server's log as it was written. Any other line is shown as it is.
      */
     static String brief(String text) {
         if (!text.startsWith("command id=")) {
@@ -341,7 +342,8 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
         }
         String tab = said.getOrDefault("session", "-");
         return (tab.equals("-") ? "" : tab + " ") + action + "  " + took + " ms  "
-                + (outcome.equals("ok") ? "ok" : said.getOrDefault("code", outcome));
+                + (outcome.equals("ok") ? "ok" : said.getOrDefault("code", outcome))
+                + ("true".equals(said.get("scope_violation")) ? "  outside scope" : "");
     }
 
     /** The site as the popup shows it: without the scheme when that is https. */

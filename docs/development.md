@@ -316,7 +316,7 @@ browser has to be paired. How it is built:
   as a picture that holds its pixels as bytes; a drawing comes as one number per pixel and is
   passed over without a word, which leaves Java's icon on the taskbar. So the icons are copied
   into the kind that is taken, and a test holds that.
-- **JavaFX 27 is in the jar,** and it needs Java 25, which is why the server does. Each JavaFX is compiled for a Java of its time: 23 for Java 21, 27 for Java 25. It tells the window whether the system is set to light or dark, and whether the user asked the system for less motion, which JavaFX has said since 24. It also has a window style with the system's own buttons around a header of one's own (`StageStyle.EXTENDED`); the panel does not use it yet. JavaFX is there with its native part for Windows on x64, Linux on x64 and macOS
+- **JavaFX 27 is in the jar,** and it needs Java 25, which is why the server does. Each JavaFX is compiled for a Java of its time: 23 for Java 21, 27 for Java 25. It tells the window whether the system is set to light or dark, and whether the user asked the system for less motion, which JavaFX has said since 24. It also has a window style with the system's own frame around a header of one's own (`StageStyle.EXTENDED`), which the panel uses on Windows. JavaFX is there with its native part for Windows on x64, Linux on x64 and macOS
   on Apple silicon; that took the jar from 7.1 MB to 17.6 MB when it was added. A jar holds one
   set of native files per system, because those for Intel and for ARM have the same names.
   JavaFX unpacks them into
