@@ -22,7 +22,11 @@ how much you may do there.
 
 ## Start with the status
 
-1. Run `tabgoblin status --agent <name>`. It says whether the extension is connected and lists
+If the user's setup specifies a first port, pass that same `--port <first-port>` on every browser
+command, starting with `status`. Use the configured **First port** even when status lists a
+different listening port for your agent. With default discovery, leave the port option unset.
+
+1. Run `tabgoblin status --agent <name>`, adding the configured port if needed. It reports the extension connection and lists
    your sessions: one for each tab the user has authorized, with its id (`s1`, `s2`, …), its
    website, its access level and the page it is on.
 2. **Not connected:** the answer says why and what to ask the user for. Tell the user that,
@@ -47,7 +51,7 @@ reach another site from it, and you cannot widen it yourself.
   Do not search for another way into the browser.
 - **Who you are:** every command takes `--agent <name>`, the same name every time. By it
   your commands are one agent with its sessions. Do not make up another name: it would be
-  another agent, with no tab. Below, `--agent <name>` is left out of the examples.
+  another agent, with no tab. The examples below omit the agent and port options for brevity.
 - **Arguments** are options: `--ref 12`, `--max-lines 40`, `--links none`. A switch needs no
   value: `--outline`, and `--diff=false` says no. A list is JSON: `--refs '[3,8]'`.
 - **Several arguments, or text with quotes and line breaks:** give all arguments as one JSON
@@ -91,6 +95,19 @@ reach another site from it, and you cannot widen it yourself.
   answer as base64. Use it for what text does not tell: layout, images, charts. The tab has
   to be the one in front in its window.
 - Passwords, hidden fields and frames from other websites are never in an answer.
+
+### Investigate a failed build
+
+1. With Explore access, take a snapshot and open the failed run. Follow its annotation to the
+   failed job or step. Take a fresh snapshot there. Expand the step if it is collapsed.
+2. If the log is still loading, wait for an observable change. For example, when the page
+   shows a loading message, run `tabgoblin wait-for --text "<loading message>" --condition gone`
+   using the actual message, then read the step.
+3. Search for the test runner's failure marker. For a runner that prints **FAIL** before each
+   failed test, use `tabgoblin extract --find "FAIL " --context-lines 4`. Read the diagnostic
+   immediately after the first failing test. A final exit code alone gives little detail.
+4. Report the run, job, step and first concrete error. If later checks time out, say which
+   failure came first and whether the log establishes a connection. Link to the failed step.
 
 ## Act
 

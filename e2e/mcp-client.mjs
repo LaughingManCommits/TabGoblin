@@ -13,7 +13,21 @@ export class McpClient {
     /** Ids of answers that arrived for requests this client was no longer waiting for. */
     this.strays = [];
     this.nextId = 1;
-    this.exited = new Promise((resolve) => this.proc.once('exit', (code) => resolve(code)));
+    this.transportError = null;
+    this.exited = new Promise((resolve) => {
+      this.proc.once('exit', (code, signal) => {
+        const reason = signal ? `signal ${signal}` : `code ${code}`;
+        this.transportError = new Error(`MCP process ${this.name} exited with ${reason}`);
+        // Give stdout already queued with the exit a turn to deliver its final response.
+        setImmediate(() => this.rejectPending(this.transportError));
+        resolve(code);
+      });
+      this.proc.once('error', (error) => {
+        this.rejectPending(error);
+        if (!this.proc.pid) resolve(null); // A spawn failure has no exit event.
+      });
+    });
+    this.proc.stdin.on('error', (error) => this.rejectPending(error));
     this.proc.stderr.on('data', (chunk) => { this.stderr += chunk; });
     let buffer = '';
     this.proc.stdout.on('data', (chunk) => {
@@ -42,7 +56,15 @@ export class McpClient {
     });
   }
 
+  rejectPending(error) {
+    this.transportError ??= error;
+    for (const waiter of this.pending.values()) waiter.reject(this.transportError);
+    this.pending.clear();
+  }
+
   request(method, params = {}, timeoutMs = 120000) {
+    if (this.transportError) return Promise.reject(this.transportError);
+    if (this.proc.stdin.writableEnded) return Promise.reject(new Error(`MCP input for ${this.name} is closed`));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -58,6 +80,7 @@ export class McpClient {
   }
 
   notify(method, params = {}) {
+    if (this.transportError) throw this.transportError;
     this.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n');
   }
 
@@ -93,7 +116,10 @@ export class McpClient {
   /** Closes stdin, as an IDE does when it stops the server; resolves with the exit code. */
   async close(timeoutMs = 8000) {
     this.proc.stdin.end();
-    const code = await Promise.race([this.exited, new Promise((r) => setTimeout(() => r('still-running'), timeoutMs))]);
+    let timer;
+    const deadline = new Promise((resolve) => { timer = setTimeout(() => resolve('still-running'), timeoutMs); });
+    const code = await Promise.race([this.exited, deadline]);
+    clearTimeout(timer);
     if (code === 'still-running') this.proc.kill();
     return code;
   }

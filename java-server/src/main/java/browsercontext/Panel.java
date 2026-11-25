@@ -15,6 +15,7 @@ import javafx.animation.TranslateTransition;
 import javafx.application.ConditionalFeature;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Group;
 import javafx.scene.Node;
@@ -144,8 +145,7 @@ final class Panel {
 
     /**
      * A port as the window shows it, that a click copies: the number alone goes to the clipboard,
-     * and the label says for a moment that it did. Nothing else happens by the click, also where
-     * the label stands in a row that a click chooses.
+     * and the label says for a moment that it did. The header also handles window dragging.
      */
     static final class PortLabel extends Label {
         private final PauseTransition said = new PauseTransition(Duration.seconds(2));
@@ -158,8 +158,9 @@ final class Panel {
             setAccessibleRole(javafx.scene.AccessibleRole.BUTTON);
             setMinWidth(Region.USE_PREF_SIZE);
             said.setOnFinished(over -> setText(idle));
-            // Pressing is taken here as well, or a row under the label would be armed and chosen.
+            // Pressing is taken here as well, so the header does not start a window drag.
             setOnMousePressed(javafx.scene.input.MouseEvent::consume);
+            setOnMouseDragged(javafx.scene.input.MouseEvent::consume);
             setOnMouseClicked(javafx.scene.input.MouseEvent::consume);
             setOnMouseReleased(release -> {
                 release.consume();
@@ -171,6 +172,7 @@ final class Panel {
 
         /** What it shows while nothing was copied just now, and the port a click copies. */
         PortLabel showing(String text, int port) {
+            if (this.port != port) said.stop();
             this.idle = text;
             this.port = port;
             if (said.getStatus() != Animation.Status.RUNNING) {
@@ -437,8 +439,8 @@ final class Panel {
         private final HBox header = new HBox();
         private final Button minimize = new Button("–");
         private final Label agent = label("", "sub");
-        /** The port at the end of that line, where the line names one: a click copies it. */
-        private final PortLabel agentPort = new PortLabel("sub");
+        /** The first port the extension scans, available before any agent connects. */
+        private final PortLabel firstPort = new PortLabel("chip");
         private final Region dot = new Region();
         private final Label connection = label("");
         private final Label problem = label("", "problem");
@@ -503,7 +505,7 @@ final class Panel {
             minimize.getStyleClass().add("window-button");
             minimize.setTooltip(new Tooltip("Put this window away. The server keeps running."));
             minimize.setAccessibleText("Minimize. The server keeps running.");
-            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), new HBox(agent, agentPort)), grow(), minimize);
+            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), new HBox(6, agent, firstPort)), grow(), minimize);
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
@@ -586,7 +588,7 @@ final class Panel {
             copy.setMinWidth(76);
             copies(copy, "Copy", commands);
             var pairing = new HBox(
-                    new VBox(label("Pairing token", "strong"), label("Paste it into the extension's popup.", "hint")), grow(), copy);
+                    new VBox(label("Pairing token", "strong"), label("Paste in the popup.", "hint")), grow(), copy);
             pairing.getStyleClass().add("row");
 
             // While the browser holds a token that is not the server's, pairing is the one thing to do,
@@ -690,10 +692,8 @@ final class Panel {
 
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */
         void show(PanelModel model) {
-            agent.setText(model.identityBeforePort());
-            agentPort.setVisible(model.identityPort() > 0);
-            agentPort.setManaged(model.identityPort() > 0);
-            agentPort.showing("port " + model.identityPort(), model.identityPort());
+            firstPort.showing("First port " + model.firstPort(), model.firstPort());
+            agent.setText(model.identity());
             connection.setText(model.connection());
             dot.getStyleClass().setAll("dot", model.connected() ? "connected" : model.switchedOff() ? "off" : "waiting");
             if (!Objects.equals(shownConnected, !model.switchedOff())) {
@@ -914,17 +914,13 @@ final class Panel {
             id.setStyle("-fx-font-family: '" + monospace() + "';");
             id.setMinWidth(Region.USE_PREF_SIZE);
             var name = label(member.name(), "agent-name");
-            name.setMinWidth(Region.USE_PREF_SIZE);
-            // Its port while the extension is connected to it, and that it is not while it is not: the
-            // row has room for one of the two beside the name and the id.
-            // The port is copied by a click on it; the row is chosen by a click anywhere else.
-            Label last = member.connected() ? new PortLabel("chip").showing(":" + member.port(), member.port())
-                    : label("not connected", "chip", "state");
-            last.setMinWidth(Region.USE_PREF_SIZE);
+            var row = new HBox(name, grow(), id);
             if (!member.connected()) {
-                last.setTooltip(new Tooltip(member.connection()));
+                var state = label("not connected", "chip", "state");
+                state.setMinWidth(Region.USE_PREF_SIZE);
+                state.setTooltip(new Tooltip(member.connection()));
+                row.getChildren().add(state);
             }
-            var row = new HBox(name, grow(), id, last);
             return chooser(row, member.id(), "agent", member.name() + ": show the metrics and the log of this agent only");
         }
 
@@ -980,12 +976,29 @@ final class Panel {
             var heading = label(title.toUpperCase(), "heading");
             // A box of text has no name of its own for a screen reader: its card's heading is its name.
             Stream.of(content).filter(TextArea.class::isInstance).findFirst().ifPresent(heading::setLabelFor);
-            var head = new HBox(heading, grow());
+            var arrow = new Region();
+            arrow.getStyleClass().add("disclosure-arrow");
+            var caption = new HBox(6, arrow, heading);
+            caption.setAlignment(Pos.CENTER_LEFT);
+            var toggle = new ToggleButton();
+            toggle.getStyleClass().add("card-toggle");
+            toggle.setGraphic(caption);
+            toggle.setAccessibleText(title);
+            toggle.setSelected(true);
+            toggle.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(toggle, Priority.ALWAYS);
+            var head = new HBox(toggle);
             head.getStyleClass().add("card-head");
             if (aside != null) {
                 head.getChildren().add(aside);
             }
             var card = new VBox(head);
+            for (Node section : content) {
+                section.visibleProperty().bind(toggle.selectedProperty());
+                section.managedProperty().bind(toggle.selectedProperty());
+            }
+            toggle.selectedProperty().addListener((property, was, expanded) ->
+                    card.setMaxHeight(expanded ? Region.USE_COMPUTED_SIZE : Region.USE_PREF_SIZE));
             card.getChildren().addAll(content);
             card.getStyleClass().add("card");
             return card;
@@ -1064,11 +1077,6 @@ final class Panel {
                 button.setText("Copied");
                 copied.playFromStart();
             });
-        }
-
-        /** The port in the line under the title, which a click copies. */
-        PortLabel agentPort() {
-            return agentPort;
         }
 
         /** The button that opens the settings file. */

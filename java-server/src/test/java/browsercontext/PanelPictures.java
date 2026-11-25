@@ -189,7 +189,7 @@ final class PanelPictures {
         more.add(line(-4, "info", "command id=28 session=s3 action=snapshot ms=0 outcome=error code=SITE_BLOCKED category=SCOPE scope_violation=true", "s3"));
         return PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0, sessions, times,
                 java.util.Map.of("s1", tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}), "s2", tab(new long[][] {{14_000, 8, 52, 1_600}})))),
-                47821, McpMain.version(), false, more, ZONE, rule, "~/.browser-context-mcp/tabgoblin.properties");
+                Link.port(47821), McpMain.version(), false, more, ZONE, rule, "~/.browser-context-mcp/tabgoblin.properties");
     }
 
     private static PanelModel model(String agent, String problem, boolean connected, boolean off, long since, int closeCode,

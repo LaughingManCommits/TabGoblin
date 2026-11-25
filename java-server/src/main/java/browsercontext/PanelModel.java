@@ -25,7 +25,7 @@ import java.util.Map;
  * alone: the window shows one agent's or one tab's when the user has clicked it, and everything
  * otherwise. What is chosen is the window's own affair and is in no model.
  */
-record PanelModel(String agent, String identity, int port, String version, String problem,
+record PanelModel(String agent, String identity, int port, int firstPort, String version, String problem,
         boolean connected, boolean switchedOff, String connection, List<Member> agents, List<Row> sessions, int tabs,
         int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries, Blocked blocked) {
 
@@ -183,7 +183,7 @@ record PanelModel(String agent, String identity, int port, String version, Strin
 
     /** Reads everything from a running server that has one agent: a process that serves its agent alone. */
     static PanelModel of(WebSocketBridge bridge, String startupProblem) {
-        return of(bridge, startupProblem, "");
+        return of(bridge, startupProblem, "", bridge.getPort());
     }
 
     /**
@@ -191,9 +191,9 @@ record PanelModel(String agent, String identity, int port, String version, Strin
      *
      * @param settingsFile the path of the settings file, as the window shows it
      */
-    static PanelModel of(WebSocketBridge bridge, String startupProblem, String settingsFile) {
+    static PanelModel of(WebSocketBridge bridge, String startupProblem, String settingsFile, int firstPort) {
         return of(List.of(facts(bridge, startupProblem)), bridge.getPort(), McpMain.version(), bridge.isHeld(), Log.recent(),
-                ZoneId.systemDefault(), bridge.blocked(), settingsFile);
+                ZoneId.systemDefault(), bridge.blocked(), settingsFile, firstPort);
     }
 
     /** One agent, without times of single tabs: where only the whole is known, or looked at. */
@@ -209,13 +209,13 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             boolean switchedOff, long connectedSince, int lastCloseCode, List<Protocol.Session> sessions,
             Timings.Shares time, Map<String, Timings.Shares> timeOf, List<Log.Line> log, ZoneId zone) {
         return of(List.of(new Facts(agent, clientId, port, problem, connected, connectedSince, lastCloseCode, sessions, time,
-                timeOf)), port, version, switchedOff, log, zone);
+                timeOf)), port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "", port);
     }
 
     /**
      * Every agent of a server, in the order they came.
      *
-     * @param port the port to place the window by: the first agent's, or the server's own
+     * @param port the shared server's link port, immediately after the extension's port range
      */
     static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
         return of(agents, port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
@@ -230,6 +230,11 @@ record PanelModel(String agent, String identity, int port, String version, Strin
      */
     static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
             BlockedSites.Rule rule, String settingsFile) {
+        return of(agents, port, version, switchedOff, log, zone, rule, settingsFile, port - McpMain.PORT_RANGE);
+    }
+
+    private static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log,
+            ZoneId zone, BlockedSites.Rule rule, String settingsFile, int firstPort) {
         List<Member> members = new ArrayList<>();
         List<Row> rows = new ArrayList<>();
         Map<String, Metrics> metricsOf = new LinkedHashMap<>();
@@ -241,7 +246,8 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         for (Facts facts : agents) {
             // An agent says its name when it opens its connection. Until then it goes by its id, as in the popup.
             boolean named = facts.name() != null && !facts.name().isBlank();
-            members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), facts.port(), facts.connected(),
+            int listeningPort = facts.problem() == null ? facts.port() : 0;
+            members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), listeningPort, facts.connected(),
                     // Without a port no browser can come: that, and not a browser that is waited for.
                     facts.problem() != null && !facts.connected() && !switchedOff ? NO_PORT
                             : connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
@@ -277,11 +283,11 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         boolean named = only != null && !only.name().equals("Agent " + only.id());
         String title = only != null ? only.name() : members.isEmpty() ? "no agent" : members.size() + " agents";
         String identity = only != null
-                ? (named ? only.name() + "  ·  " + only.id() : only.name()) + "  ·  port " + only.port()
+                ? (named ? only.name() + "  ·  " + only.id() : only.name())
                 // With no agent there is nobody to name: the line says what this window is. That no agent
                 // is connected is said once, in the line with the dot.
                 : members.isEmpty() ? "one server for all your agents" : members.size() + " agents";
-        return new PanelModel(title, identity, port, version, problem,
+        return new PanelModel(title, identity, port, firstPort, version, problem,
                 !members.isEmpty() && members.stream().allMatch(Member::connected), switchedOff,
                 only != null ? only.connection() : connection(members, switchedOff),
                 List.copyOf(members), List.copyOf(rows), rows.size(), open,
@@ -342,17 +348,6 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             case Protocol.CLOSE_VERSION -> "Not connected: the extension is of another version";
             default -> "Not connected: waiting for the extension";
         };
-    }
-
-    /** The port the identity line ends with, or 0 where it names none: the window shows it apart, to be copied by a click. */
-    int identityPort() {
-        return agents.size() == 1 && identity.endsWith("port " + agents.get(0).port()) ? agents.get(0).port() : 0;
-    }
-
-    /** The identity line up to its port, or all of it where it names none. */
-    String identityBeforePort() {
-        int port = identityPort();
-        return port == 0 ? identity : identity.substring(0, identity.length() - ("port " + port).length());
     }
 
     /** The line of an agent whose server could open no port: the reason is in the box under it. */

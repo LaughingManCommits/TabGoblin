@@ -3,6 +3,18 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-25, working tree from `52143a5`: panel controls, CLI skills and MCP test-client exit handling
+
+On Windows with JDK 21, the four focused server suites passed 67 tests. Maven packaged the final jar in a copy with all 218 server tests passing and none skipped. The panel test copied a custom first port with no agents present using a test clipboard. The 19 panel pictures were rendered and inspected. Documentation links and the personal-information checks passed. The extension and browser end-to-end suites were not run.
+
+With collapsible sections added, the focused suites passed 68 tests. On Windows, Maven packaged the jar with 219 tests passing and none skipped. The JavaFX test folded each section, refreshed the view and reopened it. All 19 panel pictures were inspected and the guide picture was refreshed. Other platforms and the browser suites were not exercised for this change.
+
+The three CLI skills now carry the custom first port through browser commands and include a failed-build investigation. All 9 SkillsTest checks passed, followed by all 219 server tests during packaging. Each CLI skill in the built jar matched its source byte for byte. Documentation link and personal-information checks passed. The browser suites were not rerun for the skill edits.
+
+The MCP test client's three child-process regression tests failed against the previous client and passed with the fix. The Windows Chrome end-to-end suite passed 109 of 109, including cancellation, agent restart and session recovery, with server diagnostics enabled. The extension type-check, all 213 tests and the build passed. The original intermittent popup timeout did not occur in this run. The Java server suite was not repeated for these harness edits.
+
+After moving the first-port control to the header, 68 focused tests and all 219 server tests passed on Windows. The header copy test covered a custom port before connection. The 19 panel renders were inspected and the guide picture refreshed. Browser suites were not rerun for this display change.
+
 ## 2026-11-25, on `ccr-6350ba03-tntbzp` from `cf9bbca`: a last review of the documentation, and the reference renamed
 
 Narrow in scope. The reference is `docs/tool-reference.md`; the old name is a pointer.
@@ -268,46 +280,9 @@ Not run: the server's tests, which this did not touch; Windows; the button by ha
 owner's browser. Not decided, and the owner's: whether the button also shows for a question
 that belongs to another tab's session; it does not.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `9b287f0`: a server that has no port says why, and a smoke test
-
-Two sessions. The second, on Windows 11 with a display, found a fault in use and mended what it
-says; the first, in its container, ran what the second had left for the mending. What the
-second session ran is as it reported it.
-
-**The fault.** The server's window said that it could not listen on any of ports 47821 to
-47828 because too many servers were running, and the popup said *Disconnected*. No other
-server ran, and nothing listened there. Windows had kept the range 47749 to 47848 back for its
-own networking, as Hyper-V, WSL and Docker have it done, out of the dynamic range, which on
-that machine begins at 1024. A plain Node program was refused on the same ports and opened
-39821. Java says *Address already in use* for a port that is kept back as for one that is held.
-The owner runs with `--port 39821` and the same first port in the popup since.
-
-| Where | Command | Result |
-|---|---|---|
-| Windows, second session | `mvn test`, at `8b7656d` | 184 passed |
-| Windows, second session | `PanelPictures` | the window's state without a port was drawn and looked at |
-| Container, first session | `xvfb-run -a mvn -B -f java-server/pom.xml verify`, at `9b287f0` | 184 tests, none skipped, and the 8 of the conformance check on the built jar |
-| Container, first session | `cd e2e && node run.mjs`, at `9b287f0` | 102 passed, 0 failed |
-
-**By hand, on Windows, with the real extension** at protocol 3 and Explore access on a tab of a
-public site. Worked: the status, also with diagnostics, a snapshot, an extract, a click on a
-link, a wait, a navigation back, a hover, a scroll, collecting with `find` (4 readings, 1.1
-seconds), a screenshot without the notice in it. Refused as they should be: a click on a
-button and a fill (`WRITE_NOT_AUTHORIZED`), a navigation to another site
-(`NAVIGATION_BLOCKED`). Then, with the owner at the popup: a request for write access, which
-the owner allowed, after which the status said read/write; a fill into a search field, which
-kept its text; Enter in that search field with `intent=submit`, sent without a question, as a
-search is; and a submission with two fields and an expected text, which the owner allowed and
-which came back `CONFIRMED` by content, with three pieces of evidence. It made a real issue in
-the owner's repository, which is open. A typical call took 22 ms in the extension and the page.
-Not seen, since no tool sees the popup: that it came up by itself, and what the request and
-the prompt showed. Not tried: a Deny of either question; pause, revoke and disconnect from the
-user's side; a navigation that suspends the session.
-
-Not run: the extension's check, which neither commit touched; the live window's log with the
-new short line; the editor lab with `BACKGROUND=1`; the workflows.
-
 ## Earlier, in one line each
+
+- 2026-11-24, Windows at `8b7656d` and Linux at `9b287f0`: Windows reserved the default port range. The panel explained the bind failure. Both server suites passed 184 tests, Linux also passed 8 conformance and 102 end-to-end checks. A live Windows smoke test covered Explore, submission confirmation and access refusals.
 
 - 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (the server's window names a
   security policy; under `xvfb-run` in a container): the server 179 tests with none skipped,

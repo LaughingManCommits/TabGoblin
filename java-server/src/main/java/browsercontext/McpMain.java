@@ -314,7 +314,8 @@ public final class McpMain {
                 return;
             }
             if (asked.compareAndSet(false, true)) {
-                up.set(showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem(), options.settings().toAbsolutePath().toString()),
+                up.set(showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem(),
+                                options.settings().toAbsolutePath().toString(), settings.port()),
                         command -> carryOut(command, agent.bridge()::setHeld, settings.token(), Panel::copySecret,
                                 () -> BlockedSites.edit(options.settings())), Panel::possible));
             } else {

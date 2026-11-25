@@ -254,7 +254,8 @@ class SkillsTest {
     void aSkillForTheCommandLineNamesTheCommandsAndTheirArgumentsAsTheyAreAndNoMcpTool() throws Exception {
         Set<String> commands = new TreeSet<>();
         Set<String> options = new TreeSet<>(Cli.OWN);
-        options.add("--agent");
+        options.addAll(Cli.SERVER_VALUES);
+        options.addAll(Cli.SERVER_FLAGS);
         for (var tool : Cli.tools()) {
             commands.add(Cli.commandOf(tool.name()));
             ((Map<?, ?>) tool.inputSchema().get("properties")).keySet().forEach(name -> options.add("--" + name.toString().replace('_', '-')));

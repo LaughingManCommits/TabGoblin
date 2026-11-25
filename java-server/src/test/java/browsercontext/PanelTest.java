@@ -60,6 +60,38 @@ class PanelTest {
     }
 
     @Test
+    void eachCardCanFoldAndReopenAcrossRefreshes() throws Exception {
+        inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model(true, false));
+            var scene = new javafx.scene.Scene(view.frame(false));
+            scene.getRoot().applyCss();
+            var headings = view.root().lookupAll(".card-toggle").stream()
+                    .map(javafx.scene.control.ToggleButton.class::cast).toList();
+            assertEquals(4, headings.size());
+            for (var heading : headings) {
+                assertTrue(heading.isSelected());
+                heading.fire();
+                view.show(model(false, false));
+                var card = (javafx.scene.layout.VBox) heading.getParent().getParent();
+                var children = card.getChildren();
+                for (var body : children.subList(1, children.size())) {
+                    assertFalse(body.isVisible());
+                    assertFalse(body.isManaged());
+                }
+                assertEquals(3, headings.stream().filter(javafx.scene.control.ToggleButton::isSelected).count());
+                heading.fire();
+                for (var body : children.subList(1, children.size())) {
+                    assertTrue(body.isVisible());
+                    assertTrue(body.isManaged());
+                }
+            }
+            assertTrue(sent.isEmpty());
+            return true;
+        });
+    }
+
+    @Test
     void itSaysWhatTheServerHoldsAndNothingOfAPage() throws Exception {
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
@@ -67,7 +99,7 @@ class PanelTest {
             return view.words();
         });
         String all = String.join("\n", words);
-        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d  ·  ", "port 47821",
+        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d", "First port 47821",
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
@@ -244,16 +276,22 @@ class PanelTest {
                 var view = new Panel.View(sent::add);
                 view.show(model(true, false));
                 var steps = new ArrayList<String>();
-                var port = view.agentPort();
+                var port = (Panel.PortLabel) view.root().lookup(".header .port");
                 steps.add(port.getText() + " shown=" + port.isVisible() + " -> " + clipboard[0]);
                 port.copy();
                 steps.add(port.getText() + " -> " + clipboard[0] + " asked=" + sent);
                 // Bringing the view up to date leaves what it says for the moment.
                 view.show(model(true, false));
                 steps.add(port.getText());
+                view.show(PanelModel.of(List.of(), Link.port(37821), "9.8.7", false, List.of(), ZoneId.of("UTC")));
+                assertEquals(1, view.root().lookupAll(".port").size());
+                steps.add(port.getText());
+                port.copy();
+                steps.add(clipboard[0]);
                 return steps;
             });
-            assertEquals(List.of("port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied"), seen);
+            assertEquals(List.of("First port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied",
+                    "First port 37821", "37821"), seen);
         } finally {
             Panel.portClipboard = system;
         }
@@ -271,7 +309,7 @@ class PanelTest {
             // Bringing the view up to date asks for nothing again.
             view.show(model(true, false));
             steps.add(view.copy().getText() + " -> " + sent);
-            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "Paste it into the extension's popup."))));
+            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "Paste in the popup."))));
             return steps;
         });
         assertEquals(List.of("Copy -> []", "Copied -> [CopyToken[]]", "Copied -> [CopyToken[]]", "true"), seen);
@@ -332,7 +370,7 @@ class PanelTest {
                     false, false, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), List.of(), ZoneId.of("UTC")));
             return view.words();
         });
-        for (String shown : List.of("Agent c-1a2b3c4d  ·  ", "port 47821",
+        for (String shown : List.of("Agent c-1a2b3c4d", "First port 47821",
                 "Not connected: this server has no port to listen on",
                 Agent.noPort(47821, 0),
                 "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
@@ -439,7 +477,7 @@ class PanelTest {
         }
         assertFalse(empty.note().isEmpty());
         assertFalse(shown.withOne().contains(empty.note()), String.join("\n", shown.withOne()));
-        assertTrue(shown.withOne().containsAll(List.of("claude-code  ·  c-1a2b3c4d  ·  ", "port 47821")));
+        assertTrue(shown.withOne().containsAll(List.of("claude-code  ·  c-1a2b3c4d", "First port 47821")));
     }
 
     @Test
@@ -475,8 +513,8 @@ class PanelTest {
 
         // Both agents, each with what it has: the first its tabs, the second the words in their place.
         for (String shown : List.of("2 agents", "1 of 2 agents is connected to the browser", "2 agents  ·  2 tabs",
-                "claude-code", "c-11111111", ":47821", "s1", "mail.example.com", "s3", "wiki.example.net", "any agent",
-                "IntelliJ IDEA", "c-22222222", "not connected", "Not known while the browser is not connected",
+                "claude-code", "c-11111111", "s1", "mail.example.com", "s3", "wiki.example.net", "any agent",
+                "IntelliJ IDEA", "c-22222222", "First port 47821", "not connected", "Not known while the browser is not connected",
                 "time of the last 5 calls", "the last 300 lines")) {
             assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
         }

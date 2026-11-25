@@ -381,18 +381,21 @@ same agent each time it starts.
 The server has no window unless you ask for one. `tabgoblin --panel` brings up the window of
 the running server, or starts a server with its window, which then stays until you stop it.
 Adding `--panel` to the agent's registration shows it whenever that agent runs.
+Click the **Sessions**, **Metrics**, **Log** or **Control** heading to collapse or expand that
+section. Each starts expanded and keeps its own state while the window is open. You can also
+focus a heading with Tab and toggle it with Space.
 
 <img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, the metrics, the log, and the controls">
 
 | Part | What it shows or does |
 |---|---|
-| The line under the title | Whose server it is, and its port. A click on a port, here or in an agent's row, copies the number to the clipboard |
+| The line under the title | Click **First port** beside the agent information to copy the number for the extension popup. It is available before an agent or browser connects |
 | The line with the dot | Whether the extension is connected, and if not, why |
 | Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. A click on a tab or an agent shows its metrics and log lines alone |
 | Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers |
 | Log | The server's last 300 lines: connections, and one line per tool call with its tab, action, duration and outcome. Nothing of a page |
 | Connection to the browser | A switch. Off, the server closes its connection to the extension until you switch it on. The agent's tabs stay authorized |
-| Pairing token | **Copy** puts the token on the clipboard without showing it. It leaves the clipboard after a minute |
+| Pairing token | **Copy** copies the pairing token, which leaves the clipboard after a minute |
 | Blocked sites | The sites on your list and, while a policy is in force, a line *Policy: …*. **Edit** opens the settings file |
 | Stop server, Kill | Stop ends the server in order, for every agent. Kill ends the process at once, for a server that hangs. Each takes two clicks |
 

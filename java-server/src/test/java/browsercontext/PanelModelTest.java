@@ -175,14 +175,13 @@ class PanelModelTest {
             PanelModel unnamed = PanelModel.of(noName, "c-1a2b3c4d", 47821, "9.8.7", null, false, false, 0, 0, List.of(),
                     NO_CALLS, List.of(), UTC);
             assertEquals("Agent c-1a2b3c4d", unnamed.agent());
-            assertEquals("Agent c-1a2b3c4d  ·  port 47821", unnamed.identity());
+            assertEquals("Agent c-1a2b3c4d", unnamed.identity());
         }
         PanelModel named = model(true, false, 0, 0, List.of());
         assertEquals("claude-code", named.agent());
-        assertEquals("claude-code  ·  c-1a2b3c4d  ·  port 47821", named.identity());
+        assertEquals("claude-code  ·  c-1a2b3c4d", named.identity());
         // The window shows the port apart from the rest of the line, to be copied by a click.
-        assertEquals(47821, named.identityPort());
-        assertEquals("claude-code  ·  c-1a2b3c4d  ·  ", named.identityBeforePort());
+        assertEquals(47821, named.firstPort());
         PanelModel stuck = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", "Could not listen on any of ports 47821-47828.",
                 false, false, 0, 0, List.of(), NO_CALLS, List.of(new Log.Line(5, "warn", "a line")), UTC);
         assertEquals("Could not listen on any of ports 47821-47828.", stuck.problem());
@@ -300,7 +299,7 @@ class PanelModelTest {
             bridge.setClientName("claude-code");
             PanelModel alone = PanelModel.of(bridge, null);
             assertEquals("claude-code", alone.agent());
-            assertEquals("claude-code  ·  " + bridge.clientId() + "  ·  port " + bridge.getPort(), alone.identity());
+            assertEquals("claude-code  ·  " + bridge.clientId(), alone.identity());
             assertEquals(bridge.getPort(), alone.port());
             assertFalse(alone.connected());
             assertEquals("Not connected: waiting for the extension", alone.connection());

@@ -175,6 +175,31 @@
 .card-head {
     -fx-alignment: center-left;
 }
+.toggle-button.card-toggle {
+    -fx-alignment: center-left;
+    -fx-background-color: transparent;
+    -fx-padding: 2 0;
+    -fx-cursor: hand;
+}
+.card-toggle .disclosure-arrow {
+    -fx-shape: "M 0 0 L 6 4 L 0 8 Z";
+    -fx-min-width: 6;
+    -fx-pref-width: 6;
+    -fx-max-width: 6;
+    -fx-min-height: 8;
+    -fx-pref-height: 8;
+    -fx-max-height: 8;
+    -fx-background-color: -tg-muted;
+}
+.card-toggle:selected .disclosure-arrow {
+    -fx-rotate: 90;
+}
+.card-toggle:hover .heading, .card-toggle:focused .heading {
+    -fx-text-fill: -tg-accent;
+}
+.card-toggle:focused .heading {
+    -fx-underline: true;
+}
 .heading {
     -fx-text-fill: -tg-muted;
     -fx-font-size: 11px;

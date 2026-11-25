@@ -2,6 +2,14 @@
 
 Last updated: 2026-11-25, the evening. Claims here go stale; check the date, then `git status` and `git log`.
 
+## Server panel, 2026-11-25
+
+The working tree shows the popup's **First port** in the header before pairing. Click the number to copy it. Sessions, Metrics, Log and Control now fold independently. A running server picks up the change when started from the rebuilt jar.
+
+## CLI skills, 2026-11-25
+
+All three CLI skills now cover reusing a configured first port and investigating failed builds. The next release build will include the updated instructions.
+
 ## Where the code is
 
 - `main` = `origin/main` = `fde041c`: the owner's merge of `release-keeps-ci` on
@@ -138,7 +146,8 @@ Last updated: 2026-11-25, the evening. Claims here go stale; check the date, the
 - **One step of the end-to-end suite failed once in four runs** on 2026-11-25, in the
   container: "an agent whose server restarts gets its sessions back", on a wait in the popup.
   No command of the command line takes part in it, and the server was the same in the runs
-  where it passed. The cause was not found; the next session that sees it should run with
+  where it passed. The cause was not found. The harness now names each popup wait and rejects MCP requests when
+  the child exits. If the restart fails again, capture the wait label and the server logs with
   `SHOW_STDERR=1`.
 - **An agent of the command line holds one of the eight ports for ten minutes after its last
   command.** Many names in a short time can use the ports up; the message is the one for
