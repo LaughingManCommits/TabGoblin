@@ -40,7 +40,7 @@ These decide whether a change can be accepted. The reasons are in the
 - **Rules are pure functions** in `policy.ts`, with tests. DOM code takes a document and runs
   under jsdom.
 - **A tool's text output is a public contract.** If it changes, update the
-  [tool reference](docs/mcp-reference.md) and run the end-to-end suite. A test holds the
+  [tool reference](docs/tool-reference.md) and run the end-to-end suite. A test holds the
   reference to the server's tool definitions.
 - **Nothing personal** in a file or a commit message: no home directory, no real mail address.
 

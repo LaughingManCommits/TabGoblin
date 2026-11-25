@@ -64,7 +64,7 @@ Every control is labelled with one of three classes:
 
 | Control | Class | Enforced in |
 |---|---|---|
-| No access to cookies, headers, storage, debugger or script evaluation | Enforced | Manifest permissions; no such tool or protocol action |
+| No access to cookies, headers, website storage, debugger or script evaluation | Enforced | Manifest permissions; no such tool or protocol action |
 | A tab is reachable only after the user's click on it | Enforced | Chrome (`activeTab`); extension |
 | A session is bound to exact origins, one tab, one agent | Enforced | Extension, before every command and step |
 | Access levels Read, Explore, Read / Write | Enforced | Extension (`policy.ts`) |
@@ -146,7 +146,8 @@ tells agents not to change interface by themselves when one is blocked
 **Mitigation.** The extension's manifest permissions are exactly `activeTab`, `scripting`,
 `storage` and `alarms`. It has no host permissions and registers no content script for all
 pages: it cannot touch a tab until the user clicks its icon there. The tools map to a fixed
-set of operations.
+set of operations. The `storage` permission is for the extension's own data (pairing,
+settings, sessions) and is no access to a website's storage.
 
 | Not available | Why |
 |---|---|

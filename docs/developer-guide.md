@@ -4,7 +4,7 @@ How to work with TabGoblin day to day, through the CLI or through MCP: connect a
 manage sessions and workspaces, approve submissions, pause and revoke, restrict what agents
 may do, and fix common problems.
 
-What each tool takes and returns is in the [tool reference](mcp-reference.md), and how an
+What each tool takes and returns is in the [tool reference](tool-reference.md), and how an
 agent runs the tools as commands in the [CLI guide](cli.md). What an
 agent can and cannot reach, and why, is in the [security model](security-model.md).
 
@@ -242,7 +242,11 @@ the popup, and per session next to **Submissions** in its row:
 | Ask me the first time (automatic) | The first time for each button or text box. What you allow then passes for 15 minutes |
 | Do not ask me | Never, except as below |
 
-- Deleting, paying, publishing and similar actions always ask, whatever the setting.
+- Under the [strict profile](#the-security-policy) you are asked about every submission, and
+  the other two settings are disabled.
+- Deleting, paying, publishing and similar actions always ask, whatever the setting. They are
+  recognised by the control's label, in English: a control that does such a thing under
+  another name is not recognised (best effort).
 - In the automatic mode the prompt says before you answer what an Allow will reach: *Automatic
   is on: after Allow, this passes without asking for 15 minutes.* A control is known by its
   name on its website: after "Save" on one page, "Save" on another page of that website passes
@@ -511,6 +515,6 @@ Commands an agent runs through the CLI: `tabgoblin tools --json`,
 | "This tab cannot be authorized" | Browser pages and the Web Store are off limits | Use a normal `http(s)` page |
 | Screenshot refused | The tab is not the visible one in its window, a frame from another site is in view, or the policy disables screenshots | Bring the tab to the front, or scroll the frame out of view; the agent can read the page as text |
 | The page stopped responding | A native `alert` or `confirm` dialog is open | Dismiss the dialog |
-| Working through TabGoblin is slow | The time goes to the agent and its model, to the browser, or to waiting for you | Ask the agent to call `browser_status` with `diagnostics`: it says [where the time went](mcp-reference.md#where-the-time-went) |
+| Working through TabGoblin is slow | The time goes to the agent and its model, to the browser, or to waiting for you | Ask the agent to call `browser_status` with `diagnostics`: it says [where the time went](tool-reference.md#where-the-time-went) |
 | `--panel` is set and no window appears | The server found no display, or runs on a system the jar has no window for | The server's log has a line `panel not shown reason=…` |
 | *Could not listen on any of ports 47821-47828* | Eight agents are connected already, other programs hold the ports, or the system keeps all three ranges back | See [installation problems](installation.md#problems) |

@@ -3,6 +3,26 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-25, on `ccr-6350ba03-tntbzp` from `cf9bbca`: a last review of the documentation, and the reference renamed
+
+Narrow in scope. The reference is `docs/tool-reference.md`; the old name is a pointer.
+
+| Command | Result |
+|---|---|
+| `mvn -q test -Dtest='SkillsTest,ToolReferenceTest'` in `java-server` | 11 tests pass, reading the reference by its new name |
+| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | Pass |
+| Every `tabgoblin` command line of the documentation, given to the built jar with `--help` | 22 understood. The one that was not is a message of a diagram, with a remark in brackets behind the command |
+| Every option the documentation gives the program itself (`--setup`, `--mode`, …) | Each is one that `McpMain.Options` reads |
+| `node docs/assets/diagrams/build.mjs` | Writes the four files as they are committed: no difference |
+
+The four SVG diagrams were shown in the container's Chromium at the width of GitHub's text
+column, on GitHub's white and on its dark ground with the system set to match, and all eight
+pictures were opened: nothing is cut off, no label is crossed by a line, and the text is
+readable in both. Not seen on GitHub itself, nor in IntelliJ.
+
+Not run: the rest of the server's tests, the extension's, the end-to-end suite. No source of
+the product was changed; two tests had the reference's path changed.
+
 ## 2026-11-25, on `ccr-6350ba03-tntbzp` from `402aaf8`: WP-30, the documentation for two interfaces
 
 Documentation only. Every command and option that the new and the changed pages name was
@@ -190,7 +210,7 @@ developers and for a security review. No product code was changed; one test is n
 | Command | Result |
 |---|---|
 | `cd e2e && node run.mjs`, at `70e3026`, before the rewrite | 103 passed, 0 failed. This is the run the entry below says was started after its commit |
-| `mvn -f java-server/pom.xml test` | 186 tests, 15 skipped (the window's tests, without a display). Two are new, `ToolReferenceTest`: every tool of the server has its heading in `docs/mcp-reference.md` and no other tool has one, and every argument of a tool's schema is named in that tool's section |
+| `mvn -f java-server/pom.xml test` | 186 tests, 15 skipped (the window's tests, without a display). Two are new, `ToolReferenceTest`: every tool of the server has its heading in `docs/tool-reference.md` and no other tool has one, and every argument of a tool's schema is named in that tool's section |
 | `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | 245 links, all resolve; nothing personal found |
 | The nine diagrams of `README.md`, `docs/architecture.md` and `docs/corporate-assessment.md`, drawn with mermaid 11.4.1 in a headless browser | All nine are drawn. One did not parse at first, for a semicolon in a message, and was mended. Two were opened and looked at |
 
@@ -287,34 +307,12 @@ user's side; a navigation that suspends the session.
 Not run: the extension's check, which neither commit touched; the live window's log with the
 new short line; the editor lab with `BACKGROUND=1`; the workflows.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m`: the server's window names a security policy
-
-After the entry below, whose session saw two things in the window and left them: the policy
-stood under a heading that named only blocked sites, with its content under the mouse alone;
-and the pictures had no state for it. In the first session's container, which has a virtual
-display after all (`xvfb-run`), so the window's tests and its pictures ran there for the first
-time.
-
-| Command | Result |
-|---|---|
-| `xvfb-run -a mvn -B -f java-server/pom.xml verify` | 179 tests, none skipped, the 15 of `PanelTest` among them, and the 8 of the conformance check |
-| `PanelPictures`, under `xvfb-run` | nineteen pictures: the seventeen there were, and two new ones |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-The two new pictures were opened and looked at. `18-policy`: the heading reads *Blocked sites
-and security policy*; under it *docs.example.org*, and then *Policy: strict, 1 site allowed, no
-screenshots, up to Explore, ends by itself* on two lines, whole, beside **Edit**; the Control
-card with Stop and Kill is inside the window. `19-policy-alone`: the same heading, *No site is
-blocked*, and *Policy: no screenshots*. Two forms before that were looked at and changed: one
-line, which was cut off after *no screens…*, and separators that took a third line.
-
-Not done: the live window on a desktop, and the text under the mouse, which is tested in the
-window's model. The extension and the suite end to end were not run again: neither was
-touched. `1-connected` was not compared with the documentation's picture: another system draws
-its letters differently, and the window without a policy is as it was.
-
 ## Earlier, in one line each
 
+- 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (the server's window names a
+  security policy; under `xvfb-run` in a container): the server 179 tests with none skipped,
+  the 15 of `PanelTest` among them, and the 8 of the conformance check; nineteen pictures of
+  the panel, two of them new and looked at.
 - 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `41248d7` (WP-27 on Windows,
   and the editor lab): the suites passed on Windows 11 as they had in the container; the
   editor lab was run in front and in the background.

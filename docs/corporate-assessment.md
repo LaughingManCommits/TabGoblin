@@ -73,7 +73,7 @@ TabGoblin makes.
 | Visible text of an authorized page, its structure, addresses, non-password field values | Content script, extension, server (in memory, in transit) | To the agent, as tool results: an MCP result, or a CLI command's output |
 | Screenshots of an authorized tab's viewport | Extension, server (in transit) | To the agent |
 | Text the agent enters or submits | Server and extension (in transit) | Into the page, and from there to the web application |
-| Cookies, tokens, headers, browser storage, passwords in fields | Not accessed | Nowhere |
+| Cookies, tokens, headers, website storage (`localStorage`, `sessionStorage`, IndexedDB), passwords in fields | Not accessed | Nowhere |
 | Operational metadata: ids, action names, durations, outcomes | Server log (stderr, and 300 lines in memory), extension's activity list, optional audit file | Stays on the workstation |
 
 **TabGoblin sends no data off the workstation.** Its only network use is the loopback
@@ -89,7 +89,7 @@ does not persist page content; what the agent's program stores is outside TabGob
 |---|---|
 | `activeTab` | Access to a tab only after the user clicks the extension's icon on it, limited to that tab and withdrawn by Chrome when the tab changes origin. This is the basis of per-tab authorization |
 | `scripting` | To inject the content script into a tab that was authorized this way. No content script is registered for all pages |
-| `storage` | To keep the pairing token, the settings and the sessions in the extension's own storage |
+| `storage` | To keep the pairing token, the settings and the sessions in the extension's own storage. It gives no access to a website's storage or cookies |
 | `alarms` | To wake the extension's worker every 30 seconds to look for a local server |
 
 There are **no host permissions** and no `cookies`, `webRequest`, `debugger`, `tabs`,
@@ -122,10 +122,16 @@ Detail: [agent identity](security-model.md#agent-identity-and-authentication),
 
 ## Credential handling
 
-- **Web credentials are not handled.** TabGoblin has no access to cookies, tokens, request
-  headers or browser storage, and refuses to read or fill password and credential-like fields.
+- **Web credentials are not handled.** TabGoblin has no permission for cookies or request
+  headers, has no operation that reads a website's storage, and refuses to read or fill
+  password and credential-like fields.
   It needs no API token for any web application; it acts within the session the developer
   already has in the browser.
+- **Sensitive information in rendered content is a different matter.** Whatever an authorized
+  page displays is page content and is delivered to the agent: personal data, internal
+  figures, and a secret that the page shows in plain text. Text that looks like a credential
+  is taken out by shape, which is best effort and incomplete
+  ([detail](security-model.md#sensitive-information-handling)).
 - **TabGoblin's own secrets** are the pairing token (`~/.browser-context-mcp/pairing-token`,
   and in the extension's storage) and the agents' keys (`~/.browser-context-mcp/agents/`).
   They are files with owner-only permissions where the system supports that. They are not

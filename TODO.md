@@ -80,7 +80,7 @@ WP-9 was built as proposed, with the proposals taken for its three points after 
 command ran, waited for its turn, and waited for the user); the report is in `browser_status`
 with `diagnostics: true` and in the server's log at `debug`, with no file and no new tool; and
 the extension's part is not split into worker and page. What the report cannot tell is in
-[docs/mcp-reference.md](docs/mcp-reference.md#where-the-time-went): the model from the agent's program, and the
+[docs/tool-reference.md](docs/tool-reference.md#where-the-time-went): the model from the agent's program, and the
 extension from the page.
 
 WP-10 was asked for by the owner on 2026-11-21 ("i can disconnect agent but then his
@@ -244,7 +244,7 @@ the rules in [security-model.md](docs/security-model.md#the-servers-panel), the 
    switched on again, and the agent is told why. It is still no revocation: see below.
 3. **A tool's text changed**, where the filing expected none: `browser_status` and the
    `NOT_CONNECTED` error say that the user switched the connection off, and where.
-   `docs/mcp-reference.md` has it, and the end-to-end suite was run.
+   `docs/tool-reference.md` has it, and the end-to-end suite was run.
 4. **Two kinds of window.** Without a frame on Windows, in the system's frame elsewhere,
    because the frameless one drew nothing on Linux. The owner saw that before the session did.
 
@@ -1139,7 +1139,7 @@ on macOS; this server with an extension from before this change, with real parts
 
 ### Tasks and acceptance
 
-A new error code and a new line in a tool's text: `docs/mcp-reference.md` and the suite end to end.
+A new error code and a new line in a tool's text: `docs/tool-reference.md` and the suite end to end.
 The server: the file and its re-reading (`Settings`, beside `Pairing`), the rule as a pure
 function of a host and a list, the check in `BrowserService.send` and in `navigate`, the list
 to the extension after pairing (`Protocol.java`, `WebSocketBridge.java`), the window
@@ -1504,7 +1504,7 @@ It is the first thing to settle, and the request does not say.
 Per the task map: "Change what is allowed" for the rule (`policy.ts`); "Change sessions,
 pairing or the connection" for the time in a session's record and the half-minute check
 (`background.ts`); "Change the popup" for the setting and the row. The tool's text changes, so
-`docs/mcp-reference.md` and the end-to-end suite; the developer guide for sessions and its table of
+`docs/tool-reference.md` and the end-to-end suite; the developer guide for sessions and its table of
 settings; and the table of what is tested in `docs/security-model.md`. Tests: the rule, with the
 clock given; the worker, that a command renews a session and that one left alone ends, also
 over a restart of the worker; end to end, with a short time set in the real popup. Acceptance:
@@ -1566,7 +1566,7 @@ and `browser_hover`, after the owner's "continue with p1". And item 11, after th
 security policy in the server's window. There are fourteen tools now. What each is, for a user, is in the pages that own it: the
 [security model](docs/security-model.md) (agents, the security policy, what is checked and when,
 submissions, what is taken out, logging), the [developer guide](docs/developer-guide.md#the-security-policy),
-the [tool reference](docs/mcp-reference.md) and the [protocol](docs/development.md#protocol-reference).
+the [tool reference](docs/tool-reference.md) and the [protocol](docs/development.md#protocol-reference).
 What was run is in the validation log.
 
 What a setup from before has to know:
@@ -1795,7 +1795,7 @@ Documentation only.
   arguments, discovery, output and exit codes, identity and the life of a session, a worked
   example, and a few lines of instructions for an agent that has no skill. The section it
   replaces in the tool reference is now a pointer.
-- **The tool reference** (`docs/mcp-reference.md`, its file name kept because two tests read
+- **The tool reference** (`docs/tool-reference.md`, its file name kept because two tests read
   it by that name) is titled "Tool reference" and says that it holds for both interfaces.
 - **The README:** a browser bridge in its first sentence, a table of the two interfaces
   before anything else, both in the picture, and two quick starts.
@@ -1811,7 +1811,7 @@ Documentation only.
   same name") and a command's `--help` ("Arguments (the MCP tool …)"). The task was the
   documentation; `McpMainTest` holds the first of them word for word.
 - **The skills** were not touched: they are in the jar, and `SkillsTest` holds their words.
-- **`docs/mcp-reference.md` keeps its name.** Renaming it needs `SkillsTest` and
+- **`docs/tool-reference.md` keeps its name.** Renaming it needs `SkillsTest` and
   `ToolReferenceTest` changed with it.
 - **No picture was made or regenerated.** The popup's pictures show no interface; the
   popup's own words "is the MCP server running?" are quoted as they are.

@@ -76,7 +76,7 @@ The three for MCP say the same about TabGoblin, and so do the three for the comm
 themselves. That part begins at "Start with the status" and is word for word the same in the
 three of a kind; a test of the server's suite (`SkillsTest`) fails when one of
 them drifts from the others, when a skill names a tool the server does not have or leaves one
-out, and when it names an error code that the [tool reference](../docs/mcp-reference.md#errors) does
+out, and when it names an error code that the [tool reference](../docs/tool-reference.md#errors) does
 not know. For the command line it also fails when a skill names an option that no command has,
 or an MCP tool. What differs is each one's head:
 
@@ -101,6 +101,6 @@ tried either. The lines `--setup` prints for adding the server to Codex and
 to Copilot follow their documentation as read on 2026-11-23 and were not run; the line for
 Claude Code was.
 
-The skills say what the tools do in fewer words than the [tool reference](../docs/mcp-reference.md),
+The skills say what the tools do in fewer words than the [tool reference](../docs/tool-reference.md),
 which stays the place where each tool's text is written down. Where the two differ, the tool
 reference is right and the skill has to be mended.
