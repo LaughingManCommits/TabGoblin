@@ -1,8 +1,9 @@
 # CLI guide
 
 TabGoblin has two integration interfaces, and this page is about one of them: the CLI. An
-agent that can run a local command can use TabGoblin through it. It needs no MCP client, no
-MCP registration and no plugin.
+agent that can run a local command can use TabGoblin through it: no MCP client and no MCP
+registration is involved. It still needs TabGoblin's browser extension, paired, and a tab you
+authorized.
 
 The CLI and [MCP](installation.md#mcp) give an agent the same fourteen tools. A CLI command is
 one tool call: it goes to the same local TabGoblin server, is checked by the same rules in the
@@ -21,28 +22,42 @@ either way. What the two share and where they differ is in the
 
 ## Quick start
 
-With TabGoblin [installed and paired](installation.md#from-a-download):
+With TabGoblin [installed and paired](installation.md#from-a-download), three steps take an
+agent from nothing to reading a page. Run them yourself once to see them work.
+
+**1. The agent introduces itself.**
 
 ```sh
-tabgoblin tools                           # the fourteen commands
-tabgoblin status --agent my-agent         # is the browser connected, and which tabs are mine?
+tabgoblin tools                           # the fourteen commands; no server needed
+tabgoblin status --agent my-agent
 ```
 
-Then open a website in Chrome, click the TabGoblin icon on that tab, choose an access level
-and press **Authorize** for the agent `my-agent`. From then on:
+`--agent` is who the agent is. The name is yours to choose; the same name at every command is
+the same agent, with the same tabs. This first command starts TabGoblin's server if none runs
+and makes the agent known. It may take up to ten seconds, and answers:
+
+```json
+{"ok":true,"tool":"browser_status","text":"Extension: connected (protocol 3)\nThis agent: …\nAuthorized origin: none\nAsk the user to open the site in Chrome, click the TabGoblin icon, and authorize that tab."}
+```
+
+**2. You authorize a tab.** Open a website in Chrome and click the TabGoblin icon on that tab.
+The agent is now listed there as `my-agent (command line)`. Choose it, choose an access level
+(Read is enough to look) and press **Authorize**. Only you can do this; no command does.
+
+**3. The agent works in that tab.**
 
 ```sh
-tabgoblin snapshot --agent my-agent --interactive-only
+tabgoblin status --agent my-agent                        # now lists session s1 and its website
+tabgoblin snapshot --agent my-agent --interactive-only   # the page's controls, numbered like [12]
 tabgoblin extract --agent my-agent --find "error" --context-lines 3
-tabgoblin click --agent my-agent --ref 12
+tabgoblin click --agent my-agent --ref 12                # needs Explore or Read / Write
 ```
 
 `tabgoblin` is the command in a [download](installation.md#from-a-download)'s folder; put that
 folder on your `PATH`, or call it by its full path. In a build from source,
 `java -jar java-server/target/browser-context-mcp.jar` stands for it.
 
-The agent's first command makes it known to TabGoblin, and it appears in the popup then: run
-`status` once before you authorize a tab for it by name.
+To hand this to a coding agent, see [agents and IDEs without MCP](#agents-and-ides-without-mcp).
 
 ## Commands
 
@@ -140,8 +155,8 @@ result. A command never asks anything in the terminal.
 doing anything again.
 
 **Ending a command.** A command waits for its answer as long as the server's own limits allow,
-and gives up after 150 seconds with `TIMEOUT`. A submission that waits for the user's answer
-in the popup can take up to 95 seconds. A process that is ended while its command runs
+and gives up after 150 seconds with `TIMEOUT`. A submission that the user is asked about can
+take up to 95 seconds. A process that is ended while its command runs
 (Ctrl+C, a signal, the time limit of the agent's shell) tells the server to stop the command in
 the browser and prints `CANCELLED` with `"outcome": "unknown"`; its exit code is then the
 system's for that ending. Progress is not reported.
@@ -201,7 +216,7 @@ tabgoblin wait-for --agent my-agent --text "Review comments"
 # A picture, for what text does not show.
 tabgoblin screenshot --agent my-agent --out page.jpg
 
-# Submit a reply. The user is asked in the popup; the command waits for the answer.
+# Submit a reply. By default the user is asked in the popup, and the command waits for the answer.
 tabgoblin submit --agent my-agent --args '{"ref": 31, "fields": [{"ref": 30, "text": "Fixed in the next push."}], "expect_text": "Fixed in the next push."}'
 ```
 
@@ -247,10 +262,12 @@ Write the command's full path in place of `tabgoblin` if it is not on the `PATH`
 
 **Which interface a given agent uses is your decision.** An agent set up for the CLI is not to
 go over to MCP by itself, nor the other way round, when one of them is blocked or refuses;
-both skills say so. The CLI is no way around an organisation's policy: the
+both skills say so. The CLI removes the technical need for MCP; it does not change what an
+agent is permitted. The
 [blocked sites and the security policy](developer-guide.md#restricting-what-agents-may-do)
-apply to a command exactly as to an MCP tool call, and an agent whose MCP use was ruled out
-by policy is not thereby permitted the CLI.
+apply to a command exactly as to an MCP tool call, and where an organisation has ruled out
+agents acting in the browser, that holds for the CLI as well
+([corporate assessment](corporate-assessment.md#restrictions-on-mcp-and-the-cli)).
 
 What is known of it: the CLI was built and tested on Linux. It has not been run on Windows or
 macOS, and no real agent has yet been driven through it with a skill.

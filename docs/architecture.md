@@ -91,7 +91,7 @@ the same server, and everything after that point is one path.
 | | |
 |---|---|
 | Tools | The same fourteen, from one set of definitions; a CLI command's arguments are the MCP tool's input schema |
-| The user's control | A tab is authorized by the user's click in the extension's popup; access levels; approval of submissions; pause, revoke, disconnect |
+| The user's control | A tab is authorized by the user's click in the extension's popup; access levels; approval of submissions, as the user's setting and the policy have it; pause, revoke, disconnect |
 | Scope | One tab, exact origins, one agent per session, checked before every command and step |
 | Policy | Blocked sites, allowed sites, maximum access level, no screenshots, time limits, the strict profile |
 | Authentication | Proof of the pairing token to the server, and of the agent's key; the extension's pairing |
@@ -352,7 +352,9 @@ gesture, which is every page an agent opened, and can leave the site.
 ## Submission approval and revocation
 
 Anything that sends or changes data is a submission. The agent must declare it; by default the
-user approves each one.
+user approves each one. The user can relax that per session (automatic, or do not ask); it is
+mandatory under the strict profile and for a control recognised as high-impact. The picture
+shows the case in which the user is asked.
 
 ```mermaid
 sequenceDiagram

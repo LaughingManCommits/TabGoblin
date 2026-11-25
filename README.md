@@ -9,7 +9,8 @@
 TabGoblin is a secure, user-controlled browser bridge for AI agents. It gives a coding agent
 controlled access to the web applications you are signed in to: the agent works in the browser
 tabs you authorize, at the access level you choose. It needs no application-specific
-integration and no additional API credentials, and it never receives your cookies or tokens.
+integration and no additional API credentials, and no tool gives it your cookies, stored
+tokens or passwords.
 
 <br clear="left">
 
@@ -37,7 +38,8 @@ The usual alternatives each cost something: an integration and an API token for 
 application, or browser automation that hands the agent your whole browser profile.
 
 TabGoblin takes a narrower path. The agent uses the session you already have, in the tabs you
-select, through fourteen generic tools, and anything that sends data waits for your approval.
+select, through fourteen generic tools, and by default anything it submits waits for your
+approval.
 The agent reaches those tools from a terminal or through MCP, whichever it has.
 
 ## What you get
@@ -48,8 +50,9 @@ The agent reaches those tools from a terminal or through MCP, whichever it has.
   There is no website-specific code in TabGoblin; the agent supplies the understanding.
 - **Access per tab.** A tab is available to an agent only after you authorize it, for its exact
   website, at one of three levels: Read, Explore or Read / Write.
-- **Approval before anything is sent.** A submission is declared by the agent, shown to you with
-  its content, sent once, and checked against what the page does afterwards.
+- **Approval before a submission.** A submission is declared by the agent, sent once, and
+  checked against what the page does afterwards. By default each one is shown to you first,
+  with its content. You can relax that per tab; the strict profile makes it mandatory.
 - **Control while it runs.** Pause or revoke a tab, or disconnect an agent, at any moment.
 - **Local.** TabGoblin's server and its extension run on your machine and talk over `127.0.0.1`.
   TabGoblin has no hosted service and sends nothing anywhere. What your agent reads is sent to
@@ -117,7 +120,7 @@ TabGoblin is built to offer less:
 | Credentials | Cookies, storage and request headers can be read | No tool reads them, and the extension holds no permission for them |
 | Code | Arbitrary script can run in a page | A fixed set of operations; no tool evaluates script |
 | Network | Arbitrary requests | None. A tab can be navigated within its authorized website |
-| Writes | Performed like any other action | Declared, shown to you, sent once, and verified |
+| Writes | Performed like any other action | A submission is declared, sent once and verified, and by default shown to you first |
 | Control | The script decides | You pause, revoke and set the access level, per tab |
 
 ## Security principles
@@ -126,11 +129,16 @@ TabGoblin is built to offer less:
   `alarms`. It has no host permissions: it cannot touch a tab until you click its icon there.
 - **Exact scope.** A session is one tab on the websites you gave it, checked before every
   command and again before each step that touches the page.
-- **No credentials.** No cookies, headers, storage or tokens. Password fields are neither read
-  nor filled.
+- **No credentials.** No tool reads cookies, headers or browser storage, and the extension
+  holds no permission for them. Password fields are neither read nor filled.
 - **Untrusted content.** Page content is returned as data and marked as such. A page cannot
   change a session, a permission or a setting.
-- **The user decides.** Access is granted in the extension's popup and nowhere else.
+- **The user decides.** Access is granted in the extension's popup and nowhere else, whether
+  the agent uses the CLI or MCP.
+- **Best effort, and said so.** Some protections are heuristics with known gaps: text that
+  looks like a credential is taken out of what a page says, and buttons that submit or do
+  something drastic are recognised by their labels. They reduce a risk; they are not a
+  boundary.
 - **Local policy.** A settings file can restrict every agent: blocked sites, allowed sites, a
   maximum access level, no screenshots, session time limits, a strict profile.
 
@@ -173,18 +181,29 @@ own paths. Nothing is registered anywhere. Put the download's folder on your `PA
 agent finds `tabgoblin`. For an agent that setup does not know, a few lines of instructions
 do the same: [agents and IDEs without MCP](docs/cli.md#agents-and-ides-without-mcp).
 
-What the agent then runs:
+Then the first interaction, which you can run yourself to see it work:
 
 ```sh
 tabgoblin tools --json                                    # discover the commands and their arguments
-tabgoblin status --agent claude-code                      # connected? which tabs are mine?
-tabgoblin snapshot --agent claude-code --interactive-only
+tabgoblin status --agent claude-code                      # 1. the agent introduces itself
+```
+
+`--agent` is who the agent is: the same name at every command is the same agent, with the
+same tabs. That first `status` makes the agent known, so it now appears in the TabGoblin popup.
+Open a website, click the TabGoblin icon on that tab, choose the agent and an access level, and
+press **Authorize**. Then:
+
+```sh
+tabgoblin status --agent claude-code                      # 2. lists the tab as session s1
+tabgoblin snapshot --agent claude-code                    # 3. the page, with numbered elements
 tabgoblin extract --agent claude-code --find "ERROR" --context-lines 3
 tabgoblin click --agent claude-code --ref 12
 ```
 
-Each command prints one JSON object and exits with a code that says how it ended. The
-[CLI guide](docs/cli.md) has the commands, the output, the exit codes and a worked example.
+Each command prints one JSON object, `{"ok":true,"tool":"browser_status","text":"…"}`, and
+exits with a code that says how it ended. An agent with a shell needs no more than this to
+start: it learns everything else from `tools --json`. The [CLI guide](docs/cli.md) has the
+commands, the output, the exit codes and instructions you can hand an agent.
 
 ### Quick start: MCP
 

@@ -77,7 +77,10 @@ Last updated: 2026-11-25, later the same day. Claims here go stale; check the da
   branch. Branch `ccr-6350ba03-tntbzp` was then made anew from that `main`, in the same cloud
   session, for WP-30: the documentation gone over so that TabGoblin is presented as a browser
   bridge with two interfaces, CLI and MCP, and not as an MCP server first. Documentation only;
-  no code and no skill was changed. Committed there by the session.
+  no code and no skill was changed. Committed there by the session and pushed on the owner's
+  word. A second commit the same day is a last review of it for accuracy: what is said about
+  approvals, the first steps with the CLI, and restrictions on MCP as against restrictions on
+  agents in the browser.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
@@ -105,6 +108,11 @@ Last updated: 2026-11-25, later the same day. Claims here go stale; check the da
 | WP-17, a new token at every start, and nothing connected on an old one | Built on 2026-11-23 and cut back the same day, on the owner's word ("lets only have the parts that are usefull and remove the rest"); both merged. The token is made once and kept, as before. What stays: the agent is told what is missing and where the token is; the server's window comes up by itself when the browser came with a token that is not the server's, with the step and a button at its top; the popup says what to do | [TODO.md](../../TODO.md) |
 
 ## Blockers and unknowns
+
+- **Words in the program still put MCP first,** found in the review of 2026-11-25 and left,
+  since that was for the documentation only: the popup's "Disconnected: is the MCP server
+  running?", the help's heading "TabGoblin MCP server", the first line of `tabgoblin tools`,
+  and the status' "pass session=<id> to every tool", which a CLI agent reads as well.
 
 - **The command line has run on Linux only,** in a container with Java 21 and the container's
   Chromium, started without its sandbox. Not tried: Windows and macOS, `tabgoblin.cmd` with

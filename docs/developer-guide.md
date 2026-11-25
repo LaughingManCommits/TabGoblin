@@ -92,7 +92,7 @@ extension's own check of the tab's address before every command is the second.
 | Go to other pages of the site, back, forward, reload | no | yes | yes |
 | Follow links and expand collapsed sections; go through a list page by page; hover so that a menu or tooltip opens | no | yes | yes |
 | Press buttons, fill in and type into fields | no | no | yes |
-| Submit forms, post, save, delete | no | no | yes, as a declared submission that you approve |
+| Submit forms, post, save, delete | no | no | yes, as a declared submission; by default you approve each one |
 
 Start with the lowest level that does the job. You can change it at any time in the session's
 dropdown; lowering it stops whatever needed the higher level.

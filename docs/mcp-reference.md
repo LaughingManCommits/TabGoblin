@@ -1166,8 +1166,7 @@ See [Errors](#errors).
 
 ## The command line
 
-Every tool on this page is also a CLI command, for an agent that runs local commands and has
-no MCP: `browser_press_key` is `tabgoblin press-key`, and its argument `ref: 12` is
+Every tool on this page is also a CLI command, for an agent that runs local commands: `browser_press_key` is `tabgoblin press-key`, and its argument `ref: 12` is
 `--ref 12`. A command is one tool call under the same rules, and returns the same text inside
 one JSON object. The commands, their arguments, the output, the exit codes and how many
 commands are one agent are in the [CLI guide](cli.md).

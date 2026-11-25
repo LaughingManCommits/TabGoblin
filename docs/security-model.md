@@ -104,7 +104,7 @@ in "(command line)", which is for the user and decides nothing.)
 | Session management | The server keeps the agent, and so its sessions' connection, for ten minutes after its last command | The agent is there while its process is; its sessions come back by its key when it starts again |
 | Processes of one key at once | Are the one agent of that key | The second gets an id of its own, with no tab |
 | Permissions | The same | The same |
-| Approvals | The same: the user is asked in the popup, and the command waits | The same: the user is asked in the popup, and the call waits |
+| Approvals | The same rule decides whether the user is asked; the command waits for the answer | The same rule decides whether the user is asked; the call waits for the answer |
 
 What follows from the differences, and is to be weighed:
 
@@ -118,9 +118,10 @@ What follows from the differences, and is to be weighed:
   among them.
 
 **The CLI is not a way around a restriction.** It grants nothing that MCP does not, and the
-settings file's policy applies to it unchanged. An organisation that rules out an agent's use
-of TabGoblin has ruled it out for both interfaces: a decision about MCP servers that is meant
-to cover browser access should name TabGoblin, not the protocol. TabGoblin's own material
+settings file's policy applies to it unchanged. It does remove the technical dependency on
+MCP: an agent that can run a local program can use TabGoblin where no MCP server can be added.
+A rule that is meant to keep agents out of the browser therefore has to be about that, not
+about the protocol ([corporate assessment](corporate-assessment.md#restrictions-on-mcp-and-the-cli)). TabGoblin's own material
 tells agents not to change interface by themselves when one is blocked
 ([skills](../skills/README.md)); that is advice to a model, and best effort.
 

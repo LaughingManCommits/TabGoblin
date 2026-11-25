@@ -17,6 +17,13 @@ kept for the CLI (`Hub.identify`).
 | `node docs/agents/check-personal.mjs` | Nothing personal found |
 | `mvn -q test -Dtest='SkillsTest,ToolReferenceTest,McpMainTest,SetupTest'` in `java-server` | Pass: the two that read the tool reference still find every tool, argument and code in it |
 
+A last review the same day, documentation only again. Every `tabgoblin` command line that the
+documentation shows, 24 of them, was given to the built jar with `--help` behind it, which
+reads the arguments against the tools' schemas and sends nothing: all were understood. What
+the pages say about approvals was held against `needsAsking` and `askUnder` in `policy.ts`,
+and three statements were found to say more than the code does; they are in WP-30's entry.
+The two checks passed again.
+
 Not run: the rest of the server's tests, the extension's and the end-to-end suite, since no
 code was changed. Not seen: the changed pages and their two changed pictures as GitHub draws
 them. No picture was regenerated.

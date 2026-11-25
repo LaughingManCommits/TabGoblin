@@ -1816,3 +1816,25 @@ Documentation only.
 - **No picture was made or regenerated.** The popup's pictures show no interface; the
   popup's own words "is the MCP server running?" are quoted as they are.
 
+### A last review, the same day
+
+On the owner's word, for accuracy and not for more text. What it found against the
+implementation, and mended in the documentation:
+
+- **Approval of a submission was said to be unconditional** in the README ("anything that
+  sends data waits for your approval") and in one line of the corporate assessment. In
+  `policy.ts` (`needsAsking`, `askUnder`) it is the default, which the user can set to
+  automatic or to not asking; it is mandatory under the strict profile and for a control
+  whose English label marks it as high-impact. Every page now says that.
+- **"It never receives your cookies or tokens"** promised more than is enforced: no tool reads
+  cookies, storage or headers, but a token that a page displays is text like any other, and
+  taking it out is best effort. The README says what no tool does, and names what is best
+  effort.
+- **The corporate assessment said that the settings file keeps an agent from the CLI.** The
+  file is a guard-rail the user can edit, as the same page says further down. What stops
+  either interface technically is the absence of the extension.
+
+Checked and found right: every `tabgoblin` command and option that the documentation shows,
+run through the built jar's own reading of a command line; the manifest's four permissions;
+the fields that are never read or filled; the tools that return an object.
+

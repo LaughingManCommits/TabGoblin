@@ -12,13 +12,33 @@ integration interfaces: a CLI, for any agent that can run a local command, or MC
 agent that is an MCP client. It is not a hosted service and not a general browser automation
 framework.
 
-**Both interfaces are the same product under the same controls.** They share the server, the
-extension, the tools, the user's authorization and approvals, and the local policy. The CLI
-grants nothing that MCP does not and is not a means of working around a restriction: an
-assessment, an allowlist or a prohibition should be about TabGoblin, not about one of its
-interfaces. Blocking MCP servers in an agent does not by itself keep that agent from running
-the CLI, if it can run local programs; the settings file's policy and the absence of the
-extension do. The differences between the two are listed in the
+Both interfaces are the same product under the same controls: they share the server, the
+extension, the tools, the user's authorization and approvals, and the local policy.
+
+## Restrictions on MCP and the CLI
+
+Two different things can be restricted, and they should not be mistaken for each other:
+
+| Restriction | What it is about | Effect on TabGoblin |
+|---|---|---|
+| On MCP: which MCP servers an agent may load, or whether it may use MCP at all | A protocol and its servers | Covers TabGoblin's MCP interface only |
+| On agents acting in a browser: which agents may read or operate web applications, which applications, with which data | An activity | Covers TabGoblin through either interface |
+
+- **The CLI removes the technical dependency on MCP.** An agent that can run a local program
+  can use TabGoblin without an MCP client. A control that only blocks MCP servers does not
+  prevent this.
+- **The CLI does not override a policy.** It grants nothing that MCP does not, and every
+  control in this document applies to it unchanged. Where browser interaction by agents is
+  not permitted, using the CLI instead of MCP is a violation of that rule, not a way to comply
+  with it. TabGoblin's documentation and its skills say so to users and to agents; what an
+  agent then does is not something TabGoblin enforces.
+- **What stops both interfaces technically** is the absence of the extension: without it,
+  paired and with a tab the user authorized, neither interface reaches a page. A managed
+  browser that forbids unpacked extensions cannot load it (below). The settings file restricts
+  both interfaces alike, within [its limits](#configurable-corporate-restrictions).
+
+The differences between the interfaces, which concern how an agent is identified over time and
+not what it may do, are in the
 [security model](security-model.md#cli-and-mcp-one-set-of-controls).
 
 ## Deployment model
@@ -133,8 +153,9 @@ No service is contacted at run time. Each release carries two CycloneDX lists of
   one tab, exact origins (scheme, host, port) and one agent.
 - Three access levels: Read; Explore (also navigation within the site); Read / Write (also
   input, and submissions that the agent must declare).
-- A submission is shown to the user with its content for approval, bound to that content, sent
-  once and verified. Approval for each submission is the default and can be made mandatory.
+- A submission has to be declared by the agent, is sent once and is verified. By default it
+  is shown to the user with its content for approval, and an approval is bound to that
+  content. The user can relax this per session; the strict profile makes it mandatory.
 - Checks run in the server before a command is sent, in the extension when it arrives and
   again before each step that touches the page, and in Chrome through `activeTab`.
 - Pause, revoke, disconnect and expiry take effect before the next step of a running command.
@@ -210,8 +231,9 @@ The full list, with reasons, is under
    TabGoblin prevents a page from changing grants; it cannot prevent a model from being misled
    within the access it has.
 3. **State changes.** Interactions can change data in the web application with the developer's
-   authority. Approval is mandatory only for what is declared or recognised as a submission,
-   or for every non-navigation click under the strict profile.
+   authority. The user's approval of a submission is the default and can be relaxed by the
+   user. It is mandatory only under the strict profile, which also covers every
+   non-navigation click, and for controls recognised as high-impact by their English label.
 4. **Secrets in page content.** Redaction is by shape and incomplete. A secret displayed on a
    page is delivered as text.
 5. **No isolation from the user's account.** An agent with a shell or file access under the
@@ -224,6 +246,8 @@ The full list, with reasons, is under
 ## Questions an assessment should answer
 
 - Which coding agents and model providers are approved, and for which classes of data?
+- Is agent-driven browser interaction permitted at all, and does an existing rule about MCP
+  servers express that intent, given that the CLI needs no MCP?
 - Which internal applications may be opened to an agent, and at which access level? Can
   `allowed.sites` and `access.max` express that?
 - Is the strict profile required?
