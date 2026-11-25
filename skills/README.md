@@ -3,8 +3,8 @@
 A skill is a folder with a `SKILL.md` in it: instructions that an agent loads when a task calls
 for them. These three tell an agent how to work with TabGoblin's tools: how to get a tab
 authorized, how to read a long page, how to act and to submit, and what to do when a tool
-refuses. The server itself tells every agent a few lines of this when it connects; a skill has
-room for the rest.
+refuses. TabGoblin itself tells every agent a few lines of this (an MCP client when it connects,
+a CLI agent in `tabgoblin tools --json`); a skill has room for the rest.
 
 They are in two folders, by the way an agent reaches the tools: `mcp/` for an agent that has
 TabGoblin's MCP tools, and `cli/` for one that runs the same tools as commands in a terminal
@@ -45,14 +45,15 @@ mkdir -p <your project>/.claude/skills
 cp -r skills/mcp/claude-code/tabgoblin <your project>/.claude/skills/
 ```
 
-Start the agent again if it does not show the skill. A skill does not add the server: the
-agent has to know TabGoblin's MCP server first
-([installation, step 5](../docs/installation.md#5-tell-your-agent-about-the-server)).
+Start the agent again if it does not show the skill. A skill for MCP does not add the server:
+the agent has to know TabGoblin's MCP server first
+([installation, step 5](../docs/installation.md#5-connect-your-agent)). A skill for the CLI
+needs nothing registered, only that the agent finds the `tabgoblin` command.
 
 ## The skills for the command line
 
 An agent without MCP runs the same tools as commands in a terminal
-([the command line](../docs/mcp-reference.md#the-command-line)), and has a skill of its own for
+([the command line](../docs/cli.md)), and has a skill of its own for
 that, in `cli/`: `cli/claude-code/tabgoblin/`, `cli/codex/tabgoblin/` and
 `cli/copilot/tabgoblin/`. It says the same about tabs, access levels, submissions and refusals,
 in terms of commands: `tabgoblin snapshot --interactive-only` where the other says

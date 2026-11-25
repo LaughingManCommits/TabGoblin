@@ -1,10 +1,11 @@
 # Developer guide
 
-How to work with TabGoblin day to day: connect an agent, authorize tabs, choose access levels,
+How to work with TabGoblin day to day, through the CLI or through MCP: connect an agent, authorize tabs, choose access levels,
 manage sessions and workspaces, approve submissions, pause and revoke, restrict what agents
 may do, and fix common problems.
 
-What each tool takes and returns is in the [MCP tool reference](mcp-reference.md). What an
+What each tool takes and returns is in the [tool reference](mcp-reference.md), and how an
+agent runs the tools as commands in the [CLI guide](cli.md). What an
 agent can and cannot reach, and why, is in the [security model](security-model.md).
 
 The pictures of the popup are captures of the real one in its real size; where there is more
@@ -14,19 +15,25 @@ than fits, the popup scrolls.
 
 The [installation guide](installation.md) has every step with what you should see. In short:
 
-1. Unpack the download and run `tabgoblin --setup claude-code` (or `codex`, or `copilot`).
-2. Register the server with your agent by running the line that setup printed.
+1. Unpack the download.
+2. Connect your agent, by the interface that suits it ([which](installation.md#cli-or-mcp)):
+   - **CLI,** for an agent that runs commands in a terminal: `tabgoblin --setup claude-code
+     --mode cli` (or `codex`, or `copilot`). Nothing is registered; put the download's folder on
+     your `PATH`. The agent runs `tabgoblin status --agent claude-code` and the like
+     ([CLI guide](cli.md)).
+   - **MCP,** for an agent that is an MCP client: `tabgoblin --setup claude-code`, then run the
+     line that setup printed, which registers TabGoblin's server with the agent.
 3. Load the `extension` folder in Chrome at `chrome://extensions` (Developer mode, **Load
    unpacked**).
 4. Pair once: `tabgoblin --panel`, **Copy** next to *Pairing token*, paste into the popup,
    **Save and connect**.
 
-An agent that has a terminal and no MCP is set up with `tabgoblin --setup <agent> --mode cli`
-and runs the tools as commands: nothing is registered, and steps 3 and 4 are the same. The
-tools, the access levels and everything on this page hold for it as they do through MCP
-([the command line](mcp-reference.md#the-command-line)).
+Everything on this page holds for both interfaces: authorizing, access levels, sessions,
+approvals, pausing and the policy are the same whether the agent runs commands or calls MCP
+tools. Where this page names a tool, such as `browser_status`, a CLI agent runs the command of
+that name, `tabgoblin status`.
 
-Any agent that starts an MCP server over stdio can be connected. It needs a command and
+**MCP in detail.** Any agent that starts an MCP server over stdio can be connected. It needs a command and
 arguments:
 
 ```json
@@ -356,11 +363,11 @@ same agent each time it starts.
   have to be authorized again. Its status says so.
 - **Use a different name for each agent.** Two agents that run at once under one name are not
   one agent: the second is known for its start only.
-- **An agent of the command line** has no process that stays, so it is its name and nothing
+- **An agent of the CLI** has no process that stays, so it is its name and nothing
   else: every command gives `--agent <name>`, and the commands of one name are one agent with
   one set of tabs, whichever program runs them. A name that an agent connected through MCP
   holds is refused to a command. More in the
-  [tool reference](mcp-reference.md#the-command-line).
+  [CLI guide](cli.md).
 - **Point at an agent's name in the popup** to see its id and whether it has a key.
 - `tabgoblin --list-agents` lists the names that have a key, each with its id, and the revoked ones. `--revoke-agent <name>` deletes a
   key; `--allow-agent <name>` allows the name again, as a new agent with no tab.
@@ -462,7 +469,7 @@ variable is set in the environment the server is started in; the option wins.
 | `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
 | `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
 | none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
-| none | `BCMCP_COMMAND_IDLE_SECONDS` | `600` | How long the server keeps an agent of the [command line](mcp-reference.md#the-command-line) after its last command. Read by the server when it starts |
+| none | `BCMCP_COMMAND_IDLE_SECONDS` | `600` | How long the server keeps an agent of the [command line](cli.md) after its last command. Read by the server when it starts |
 
 Commands you run yourself, each of which does its part and returns:
 
@@ -479,9 +486,9 @@ Commands you run yourself, each of which does its part and returns:
 In a build from source, `java -jar java-server/target/browser-context-mcp.jar` stands for
 `tabgoblin`.
 
-Commands an agent runs, where it has a terminal and no MCP: `tabgoblin tools --json`,
-`tabgoblin status --agent <name>` and one for each tool. They are the same tools under the
-same rules, and are described in the [tool reference](mcp-reference.md#the-command-line).
+Commands an agent runs through the CLI: `tabgoblin tools --json`,
+`tabgoblin status --agent <name>` and one for each tool. They are described in the
+[CLI guide](cli.md).
 
 ## Troubleshooting
 

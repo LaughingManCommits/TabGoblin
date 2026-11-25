@@ -6,7 +6,7 @@ One download for each system. Nothing has to be installed first: the Java the se
 | Linux, x64 | `tabgoblin-VERSION-linux-x64.tar.gz` |
 | macOS, Apple silicon | `tabgoblin-VERSION-macos-arm64.tar.gz` |
 
-Unpack it where it can stay, and in its folder run `tabgoblin --setup claude-code` (or `codex`, or `copilot`). It installs the agent's skill and prints what is left to do, with the folder's own paths. Every step is in the [installation guide](https://github.com/REPOSITORY/blob/TAG/docs/installation.md).
+Unpack it where it can stay, and in its folder run setup for your agent (`claude-code`, `codex` or `copilot`): `tabgoblin --setup claude-code --mode cli` for an agent that runs `tabgoblin` commands in a terminal, or `tabgoblin --setup claude-code` for an agent that uses MCP. An agent does not need MCP to use TabGoblin. Setup installs the agent's skill and prints what is left to do, with the folder's own paths. Every step is in the [installation guide](https://github.com/REPOSITORY/blob/TAG/docs/installation.md).
 
 To update, unpack the new download over the old folder, press the reload arrow on TabGoblin's card at `chrome://extensions`, and start your agent anew.
 

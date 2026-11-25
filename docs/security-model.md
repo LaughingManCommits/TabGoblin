@@ -1,6 +1,9 @@
 # Security model
 
-TabGoblin puts a coding agent into a browser where the developer is signed in. This page is
+TabGoblin is a browser bridge: it puts a coding agent into a browser where the developer is
+signed in, and leaves the user in control of what the agent reaches there. An agent uses it
+through a CLI or through MCP; the controls on this page are the same for both, and
+[one section](#cli-and-mcp-one-set-of-controls) says exactly where the two differ. This page is
 written for review: it states the threat model, then each control with the risk it addresses,
 the mitigation, where it is enforced and where it stops, and closes with what is tested and
 the risks that remain.
@@ -80,6 +83,47 @@ Every control is labelled with one of three classes:
 | Marking of page content as untrusted | Best effort (advice to the model) | Server |
 | Audit record on disk | Configurable; a record, not tamper-proof | Server |
 
+## CLI and MCP: one set of controls
+
+An agent reaches TabGoblin by running CLI commands or by calling MCP tools. The two are
+interfaces to the same server, and no control depends on which one is used.
+
+**Shared.** Every row of the table above. A CLI command and an MCP tool call are validated by
+the same code in the server, are refused by the same blocked sites and policy, and reach the
+browser extension as the same command, where sessions, origins, access levels, approvals,
+pause and revocation are checked. The extension has no rule that asks which interface a
+command came by; it knows an agent by its id. (The name it shows for an agent of the CLI ends
+in "(command line)", which is for the user and decides nothing.)
+
+**Different,** and only in how an agent is identified over time:
+
+| | CLI | MCP |
+|---|---|---|
+| Authentication | The pairing token and the agent's key are proven by every command's process | Proven once when the agent's link connects, and again if the server is started anew |
+| A name | Required. A command without `--agent` is not run | Optional. Without one the agent has an id for that start, and no tab comes back to it |
+| Session management | The server keeps the agent, and so its sessions' connection, for ten minutes after its last command | The agent is there while its process is; its sessions come back by its key when it starts again |
+| Processes of one key at once | Are the one agent of that key | The second gets an id of its own, with no tab |
+| Permissions | The same | The same |
+| Approvals | The same: the user is asked in the popup, and the command waits | The same: the user is asked in the popup, and the call waits |
+
+What follows from the differences, and is to be weighed:
+
+- Through the CLI an agent is its name, backed by that name's key file. Two programs that run
+  commands under one name are one agent and share its tabs.
+- An agent of the CLI stays connected for ten minutes after its last command. In that time a
+  process that holds its key can use its sessions, as it could at any time by starting the
+  agent again. Pause, revoke and *Disconnect* act at once, as for any agent.
+- A command's arguments and answers can be kept by whatever runs it: a shell's history, a
+  terminal's scrollback, an agent's own log. Neither the pairing token nor a key is ever
+  among them.
+
+**The CLI is not a way around a restriction.** It grants nothing that MCP does not, and the
+settings file's policy applies to it unchanged. An organisation that rules out an agent's use
+of TabGoblin has ruled it out for both interfaces: a decision about MCP servers that is meant
+to cover browser access should name TabGoblin, not the protocol. TabGoblin's own material
+tells agents not to change interface by themselves when one is blocked
+([skills](../skills/README.md)); that is advice to a model, and best effort.
+
 ## Least privilege
 
 **Risk.** A browser integration with broad permissions exposes everything the browser holds.
@@ -128,8 +172,8 @@ refused.
   for that start only; no tab comes back to it.
 - **One agent per key at a time.** Of two processes holding the same key, the first is that
   agent; the second gets an id of its own.
-- **The command line is the same agent model, not a second one.** An agent without MCP runs
-  the tools as commands ([reference](mcp-reference.md#the-command-line)). Every command is a
+- **The CLI is the same agent model, not a second one.** An agent runs the tools as commands
+  ([CLI guide](cli.md)). Every command is a
   process that proves the pairing token and the key of its `--agent` name, exactly as an MCP
   agent's process does; a command without a name is not run. The commands of one key are that
   key's one agent, one after another or at once, and the server keeps the agent between them
@@ -160,15 +204,8 @@ refused.
 
 **Limitations.**
 
-- The command line tells agents apart by the name they give, backed by that name's key file.
-  Two programs that run commands under one name are one agent and share its tabs. A program
-  that is to be kept apart needs a name of its own; nothing stops a program from using
-  another's name, as nothing stops it from reading another's key.
-- An agent of the command line stays connected for ten minutes after its last command. In
-  that time its sessions can be used by any process that holds its key, as they could be by
-  starting the agent again. Pause, revoke and *Disconnect* in the popup, and `--revoke-agent`,
-  act at once as for any agent.
-
+- What is particular to the CLI (an agent is its name, and stays connected for ten minutes
+  after its last command) is under [CLI and MCP](#cli-and-mcp-one-set-of-controls).
 - The keys are protected by the home folder and nothing else. A program that runs as the user
   can read a key and act as that agent, or create a key under a new name and be a new agent. A
   new agent has no tab until the user authorizes one.
@@ -587,7 +624,7 @@ is the organisation's task. It does not record what the user did in the popup.
 | Aspect | State |
 |---|---|
 | Extension contents | TypeScript sources bundled with esbuild. No third-party library is in the extension; its build tools are development dependencies with a lockfile |
-| Server contents | One jar with the MCP Java SDK, a WebSocket library, a logging binding, and JavaFX for the optional window. Versions are fixed in `pom.xml` |
+| Server contents | One jar, which is also the CLI, with the MCP Java SDK, a WebSocket library, a logging binding, and JavaFX for the optional window. Versions are fixed in `pom.xml` |
 | Dependency checks in CI | `npm audit` for the extension and the test runner, failing on an advisory of high severity; GitHub's dependency review on pull requests, which covers the server's Maven libraries |
 | Release build | Built by a GitHub Actions workflow from a version tag, after every test suite passed. Only the publishing job can write to the repository |
 | Integrity of a download | `SHA256SUMS.txt` with each release; a GitHub build-provenance attestation for each file (`gh attestation verify`) |

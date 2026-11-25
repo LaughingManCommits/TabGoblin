@@ -7,14 +7,31 @@ There are two ways to get TabGoblin:
 - **A build from source**, for those who work on TabGoblin, or want to build what they run. That
   is the rest of the page.
 
-Either way three things get set up: the server, a Java program your AI agent starts; the
-extension, TabGoblin in Chrome; and the link between them, which is your agent's MCP settings
-and a pairing token.
+Either way three things get set up: TabGoblin's server, a local Java program that starts by
+itself when your agent needs it; the browser extension, TabGoblin in Chrome; and the two
+connections, from your agent to the server (by the CLI or by MCP) and from the server to the
+extension (a pairing token).
+
+## CLI or MCP
+
+Your agent reaches TabGoblin through one of two integration interfaces. They give the same
+tools, go through the same server and extension, and are held to the same rules. Choose one
+for each agent:
+
+| | CLI | MCP |
+|---|---|---|
+| Your agent | Can run commands in a terminal. It needs no MCP support | Is an MCP client that starts servers over stdio |
+| What you set up | A skill, or a few lines of instructions. Nothing is registered | A skill, and one line that registers TabGoblin's server with the agent |
+| What the agent does | Runs `tabgoblin status --agent <name>`, `tabgoblin click …` | Calls `browser_status`, `browser_click`, … |
+| Good when | The agent or the IDE has no MCP support, or you prefer plain commands | The agent has MCP and you want the tools in its tool list |
+
+An agent uses the interface you set up for it and does not change to the other by itself. Both
+can be in use on one machine, for different agents.
 
 ## From a download
 
-You need Google Chrome 120 or newer, and an agent that speaks MCP. The Java the server runs on
-is in the download.
+You need Google Chrome 120 or newer, and an agent that can run local commands or that speaks
+MCP. The Java TabGoblin runs on is in the download.
 
 1. **Download** the file for your system from the [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest),
    and unpack it where it can stay: your agent is told its place. It is one folder, `tabgoblin`.
@@ -25,52 +42,73 @@ is in the download.
    | Linux, x64 | `tabgoblin-<version>-linux-x64.tar.gz` |
    | macOS, Apple silicon | `tabgoblin-<version>-macos-arm64.tar.gz` |
 
-2. **Run setup** for your agent, in a terminal in that folder. The agent is one of
-   `claude-code`, `codex` and `copilot`:
+2. **Connect your agent,** through the [CLI](#cli) or through [MCP](#mcp), below. Either is
+   one setup command in a terminal in that folder. Setup installs the agent's
+   [skill](../skills/README.md) and prints what is left, with your folder's own paths. It runs
+   no other program and writes nothing else.
 
-   ```sh
-   tabgoblin --setup claude-code
-   ```
-
-   On Linux and macOS it is `./tabgoblin --setup claude-code`. Setup installs the agent's
-   [skill](../skills/README.md), which tells it how to use the tools, and prints the three
-   things that are left, with your folder's own paths. It runs no other program and writes
-   nothing else. The three things are the next three steps.
-
-3. **Tell your agent about the server.** Run the line that setup printed. It is the agent's own
-   command for adding a server, and looks like this for Claude Code:
-
-   ```text
-   claude mcp add --scope user tabgoblin -- "<folder>\tabgoblin\runtime\bin\java.exe" -jar "<folder>\tabgoblin\browser-context-mcp.jar" --agent claude-code
-   ```
-
-   An agent that setup does not know takes the same command in its MCP settings:
-   [step 5](#5-tell-your-agent-about-the-server) has the forms.
-
-   **Without MCP.** An agent that runs commands in a terminal and has no MCP, or is not to
-   use it, is set up for the command line instead:
-
-   ```sh
-   tabgoblin --setup claude-code --mode cli
-   ```
-
-   Nothing is registered then. Setup installs the agent's skill for the command line, in the
-   place of the one for MCP, and prints the command the agent
-   runs, `tabgoblin status --agent claude-code` with your folder's path, and says to put the
-   folder on your `PATH` or to tell the agent that line once. `--mode mcp` is what setup does
-   without the option. The tools and every rule are the same on both ways
-   ([the command line](mcp-reference.md#the-command-line)); an agent uses the one you set up,
-   and does not change to the other by itself when one is blocked.
-
-4. **Load the extension in Chrome**, as in [step 4](#4-load-the-extension-in-chrome), with the
+3. **Load the extension in Chrome**, as in [step 4](#4-load-the-extension-in-chrome), with the
    folder `extension` of the download.
 
-5. **Pair**, once. `tabgoblin --panel` opens the server's window. Press **Copy** next to
+4. **Pair**, once. `tabgoblin --panel` opens the server's window. Press **Copy** next to
    *Pairing token* there, click the goblin in Chrome's toolbar, paste the token into **Pairing
    token** and press **Save and connect**. More in
    [step 6](#6-pair-the-extension-with-the-server).
 
-6. **Check that it works**, as in [step 7](#7-check-that-it-works).
+5. **Check that it works**, as in [step 7](#7-check-that-it-works).
+
+On Linux and macOS the command is `./tabgoblin` while you are in the folder.
+
+### CLI
+
+For an agent that runs commands in a terminal. The agent is one of `claude-code`, `codex` and
+`copilot`:
+
+```sh
+tabgoblin --setup claude-code --mode cli
+```
+
+Setup installs the agent's skill for the CLI and prints the command the agent runs, with your
+folder's path:
+
+```text
+"<folder>\tabgoblin\tabgoblin.cmd" status --agent claude-code
+```
+
+Nothing is registered with the agent. Two things are yours to do:
+
+- **Let the agent find the command.** Put the download's folder on your `PATH`, so that
+  `tabgoblin` works in the agent's terminal; or tell the agent the full line once, for
+  instance in its instructions file.
+- **Run the status once,** yourself or through the agent, before you authorize a tab: an
+  agent of the CLI is known to TabGoblin from its first command on, and appears in the popup
+  then.
+
+An agent that setup does not know needs no skill: a few lines of instructions are enough, and
+it learns the commands from `tabgoblin tools --json`. The lines are in the
+[CLI guide](cli.md#agents-and-ides-without-mcp), with everything else about the commands.
+
+### MCP
+
+For an agent that is an MCP client:
+
+```sh
+tabgoblin --setup claude-code
+```
+
+Setup installs the agent's skill for MCP and prints one line that registers TabGoblin's server
+with the agent. Run it. It is the agent's own command for adding a server, and looks like this
+for Claude Code:
+
+```text
+claude mcp add --scope user tabgoblin -- "<folder>\tabgoblin\runtime\bin\java.exe" -jar "<folder>\tabgoblin\browser-context-mcp.jar" --agent claude-code
+```
+
+An agent that setup does not know takes the same command in its MCP settings:
+[step 5](#5-connect-your-agent) has the forms. `--mode mcp` says the same as no mode.
+
+Setting an agent up again the other way puts the other skill in the first one's place; the
+two take each other's place, so an agent has the one for the interface it uses.
 
 Where another page names `java -jar java-server/target/browser-context-mcp.jar`, a download
 has `tabgoblin` in its place: `tabgoblin --panel`, `tabgoblin --show-token`, `tabgoblin --help`.
@@ -176,13 +214,15 @@ Check two things on its card:
 Then pin it: click the puzzle-piece icon in Chrome's toolbar and press the pin next to TabGoblin,
 so the goblin is always visible. You will click it on every tab you want an agent to work in.
 
-## 5. Tell your agent about the server
+## 5. Connect your agent
 
-Your agent starts the server itself; you only tell it how. Use the **absolute path** of the jar,
-with forward slashes, also on Windows. In the examples, `<folder>` stands for the folder you
-cloned the project into; write yours in its place (`D:/code`, for example).
+Through MCP or through the CLI ([which](#cli-or-mcp)). In the examples, `<folder>` stands for
+the folder you cloned the project into; write yours in its place (`D:/code`, for example).
 
-Most MCP clients take this JSON:
+### Through MCP
+
+Your agent starts TabGoblin's server itself; you only tell it how. Use the **absolute path** of
+the jar, with forward slashes, also on Windows. Most MCP clients take this JSON:
 
 ```json
 {
@@ -201,23 +241,42 @@ Most MCP clients take this JSON:
 | Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --agent claude-code` |
 | Anything else that speaks MCP over stdio | Command `java`, arguments `-jar`, the path, `--agent` and a name |
 
-`--agent` names the agent to the server, with a short name of your choice, a different one for
-each agent. By it the agent has a key of its own and is the same agent at every start: after a
-restart its tabs are its own again. Without it everything works, and the tabs have to be
-authorized again after each restart ([agents](developer-guide.md#agents)). A setup from before this
-option needs the two arguments added once.
+Restart the agent, or reload its MCP servers, so it picks the server up.
 
-Restart the agent, or reload its MCP servers, so it picks the server up. You can connect several
-agents this way, up to eight at once: each starts the jar, the first of them starts the one
-server, and the others connect to it.
+### Through the CLI
 
-The server tells an agent in a few lines how to use its tools. For Claude Code, Codex and GitHub
+Nothing is registered. The agent runs the jar with a command's name behind it:
+
+```sh
+java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar tools
+java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar status --agent my-agent
+```
+
+A build from source has no `tabgoblin` command of its own. Tell the agent that line once, or
+make an alias or a small script named `tabgoblin` for it. The commands are in the
+[CLI guide](cli.md).
+
+### The agent's name
+
+`--agent` names the agent to TabGoblin, with a short name of your choice, a different one for
+each agent. By it the agent has a key of its own and is the same agent every time: its tabs
+are its own again after a restart, and from one CLI command to the next. Through MCP it is
+optional: without it everything works, and the tabs have to be authorized again after each
+restart ([agents](developer-guide.md#agents)). A CLI command always needs it.
+
+You can connect several agents, up to eight at once. Whichever of them needs TabGoblin first
+starts the one server, and the others connect to it.
+
+### The skill
+
+TabGoblin tells an agent in a few lines how to use its tools. For Claude Code, Codex and GitHub
 Copilot there is more, as a skill to put where the agent looks for skills: how to read a long
-page, what to ask you for, what to do when a tool refuses. It is optional, and one command puts
-it in place, with `claude-code`, `codex` or `copilot`:
+page, what to ask you for, what to do when a tool refuses. One command puts it in place, with
+`claude-code`, `codex` or `copilot`; add `--mode cli` for the skill that speaks of commands:
 
 ```sh
 java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --install-skill claude-code
+java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --install-skill claude-code --mode cli
 ```
 
 What the skills say, and where each agent keeps them, is in [skills](../skills/README.md).
@@ -252,10 +311,13 @@ folder. You pair once; it stays valid until you rotate it.
 
 ## 7. Check that it works
 
-1. Make sure your agent is running, so its server is up. The line under *TabGoblin* in the popup
-   should read **1 agent connected**.
+1. Make sure TabGoblin's server is up: through MCP, start your agent; through the CLI, run
+   `tabgoblin status --agent <name>` once. The line under *TabGoblin* in the popup should read
+   **1 agent connected**.
 2. Open any website, click the goblin on that tab, choose **Read**, and press **Authorize**.
-3. Ask your agent: *"Call browser_status."* It should answer along these lines:
+3. Ask your agent for the browser status: *"Call browser_status"*, or through the CLI *"Run
+   tabgoblin status"*. It should answer along these lines (a CLI command has this as the `text`
+   of its JSON answer):
 
    ```text
    Extension: connected (protocol 3)
@@ -265,7 +327,7 @@ folder. You pair once; it stays valid until you rotate it.
      Access: read only
    ```
 
-4. Ask it: *"Take a browser snapshot and tell me what is on the page."*
+4. Ask it: *"Take a snapshot of the page and tell me what is on it."*
 
 That is the whole chain working. The [developer guide](developer-guide.md) takes it from here.
 
@@ -282,13 +344,15 @@ cd ..
 ```
 
 Then press the **reload** arrow on TabGoblin's card at `chrome://extensions`, and restart your
-agent so it starts the new server. Server and extension must come from the same version; if they
+agent so it starts the new server. A server that still runs is not replaced by a new build:
+stop it first ([stopping](developer-guide.md#stopping)). Server and extension must come from the same version; if they
 do not, the popup says *Server and extension versions differ*. The pairing survives an update.
 
 ## Uninstalling
 
 1. At `chrome://extensions`, press **Remove** on TabGoblin's card.
-2. Remove the `tabgoblin` entry from your agent's MCP settings.
+2. Remove the `tabgoblin` entry from your agent's MCP settings, if it has one, and the folder
+   `tabgoblin` from where your agent keeps its skills ([where](../skills/README.md)).
 3. Delete the folder `.browser-context-mcp` in your home folder (it holds the token and your settings).
 4. Delete the project folder.
 

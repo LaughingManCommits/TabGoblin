@@ -2,7 +2,7 @@
 
 ## Overview
 
-Seventeen packages are listed. The newest is WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Eighteen packages are listed. The newest is WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before it, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -1738,7 +1738,7 @@ reserved: an agent is started without `--port`, the popup is left as it is, and
 Asked for by the owner on 2026-11-25: an agent that runs commands in a terminal and has no MCP
 is to use TabGoblin as an MCP agent does, through the same server and under the same rules.
 Built that day on the branch `ccr-6350ba03-tntbzp`, in a session that ran in the cloud. What a
-command is and prints is in the [tool reference](docs/mcp-reference.md#the-command-line); what
+command is and prints is in the [tool reference](docs/cli.md); what
 keeps its agent apart is in the [security model](docs/security-model.md#agent-identity-and-authentication).
 
 ### What was built
@@ -1781,4 +1781,38 @@ keeps its agent apart is in the [security model](docs/security-model.md#agent-id
 - **Not done:** the command line on Windows and macOS, where quoting JSON on a command line is
   harder (`--args-file` and `--args -` are there for it); a real agent using the skill's new
   section; progress while a command waits.
+
+## WP-30: The documentation for two interfaces
+
+Asked for by the owner on 2026-11-25, after WP-29 was merged: TabGoblin is no longer to be
+presented as an MCP server first. It is a browser bridge for AI agents with two integration
+interfaces, CLI and MCP, and it has to be plain at once that an agent does not need MCP.
+Documentation only.
+
+### What was done
+
+- **A page for the CLI,** [docs/cli.md](docs/cli.md): quick start, the commands and their
+  arguments, discovery, output and exit codes, identity and the life of a session, a worked
+  example, and a few lines of instructions for an agent that has no skill. The section it
+  replaces in the tool reference is now a pointer.
+- **The tool reference** (`docs/mcp-reference.md`, its file name kept because two tests read
+  it by that name) is titled "Tool reference" and says that it holds for both interfaces.
+- **The README:** a browser bridge in its first sentence, a table of the two interfaces
+  before anything else, both in the picture, and two quick starts.
+- **The installation guide:** "CLI or MCP" first, then one path with a section for each.
+- **Architecture and security model:** both interfaces as entry points in the picture, and in
+  each page a table of what the two share and where they differ. The security model and the
+  corporate assessment say that the CLI is no way around a restriction.
+
+### Left as it is, and why
+
+- **Three texts say "MCP" first and are code:** the server's `--help` ("TabGoblin MCP server
+  (browser-context-mcp)"), the first line of `tabgoblin tools` ("each is the MCP tool of the
+  same name") and a command's `--help` ("Arguments (the MCP tool …)"). The task was the
+  documentation; `McpMainTest` holds the first of them word for word.
+- **The skills** were not touched: they are in the jar, and `SkillsTest` holds their words.
+- **`docs/mcp-reference.md` keeps its name.** Renaming it needs `SkillsTest` and
+  `ToolReferenceTest` changed with it.
+- **No picture was made or regenerated.** The popup's pictures show no interface; the
+  popup's own words "is the MCP server running?" are quoted as they are.
 

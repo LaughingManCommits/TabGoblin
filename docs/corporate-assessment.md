@@ -6,15 +6,27 @@ any corporate policy or regulatory standard. That judgement is the organisation'
 
 ## What it is
 
-A local integration that lets a coding agent (an MCP client in an IDE or CLI) read and operate
-browser tabs the developer explicitly authorizes, in the developer's own Chrome. It is not a
-hosted service and not a general browser automation framework.
+A local browser bridge that lets a coding agent read and operate browser tabs the developer
+explicitly authorizes, in the developer's own Chrome. An agent uses it through one of two
+integration interfaces: a CLI, for any agent that can run a local command, or MCP, for an
+agent that is an MCP client. It is not a hosted service and not a general browser automation
+framework.
+
+**Both interfaces are the same product under the same controls.** They share the server, the
+extension, the tools, the user's authorization and approvals, and the local policy. The CLI
+grants nothing that MCP does not and is not a means of working around a restriction: an
+assessment, an allowlist or a prohibition should be about TabGoblin, not about one of its
+interfaces. Blocking MCP servers in an agent does not by itself keep that agent from running
+the CLI, if it can run local programs; the settings file's policy and the absence of the
+extension do. The differences between the two are listed in the
+[security model](security-model.md#cli-and-mcp-one-set-of-controls).
 
 ## Deployment model
 
 | Aspect | Fact |
 |---|---|
-| Components | A Java server (one jar, started by the agent's program as a local process) and a Chrome extension (Manifest V3) |
+| Components | A Java program (one jar: the server, started as a local process when an agent first needs it, and the CLI) and a Chrome extension (Manifest V3) |
+| Integration interfaces | CLI: the agent runs the program with a command, one process per tool call. MCP: the agent's program starts the jar as an MCP server over stdio. Both connect to the one server on the loopback interface |
 | Where it runs | Entirely on the developer's workstation, under the developer's operating-system account |
 | Hosted parts | None. There is no TabGoblin service, account, telemetry or update channel |
 | Installation | A download per system (Windows x64, Linux x64, macOS on Apple silicon) that includes a Java runtime, or a build from source. The extension is loaded unpacked, which requires Chrome's developer mode |
@@ -31,7 +43,7 @@ a store-based allowlist.
 ```mermaid
 flowchart LR
   subgraph ws["Developer's workstation"]
-    AGENT["Coding agent"] <-- "tool calls and results<br/>stdio, then loopback" --> SERVER["TabGoblin server"]
+    AGENT["Coding agent"] <-- "tool calls and results<br/>CLI commands or MCP over stdio,<br/>then loopback" --> SERVER["TabGoblin server"]
     SERVER <-- "commands and results<br/>WebSocket on 127.0.0.1" --> EXT["Extension"]
     EXT <-- "fixed page operations" --> TAB["Authorized tab"]
     SERVER --- DISK[("Token, agent keys,<br/>settings, optional audit log")]
@@ -42,7 +54,7 @@ flowchart LR
 
 | Data | Where it is processed | Where it goes |
 |---|---|---|
-| Visible text of an authorized page, its structure, addresses, non-password field values | Content script, extension, server (in memory, in transit) | To the agent, as tool results |
+| Visible text of an authorized page, its structure, addresses, non-password field values | Content script, extension, server (in memory, in transit) | To the agent, as tool results: an MCP result, or a CLI command's output |
 | Screenshots of an authorized tab's viewport | Extension, server (in transit) | To the agent |
 | Text the agent enters or submits | Server and extension (in transit) | Into the page, and from there to the web application |
 | Cookies, tokens, headers, browser storage, passwords in fields | Not accessed | Nowhere |
@@ -85,8 +97,8 @@ connections.
 | Between | Mechanism |
 |---|---|
 | Extension and server | A shared pairing token of 256 random bits, proven in both directions by HMAC-SHA256 challenge and response. The token is not transmitted. The WebSocket `Origin` must be this extension's id. Ten failures lock a port for a minute. `--rotate-token` invalidates all pairings |
-| Agent's process and server | Proof of the same pairing token, with a distinct prefix |
-| Agent identity | An optional per-agent key of 256 random bits (`--agent <name>`), proven by HMAC-SHA256. The agent's id is derived from the key. Sessions are bound to that id and never pass to another. `--revoke-agent` deletes a key |
+| Agent's process and server | Proof of the same pairing token, with a distinct prefix. The same for an MCP agent's process and for each CLI command |
+| Agent identity | A per-agent key of 256 random bits (`--agent <name>`; optional through MCP, required by the CLI), proven by HMAC-SHA256. The agent's id is derived from the key. Sessions are bound to that id and never pass to another. `--revoke-agent` deletes a key |
 | User and extension | None beyond the browser profile: whoever operates the browser operates the popup |
 
 Detail: [agent identity](security-model.md#agent-identity-and-authentication),

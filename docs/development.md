@@ -3,7 +3,7 @@
 ## Layout
 
 ```text
-java-server/         the MCP server (Java 21, Maven)
+java-server/         the server, with its CLI and its MCP interface (Java 21, Maven)
 chrome-extension/    the extension (TypeScript, Manifest V3, esbuild)
   src/               sources
   test/              unit tests (node:test, jsdom)
@@ -192,8 +192,9 @@ page that owns it:
 | [README](../README.md) | What TabGoblin is and why, example workflows, the quick start, the list of pages. It sums up and links |
 | [Installation](installation.md) | Setting it up from a download or from source, verifying a download, and what goes wrong while doing that |
 | [Developer guide](developer-guide.md) | What the user sees and does: authorizing, access levels, sessions, workspaces, submissions, stopping, the settings file, the server's panel, options and commands, troubleshooting |
-| [MCP tool reference](mcp-reference.md) | The command line: how a tool is run as a command, what a command prints and its exit codes. And what each tool takes and returns: every text an agent reads, every limit, every error code. `ToolReferenceTest` holds it to the server's tool definitions |
-| [Architecture](architecture.md) | Components, connections, flows, the session lifecycle, trust boundaries, where things are |
+| [CLI guide](cli.md) | The CLI: commands and arguments, discovery, what a command prints, exit codes, how many commands are one agent, instructions for an agent without a skill |
+| [Tool reference](mcp-reference.md) | What each tool takes and returns, for both interfaces: every text an agent reads, every limit, every error code. `ToolReferenceTest` holds it to the server's tool definitions |
+| [Architecture](architecture.md) | Components, the two interfaces with what they share and where they differ, connections, flows, the session lifecycle, trust boundaries, where things are |
 | [Security model](security-model.md) | The threat model and every rule: what is enforced where, where it stops, what is tested, what remains a risk |
 | [Corporate assessment](corporate-assessment.md) | A summary of the above for an organisation's review. It states facts and links; a rule is changed in the security model first |
 | [Editors](editors.md) | Which editors can be filled, how, and what was measured |
@@ -456,7 +457,7 @@ by itself for this agent when the browser has to be paired (`--no-panel`). Both 
 `agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
 the proof that it holds that name's key (`AgentKeys.proof`). Without them, or with a proof that
 does not hold, the agent gets an id for this start only.
-A process that runs one command of the [command line](mcp-reference.md#the-command-line) adds
+A process that runs one command of the [command line](cli.md) adds
 `"cli": true` to its `attach`. The server then serves the agent of that key without ending it
 when the connection closes, and takes further such connections of the same key as the same
 agent; `refused` with the reason `agent_in_use` says that the key's agent is connected in the
