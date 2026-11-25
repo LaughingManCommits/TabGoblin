@@ -299,11 +299,18 @@ browser has to be paired. How it is built:
 - **No display, no panel.** Where there is no display, or JavaFX cannot start, the server logs
   `panel not shown reason=…` and runs as it does without the option. A JavaFX that cannot
   start prints a trace of its own to standard error first.
-- **Two kinds of window.** On Windows the window has no frame of the system's: a rounded body
-  with its own shadow, see-through around it, moved by its header. Everywhere else the same
-  body fills a window with the system's frame, because on Linux the see-through window was
-  there for the system and drew nothing (`Panel.floats`, held by a test). In both kinds a
-  request to close the window puts it away: the server ends by its button, or by its agent.
+- **Three kinds of window.** On Windows the window has the system's frame around a header of its
+  own (`StageStyle.EXTENDED`, which JavaFX has since 25): the system draws the edge, the corners
+  and the shadow, moves the window by the panel's header (a `HeaderBar`) and makes it higher or
+  lower by its edges. The system's own buttons are switched off there (their height is set to 0)
+  and the header's two stand in for the ones that put a window away and close it; there is none
+  to fill the screen, and a request to do so is undone. Where JavaFX says the system cannot do
+  that, Windows gets the window it had before: no frame, a rounded body with its own shadow,
+  see-through around it, moved by its header and made higher by its lower edge. Everywhere else
+  the body fills a window with the system's whole frame, because on Linux the see-through window
+  was there for the system and drew nothing (`Panel.ownsItsHeader` and `Panel.floats`, held by
+  tests). In all of them a request to close the window hides it and ends nothing: the server ends
+  by its button, or by its agent, and `--panel` shows the window again (`Panel.raise`).
 - **The window's icon is drawn, not loaded.** The goblin comes from the shapes of
   `chrome-extension/icons/goblin.svg`, written out in `Panel.java`. A window takes an icon only
   as a picture that holds its pixels as bytes; a drawing comes as one number per pixel and is

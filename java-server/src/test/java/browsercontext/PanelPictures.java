@@ -46,20 +46,25 @@ final class PanelPictures {
                         view.fit(state.height());
                     }
                     view.show(state.model());
+                    if (!state.framed()) {
+                        // As on Windows: the system's frame, which no picture has, around the panel's own header.
+                        view.ownsItsHeader();
+                    }
                     if (state.armed()) {
                         view.ends().get(0).fire();
                     }
                     if (state.chosen() >= 0) {
                         view.tabs().get(state.chosen()).fire();
                     }
-                    write(view.picture(2, !state.framed(), state.later()), out.resolve(state.name() + ".png"));
+                    write(view.picture(2, false, state.later()), out.resolve(state.name() + ".png"));
                     System.out.println(state.name() + ".png");
                 }
                 // The first state again in daylight, as on a system that is set to light.
                 var light = new Panel.View(command -> { });
                 light.show(states().get(0).model());
                 light.light(true);
-                write(light.picture(2, true, null), out.resolve("20-light.png"));
+                light.ownsItsHeader();
+                write(light.picture(2, false, null), out.resolve("20-light.png"));
                 System.out.println("20-light.png");
                 done.complete(null);
             } catch (Throwable e) {

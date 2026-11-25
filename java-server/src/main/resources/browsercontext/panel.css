@@ -104,8 +104,23 @@
     -fx-background-radius: 1;
     -fx-background-color: -tg-muted;
 }
+/* The cross of the button that hides the window: two bars, drawn as one shape. */
+.button.window-button .cross {
+    -fx-shape: "M1 0 L5 4 L9 0 L10 1 L6 5 L10 9 L9 10 L5 6 L1 10 L0 9 L4 5 L0 1 Z";
+    -fx-min-width: 10;
+    -fx-max-width: 10;
+    -fx-min-height: 10;
+    -fx-max-height: 10;
+    -fx-background-color: -tg-muted;
+}
 .button.window-button:hover {
     -fx-background-color: -tg-raised;
+}
+.button.window-button.closes:hover {
+    -fx-background-color: -tg-bad-soft;
+}
+.button.window-button.closes:hover .cross {
+    -fx-background-color: -tg-bad;
 }
 .button.window-button:hover .dash {
     -fx-background-color: -tg-fg;

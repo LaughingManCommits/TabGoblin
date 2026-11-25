@@ -283,8 +283,19 @@ final class Panel {
             calm = system.isReducedMotion();
             system.reducedMotionProperty().addListener((property, was, less) -> calm = less);
 
-            boolean floating = floats(System.getProperty("os.name", ""), Platform.isSupported(ConditionalFeature.TRANSPARENT_WINDOW));
-            var stage = new Stage(floating ? StageStyle.TRANSPARENT : StageStyle.DECORATED);
+            String os = System.getProperty("os.name", "");
+            // The system's frame around the panel's own header, where the system has that: its edges
+            // make the window higher or lower and its corners and shadow are the system's. Failing that,
+            // on Windows, the floating window the panel had before; everywhere else the system's whole frame.
+            boolean framedByUs = ownsItsHeader(os, Platform.isSupported(ConditionalFeature.EXTENDED_WINDOW));
+            boolean floating = !framedByUs && floats(os, Platform.isSupported(ConditionalFeature.TRANSPARENT_WINDOW));
+            var stage = new Stage(framedByUs ? StageStyle.EXTENDED : floating ? StageStyle.TRANSPARENT : StageStyle.DECORATED);
+            if (framedByUs) {
+                view.ownsItsHeader();
+                // No buttons of the system's: the header has its own two, to put the window away and to
+                // hide it. There is none to make it fill the screen, which a window of one width has no use for.
+                javafx.scene.layout.HeaderBar.setSystemButtonHeight(stage, 0);
+            }
             var scene = new Scene(view.frame(floating), floating ? Color.TRANSPARENT : GROUND);
             scene.getStylesheets().add(STYLESHEET);
             stage.setScene(scene);
@@ -303,11 +314,19 @@ final class Panel {
             // As wide as it is, always. As high as the user makes it: by the system's frame where it
             // has one, and by its lower edge where it floats.
             stage.setResizable(!floating);
-            view.movesAndMinimizes(stage);
+            view.movesAndMinimizes(stage, framedByUs);
+            // A double click on a header asks the system to fill the screen with the window: it stays as it is.
+            stage.maximizedProperty().addListener((property, was, filled) -> {
+                if (filled) {
+                    stage.setMaximized(false);
+                }
+            });
             view.resizes(stage, floating, highest);
+            // Closing hides the window and ends nothing: the server is ended with its Stop button, and
+            // "tabgoblin --panel" shows the window again.
             stage.setOnCloseRequest(request -> {
                 request.consume();
-                stage.setIconified(true);
+                stage.hide();
             });
             place(stage, first.port(), floating ? SHADOW : 0);
             if (kept.onAScreen(WIDTH)) {
@@ -405,6 +424,9 @@ final class Panel {
     static void raise() {
         onFxThread(() -> {
             if (window != null) {
+                if (!window.isShowing()) {
+                    window.show(); // it was hidden by its close button
+                }
                 window.setIconified(false);
                 window.toFront();
             }
@@ -420,6 +442,15 @@ final class Panel {
      */
     static boolean floats(String system, boolean seeThroughWindows) {
         return seeThroughWindows && system.toLowerCase(java.util.Locale.ROOT).startsWith("windows");
+    }
+
+    /**
+     * Whether the window has the system's frame around a header of its own: the system's edges,
+     * corners and shadow, and the panel's goblin and buttons where a title bar would be. On
+     * Windows, where it was seen, and only where JavaFX says the system can do it.
+     */
+    static boolean ownsItsHeader(String system, boolean extendedWindows) {
+        return extendedWindows && system.toLowerCase(java.util.Locale.ROOT).startsWith("windows");
     }
 
     /** Runs on JavaFX's thread, starting JavaFX if this is the first use of it. */
@@ -541,6 +572,8 @@ final class Panel {
         private final Goblin goblin = new Goblin();
         private final HBox header = new HBox();
         private final Button minimize = new Button("–");
+        /** Hides the window; shown only where the window has no button of the system's for it. */
+        private final Button close = new Button();
         private final Label agent = label("", "sub");
         /** The first port the extension scans, available before any agent connects. */
         private final PortLabel firstPort = new PortLabel("chip");
@@ -610,7 +643,15 @@ final class Panel {
             minimize.getStyleClass().add("window-button");
             minimize.setTooltip(new Tooltip("Put this window away. The server keeps running."));
             minimize.setAccessibleText("Minimize. The server keeps running.");
-            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), new HBox(6, agent, firstPort)), grow(), minimize);
+            var cross = new Region();
+            cross.getStyleClass().add("cross");
+            close.setGraphic(cross);
+            close.getStyleClass().addAll("window-button", "closes");
+            close.setTooltip(new Tooltip("Hide this window. The server keeps running; \"tabgoblin --panel\" shows it again."));
+            close.setAccessibleText("Close. Hides the window; the server keeps running.");
+            close.setVisible(false);
+            close.setManaged(false);
+            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), new HBox(6, agent, firstPort)), grow(), minimize, close);
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
@@ -841,20 +882,52 @@ final class Panel {
         }
 
         /**
-         * The header moves the window and the button in it puts it away. A floating window has
-         * nothing else for either; in the system's frame they are there as well as the frame's own.
+         * Makes the header the window's own, in a window that has the system's frame and no title
+         * bar: the system moves the window by it, and takes its two buttons for the ones that put a
+         * window away and close it. The button to close shows. Done once, before the body is framed.
          */
-        void movesAndMinimizes(Stage stage) {
-            double[] grip = new double[2];
-            header.setOnMousePressed(press -> {
-                grip[0] = press.getScreenX() - stage.getX();
-                grip[1] = press.getScreenY() - stage.getY();
-            });
-            header.setOnMouseDragged(drag -> {
-                stage.setX(drag.getScreenX() - grip[0]);
-                stage.setY(drag.getScreenY() - grip[1]);
-            });
+        void ownsItsHeader() {
+            int at = root.getChildren().indexOf(header);
+            root.getChildren().remove(header);
+            var bar = new javafx.scene.layout.HeaderBar();
+            bar.setCenter(header);
+            header.setMaxWidth(Double.MAX_VALUE);
+            // The system has no buttons in this window, so it needs no room kept for them.
+            bar.setLeftSystemPadding(false);
+            bar.setRightSystemPadding(false);
+            javafx.scene.layout.HeaderBar.setDragType(header, javafx.scene.layout.HeaderDragType.DRAGGABLE_SUBTREE);
+            // A click on the port copies it; it does not take hold of the window.
+            javafx.scene.layout.HeaderBar.setDragType(firstPort, javafx.scene.layout.HeaderDragType.NONE);
+            javafx.scene.layout.HeaderBar.setButtonType(minimize, javafx.scene.layout.HeaderButtonType.ICONIFY);
+            javafx.scene.layout.HeaderBar.setButtonType(close, javafx.scene.layout.HeaderButtonType.CLOSE);
+            root.getChildren().add(at, bar);
+            close.setVisible(true);
+            close.setManaged(true);
+        }
+
+        /**
+         * The header moves the window and the buttons in it put it away and hide it. A floating
+         * window has nothing else for either; in the system's whole frame they are there as well as
+         * the frame's own.
+         *
+         * @param bySystem the window has the system's frame around this header, and the system
+         *                 moves the window by it: the header does not do it a second time
+         */
+        void movesAndMinimizes(Stage stage, boolean bySystem) {
+            if (!bySystem) {
+                double[] grip = new double[2];
+                header.setOnMousePressed(press -> {
+                    grip[0] = press.getScreenX() - stage.getX();
+                    grip[1] = press.getScreenY() - stage.getY();
+                });
+                header.setOnMouseDragged(drag -> {
+                    stage.setX(drag.getScreenX() - grip[0]);
+                    stage.setY(drag.getScreenY() - grip[1]);
+                });
+            }
+            // Pressed by the keyboard as well, where the system takes only the pointer's click.
             minimize.setOnAction(click -> stage.setIconified(true));
+            close.setOnAction(click -> stage.fireEvent(new javafx.stage.WindowEvent(stage, javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST)));
         }
 
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */

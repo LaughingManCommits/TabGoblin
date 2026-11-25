@@ -757,4 +757,31 @@ class PanelTest {
         // With several agents the list shows as many rows as with one: the window itself need not scroll.
         assertEquals(Panel.TABS_IN_VIEW, Panel.ROWS_IN_VIEW_OF_SEVERAL);
     }
+
+    @Test
+    void whereTheWindowHasTheSystemsFrameAroundItsOwnHeaderTheHeaderHasAButtonThatHidesIt() throws Exception {
+        List<String> seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model(true, false));
+            var steps = new ArrayList<String>();
+            java.util.function.Supplier<String> buttons = () -> view.root().lookupAll(".window-button").stream()
+                    .map(javafx.scene.control.Button.class::cast)
+                    .map(button -> button.getAccessibleText().split("\\.")[0] + (button.isVisible() ? "" : " (not shown)")
+                            + " as " + javafx.scene.layout.HeaderBar.getButtonType(button)).toList().toString();
+            // A window with the system's whole frame, or with none, has that frame's button to close it, or none.
+            steps.add(buttons.get());
+            view.ownsItsHeader();
+            // The header is the window's own: its two buttons are the system's two, and the port still takes its click.
+            steps.add(buttons.get());
+            var port = (Panel.PortLabel) view.root().lookup(".header .port");
+            steps.add("header " + javafx.scene.layout.HeaderBar.getDragType(view.root().lookup(".header"))
+                    + ", port " + javafx.scene.layout.HeaderBar.getDragType(port));
+            // And the body is as it was but for that: what the window says has not changed.
+            steps.add(String.valueOf(view.words().containsAll(List.of("TabGoblin server", "Port 47821", "SESSIONS", "Stop server"))));
+            return steps;
+        });
+        assertEquals(List.of("[Minimize as null, Close (not shown) as null]", "[Minimize as ICONIFY, Close as CLOSE]",
+                "header DRAGGABLE_SUBTREE, port NONE", "true"), seen);
+
+    }
 }

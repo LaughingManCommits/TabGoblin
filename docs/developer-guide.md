@@ -401,7 +401,7 @@ focus a heading with Tab and toggle it with Space.
 | Pairing token | **Copy** copies the pairing token, which leaves the clipboard after a minute |
 | Blocked sites | The sites on your list and, while a policy is in force, a line *Policy: …*. **Edit** opens the settings file |
 | Stop server, Kill | Stop ends the server in order, for every agent. Kill ends the process at once, for a server that hangs; agents that are still running start a new one. Each takes two clicks |
-| The window itself | It is light or dark as your system is, like the popup. Drag its header to move it and its lower edge to make it higher or lower; it opens where and as high as you left it, kept in Java's preferences for your user. It has no button to close it: it is put away with its minimize button, and the server is ended with Stop |
+| The window itself | It is light or dark as your system is, like the popup, and keeps still where your system asks for less motion. On Windows it has the system's frame around its own header: drag the header to move it and an upper or lower edge to make it higher or lower; its width is fixed, and it has no button to fill the screen. **–** puts it on the taskbar. **×** hides it and ends nothing: the server keeps running, and `tabgoblin --panel` shows the window again. It opens where and as high as you left it, kept in Java's preferences for your user. The server is ended with Stop |
 
 One case brings the window up by itself: the browser came with a token that is not the
 server's, because it was mistyped or replaced with `--rotate-token`. The window then says
@@ -423,7 +423,7 @@ The panel grants nothing: authorizing a tab, changing a level and revoking stay 
 
 | System | The window | Seen running |
 |---|---|---|
-| Windows | Without a system frame; its header moves it | On Java 25. Before the server needed Java 25, on Java 21 and Java 26 |
+| Windows | The system's frame around the panel's own header, with the panel's two buttons | On Java 25, opened as the server opens it. Before that it was a window without any frame, seen on Java 21 and Java 26 |
 | Linux (x64), macOS (Apple silicon) | The same panel in a window with the system's frame | On Ubuntu in the Linux subsystem of Windows, without pressing its buttons. Not on another Linux desktop, not on macOS |
 | Any other system, or no display | None: the server says so in its log and runs as without the option | Without a display, on Linux |
 

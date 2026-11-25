@@ -300,6 +300,11 @@ class PanelModelTest {
         assertFalse(Panel.floats("", true));
         // And not where the system says it has no see-through windows.
         assertFalse(Panel.floats("Windows 11", false));
+        // The system's frame around the panel's own header comes before that, on Windows and where the system has it.
+        assertTrue(Panel.ownsItsHeader("Windows 11", true));
+        assertFalse(Panel.ownsItsHeader("Windows 11", false));
+        assertFalse(Panel.ownsItsHeader("Linux", true));
+        assertFalse(Panel.ownsItsHeader("Mac OS X", true));
     }
 
     @Test
