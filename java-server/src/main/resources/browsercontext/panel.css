@@ -104,6 +104,11 @@
 .status .label {
     -fx-font-size: 12.5px;
 }
+/* The agent's port at the end of the line is a chip as any other, and adds no height to the line. */
+.status .chip {
+    -fx-font-size: 11px;
+    -fx-padding: 0 7 1 7;
+}
 .dot {
     -fx-min-width: 8;
     -fx-min-height: 8;

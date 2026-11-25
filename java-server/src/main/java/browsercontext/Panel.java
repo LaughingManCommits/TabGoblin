@@ -441,6 +441,8 @@ final class Panel {
         private final Label agent = label("", "sub");
         /** The first port the extension scans, available before any agent connects. */
         private final PortLabel firstPort = new PortLabel("chip");
+        /** The port of the one agent a server has: where the extension reaches that agent, in the line about that. A click copies it. */
+        private final PortLabel agentPort = new PortLabel("chip");
         private final Region dot = new Region();
         private final Label connection = label("");
         private final Label problem = label("", "problem");
@@ -509,7 +511,10 @@ final class Panel {
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
-            var status = new HBox(dot, connection);
+            // The one agent's port is where the browser reaches it: said at the end of the line about
+            // that connection, where there is room for it. The header keeps the agent's name whole.
+            var status = new HBox(dot, connection, grow(), agentPort);
+            status.setAlignment(Pos.CENTER_LEFT);
             status.getStyleClass().add("status");
 
             problem.setWrapText(true);
@@ -694,6 +699,10 @@ final class Panel {
         void show(PanelModel model) {
             firstPort.showing("First port " + model.firstPort(), model.firstPort());
             agent.setText(model.identity());
+            // One agent: its port ends the line about its connection. Several have theirs in their rows.
+            agentPort.setVisible(model.agentPort() > 0);
+            agentPort.setManaged(model.agentPort() > 0);
+            agentPort.showing("port " + model.agentPort(), model.agentPort());
             connection.setText(model.connection());
             dot.getStyleClass().setAll("dot", model.connected() ? "connected" : model.switchedOff() ? "off" : "waiting");
             if (!Objects.equals(shownConnected, !model.switchedOff())) {
@@ -827,6 +836,11 @@ final class Panel {
 
         /** Whether the user is reading in the log: has marked some of it, or has scrolled up from its last line. */
         boolean readingLog() {
+            if (!log.isVisible()) {
+                // Its card is folded: nobody reads what is not shown, whatever was marked in it or
+                // wherever it stood. It is written on, and is at its newest line when it shows again.
+                return false;
+            }
             if (!log.getSelectedText().isEmpty()) {
                 return true;
             }
@@ -920,6 +934,10 @@ final class Panel {
                 state.setMinWidth(Region.USE_PREF_SIZE);
                 state.setTooltip(new Tooltip(member.connection()));
                 row.getChildren().add(state);
+            } else if (member.port() > 0) {
+                // Its port while the extension is connected to it: the row has room for one of the two.
+                // The port is copied by a click on it; the row is chosen by a click anywhere else.
+                row.getChildren().add(new PortLabel("chip").showing(":" + member.port(), member.port()));
             }
             return chooser(row, member.id(), "agent", member.name() + ": show the metrics and the log of this agent only");
         }

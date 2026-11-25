@@ -299,6 +299,11 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
                 blocked);
     }
 
+    /** The port of the one agent a server has, or 0: with several each has its own, and one without a port has none. */
+    int agentPort() {
+        return agents.size() == 1 ? agents.get(0).port() : 0;
+    }
+
     private static Timings.Shares plus(Timings.Shares a, Timings.Shares b) {
         List<Timings.Spent> each = new ArrayList<>(a.each());
         each.addAll(b.each());

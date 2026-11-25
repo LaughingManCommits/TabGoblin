@@ -393,8 +393,8 @@ focus a heading with Tab and toggle it with Space.
 | Part | What it shows or does |
 |---|---|
 | The line under the title | Click **First port** beside the agent information to copy the number for the extension popup. It is available before an agent or browser connects |
-| The line with the dot | Whether the extension is connected, and if not, why |
-| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. A click on a tab or an agent shows its metrics and log lines alone |
+| The line with the dot | Whether the extension is connected, and if not, why. With one agent the line ends with that agent's port, the one its status names; a click copies it |
+| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id and its port, and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
 | Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers |
 | Log | The server's last 300 lines: connections, and one line per tool call with its tab, action, duration and outcome. Nothing of a page |
 | Connection to the browser | A switch. Off, the server closes its connection to the extension until you switch it on. The agent's tabs stay authorized |

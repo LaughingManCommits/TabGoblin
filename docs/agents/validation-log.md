@@ -29,6 +29,8 @@ At `3f162a7`, with the owner's Chrome and the extension loaded again: `navigate 
 
 The failed-build section added to the three MCP skills, and `SkillsTest` narrowed to `--agent` and `--port`: its 9 tests passed, and the server's 219 with none skipped. The skills in the jar were not compared, since no jar was built.
 
+The review's last three findings: a folded Log card (three steps more in the window's test of a held log), the test client and an `error` event of a process that runs (one test more, which failed against the client as it was; 7 pass), and an agent's port shown again. The server's 219 tests passed, and the end-to-end suite passed with the changed client, 110 of 110, before the port was put back. The port was first put in the header, where it cut the agent's id short in the picture; it is at the end of the connection line now. The window's 19 pictures were drawn anew, 12 of them opened, and the documentation's picture replaced.
+
 ## 2026-11-25, on `ccr-6350ba03-tntbzp` from `cf9bbca`: a last review of the documentation, and the reference renamed
 
 Narrow in scope. The reference is `docs/tool-reference.md`; the old name is a pointer.

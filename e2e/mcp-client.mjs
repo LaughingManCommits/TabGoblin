@@ -34,9 +34,13 @@ export class McpClient {
       // Only now is everything the process wrote read: an answer written just before the exit
       // has been delivered, and what is still waiting gets none.
       this.proc.once('close', () => this.rejectPending(this.transportError ?? new Error(`MCP process ${this.name} closed its output`)));
-      this.proc.once('error', (error) => {
+      this.proc.on('error', (error) => {
+        // Only a process that never started ends here: it has no exit event. Any other error,
+        // such as a signal that could not be sent, says nothing of a process that still runs
+        // and answers: its end is what settles the rest.
+        if (this.proc.pid) return;
         this.rejectPending(error);
-        if (!this.proc.pid) resolve(null); // A spawn failure has no exit event.
+        resolve(null);
       });
     });
     // A write that fails says nothing of the answers still on their way: the end of the process

@@ -99,7 +99,7 @@ class PanelTest {
             return view.words();
         });
         String all = String.join("\n", words);
-        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d", "First port 47821",
+        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d", "port 47821", "First port 47821",
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
@@ -276,6 +276,9 @@ class PanelTest {
                 var view = new Panel.View(sent::add);
                 view.show(model(true, false));
                 var steps = new ArrayList<String>();
+                // Two ports show: the first port the popup is told, in the header, and the one agent's own.
+                steps.add(view.root().lookupAll(".port").stream().map(javafx.scene.control.Label.class::cast)
+                        .map(javafx.scene.control.Label::getText).toList().toString());
                 var port = (Panel.PortLabel) view.root().lookup(".header .port");
                 steps.add(port.getText() + " shown=" + port.isVisible() + " -> " + clipboard[0]);
                 port.copy();
@@ -284,13 +287,15 @@ class PanelTest {
                 view.show(model(true, false));
                 steps.add(port.getText());
                 view.show(PanelModel.of(List.of(), Link.port(37821), "9.8.7", false, List.of(), ZoneId.of("UTC")));
-                assertEquals(1, view.root().lookupAll(".port").size());
+                // No agent, no agent's port: the first port is the one that shows.
+                assertEquals(1, view.root().lookupAll(".port").stream().filter(javafx.scene.Node::isVisible).count());
                 steps.add(port.getText());
                 port.copy();
                 steps.add(clipboard[0]);
                 return steps;
             });
-            assertEquals(List.of("First port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied",
+            assertEquals(List.of("[First port 47821, port 47821]",
+                    "First port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied",
                     "First port 37821", "37821"), seen);
         } finally {
             Panel.portClipboard = system;
@@ -513,7 +518,7 @@ class PanelTest {
 
         // Both agents, each with what it has: the first its tabs, the second the words in their place.
         for (String shown : List.of("2 agents", "1 of 2 agents is connected to the browser", "2 agents  ·  2 tabs",
-                "claude-code", "c-11111111", "s1", "mail.example.com", "owner: claude-code", "s3", "wiki.example.net", "any agent",
+                "claude-code", "c-11111111", ":47821", "s1", "mail.example.com", "owner: claude-code", "s3", "wiki.example.net", "any agent",
                 "IntelliJ IDEA", "c-22222222", "First port 47821", "not connected", "Not known while the browser is not connected",
                 "time of the last 5 calls", "the last 300 lines")) {
             assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
@@ -661,6 +666,19 @@ class PanelTest {
             seen.add("some of it marked: " + corner.get());
             held.view.follow().fire();
             seen.add("pressed again: " + corner.get() + ", marked '" + held.view.log().getSelectedText() + "', " + last.get());
+            // A log that is folded away is read by nobody: a mark left in it holds nothing.
+            length = held.view.log().getLength();
+            held.view.log().selectRange(length - 8, length);
+            held.view.show(lines.apply(116));
+            seen.add("marked again: " + corner.get());
+            var fold = held.view.root().lookupAll(".card-toggle").stream().map(javafx.scene.control.ToggleButton.class::cast)
+                    .filter(toggle -> "Log".equals(toggle.getAccessibleText())).findFirst().orElseThrow();
+            fold.fire();
+            held.view.show(lines.apply(117));
+            seen.add("folded: " + corner.get() + ", " + last.get());
+            fold.fire();
+            held.view.show(lines.apply(118));
+            seen.add("opened again: " + corner.get() + ", " + last.get());
             return null;
         });
         assertEquals(List.of(
@@ -671,6 +689,9 @@ class PanelTest {
                 "pressed: the last 300 lines | no button, last is '00:01:52  line 112', reading=false",
                 "and it follows again: the last 300 lines | no button, last is '00:01:53  line 113'",
                 "some of it marked: held while you read | button '2 newer lines  ↓'",
-                "pressed again: the last 300 lines | no button, marked '', last is '00:01:55  line 115'"), seen);
+                "pressed again: the last 300 lines | no button, marked '', last is '00:01:55  line 115'",
+                "marked again: held while you read | button '1 newer line  ↓'",
+                "folded: the last 300 lines | no button, last is '00:01:57  line 117'",
+                "opened again: the last 300 lines | no button, last is '00:01:58  line 118'"), seen);
     }
 }

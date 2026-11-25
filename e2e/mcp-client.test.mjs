@@ -63,6 +63,22 @@ test('a call nobody waits for yet fails where it is awaited, not as an unhandled
   }
 });
 
+test('an error of a process that runs does not end the client', async () => {
+  const child = `
+    process.stdin.on('data', (chunk) => {
+      for (const line of String(chunk).split('\\n').filter(Boolean)) {
+        process.stdout.write(JSON.stringify({ id: JSON.parse(line).id, result: 'still here' }) + '\\n');
+      }
+    });
+  `;
+  const client = new McpClient(process.execPath, ['-e', child]);
+  assert.equal(await client.request('before', {}, 3000), 'still here');
+  // What Node reports when, say, a signal could not be sent: the process itself goes on.
+  client.proc.emit('error', new Error('kill EPERM'));
+  assert.equal(await client.request('after', {}, 3000), 'still here');
+  assert.equal(await client.close(), 0);
+});
+
 test('a failed write leaves the reason to the end of the process', async () => {
   // The child closes its input and ends a moment later: writes fail before the exit is known.
   const child = "process.stdin.destroy(); setTimeout(() => process.exit(5), 300)";
