@@ -6,17 +6,17 @@ Last updated: 2026-11-25, the evening. Claims here go stale; check the date, the
 
 The working tree shows the popup's **First port** in the header before pairing. Click the number to copy it. Sessions, Metrics, Log and Control now fold independently. A running server picks up the change when started from the rebuilt jar.
 
-## CLI skills, 2026-11-25
+## Skills, 2026-11-25
 
-All three CLI skills now cover reusing a configured first port and investigating failed builds. The next release build will include the updated instructions.
+All three CLI skills now cover reusing a configured first port and investigating failed builds; the three MCP skills have the failed build too. The next release build will include the updated instructions.
 
 ## Review of `smoke-tests`, 2026-11-25
 
-Four of the review's nine findings are mended, committed on `smoke-tests` (`ff65692`) on the owner's word, not pushed: three in the MCP test client (`e2e/mcp-client.mjs`) and the panel's first port, which is counted back from the server's link port. The end-to-end suite passed with the changed client, 110 of 110. Five findings are open: an agent's port is no longer shown in the window and is still computed; a folded Log card can say it is held; the failed-build section is in the CLI skills only; `SkillsTest` accepts every server option in a CLI skill; and any `error` event of the child ends the test client for good.
+Four of the review's nine findings are mended, committed on `smoke-tests` (`ff65692`) on the owner's word, not pushed: three in the MCP test client (`e2e/mcp-client.mjs`) and the panel's first port, which is counted back from the server's link port. The end-to-end suite passed with the changed client, 110 of 110. Two more are mended since: the failed-build section is in the three MCP skills as well, in the words of tools, and `SkillsTest` lets a CLI skill name `--agent` and `--port` of the server's options and no other. Three findings are open: an agent's port is no longer shown in the window and is still computed, which waits for the owner's word on whether it is to be shown; a folded Log card can say it is held; and any `error` event of the child ends the test client for good.
 
 ## The command line on Windows, 2026-11-25
 
-Used by hand with the real extension and a tab the owner gave with Explore: reading, Explore's actions and the refusals work, and are in the validation log. **`navigate` said `no-change` with the old address where a site was slow to answer,** though the tab went there: the extension took a tab to have stayed when no load had begun after a second and a half. It now waits for a load that has to come, up to the 20 seconds a load has. Mended, in the same commit, and seen on the site where it was found, for another address. For the address the tab is already at it was mended after that and **is not yet seen there: the owner's Chrome has to load the extension once more** (`chrome-extension/dist` is built from the tree). Still not tried on Windows: Write, `submit`, `tabgoblin.cmd`.
+Used by hand with the real extension and a tab the owner gave with Explore: reading, Explore's actions and the refusals work, and are in the validation log. **`navigate` said `no-change` with the old address where a site was slow to answer,** though the tab went there: the extension took a tab to have stayed when no load had begun after a second and a half. It now waits for a load that has to come, up to the 20 seconds a load has. Mended, in the same commit, and seen on the site where it was found, for another address. For the address the tab is already at it was mended after that, and seen there too once the owner had loaded the extension again. Still not tried on Windows: Write, `submit`, `tabgoblin.cmd`.
 
 ## Whose a tab is, 2026-11-25
 

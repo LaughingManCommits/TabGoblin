@@ -25,6 +25,10 @@ Seen on that site after the owner loaded the extension again: `navigate --url` t
 
 Whose a tab is, said to the user, after the owner found that a tab given to *Any agent* was closed to the agent of the command line once another agent had used it: the popup's row reads `Owner: <agent>`, or that the tab has no owner yet, and in the server's window a tab's row has `owner: <agent>` where several agents are connected. No tool's text changed. The server's 219 tests and the extension's 214 passed. The window's 19 pictures were drawn and the one with two agents looked at; the 13 pictures of the documentation were made anew with a visible Chrome and each opened. The end-to-end suite then passed with the popup's new words, 110 of 110.
 
+At `3f162a7`, with the owner's Chrome and the extension loaded again: `navigate --url` on the public site, two addresses each asked for twice and a third once, answered `new-document` with the right address all five times, in 2.0 to 3.4 seconds each. The address the tab was already at is among them. A run a few minutes before, on the extension as it was loaded before, still said `no-change` for that case. The owner saw the popup's row name its owner.
+
+The failed-build section added to the three MCP skills, and `SkillsTest` narrowed to `--agent` and `--port`: its 9 tests passed, and the server's 219 with none skipped. The skills in the jar were not compared, since no jar was built.
+
 ## 2026-11-25, on `ccr-6350ba03-tntbzp` from `cf9bbca`: a last review of the documentation, and the reference renamed
 
 Narrow in scope. The reference is `docs/tool-reference.md`; the old name is a pointer.

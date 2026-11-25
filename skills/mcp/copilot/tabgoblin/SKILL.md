@@ -66,6 +66,20 @@ reach another site from it, and you cannot widen it yourself.
   to be the one in front in its window.
 - Passwords, hidden fields and frames from other websites are never in a result.
 
+### Investigate a failed build
+
+1. With Explore access, take a snapshot and open the failed run. Follow its annotation to the
+   failed job or step. Take a fresh snapshot there. Expand the step if it is collapsed.
+2. If the log is still loading, wait for an observable change. For example, when the page
+   shows a loading message, call `browser_wait_for` with `text: "<loading message>"` and
+   `condition: "gone"`, using the actual message, then read the step.
+3. Search for the test runner's failure marker. For a runner that prints **FAIL** before each
+   failed test, call `browser_extract` with `find: "FAIL "` and `context_lines: 4`. Read the
+   diagnostic immediately after the first failing test. A final exit code alone gives little
+   detail.
+4. Report the run, job, step and first concrete error. If later checks time out, say which
+   failure came first and whether the log establishes a connection. Link to the failed step.
+
 ## Act
 
 Take a snapshot, act on its refs, then take a new snapshot to see what happened. A ref belongs
