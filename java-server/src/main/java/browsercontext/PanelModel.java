@@ -215,22 +215,25 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
     /**
      * Every agent of a server, in the order they came.
      *
-     * @param port the shared server's link port, immediately after the extension's port range
+     * @param linkPort the shared server's link port ({@link Link#port}), immediately after the extension's
+     *                 port range: the first port the window shows is counted back from it, so an agent's
+     *                 own port given here shows a wrong one
      */
-    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
-        return of(agents, port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
+    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
+        return of(agents, linkPort, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
     }
 
     /**
      * Every agent of a server, and the sites the user has blocked: a tab on one of them says so in
      * its row, and a settings file that cannot be read is the window's problem.
      *
+     * @param linkPort     the shared server's link port, as above
      * @param rule         the blocked sites as they are in force
      * @param settingsFile the path of the settings file, as the window shows it
      */
-    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
+    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
             BlockedSites.Rule rule, String settingsFile) {
-        return of(agents, port, version, switchedOff, log, zone, rule, settingsFile, port - McpMain.PORT_RANGE);
+        return of(agents, linkPort, version, switchedOff, log, zone, rule, settingsFile, linkPort - McpMain.PORT_RANGE);
     }
 
     private static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log,

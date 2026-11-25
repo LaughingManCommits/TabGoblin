@@ -74,7 +74,10 @@ Choose:
 - **the access level** (below),
 - **how long** it lasts: until you revoke it, one hour, or eight hours,
 - **which agent** gets the tab, when more than one is connected. *Any agent* gives it to
-  whichever agent uses it first,
+  whichever agent uses it first: that agent is its owner from then on, and no other agent can
+  use the tab. The tab's row in the popup names its owner, and so does the server's window
+  where several agents are connected. To give the tab to another agent, revoke it and
+  authorize it for that agent,
 - optionally a **workspace** name ([workspaces](#workspaces)).
 
 Press **Authorize**. The tab is now a session, such as `s1`. Only that tab and only that

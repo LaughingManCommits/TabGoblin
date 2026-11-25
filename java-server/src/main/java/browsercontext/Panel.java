@@ -724,7 +724,7 @@ final class Panel {
                 List<Node> lines = new ArrayList<>();
                 if (shownAgents.size() <= 1) {
                     // One agent: its tabs, as the panel always listed them.
-                    shownRows.forEach(row -> lines.add(choice(row.id(), sessionRow(row))));
+                    shownRows.forEach(row -> lines.add(choice(row.id(), sessionRow(row, null))));
                     if (lines.isEmpty()) {
                         lines.add(label(model.noSessions(), "empty"));
                     }
@@ -733,7 +733,7 @@ final class Panel {
                     for (PanelModel.Member member : shownAgents) {
                         lines.add(choice(member.id(), agentRow(member)));
                         var its = shownRows.stream().filter(row -> member.id().equals(row.owner())).toList();
-                        its.forEach(row -> lines.add(choice(row.id(), sessionRow(row))));
+                        its.forEach(row -> lines.add(choice(row.id(), sessionRow(row, member.name()))));
                         if (its.isEmpty()) {
                             lines.add(label(PanelModel.noSessions(member), "empty"));
                         }
@@ -927,8 +927,11 @@ final class Panel {
         /**
          * One tab, as a button: a click on it chooses the tab, and its metrics and its log show in
          * the cards below. Pressed again, it gives the choice up.
+         *
+         * @param among the name of the agent the tab is listed under, where a server has several: the
+         *              row then says whose the tab is, or that it is nobody's yet. Null with one agent
          */
-        private ToggleButton sessionRow(PanelModel.Row session) {
+        private ToggleButton sessionRow(PanelModel.Row session, String among) {
             var id = label(session.id(), "chip", "id");
             id.setStyle("-fx-font-family: '" + monospace() + "';");
             id.setMinWidth(Region.USE_PREF_SIZE);
@@ -939,7 +942,16 @@ final class Panel {
                 // Authorized for any agent and used by none yet: every server lists it until one has it.
                 var open = label("any agent", "chip");
                 open.setMinWidth(Region.USE_PREF_SIZE);
+                open.setTooltip(new Tooltip("No agent has used this tab yet. The first that does becomes its owner, "
+                        + "and no other agent can use it after that."));
                 row.getChildren().add(open);
+            } else if (among != null) {
+                // With several agents, whose a tab is decides who can work in it: said in the row.
+                var owner = label("owner: " + among, "chip");
+                owner.setMinWidth(Region.USE_PREF_SIZE);
+                owner.setTooltip(new Tooltip("Only " + among + " can use this tab. To give it to another agent, revoke it "
+                        + "in the extension's popup and authorize the tab for that agent."));
+                row.getChildren().add(owner);
             }
             if (!session.state().equals("active")) {
                 var state = label(session.state(), "chip", "state");

@@ -349,9 +349,11 @@ function renderSessions(s: State): void {
       else if (session.paused) chips.append(el('span', 'chip state', 'paused'));
       if (chips.childElementCount) line.append(chips);
 
+      // Said as what it is: a tab has one owner, and no other agent can use it. A tab given to
+      // any agent has none until one uses it, and that agent's it is from then on.
       const owner = session.clientId
-        ? `${agentLabel({ name: session.clientName, id: session.clientId }, s.clients)}${session.ownerConnected ? '' : ' (not connected)'}`
-        : 'Waiting for an agent';
+        ? `Owner: ${agentLabel({ name: session.clientName, id: session.clientId }, s.clients)}${session.ownerConnected ? '' : ' (not connected)'}`
+        : 'No owner yet: the first agent to use this tab gets it';
       const parts = [owner];
       if (session.expiresAt) parts.push(`until ${new Date(session.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
       // What the session has under the policy, where that is less than what it was given.
@@ -375,7 +377,11 @@ function renderSessions(s: State): void {
       revoke.addEventListener('click', () => void request({ type: 'revoke', session: session.id }));
       controls.append(mode, pause, revoke);
 
-      row.append(line, el('div', 'meta', parts.join(' · ')));
+      const meta = el('div', 'meta', parts.join(' · '));
+      meta.title = session.clientId
+        ? 'Only this agent can use this tab. To give it to another agent, revoke it and authorize the tab for that agent.'
+        : 'Authorized for any agent. The first agent that uses it becomes its owner, and no other agent can use it after that.';
+      row.append(line, meta);
       // Said in the row, not only in a mark: why nothing the agent does here goes through.
       // Where every site is refused, that is said once above the rows, and the row has its mark.
       if (session.blocked && !s.blocked.everything) {

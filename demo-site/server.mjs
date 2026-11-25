@@ -44,6 +44,14 @@ function serve(dir, port, otherPort) {
         + `<a href="/form.html">Edit again</a></body></html>`);
       return;
     }
+    // A site that takes its time: the page comes two and a half seconds after it was asked for.
+    if (dir === 'site-a' && url.pathname === '/slow.html') {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' });
+      res.end('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Slow page</title></head>'
+        + '<body><h1>Slow page</h1><p>This page took its time.</p><a href="/">Home</a></body></html>');
+      return;
+    }
     // A page far too long to read whole: a build log, made on request. No other page links to it.
     if (dir === 'site-a' && url.pathname === '/build-log.html') {
       res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store' });

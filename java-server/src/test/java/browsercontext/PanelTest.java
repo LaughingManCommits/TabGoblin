@@ -513,11 +513,13 @@ class PanelTest {
 
         // Both agents, each with what it has: the first its tabs, the second the words in their place.
         for (String shown : List.of("2 agents", "1 of 2 agents is connected to the browser", "2 agents  ·  2 tabs",
-                "claude-code", "c-11111111", "s1", "mail.example.com", "s3", "wiki.example.net", "any agent",
+                "claude-code", "c-11111111", "s1", "mail.example.com", "owner: claude-code", "s3", "wiki.example.net", "any agent",
                 "IntelliJ IDEA", "c-22222222", "First port 47821", "not connected", "Not known while the browser is not connected",
                 "time of the last 5 calls", "the last 300 lines")) {
             assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
         }
+        // Whose a tab is, is said in its row: one tab is the first agent's, the other nobody's yet.
+        assertEquals(1, seen.all().stream().filter(word -> word.startsWith("owner: ")).count());
         assertEquals(4, seen.rows(), "two headings and two tabs can be chosen");
         // The second agent chosen: its one call, all of it the user's, and its one line.
         for (String shown : List.of("IntelliJ IDEA  ·  time of the last call", "100%", "IntelliJ IDEA  ·  1 of the last 300 lines",
@@ -544,12 +546,12 @@ class PanelTest {
         List<String> seen = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
             var steps = new ArrayList<String>();
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"), BlockedSites.Rule.NONE, file));
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"), BlockedSites.Rule.NONE, file));
             steps.add(String.valueOf(view.words().containsAll(List.of("Blocked sites", "No site is blocked"))));
             steps.add(String.valueOf(view.words().contains("blocked")));
             // The user's click asks for the file; bringing the view up to date asks for nothing.
             view.edit().fire();
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"),
                     new BlockedSites.Rule(List.of("example.org"), null), file));
             steps.add(sent.toString());
             // The site that is blocked now is named, and the tab on it is marked.
@@ -557,7 +559,7 @@ class PanelTest {
             steps.add(String.valueOf(view.blockedExplained().contains("Blocked now:\n  example.org") && view.blockedExplained().endsWith(file)));
             // The path is under the mouse, and in no line of the window.
             steps.add(String.valueOf(view.words().stream().noneMatch(word -> word.contains("tabgoblin.properties"))));
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"),
                     new BlockedSites.Rule(List.of(), "it cannot be read (AccessDeniedException)"), file));
             steps.add(String.valueOf(view.words().containsAll(List.of("Every site is refused: the file has a mistake",
                     "Every site is refused until the settings file is mended: it cannot be read (AccessDeniedException)."))));
@@ -574,7 +576,7 @@ class PanelTest {
                 new Timings.Shares(4, 70_000, 8, 1_276, 0, each), java.util.Map.of()));
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC")));
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC")));
             return view.words();
         });
         // Over the numbers stands what they are; each heap has its share and its typical time.

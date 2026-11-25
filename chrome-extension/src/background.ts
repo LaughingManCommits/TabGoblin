@@ -1172,11 +1172,14 @@ async function collect(op: Operation, session: SessionRecord, params: Record<str
   return { text: head.concat(body).join('\n') };
 }
 
-/** Resolves once the tab finished a load, or right away for same-document navigations. */
-function trackLoad(tabId: number, timeoutMs: number): Promise<'complete' | 'timeout'> {
+/**
+ * Resolves once the tab finished a load, or after a moment in which none began: `quiet`, which
+ * is how a move inside the same document looks, and also a site that has not answered yet.
+ */
+function trackLoad(tabId: number, timeoutMs: number): Promise<'complete' | 'quiet' | 'timeout'> {
   return new Promise((resolve) => {
     let sawLoading = false;
-    const done = (outcome: 'complete' | 'timeout'): void => {
+    const done = (outcome: 'complete' | 'quiet' | 'timeout'): void => {
       chrome.tabs.onUpdated.removeListener(listener);
       clearTimeout(timer);
       clearTimeout(idle);
@@ -1189,9 +1192,32 @@ function trackLoad(tabId: number, timeoutMs: number): Promise<'complete' | 'time
     };
     chrome.tabs.onUpdated.addListener(listener);
     const timer = setTimeout(() => done('timeout'), timeoutMs);
-    const idle = setTimeout(() => { if (!sawLoading) done('complete'); }, 1500);
+    const idle = setTimeout(() => { if (!sawLoading) done('quiet'); }, 1500);
   });
 }
+
+/**
+ * Waits for a load that has to come and has not begun: the tab was sent to another address, or
+ * told to load again, and the site takes its time to answer. Until it does the tab is where it
+ * was, and saying then that nothing moved would be saying it too early.
+ *
+ * @returns `complete` when a load came and ended, `timeout` when it had not ended in time, and
+ *          `quiet` when none ever began: an address that gives no page, such as a file to save
+ */
+async function awaitLoad(tabId: number, from: string | undefined, maxMs: number): Promise<'complete' | 'quiet' | 'timeout'> {
+  const deadline = Date.now() + maxMs;
+  let tab = await getTab(tabId);
+  while (tab && tab.url === from && tab.status !== 'loading' && Date.now() < deadline) {
+    await sleep(100);
+    tab = await getTab(tabId);
+  }
+  if (tab && tab.url === from && tab.status !== 'loading') return 'quiet';
+  tab = await waitWhileLoading(tabId, Math.max(0, deadline - Date.now()));
+  return tab?.status === 'loading' ? 'timeout' : 'complete';
+}
+
+/** How long a load is waited for, from the moment the tab was sent on its way. */
+const LOAD_MS = 20000;
 
 async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.Tab, params: Record<string, unknown>): Promise<object> {
   const history = typeof params.history === 'string' ? params.history : null;
@@ -1203,7 +1229,13 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   // Text typed into the page and not sent is lost when the tab moves on: the agent is told.
   const unsaved = await sendToPage(session.tabId, { bcmcp: 1, op: 'unsaved', origins: session.origins }, 3000)
     .then((reply) => Number((reply?.result as { fields?: number } | undefined)?.fields) || 0, () => 0);
-  const loaded = trackLoad(session.tabId, 20000);
+  const strip = (u: string | undefined): string => (u ?? '').split('#')[0];
+  // Another address, or the same one again, is a new document; only a move to a place in the
+  // page that is shown (an address with a fragment), or through its history, can do without one.
+  const loads = history === 'reload' || (requested !== null
+    && (strip(requested) !== strip(before.url) || (requested === before.url && !requested.includes('#'))));
+  const started = Date.now();
+  const loaded = trackLoad(session.tabId, LOAD_MS);
   if (history === 'back' || history === 'forward') {
     // Done inside the page, towards a known entry of this origin; it refuses when there is none.
     try {
@@ -1217,7 +1249,10 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   } else {
     await chrome.tabs.update(session.tabId, { url: requested as string });
   }
-  const outcome = await loaded;
+  let outcome = await loaded;
+  if (outcome === 'quiet' && loads) {
+    outcome = await awaitLoad(session.tabId, before.url, LOAD_MS - (Date.now() - started));
+  }
   const after = await getTab(session.tabId);
   // A redirect or a history entry can leave the origin even though the request looked fine.
   if (!inScope(session.origins, after?.url)) {
@@ -1246,7 +1281,6 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
     }
   }
   save();
-  const strip = (u: string | undefined): string => (u ?? '').split('#')[0];
   const notes: string[] = [];
   if (navigation === 'timeout') notes.push('The page is still loading.');
   if (unsaved && navigation === 'new-document') {

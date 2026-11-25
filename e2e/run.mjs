@@ -614,6 +614,15 @@ try {
     assert(page.url() === `${demo.originA}/`, `tab moved to ${page.url()}`);
     has((await one.tool('browser_status')).text, `Authorized origin: ${demo.originA}`);
   });
+  await step('a page that a site is slow to send is waited for: the tab is not said to have stayed', async () => {
+    const slow = json(await one.tool('browser_navigate', { url: '/slow.html' }));
+    assert(slow.navigation === 'new-document' && slow.url === `${demo.originA}/slow.html` && slow.title === 'Slow page'
+      && !slow.redirected, JSON.stringify(slow));
+    has(ok(await one.tool('browser_extract')).text, 'This page took its time.');
+    const home = json(await one.tool('browser_navigate', { url: '/' }));
+    assert(home.navigation === 'new-document' && home.url === `${demo.originA}/`, JSON.stringify(home));
+    snap = ok(await one.tool('browser_snapshot')).text;
+  });
   await step('find returns the errors of a long log with their stack traces, and where each one is', async () => {
     json(await one.tool('browser_navigate', { url: '/build-log.html' }));
     // How long the page is, from the header of a read that returns almost nothing of it.
@@ -2137,7 +2146,7 @@ try {
     await waitForPopupState('the restarted agent to reclaim its session in the popup',
       (sel) => {
         const meta = document.querySelector(sel)?.textContent ?? '';
-        return meta.startsWith('agent-one') && !meta.includes('not connected');
+        return meta.startsWith('Owner: agent-one') && !meta.includes('not connected');
       }, row(sA, '.meta'));
     await until(async () => (await badge()) === 'ON', 'the badge to say ON once the restarted agent is back');
     await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the restarted agent to connect', 15000);
@@ -2146,8 +2155,8 @@ try {
     has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
     has(ok(await one.tool('browser_snapshot', { session: sC })).text, 'Page: Widget Handbook');
     await waitForPopupState('the session owner label to settle after the restarted agent reads its tabs',
-      (sel) => document.querySelector(sel)?.textContent.startsWith('agent-one ·')
-        || document.querySelector(sel)?.textContent === 'agent-one', row(sA, '.meta'));
+      (sel) => document.querySelector(sel)?.textContent.startsWith('Owner: agent-one ·')
+        || document.querySelector(sel)?.textContent === 'Owner: agent-one', row(sA, '.meta'));
   });
   await step('the extension\'s service worker can be stopped and restarted without losing sessions', async () => {
     // Something the user allowed in the automatic mode, to see below that it is not kept.

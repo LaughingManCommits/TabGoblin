@@ -31,3 +31,43 @@ test('a spawn failure rejects requests and close completes', async () => {
   await assert.rejects(client.request('initialize', {}, 3000), { code: 'ENOENT' });
   assert.equal(await client.close(), null);
 });
+
+test('a long final response written just before the exit is delivered whole', async () => {
+  const child = `
+    process.stdin.once('data', () => {
+      const line = JSON.stringify({ id: 1, result: 'x'.repeat(4_000_000) }) + '\\n';
+      process.stdout.write(line, () => process.exit(0));
+    });
+  `;
+  const client = new McpClient(process.execPath, ['-e', child]);
+  const result = await client.request('answered', {}, 10000);
+  assert.equal(result.length, 4_000_000);
+  assert.equal(await client.exited, 0);
+});
+
+test('a call nobody waits for yet fails where it is awaited, not as an unhandled rejection', async () => {
+  const unhandled = [];
+  const note = (reason) => unhandled.push(reason);
+  process.on('unhandledRejection', note);
+  try {
+    const client = new McpClient(process.execPath, ['-e', "process.stdin.once('data', () => process.exit(3))"]);
+    const request = client.request('first', {}, 3000);
+    const tool = client.tool('browser_status');
+    assert.equal(await client.exited, 3);
+    await new Promise((resolve) => setTimeout(resolve, 200)); // the step is busy elsewhere
+    await assert.rejects(request, /exited with code 3/);
+    await assert.rejects(tool, /exited with code 3/);
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off('unhandledRejection', note);
+  }
+});
+
+test('a failed write leaves the reason to the end of the process', async () => {
+  // The child closes its input and ends a moment later: writes fail before the exit is known.
+  const child = "process.stdin.destroy(); setTimeout(() => process.exit(5), 300)";
+  const client = new McpClient(process.execPath, ['-e', child]);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const requests = Array.from({ length: 50 }, (_, n) => client.request('r' + n, { pad: 'x'.repeat(65536) }, 5000));
+  for (const request of requests) await assert.rejects(request, /exited with code 5/);
+});

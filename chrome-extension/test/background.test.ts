@@ -48,6 +48,11 @@ let drawsAfterMs = 0;
 /** When a fake page last answered that. */
 let noticeGoneAt = 0;
 
+/** The document a fake tab shows, where a test loaded another one into it. */
+const docOf = new Map<number, string>();
+/** What a fake browser does when a tab is sent to an address; nothing, unless a test says so. */
+let onTabUpdate: (id: number, to: { url?: string }) => void = () => undefined;
+
 function pageAnswer(tabId: number, msg: any): Promise<object> | object {
   const tab = tabs.get(tabId);
   let origin: string | null = null;
@@ -58,7 +63,7 @@ function pageAnswer(tabId: number, msg: any): Promise<object> | object {
   }
   // Chrome only delivers to a document the extension still has access to.
   if (!tab || !origin) return Promise.reject(new Error('Could not establish connection. Receiving end does not exist.'));
-  const meta = { docId: `doc-${tabId}`, highestRef: 0, generation: 0, url: tab.url };
+  const meta = { docId: docOf.get(tabId) ?? `doc-${tabId}`, highestRef: 0, generation: 0, url: tab.url };
   if (!Array.isArray(msg.origins) || !msg.origins.includes(origin)) return { ok: false, code: 'ORIGIN_MISMATCH', message: 'wrong origin', ...meta };
   if (msg.op !== 'ping' && msg.op !== 'indicator') pageLog.push(`${tabId}:${msg.op}`);
   if (msg.op === 'indicator') {
@@ -119,7 +124,7 @@ const fakeChrome = {
       return { ...tab };
     },
     sendMessage: async (id: number, msg: object) => pageAnswer(id, msg),
-    update: async () => undefined, reload: async () => undefined,
+    update: async (id: number, to: { url?: string }) => { onTabUpdate(id, to); }, reload: async () => undefined,
     captureVisibleTab: async () => { captures.push(Date.now()); return 'data:image/jpeg;base64,QUJD'; },
     onUpdated: new FakeEvent(), onRemoved: new FakeEvent(), onCreated: new FakeEvent(), onActivated: new FakeEvent(),
   },
@@ -2180,6 +2185,47 @@ test('the notice\'s button for a question brings the popup up, only where a ques
   for (const op of ['submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
   for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
   for (const id of [91, 92]) tabs.delete(id);
+});
+
+test('a tab sent to an address that answers late is waited for, and is not said to have stayed', async () => {
+  for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
+  tabs.set(95, { id: 95, url: 'https://slow.example/', status: 'complete', active: false, windowId: 1, title: 'Start' });
+  const session = (await popup({ type: 'authorize', tabId: 95, mode: 'explore', clientId: 'c-one' })).state.sessions.at(-1).id;
+  const tab = tabs.get(95) as FakeTab;
+  // The site takes its time: for two seconds the tab is where it was and loads nothing, as a
+  // browser shows it while it waits for the first answer. Only then does the new page come.
+  onTabUpdate = (id, to) => {
+    setTimeout(() => { tab.status = 'loading'; }, 2000);
+    setTimeout(() => {
+      Object.assign(tab, { url: to.url, title: 'Later', status: 'complete' });
+      docOf.set(id, 'doc-95-later');
+    }, 2300);
+  };
+  try {
+    const went = await one.command('navigate', { session, params: { url: '/later' } });
+    assert.equal(code(went), 'ok');
+    assert.deepEqual(went.result, { navigation: 'new-document', url: 'https://slow.example/later', title: 'Later' });
+
+    // The address the tab is at, asked for again, is loaded again: that is waited for as well.
+    onTabUpdate = (id) => {
+      setTimeout(() => { tab.status = 'loading'; }, 2000);
+      setTimeout(() => { tab.status = 'complete'; docOf.set(id, 'doc-95-again'); }, 2300);
+    };
+    const again = await one.command('navigate', { session, params: { url: '/later' } });
+    assert.deepEqual(again.result, { navigation: 'new-document', url: 'https://slow.example/later', title: 'Later' });
+
+    // A place in the page that is shown needs no load, and is not waited for as one.
+    onTabUpdate = (_, to) => { tab.url = to.url; };
+    const began = Date.now();
+    const within = await one.command('navigate', { session, params: { url: '/later#part' } });
+    assert.equal(within.result.navigation, 'same-document');
+    assert.ok(Date.now() - began < 4000, 'no load was waited for');
+  } finally {
+    onTabUpdate = () => undefined;
+    docOf.delete(95);
+    await popup({ type: 'revoke', session });
+    tabs.delete(95);
+  }
 });
 
 test('a first port the user set is the only range that is looked at', async () => {

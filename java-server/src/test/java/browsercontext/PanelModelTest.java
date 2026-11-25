@@ -197,6 +197,7 @@ class PanelModelTest {
         // The one server, started by the user, before any agent's program has connected to it.
         PanelModel empty = PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), UTC);
         assertEquals("no agent", empty.agent());
+        assertEquals(47821, empty.firstPort());
         assertEquals("one server for all your agents", empty.identity());
         assertFalse(empty.connected());
         assertEquals("No agent connected", empty.connection());
@@ -342,7 +343,9 @@ class PanelModelTest {
         String file = "~/.browser-context-mcp/tabgoblin.properties";
 
         // Nothing blocked: the rows are as they were, and the line says so.
-        PanelModel open = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        PanelModel open = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        // The server's link port comes after the agents' ports: the first of those is what the popup is told.
+        assertEquals(47821, open.firstPort());
         assertEquals(List.of("active", "paused", "active"), open.sessions().stream().map(PanelModel.Row::state).toList());
         assertEquals("No site is blocked", open.blocked().summary());
         assertTrue(open.blocked().explained().endsWith(file), open.blocked().explained());
@@ -353,19 +356,19 @@ class PanelModelTest {
         // Some: a tab on a blocked site says "blocked" in place of its state, and so does one that
         // spans a blocked site. The line names what fits and counts the rest; under the mouse is all of it.
         var rule = new BlockedSites.Rule(List.of("bank.example", "example.org", "intranet.example"), null);
-        PanelModel some = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, rule, file);
+        PanelModel some = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, rule, file);
         assertEquals(List.of("active", "blocked", "blocked"), some.sessions().stream().map(PanelModel.Row::state).toList());
         // The entries that block a tab come first: the line names what is in the user's way.
         assertEquals("example.org, intranet.example and 1 more", some.blocked().summary());
         assertTrue(some.blocked().explained().contains("Blocked now:\n  example.org\n  intranet.example\n  bank.example\n\n" + file),
                 some.blocked().explained());
-        assertEquals("example.org", PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        assertEquals("example.org", PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null), file).blocked().summary());
         assertNull(some.problem());
 
         // A file that cannot be read: every tab is blocked, and the window's problem says why, in the file's own words.
         var slip = new BlockedSites.Rule(List.of(), "\"exam_ple.org\" in blocked.sites is no domain");
-        PanelModel mistaken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, slip, file);
+        PanelModel mistaken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, slip, file);
         assertEquals(List.of("blocked", "blocked", "blocked"), mistaken.sessions().stream().map(PanelModel.Row::state).toList());
         assertEquals("Every site is refused until the settings file is mended: \"exam_ple.org\" in blocked.sites is no domain.",
                 mistaken.problem());
@@ -374,7 +377,7 @@ class PanelModelTest {
         // A server that could not start says that first: it is the greater trouble.
         var broken = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, "Could not listen.", false, 0, 0, List.of(),
                 NO_CALLS, Map.of()));
-        assertEquals("Could not listen.", PanelModel.of(broken, 47821, "9.8.7", false, List.of(), UTC, slip, file).problem());
+        assertEquals("Could not listen.", PanelModel.of(broken, 47829, "9.8.7", false, List.of(), UTC, slip, file).problem());
         // Nothing of a page is in it.
         assertFalse(some.toString().contains("Inbox"), "the page's title stays out");
         assertFalse(some.toString().contains("?q=from"), "the page's address stays out");
@@ -437,7 +440,7 @@ class PanelModelTest {
                 new Timings.Shares(0, 0, 0, 0, 0), Map.of()));
         String file = "/somewhere/tabgoblin.properties";
         var limits = new BlockedSites.Limits(true, List.of("ci.example"), false, BlockedSites.Access.EXPLORE, 240, 20);
-        PanelModel.Blocked shown = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked shown = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null, limits), file).blocked();
         assertEquals("Blocked sites and security policy", shown.heading());
         assertEquals("example.org", shown.summary(), "the line of the blocked sites says the blocked sites");
@@ -450,14 +453,14 @@ class PanelModelTest {
         assertTrue(under.endsWith(file));
 
         // A policy and no blocked site: the heading says that there is a policy, and each line says its own.
-        PanelModel.Blocked alone = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked alone = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0)), file).blocked();
         assertEquals("Blocked sites and security policy", alone.heading());
         assertEquals("No site is blocked", alone.summary());
         assertEquals("Policy: no screenshots", alone.policyLine());
 
         // Without a policy the heading, the line and the text are as they were, and there is no second line.
-        PanelModel.Blocked plain = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked plain = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null), file).blocked();
         assertEquals("Blocked sites", plain.heading());
         assertEquals("example.org", plain.summary());
@@ -465,7 +468,7 @@ class PanelModelTest {
         assertFalse(plain.restricts());
         assertFalse(plain.explained().contains("Security policy"));
         // A file that cannot be read refuses everything: that is what the window says, and not a policy.
-        PanelModel.Blocked broken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked broken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of(), "\"admin\" in access.max is none of read, explore, write", limits), file).blocked();
         assertEquals("Blocked sites", broken.heading());
         assertFalse(broken.restricts());
