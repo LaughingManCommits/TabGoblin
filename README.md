@@ -41,6 +41,9 @@ select, through fourteen generic tools, and anything that sends data waits for y
   the agent's model provider, as with any other context you give it.
 - **Any MCP client** that starts a server over stdio. Several agents can share one browser,
   each with its own tabs.
+- **Or no MCP at all.** An agent that only runs commands in a terminal uses the same tools as
+  `tabgoblin` commands, through the same server and under the same rules
+  ([the command line](docs/mcp-reference.md#the-command-line)).
 
 ## Example workflows
 

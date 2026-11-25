@@ -192,7 +192,7 @@ page that owns it:
 | [README](../README.md) | What TabGoblin is and why, example workflows, the quick start, the list of pages. It sums up and links |
 | [Installation](installation.md) | Setting it up from a download or from source, verifying a download, and what goes wrong while doing that |
 | [Developer guide](developer-guide.md) | What the user sees and does: authorizing, access levels, sessions, workspaces, submissions, stopping, the settings file, the server's panel, options and commands, troubleshooting |
-| [MCP tool reference](mcp-reference.md) | What each tool takes and returns: every text an agent reads, every limit, every error code. `ToolReferenceTest` holds it to the server's tool definitions |
+| [MCP tool reference](mcp-reference.md) | The command line: how a tool is run as a command, what a command prints and its exit codes. And what each tool takes and returns: every text an agent reads, every limit, every error code. `ToolReferenceTest` holds it to the server's tool definitions |
 | [Architecture](architecture.md) | Components, connections, flows, the session lifecycle, trust boundaries, where things are |
 | [Security model](security-model.md) | The threat model and every rule: what is enforced where, where it stops, what is tested, what remains a risk |
 | [Corporate assessment](corporate-assessment.md) | A summary of the above for an organisation's review. It states facts and links; a rule is changed in the security model first |
@@ -357,6 +357,8 @@ is WP-12.
 2. Implement the page operation in `interact.ts` (or a new pure module) and route it in `content.ts`.
 3. Route the action in `runCommand` in `background.ts`.
 4. Add the tool in `BrowserService.java` (argument validation) and `McpMain.java` (definition).
+   The command line has it from there by itself: its commands and their arguments are the
+   tools' definitions (`Cli.java`).
 5. Test at each level: rule, DOM, routing, end to end.
 
 ## Protocol reference
@@ -454,6 +456,12 @@ by itself for this agent when the browser has to be paired (`--no-panel`). Both 
 `agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
 the proof that it holds that name's key (`AgentKeys.proof`). Without them, or with a proof that
 does not hold, the agent gets an id for this start only.
+A process that runs one command of the [command line](mcp-reference.md#the-command-line) adds
+`"cli": true` to its `attach`. The server then serves the agent of that key without ending it
+when the connection closes, and takes further such connections of the same key as the same
+agent; `refused` with the reason `agent_in_use` says that the key's agent is connected in the
+other way. What follows the `attached` is MCP as for any link: `initialize`, one `tools/call`,
+and `notifications/cancelled` if the process is ended first.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
 two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
 agent: a line of the agent's log, and the word that the user stopped the server, without which

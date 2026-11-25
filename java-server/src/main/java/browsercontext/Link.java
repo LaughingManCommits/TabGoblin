@@ -94,6 +94,10 @@ final class Link {
     private Channel channel;
     private volatile boolean inputEnded;
     private volatile boolean stopping;
+    /** This process runs one command for its agent and ends ({@link Cli}): the server keeps the agent between such commands. */
+    private boolean command;
+    /** Why the server would not have this process, if it said so. */
+    private volatile String refusal;
 
     /**
      * @param port    the port the server listens on for links
@@ -141,6 +145,21 @@ final class Link {
         this.starter = starter;
     }
 
+    /**
+     * For a process that runs one command and ends. The server is told so, and keeps the agent's
+     * connection to the browser for the next command; and a server that goes away under the
+     * command is not started anew: the command's outcome is unknown, and that is its answer.
+     */
+    Link forCommand() {
+        command = true;
+        return this;
+    }
+
+    /** The reason the server gave for not having this process, or null if it gave none. */
+    String refusal() {
+        return refusal;
+    }
+
     /** The port the one server listens on for links: the one after the agents' own. */
     static int port(int firstAgentPort) {
         return firstAgentPort + McpMain.PORT_RANGE;
@@ -182,6 +201,7 @@ final class Link {
                     }
                 }
             } catch (Refused e) {
+                refusal = e.getMessage();
                 say("no server to connect to reason=" + e.getMessage());
                 return null;
             } catch (IOException e) {
@@ -266,6 +286,9 @@ final class Link {
             ask.put("link", VERSION);
             ask.put("panel", panel);
             ask.put("quiet", quiet);
+            if (command && what.equals("attach")) {
+                ask.put("cli", true);
+            }
             if (what.equals("attach") && agent != null) {
                 // Who this agent is: the label of its key, and the proof that this process holds the
                 // key. A label the user revoked is named without a proof: no key is made for it.
@@ -342,6 +365,9 @@ final class Link {
             // The server's process is gone, and nobody stopped it. What the agent waits for has an
             // unknown outcome; then the server is had again, and told who this agent is.
             failPending();
+            if (command) {
+                return End.SERVER_LOST;
+            }
             say("the server has gone: starting it anew");
             Channel again;
             try {

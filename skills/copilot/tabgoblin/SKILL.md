@@ -1,13 +1,13 @@
 ---
 name: tabgoblin
-description: Read and operate the browser tabs the user has authorized in their own Chrome, through the browser_* tools of the TabGoblin MCP server. Use when a task needs a web page the user is logged in to, or asks to look at, click through, fill in or submit something in their browser. Covers getting a tab authorized, reading long pages, acting by element refs, submitting safely, and what to do when a tool refuses.
+description: Read and operate the browser tabs the user has authorized in their own Chrome, through the browser_* tools of the TabGoblin MCP server, or through the same tools as tabgoblin commands in a terminal. Use when a task needs a web page the user is logged in to, or asks to look at, click through, fill in or submit something in their browser. Covers getting a tab authorized, reading long pages, acting by element refs, submitting safely, and what to do when a tool refuses.
 argument-hint: What to do in the browser tab
 ---
 
 # TabGoblin
 
 TabGoblin lets you work in tabs of the user's own Chrome, with the user's own logins. You get
-fourteen tools: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_collect`,
+fourteen tools, as MCP tools or as commands in a terminal: `browser_status`, `browser_snapshot`, `browser_extract`, `browser_collect`,
 `browser_click`, `browser_hover`, `browser_fill`, `browser_press_key`, `browser_scroll`,
 `browser_navigate`, `browser_screenshot`, `browser_wait_for`, `browser_submit` and
 `browser_request_access`. You never get cookies, tokens
@@ -23,6 +23,8 @@ how much you may do there.
   browser.
 - Copilot may ask the user to allow a call to these tools. That is beside what the user
   decides in TabGoblin's popup, and does not replace it.
+- Without these tools, and set up for the command line instead: see "The command line"
+  below. Copilot runs the commands in its terminal, and may ask the user to allow each.
 
 ## Start with the status
 
@@ -41,6 +43,46 @@ how much you may do there.
 
 Ask for the lowest level that does the job. A session is one tab and one website; you cannot
 reach another site from it, and you cannot widen it yourself.
+
+## The command line
+
+The same fourteen tools are also commands of the `tabgoblin` program, for an agent that runs
+commands in a terminal and has no MCP. They are the same operations under the same rules: the
+same sessions, access levels, questions to the user and refusals. Nothing is allowed on one
+way that is not on the other.
+
+- **Which way:** if you have the `browser_status` tool, use the tools, and never the commands.
+  Use the commands only when you have no such tools at all and the user, or their instructions
+  for you, set you up for the command line. If the tools are there and refuse, are
+  disconnected or are blocked, do not go over to the commands, and the other way round: tell
+  the user. Which way you use is the user's decision.
+- **A command** is a tool's name without the prefix, with dashes: `browser_press_key` is
+  `tabgoblin press-key`. Its arguments are the tool's: `ref: 12` is `--ref 12`, and
+  `interactive_only: true` is `--interactive-only`. `tabgoblin tools --json` lists every
+  command with its description and the schema of its arguments, and
+  `tabgoblin <command> --help` says one. If `tabgoblin` is not found, ask the user for the
+  command their setup printed; do not search for another way into the browser.
+- **Who you are:** every command takes `--agent <name>`, the name the user's setup gave you,
+  the same at every command. By it your commands are one agent with its sessions. Do not make
+  up another name: it would be another agent, with no tab.
+- **Start** with `tabgoblin status --agent <name>`, and go on as this skill says for the
+  tools. The first command after a pause of some minutes may say that the extension is not
+  connected yet: it finds you within half a minute, or when the user opens the popup.
+- **Several arguments, lists, or text with quotes and line breaks:** give all arguments as
+  one JSON object, as `--args '{"ref": 12, "text": "…"}'`, from a file with
+  `--args-file <path>`, or on the command's input with `--args -`.
+- **The answer** is one JSON object on the output. `"ok": true` comes with `text`, which is
+  what the tool returns, with `result` where the tool returns an object, and with `image` for
+  `browser_screenshot` (`--out <file>` writes the picture to a file). `"ok": false` comes with
+  `error.code` and `error.message`: the codes of the table below. What a command writes
+  beside the output is its log, not a result.
+- **The exit code:** 0, it went through. 1, the tool refused or failed, as the code says. 2,
+  the command line was wrong (`USAGE`) and nothing was sent. 3, nothing was sent because no
+  server could be had (`NO_SERVER`), or because an agent of your name is connected through MCP
+  (`AGENT_IN_USE`): tell the user. 4, with `"outcome": "unknown"`: the command was sent and no
+  answer came. Look at the page before you do anything again.
+- **Let a command finish.** One that waits for the user's answer to a submission takes up to
+  95 seconds. Ending it cancels it in the browser, and its outcome is then unknown.
 
 ## Read
 
@@ -132,6 +174,7 @@ retried for you, and a refusal is never an error to work around.
 | `TAB_NOT_VISIBLE` | Ask the user to bring the tab to the front |
 | `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | The outcome is unknown. Look at the page before you do anything again |
 | `RATE_LIMITED` | Too many calls at once. Go on more slowly |
+| `USAGE`, `NO_SERVER`, `AGENT_IN_USE` | Only from a command of the command line, and nothing was sent: the command line was wrong; no server could be had; or an agent of your name is connected through MCP. For the last two, tell the user |
 
 ## Rules that do not bend
 

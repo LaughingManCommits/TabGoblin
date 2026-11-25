@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sixteen packages are listed. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Seventeen packages are listed. The newest is WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -1732,3 +1732,47 @@ does not go on trying the first while it has one (`test/background.test.ts`); en
 the first range held by another program. Acceptance, on a Windows machine with the first range
 reserved: an agent is started without `--port`, the popup is left as it is, and
 `browser_status` says connected. The tool's text changes where the status names the port.
+
+## WP-29: The tools as commands of a terminal
+
+Asked for by the owner on 2026-11-25: an agent that runs commands in a terminal and has no MCP
+is to use TabGoblin as an MCP agent does, through the same server and under the same rules.
+Built that day on the branch `ccr-6350ba03-tntbzp`, in a session that ran in the cloud. What a
+command is and prints is in the [tool reference](docs/mcp-reference.md#the-command-line); what
+keeps its agent apart is in the [security model](docs/security-model.md#agent-identity-and-authentication).
+
+### What was built
+
+- **`Cli.java`, an adapter and nothing else.** `tabgoblin <command> --agent <name> …` is one
+  MCP tool call. The commands and their arguments are read from `McpMain.toolSpecs`; nothing
+  of a tool is written a second time. `tools --json` lists them with their schemas.
+- **The same link.** A command connects as an MCP agent's process does (`Link`, with
+  `forCommand`), proves the token and its agent's key, sends `initialize` and one
+  `tools/call`, prints one JSON object and ends. No port, protocol or server was added, and
+  the extension's protocol is as it was.
+- **The agent stays between commands.** The extension finds a new agent only by looking at
+  the ports, in up to half a minute, so an agent that went with each command would never be
+  connected. The server keeps an agent of the command line, with its port and pairing, until
+  it has had no command for ten minutes (`Hub.serveCommand`, `letIdleGo`).
+- **One key, one agent, as before.** The commands of a key are that key's agent, also several
+  at once. A command whose key an MCP-connected agent holds is refused (`AGENT_IN_USE`); it
+  gets no id of its own, which would be an agent that no tab ever comes to.
+- **Setup:** `--setup <agent> --mode cli` prints the command in place of the line that
+  registers the server; `--mode mcp`, and no mode, is what setup did. The three skills have a
+  section on the command line, the same in all three.
+
+### Open, for the owner
+
+- **Ten minutes** is the session's choice. Longer keeps a port and the extension's worker for
+  longer; shorter makes "not connected" after a pause more frequent.
+  `BCMCP_COMMAND_IDLE_SECONDS` changes it for one server.
+- **`AGENT_IN_USE`, or the same agent?** A command under the name of an agent that is
+  connected through MCP is refused. It could be let into that agent instead, since it proves
+  the same key; refused is the narrower reading of "a key has one agent at a time".
+- **How the agent finds the command.** Setup says to put the download's folder on the `PATH`
+  or to tell the agent the line once. Setup writes nothing but the skill, so it does not write
+  the path anywhere.
+- **Not done:** the command line on Windows and macOS, where quoting JSON on a command line is
+  harder (`--args-file` and `--args -` are there for it); a real agent using the skill's new
+  section; progress while a command waits.
+

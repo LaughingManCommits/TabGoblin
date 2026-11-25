@@ -46,6 +46,12 @@ Start the agent again if it does not show the skill. A skill does not add the se
 agent has to know TabGoblin's MCP server first
 ([installation, step 5](../docs/installation.md#5-tell-your-agent-about-the-server)).
 
+A skill covers both ways to the tools: as MCP tools, and as commands in a terminal for an
+agent without MCP ([the command line](../docs/mcp-reference.md#the-command-line)). It is the
+same skill for both; `--setup <agent> --mode cli` installs it and prints the command instead
+of the line that registers the server. The skill tells the agent to use the way it was set up
+for, and not to change to the other by itself.
+
 ## What is the same and what is not
 
 The three say the same about TabGoblin. That part begins at "Start with the status" and is word

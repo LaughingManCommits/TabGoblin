@@ -123,6 +123,21 @@ same with the image `maven:3.9-eclipse-temurin-21`, the whole repository as `/sr
 
 Pairing and authorizing a tab are in the [installation guide](../installation.md).
 
+## Run a tool as a command
+
+```sh
+java -jar java-server/target/browser-context-mcp.jar tools
+java -jar java-server/target/browser-context-mcp.jar status --agent try-it --no-panel
+```
+
+Success: the first prints fourteen commands, without a server. The second prints one JSON
+object with `"ok":true` and the status in `text`, and exit code 0; the first command of a name
+takes up to ten seconds while no extension is connected. It starts the one server if none
+runs, and that server keeps the agent `try-it` for ten minutes: stop it as below, or start it
+with `BCMCP_COMMAND_IDLE_SECONDS=5` in the environment. `--token-file` and `--port` keep a try
+away from the server your own agents use. Tests: `mvn -q test -Dtest=CliTest`; end to end it
+is the section "The command line".
+
 ## Stop a server that is still running
 
 There is one server for all agents (`javaw` on Windows, with `--hub` in its command line). It

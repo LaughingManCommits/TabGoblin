@@ -48,7 +48,8 @@ final class Agent {
     /** The same for the log, in one short line: the window has the whole of it above. */
     private final String startupLogged;
     private final boolean listening;
-    private final McpSyncServer mcp;
+    /** The conversation this agent was begun with; null for an agent that comes by commands, each with a conversation of its own. */
+    private volatile McpSyncServer mcp;
 
     private Agent(WebSocketBridge bridge, String startupProblem, String startupLogged, boolean listening, BrowserService service,
             McpSyncServer mcp) {
@@ -86,6 +87,17 @@ final class Agent {
      */
     static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
             Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity) {
+        Agent agent = open(settings, held, unpaired, identity);
+        agent.mcp = agent.converse(in, out, onInputEnd);
+        return agent;
+    }
+
+    /**
+     * An agent with its connection to the extension and its tools, and no conversation yet: for an
+     * agent that comes by commands ({@link Cli}). Each command is a conversation of its own
+     * ({@link #converse}), and the agent stays between them.
+     */
+    static Agent open(Settings settings, boolean held, Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity) {
         WebSocketBridge bridge = null;
         String startupProblem = null;
         String startupLogged = null;
@@ -110,18 +122,27 @@ final class Agent {
         }
         bridge.blockedSites(settings.blocked());
         BrowserService service = new BrowserService(bridge, startupProblem, unpaired, identity);
+        return new Agent(bridge, startupProblem, startupLogged, listening, service, null);
+    }
+
+    /**
+     * One MCP conversation with this agent, read from {@code in} and answered on {@code out}. The
+     * tools are this agent's, whichever conversation calls them.
+     *
+     * @param onInputEnd run once when {@code in} ends
+     */
+    McpSyncServer converse(InputStream in, OutputStream out, Runnable onInputEnd) {
         McpJsonMapper mapper = McpJsonDefaults.getMapper();
         // An agent's name is taken from its opening message: a server that was started again is
         // given its tabs back by that name, and should not have to wait for a tool call to have it.
         // And the input's end is the agent's going, also where the SDK does not say so.
         StdinTap tap = new StdinTap(in, onInputEnd, service::noteClient, Log.of(bridge.clientId()));
-        McpSyncServer mcp = McpServer.sync(new StdioServerTransportProvider(mapper, tap, out))
+        return McpServer.sync(new StdioServerTransportProvider(mapper, tap, out))
                 .serverInfo(McpMain.identity())
                 .instructions(McpMain.INSTRUCTIONS)
                 .capabilities(McpSchema.ServerCapabilities.builder().tools(false).build())
                 .tools(McpMain.toolSpecs(service, mapper, tap))
                 .build();
-        return new Agent(bridge, startupProblem, startupLogged, listening, service, mcp);
     }
 
     /**
@@ -203,10 +224,13 @@ final class Agent {
      * it to find the connection gone.
      */
     void close() {
-        try {
-            mcp.closeGracefully();
-        } catch (RuntimeException e) {
-            // ending anyway
+        McpSyncServer own = mcp;
+        if (own != null) {
+            try {
+                own.closeGracefully();
+            } catch (RuntimeException e) {
+                // ending anyway
+            }
         }
         if (listening) {
             try {

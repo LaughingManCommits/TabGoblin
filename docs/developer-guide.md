@@ -21,6 +21,11 @@ The [installation guide](installation.md) has every step with what you should se
 4. Pair once: `tabgoblin --panel`, **Copy** next to *Pairing token*, paste into the popup,
    **Save and connect**.
 
+An agent that has a terminal and no MCP is set up with `tabgoblin --setup <agent> --mode cli`
+and runs the tools as commands: nothing is registered, and steps 3 and 4 are the same. The
+tools, the access levels and everything on this page hold for it as they do through MCP
+([the command line](mcp-reference.md#the-command-line)).
+
 Any agent that starts an MCP server over stdio can be connected. It needs a command and
 arguments:
 
@@ -260,7 +265,8 @@ None of these stops the server, and none needs to.
 of that agent then answers that it was revoked. See [agents](#agents).
 
 **Stop the server.** Normally there is nothing to stop: it ends by itself a few seconds after
-its last agent has gone. To stop it yourself, press **Stop server** in
+its last agent has gone. An agent of the command line counts as there for ten minutes after
+its last command. To stop it yourself, press **Stop server** in
 [its window](#the-servers-panel). Every agent then has no TabGoblin tools until its program
 connects again (in Claude Code, *Reconnect* under `/mcp`). Its tabs are kept.
 
@@ -350,6 +356,11 @@ same agent each time it starts.
   have to be authorized again. Its status says so.
 - **Use a different name for each agent.** Two agents that run at once under one name are not
   one agent: the second is known for its start only.
+- **An agent of the command line** has no process that stays, so it is its name and nothing
+  else: every command gives `--agent <name>`, and the commands of one name are one agent with
+  one set of tabs, whichever program runs them. A name that an agent connected through MCP
+  holds is refused to a command. More in the
+  [tool reference](mcp-reference.md#the-command-line).
 - **Point at an agent's name in the popup** to see its id and whether it has a key.
 - `tabgoblin --list-agents` lists the names that have a key, each with its id, and the revoked ones. `--revoke-agent <name>` deletes a
   key; `--allow-agent <name>` allows the name again, as a new agent with no tab.
@@ -451,12 +462,13 @@ variable is set in the environment the server is started in; the option wins.
 | `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
 | `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
 | none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
+| none | `BCMCP_COMMAND_IDLE_SECONDS` | `600` | How long the server keeps an agent of the [command line](mcp-reference.md#the-command-line) after its last command. Read by the server when it starts |
 
 Commands you run yourself, each of which does its part and returns:
 
 | Command | Does |
 |---|---|
-| `tabgoblin --setup <agent>` | Installs the agent's skill and prints how to register the server, load the extension and pair. `<agent>` is `claude-code`, `codex` or `copilot` |
+| `tabgoblin --setup <agent>` | Installs the agent's skill and prints how to register the server, load the extension and pair. `<agent>` is `claude-code`, `codex` or `copilot`. With `--mode cli` it prints the command the agent runs in its terminal instead, and nothing is registered; `--mode mcp` is the default |
 | `tabgoblin --install-skill <agent>` | Installs the skill only. `--replace` overwrites one that is there and differs |
 | `tabgoblin --panel` | Brings up the server's window |
 | `tabgoblin --show-token` | Prints the pairing token and the port |
@@ -466,6 +478,10 @@ Commands you run yourself, each of which does its part and returns:
 
 In a build from source, `java -jar java-server/target/browser-context-mcp.jar` stands for
 `tabgoblin`.
+
+Commands an agent runs, where it has a terminal and no MCP: `tabgoblin tools --json`,
+`tabgoblin status --agent <name>` and one for each tool. They are the same tools under the
+same rules, and are described in the [tool reference](mcp-reference.md#the-command-line).
 
 ## Troubleshooting
 
@@ -477,6 +493,10 @@ In a build from source, `java -jar java-server/target/browser-context-mcp.jar` s
 | *Server and extension versions differ* | The server and the extension are from different releases | Update both and reload the extension |
 | Agent says "not connected" right after starting | It asked before the extension found its server | It waits up to 10 seconds by itself; opening the popup connects at once |
 | Agent has no tabs after a restart | It was registered without `--agent`, so it is a new agent each time | Add `--agent <name>` to its registration |
+| A command answers `AGENT_IN_USE` | An agent of that name is connected through MCP. A name has one agent at a time | Use that agent's MCP tools, or set the command line up under another name. It is then another agent, and needs its tabs authorized |
+| A command answers `NO_SERVER` | The server could not be reached or started: another program holds its port, or the command has another `--port` or `--token-file` than the server | Run `tabgoblin --panel`; give the commands the options the server has |
+| A command says "not connected" after a pause | The agent had no command for ten minutes and was let go; the extension has to find it again | Run the command again in half a minute, or open the popup. `BCMCP_COMMAND_IDLE_SECONDS` sets a longer time |
+| An agent of the command line stays listed in the popup after its work | The server keeps it for ten minutes after its last command | Nothing; **Disconnect** ends it at once |
 | Agent says a ref is stale | The page changed since its snapshot | Nothing; the agent takes a new snapshot |
 | Agent says the session is suspended | The tab left its website | Click the TabGoblin icon on that tab and resume |
 | Agent says a site is blocked or not allowed | The settings file names it, or does not allow it | Change the file if you want the agent there |

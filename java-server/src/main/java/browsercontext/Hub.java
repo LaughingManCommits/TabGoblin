@@ -44,19 +44,46 @@ final class Hub {
     /** How long the server waits for an agent after its last one has gone, before it ends. */
     static final long EMPTY_FOR_MS = 3_000;
     private volatile long emptyFor = EMPTY_FOR_MS;
+    /**
+     * How long an agent that comes by commands is kept after its last command has left: its
+     * connection to the browser stays for the next command, which would otherwise have to wait
+     * until the extension has found the agent anew.
+     */
+    static final long COMMAND_IDLE_MS = 10 * 60_000;
+    private volatile long commandIdle = COMMAND_IDLE_MS;
 
-    /** One agent that is connected, and the way its link is written to. */
-    static final class Member {
+    /** One connection of an agent's process, and the way it is written to. */
+    private static final class Conn {
         private final Socket socket;
         private final LineOut out;
+        private final AtomicBoolean gone = new AtomicBoolean();
+        /** The conversation of one command; null for the one connection of an agent that stays connected. */
+        private volatile io.modelcontextprotocol.server.McpSyncServer talk;
+
+        private Conn(Socket socket, LineOut out) {
+            this.socket = socket;
+            this.out = out;
+        }
+    }
+
+    /**
+     * One agent of the server, and the connections of its processes: one for an agent whose program
+     * stays connected, and one for each command that is running for an agent that comes by commands.
+     */
+    static final class Member {
+        private final List<Conn> links = new CopyOnWriteArrayList<>();
         private final AtomicBoolean gone = new AtomicBoolean();
         private volatile Agent agent;
         /** The id this agent has by its key, which no other has while it is here; null for an id of this start. */
         private volatile String byKey;
+        /** For an agent that comes by commands: when its last command left, or 0 while one is running. */
+        private volatile long idleSince;
+
+        private Member() {
+        }
 
         private Member(Socket socket, LineOut out) {
-            this.socket = socket;
-            this.out = out;
+            links.add(new Conn(socket, out));
         }
 
         Agent agent() {
@@ -129,6 +156,14 @@ final class Hub {
     private final Deque<Long> failedProofs = new ArrayDeque<>();
     /** The ids of the agents that are here by a key: a key has one agent at a time. */
     private final Set<String> present = ConcurrentHashMap.newKeySet();
+    /**
+     * The agents that come by commands, by the id of their key. Each is the one agent of its key,
+     * as any other: its commands are processes that proved that key, one after another or several
+     * at once, and they have the one agent's sessions. Guards itself.
+     */
+    private final java.util.Map<String, Member> commanded = new java.util.HashMap<>();
+    /** Said by {@link #identify} to a command whose key an agent holds that stays connected. */
+    private static final AgentKeys.Identity IN_USE = new AgentKeys.Identity("", null, false, () -> false);
     private final BiConsumer<String, String> logTo = this::passOn;
     private volatile boolean standing;
     private volatile boolean held;
@@ -259,6 +294,7 @@ final class Hub {
         boolean kept = false;
         Member joining = null;
         String byKey = null;
+        String commandOf = null;
         try {
             socket.setSoTimeout(5000);
             socket.setTcpNoDelay(true);
@@ -306,14 +342,21 @@ final class Hub {
                 return;
             }
             // Who the agent is, before anything is said to it: a key that is not proven is no agent of this server.
-            AgentKeys.Identity identity = identify(ask, nonce, linkNonce);
+            boolean command = ask.path("cli").asBoolean(false);
+            AgentKeys.Identity identity = identify(ask, nonce, linkNonce, command);
             if (identity == null) {
                 noteFailedProof();
                 Log.warn("link rejected reason=agent_proof");
                 refuse(to, "agent_proof");
                 return;
             }
-            byKey = identity.persistent() ? identity.id() : null;
+            if (identity == IN_USE) {
+                // A key has one agent at a time: a command does not become a second one beside it, and is not let into the first.
+                Log.warn("command rejected reason=agent_in_use");
+                refuse(to, "agent_in_use");
+                return;
+            }
+            commandOf = command && identity.persistent() ? identity.id() : null;
             answer.put("type", "attached");
             line(to, answer);
             if (ask.path("panel").asBoolean(false)) {
@@ -321,6 +364,13 @@ final class Hub {
             }
             socket.setSoTimeout(0);
             LineOut out = new LineOut(to);
+            if (commandOf != null) {
+                // The key's agent is taken from here on by the list of those that come by commands.
+                serveCommand(identity, socket, out, ask.path("quiet").asBoolean(false));
+                kept = true;
+                return;
+            }
+            byKey = identity.persistent() ? identity.id() : null;
             Member member = new Member(socket, out);
             // In the list before it is served: its first lines in the log are passed on to it.
             joining = member;
@@ -337,6 +387,14 @@ final class Hub {
             if (!kept) {
                 if (byKey != null) {
                     present.remove(byKey);
+                }
+                if (commandOf != null) {
+                    // A first command that did not get as far as its agent leaves the key free again.
+                    synchronized (commanded) {
+                        if (!commanded.containsKey(commandOf)) {
+                            present.remove(commandOf);
+                        }
+                    }
                 }
                 close(socket);
                 // One that was taken into the list and could not be served is not kept there: a server
@@ -357,7 +415,7 @@ final class Hub {
      * revoked. And of two processes that hold the same key at once, the second has an id for
      * this start: a tab has one agent, and the first is the one that has the key's tabs.
      */
-    private AgentKeys.Identity identify(JsonNode ask, String nonce, String linkNonce) {
+    private AgentKeys.Identity identify(JsonNode ask, String nonce, String linkNonce, boolean command) {
         Path keys = settings.agentKeys();
         if (!ask.hasNonNull("agent") || keys == null) {
             return AgentKeys.Identity.ephemeral();
@@ -376,6 +434,14 @@ final class Hub {
             return null;
         }
         String id = AgentKeys.idOf(key);
+        if (command) {
+            synchronized (commanded) {
+                // The agent of this key comes by commands and is here: this command is one more of its own.
+                if (commanded.containsKey(id)) {
+                    return new AgentKeys.Identity(id, label, true, () -> AgentKeys.revoked(keys, label));
+                }
+            }
+        }
         // An agent that is started again may be here before its former process has been let go: that
         // is given a moment, so that the agent is itself again and not taken for a second one.
         boolean free = present.add(id);
@@ -388,11 +454,103 @@ final class Hub {
             }
             free = present.add(id);
         }
+        if (!free && command) {
+            return IN_USE;
+        }
         if (!free) {
             Log.warn("agent label=" + label + " is connected already: this one has an id for this start only");
             return new AgentKeys.Identity(id + "~" + Pairing.randomHex(2), label, false, () -> AgentKeys.revoked(keys, label));
         }
         return new AgentKeys.Identity(id, label, true, () -> AgentKeys.revoked(keys, label));
+    }
+
+    /**
+     * One command of an agent that comes by commands. The agent is made at its first command and
+     * stays between them, with its connection to the extension; a command is one MCP conversation
+     * with it, and ends with its process.
+     */
+    private void serveCommand(AgentKeys.Identity identity, Socket socket, LineOut out, boolean quiet) throws IOException {
+        Conn conn = new Conn(socket, out);
+        Member member;
+        synchronized (commanded) {
+            member = commanded.get(identity.id());
+            if (member == null) {
+                // The first of its commands: the key's id is among those present from here on.
+                present.add(identity.id());
+                member = new Member();
+                member.byKey = identity.id();
+                members.add(member);
+                emptySince = 0;
+                member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity);
+                member.agent.announce();
+                commanded.put(identity.id(), member);
+            }
+            member.links.add(conn);
+            member.idleSince = 0;
+        }
+        Member its = member;
+        try {
+            conn.talk = member.agent.converse(socket.getInputStream(), out, () -> commandLeft(its, conn));
+        } catch (IOException | RuntimeException e) {
+            commandLeft(its, conn);
+            throw e;
+        }
+        if (conn.gone.get()) {
+            closeTalk(conn);
+        }
+    }
+
+    /** A command's process has gone. Its conversation ends; the agent stays for the next one. */
+    private void commandLeft(Member member, Conn conn) {
+        if (!conn.gone.compareAndSet(false, true)) {
+            return;
+        }
+        Thread ending = new Thread(() -> {
+            closeTalk(conn);
+            close(conn.socket);
+            synchronized (commanded) {
+                member.links.remove(conn);
+                if (member.links.isEmpty()) {
+                    member.idleSince = System.currentTimeMillis();
+                }
+            }
+        }, "bcmcp-hub-command-left");
+        ending.setDaemon(true);
+        ending.start();
+    }
+
+    private static void closeTalk(Conn conn) {
+        io.modelcontextprotocol.server.McpSyncServer talk = conn.talk;
+        if (talk != null) {
+            try {
+                talk.closeGracefully();
+            } catch (RuntimeException e) {
+                // ending anyway
+            }
+        }
+    }
+
+    /** Lets go of the agents that come by commands and have had none for a while. */
+    private void letIdleGo() {
+        // All of it at once: a command that comes meanwhile finds its agent either here or gone, and its key free.
+        synchronized (commanded) {
+            long now = System.currentTimeMillis();
+            for (var it = commanded.values().iterator(); it.hasNext();) {
+                Member member = it.next();
+                if (!member.links.isEmpty() || member.idleSince == 0 || now - member.idleSince < commandIdle) {
+                    continue;
+                }
+                it.remove();
+                Agent agent = member.agent;
+                Log.of(agent.bridge().clientId()).info("agent left reason=no_command_for_a_while client=" + agent.bridge().clientId());
+                agent.close();
+                present.remove(member.byKey);
+                members.remove(member);
+                if (members.isEmpty()) {
+                    emptySince = System.currentTimeMillis();
+                }
+            }
+        }
     }
 
     private void refuse(OutputStream to, String reason) throws IOException {
@@ -454,7 +612,7 @@ final class Hub {
                 present.remove(member.byKey);
             }
             members.remove(member);
-            close(member.socket);
+            member.links.forEach(conn -> close(conn.socket));
             if (members.isEmpty()) {
                 emptySince = System.currentTimeMillis();
             }
@@ -471,6 +629,7 @@ final class Hub {
             } catch (InterruptedException e) {
                 return;
             }
+            letIdleGo();
             long since = emptySince;
             if (!standing && !stopping && members.isEmpty() && since > 0 && System.currentTimeMillis() - since >= emptyFor) {
                 Log.info("server ending reason=no_agent_left");
@@ -485,7 +644,7 @@ final class Hub {
         for (Member member : members) {
             Agent its = member.agent;
             if (agent == null || (its != null && agent.equals(its.bridge().clientId()))) {
-                member.out.control("log", message, json);
+                member.links.forEach(conn -> conn.out.control("log", message, json));
             }
         }
     }
@@ -498,14 +657,15 @@ final class Hub {
         stopping = true;
         Log.unwritten(logTo);
         for (Member member : members) {
-            member.out.control("stopping", null, json);
+            member.links.forEach(conn -> conn.out.control("stopping", null, json));
         }
         for (Member member : members) {
             Agent agent = member.agent;
+            member.links.forEach(Hub::closeTalk);
             if (agent != null) {
                 agent.close();
             }
-            close(member.socket);
+            member.links.forEach(conn -> close(conn.socket));
         }
         members.clear();
         try {
@@ -528,6 +688,11 @@ final class Hub {
         return !listening.isClosed();
     }
 
+    /** How long an agent that comes by commands is kept without one, where it is not {@link #COMMAND_IDLE_MS}. */
+    void commandIdle(long ms) {
+        commandIdle = ms;
+    }
+
     /** For tests: a shorter wait for an agent after the last one has gone. */
     void emptyFor(long ms) {
         emptyFor = ms;
@@ -546,7 +711,7 @@ final class Hub {
             // gone anyway
         }
         for (Member member : members) {
-            close(member.socket);
+            member.links.forEach(conn -> close(conn.socket));
             Agent agent = member.agent;
             if (agent != null) {
                 agent.close();

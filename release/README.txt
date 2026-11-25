@@ -5,7 +5,8 @@ else of your browser.
 
 What is in this folder
 
-  tabgoblin                  (tabgoblin.cmd on Windows) starts the server for you: setup, the server's window, the token
+  tabgoblin                  (tabgoblin.cmd on Windows) starts the server for you: setup, the server's window, the token;
+                             and runs one tool as a command, for an agent that has a terminal and no MCP
   browser-context-mcp.jar    the server
   runtime                    the Java the server runs on; nothing has to be installed
   extension                  the Chrome extension, to be loaded unpacked
@@ -27,6 +28,16 @@ Set it up, once
 
   3. Do those three. Then start your agent anew, open a website, click the goblin on that tab,
      press Authorize, and ask the agent for the browser status.
+
+Without MCP
+
+  An agent that runs commands in a terminal and has no MCP uses the same tools as commands of
+  this folder's tabgoblin, under the same rules. Set it up with
+
+         tabgoblin --setup claude-code --mode cli
+
+  which registers nothing and prints the command the agent runs. "tabgoblin tools" lists the
+  commands.
 
 Update
 

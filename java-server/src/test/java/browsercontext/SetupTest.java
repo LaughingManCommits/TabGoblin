@@ -124,4 +124,33 @@ class SetupTest {
         assertTrue(without.contains("(not found beside this server"), without);
         assertTrue(without.contains("     " + bare.command() + " --panel\n"), without);
     }
+
+    @Test
+    void setUpForTheCommandLineNothingIsRegisteredAndTheCommandIsSaidWithThisServersOwnPaths(@TempDir Path dir) throws Exception {
+        Path folder = download(dir, true);
+        Setup.Self self = Setup.Self.at(folder.resolve("runtime").resolve("bin").resolve("java.exe"),
+                folder.resolve("browser-context-mcp.jar"), "Windows 11");
+        Skills.Result skill = Skills.install(Skills.Agent.CODEX, dir.resolve("home"), false);
+        String said = Setup.says(skill, self, true);
+        assertTrue(said.contains("1. The skill, which tells the agent how to use the tools: installed in "), said);
+        assertTrue(said.contains("2. The command. Nothing is registered: Codex runs the tools as commands in its\n"), said);
+        assertTrue(said.contains("\n     \"" + folder.resolve("tabgoblin.cmd") + "\" status --agent codex\n"), said);
+        assertTrue(said.contains("Put this folder on your PATH so that the agent finds it:\n\n     " + folder + "\n"), said);
+        assertFalse(said.contains("mcp add"), "no line that tells an agent about an MCP server: " + said);
+        assertTrue(said.contains("3. The extension.") && said.contains("4. Pair, once."), "the rest is the same");
+        assertTrue(said.contains("the agent does not change from one to the other by itself"), said);
+        // Without the mode it is as it was: the server is registered, and no command is named.
+        String mcp = Setup.says(skill, self, false);
+        assertEquals(Setup.says(skill, self), mcp);
+        assertTrue(mcp.contains("codex mcp add") && !mcp.contains("2. The command."), mcp);
+
+        // A build from source has no command of its own: the agent is told the Java and the jar.
+        Path checkout = dir.resolve("checkout");
+        Path jar = Files.createDirectories(checkout.resolve("java-server").resolve("target")).resolve("browser-context-mcp.jar");
+        Files.writeString(jar, "");
+        Setup.Self source = Setup.Self.at(dir.resolve("java"), jar, "Linux");
+        assertEquals("\"" + dir.resolve("java").toAbsolutePath() + "\" -jar \"" + jar.toAbsolutePath() + "\" status --agent copilot",
+                Setup.commandLine(Skills.Agent.COPILOT, source, "status"));
+        assertTrue(Setup.says(skill, source, true).contains("A build from source has no such command"));
+    }
 }
