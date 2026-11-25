@@ -70,8 +70,9 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
   <name>`), for an agent without MCP. A command is one MCP tool call through the same link to
   the same server; the server keeps such an agent between its commands. `--setup <agent>
   --mode cli`, a section in the three skills, and the documentation. Committed there by the
-  session and pushed to that branch, as the session's instructions had it; not merged, and no
-  pull request.
+  session. Not pushed: the owner pushes, and was not asked. The session's container does not
+  last, so the commit is lost with it unless it is pushed first. Not merged, and no pull
+  request.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
