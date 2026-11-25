@@ -10,7 +10,7 @@ operate the Chrome tabs the user authorizes, without giving them cookies, tokens
 to run code. An agent reaches it through a CLI or through MCP, which are two interfaces to the
 same tools and rules. Two parts:
 
-- `java-server/`: the local server, with both interfaces (Java 21, official MCP Java SDK, stdio). Entry point
+- `java-server/`: the local server, with both interfaces (Java 25, official MCP Java SDK, stdio). Entry point
   `McpMain.java`. It offers fourteen generic `browser_*` tools and knows no website. There is one
   server process for all agents (`Hub.java`); the process an agent starts passes its messages
   on to it (`Link.java`). An agent without MCP runs the same tools as commands of the same

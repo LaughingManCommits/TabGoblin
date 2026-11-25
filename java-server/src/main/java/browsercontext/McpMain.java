@@ -628,12 +628,8 @@ public final class McpMain {
         if (console == null) {
             return false;
         }
-        try {
-            // Java 22 and newer return a console even when input is a pipe; they can say which it is.
-            return (boolean) java.io.Console.class.getMethod("isTerminal").invoke(console);
-        } catch (ReflectiveOperationException e) {
-            return true; // Java 21: a console exists only when a terminal is attached
-        }
+        // A console is returned even when input is a pipe; it says which it is.
+        return console.isTerminal();
     }
 
     /** What is running and has to be ended in order: the server with its agents, or the one agent of a process that serves alone. */

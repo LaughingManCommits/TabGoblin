@@ -3,7 +3,7 @@
 ## Layout
 
 ```text
-java-server/         the server, with its CLI and its MCP interface (Java 21, Maven)
+java-server/         the server, with its CLI and its MCP interface (Java 25, Maven)
 chrome-extension/    the extension (TypeScript, Manifest V3, esbuild)
   src/               sources
   test/              unit tests (node:test, jsdom)
@@ -309,13 +309,13 @@ browser has to be paired. How it is built:
   as a picture that holds its pixels as bytes; a drawing comes as one number per pixel and is
   passed over without a word, which leaves Java's icon on the taskbar. So the icons are copied
   into the kind that is taken, and a test holds that.
-- **JavaFX 23 is in the jar,** the newest that runs on Java 21 (each later one needs a later Java: 27 needs Java 25). It is what tells the window whether the system is set to light or dark. What it does not tell is whether the user asked for less motion: that came with JavaFX 24, so the window keeps still for it only on a newer JavaFX than the jar has. JavaFX is there with its native part for Windows on x64, Linux on x64 and macOS
+- **JavaFX 27 is in the jar,** and it needs Java 25, which is why the server does. Each JavaFX is compiled for a Java of its time: 23 for Java 21, 27 for Java 25. It tells the window whether the system is set to light or dark, and whether the user asked the system for less motion, which JavaFX has said since 24. It also has a window style with the system's own buttons around a header of one's own (`StageStyle.EXTENDED`); the panel does not use it yet. JavaFX is there with its native part for Windows on x64, Linux on x64 and macOS
   on Apple silicon; that took the jar from 7.1 MB to 17.6 MB when it was added. A jar holds one
   set of native files per system, because those for Intel and for ARM have the same names.
   JavaFX unpacks them into
   `.openjfx` in the home folder, and writes to standard error: one warning at the start, that
   it was loaded from the class path, and on Java 26 four lines of Java's own, that a method
-  JavaFX draws with is to be removed. The 21 line of JavaFX is the one that runs on Java 21.
+  JavaFX draws with is to be removed. The jar is 19.2 MB with JavaFX 27.
 
 A drawing of the panel can be right where the window is not: how to look at the window after a
 change is in the [runbook](agents/runbook.md#look-at-the-servers-panel), and what was run on

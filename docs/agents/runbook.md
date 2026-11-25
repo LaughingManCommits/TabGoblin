@@ -110,7 +110,7 @@ docker run --rm --cpuset-cpus=0,1 -v "${PWD}/chrome-extension:/src:ro" node:24 b
 Success: `ℹ fail 0` and exit code 0. The sources are copied inside the container, so that its
 `node_modules` are Linux's own and the working tree is left alone. `--cpuset-cpus=0,1` gives it
 two cores, as a small runner has; timing faults show sooner there. The Java server job is the
-same with the image `maven:3.9-eclipse-temurin-21`, the whole repository as `/src`, `target` and
+same with the image `maven:3.9-eclipse-temurin-25`, the whole repository as `/src`, `target` and
 `.git` excluded as well, and `mvn -B -f java-server/pom.xml verify` as the command.
 
 ## Try a change in a real browser
@@ -304,7 +304,7 @@ bash release/bundle.sh                              # on Windows: in Git Bash
 ```
 
 Success: `Made .../release/out/tabgoblin-<version>-<system>-<machine>` with `.zip` on Windows
-and `.tar.gz` elsewhere, about 50 MB; the folder is not in git. It needs a JDK 21 or newer on
+and `.tar.gz` elsewhere, about 50 MB; the folder is not in git. It needs a JDK 25 or newer on
 the path. Unpack it into a folder with a space in its name and try: `tabgoblin --help`;
 `tabgoblin --setup claude-code` with a home folder made for the purpose
 (`JAVA_TOOL_OPTIONS=-Duser.home=<folder without a space>`), which must put the skill there and

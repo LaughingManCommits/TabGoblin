@@ -423,7 +423,7 @@ The panel grants nothing: authorizing a tab, changing a level and revoking stay 
 
 | System | The window | Seen running |
 |---|---|---|
-| Windows | Without a system frame; its header moves it | On Java 21 and Java 26 |
+| Windows | Without a system frame; its header moves it | On Java 25. Before the server needed Java 25, on Java 21 and Java 26 |
 | Linux (x64), macOS (Apple silicon) | The same panel in a window with the system's frame | On Ubuntu in the Linux subsystem of Windows, without pressing its buttons. Not on another Linux desktop, not on macOS |
 | Any other system, or no display | None: the server says so in its log and runs as without the option | Without a display, on Linux |
 

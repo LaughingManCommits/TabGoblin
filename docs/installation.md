@@ -146,7 +146,7 @@ and each is on its own line so it works the same in PowerShell, Command Prompt a
 
 | You need | Version | Check with | Get it from |
 |---|---|---|---|
-| Java (JDK) | 21 or newer | `java -version` | [adoptium.net](https://adoptium.net) |
+| Java (JDK) | 25 or newer | `java -version` | [adoptium.net](https://adoptium.net) |
 | Maven | 3.8 or newer | `mvn -v` | [maven.apache.org](https://maven.apache.org/download.cgi) |
 | Node.js | 24 or newer | `node -v` | [nodejs.org](https://nodejs.org) |
 | Google Chrome | 120 or newer | `chrome://version` | – |
@@ -379,7 +379,8 @@ do not, the popup says *Server and extension versions differ*. The pairing survi
 
 | What happens | Why | What to do |
 |---|---|---|
-| `mvn` reports *release version 21 not supported* | Maven runs on an older Java | Point `JAVA_HOME` at a JDK 21 or newer; check with `mvn -v` |
+| `mvn` reports *release version 25 not supported* | Maven runs on an older Java | Point `JAVA_HOME` at a JDK 25 or newer; check with `mvn -v` |
+| `java -jar` reports *UnsupportedClassVersionError … class file version 69.0* | The jar is started with a Java older than 25. Since the server needs Java 25, an agent's registration that names an older `java` no longer starts it | Name a Java 25 or newer in the command that starts the server; check with `java -version`. A download has its own runtime and is not affected |
 | `mvn` or `java` *is not recognized* | Not installed or not on the `PATH` | Install it and open a new terminal |
 | `npm run build` cannot find `esbuild` | `npm install` did not finish | Run `npm install` again in `chrome-extension` |
 | Chrome says *Manifest file is missing or unreadable* | The wrong folder was chosen | Choose `chrome-extension/dist`, and build first |

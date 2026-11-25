@@ -11,10 +11,10 @@
     <name>Browser Context MCP server</name>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- The long-term line of JavaFX that runs on Java 21, which this server targets. Newer lines need a newer Java. -->
-        <javafx.version>23.0.2</javafx.version>
+        <!-- JavaFX 27 needs Java 25, the long-term release this server targets. It tells the window the system's theme and whether less motion is asked for. -->
+        <javafx.version>27.0.1.1</javafx.version>
     </properties>
 
     <dependencies>

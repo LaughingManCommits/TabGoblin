@@ -280,8 +280,8 @@ final class Panel {
             // As the system is set: light or dark as the popup is, and still where less motion is asked for.
             var system = Platform.getPreferences();
             view.light(system.getColorScheme() == javafx.application.ColorScheme.LIGHT);
-            calm = lessMotion(system);
-            system.addListener((javafx.collections.MapChangeListener<String, Object>) change -> calm = lessMotion(system));
+            calm = system.isReducedMotion();
+            system.reducedMotionProperty().addListener((property, was, less) -> calm = less);
 
             boolean floating = floats(System.getProperty("os.name", ""), Platform.isSupported(ConditionalFeature.TRANSPARENT_WINDOW));
             var stage = new Stage(floating ? StageStyle.TRANSPARENT : StageStyle.DECORATED);
@@ -353,21 +353,11 @@ final class Panel {
     private static final Color GROUND_LIGHT = Color.web("#f4f7f3");
 
     /**
-     * Whether the user has asked the system for less motion. Nothing in the window moves then: the
-     * goblin does not blink and the switch does not slide. Used on JavaFX's thread only.
+     * Whether the user has asked the system for less motion, as JavaFX reports it. Nothing in the
+     * window moves then: the goblin does not blink and the switch does not slide. Used on JavaFX's
+     * thread only.
      */
     static boolean calm;
-
-    /**
-     * What the system says about motion, as far as this JavaFX is told it: on Windows, that
-     * animations in windows are switched off. A JavaFX that is told nothing says no, and the
-     * window moves as it always did.
-     */
-    static boolean lessMotion(java.util.Map<String, Object> system) {
-        return Boolean.FALSE.equals(system.get("Windows.SPI.ClientAreaAnimation"))
-                || Boolean.FALSE.equals(system.get("GTK.enable_animations"))
-                || Boolean.TRUE.equals(system.get("macOS.NSWorkspace.accessibilityDisplayShouldReduceMotion"));
-    }
 
     /**
      * Where the user left the window, and how high: kept in the user's own preferences of Java, and

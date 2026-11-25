@@ -727,12 +727,23 @@ class PanelTest {
             return seen;
         });
         assertEquals(List.of("false", "1", "false"), classes);
-        // Less motion: what each system says when the user asked for it. A JavaFX that is told nothing says nothing.
-        assertFalse(Panel.lessMotion(java.util.Map.of()));
-        assertFalse(Panel.lessMotion(java.util.Map.of("Windows.SPI.ClientAreaAnimation", true)));
-        assertTrue(Panel.lessMotion(java.util.Map.of("Windows.SPI.ClientAreaAnimation", false)));
-        assertTrue(Panel.lessMotion(java.util.Map.of("GTK.enable_animations", false)));
-        assertTrue(Panel.lessMotion(java.util.Map.of("macOS.NSWorkspace.accessibilityDisplayShouldReduceMotion", true)));
+        // Less motion, where the system asks for it: the switch is where it belongs at once, without a slide.
+        boolean was = Panel.calm;
+        try {
+            double[] knob = inTheWindow(sent -> {
+                Panel.calm = true;
+                var view = new Panel.View(sent::add);
+                view.show(model(true, false));
+                var toggle = (javafx.scene.control.ToggleButton) view.root().lookup(".switch");
+                double on = toggle.getGraphic().lookup(".knob").getTranslateX();
+                toggle.fire();
+                return new double[] {on, toggle.getGraphic().lookup(".knob").getTranslateX()};
+            });
+            assertEquals(20, knob[0]);
+            assertEquals(0, knob[1], "off, and there already");
+        } finally {
+            Panel.calm = was;
+        }
         // A place that was kept is used only while it is on a screen: a screen that is gone does not take the window with it.
         assertFalse(new Panel.Place(0, 0, 0, false).onAScreen(Panel.WIDTH), "nothing was kept");
         boolean[] on = inTheWindow(sent -> {
