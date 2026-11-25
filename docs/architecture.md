@@ -365,7 +365,7 @@ sequenceDiagram
 stateDiagram-v2
   [*] --> PREPARED: refs resolve, allowed, not a duplicate
   PREPARED --> [*]: declined, unanswered, cancelled or stale, nothing typed
-  PREPARED --> FILLED: allowed by the user, or not asked under their setting; fields filled
+  PREPARED --> FILLED: allowed by the user, or not asked under their setting
   FILLED --> FAILED: form validation rejects, nothing sent
   FILLED --> SUBMITTING: click or Enter dispatched
   SUBMITTING --> VERIFYING
