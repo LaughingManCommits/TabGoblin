@@ -17,7 +17,7 @@ import java.util.stream.Stream;
  * repository's {@code skills} folder, one for each agent, and the build takes them into the jar.
  *
  * <p>Each agent has two: one for the MCP tools, and one for the same tools as commands of a
- * terminal ({@link Cli}), in {@code skills/cli}. They have one name and one place, so an agent
+ * terminal ({@link Cli}), in {@code skills/mcp} and {@code skills/cli}. They have one name and one place, so an agent
  * has the one for the way it was set up and not both: a skill says how to reach the tools, and
  * an agent is not to change from one way to the other by itself.
  *
@@ -168,11 +168,11 @@ final class Skills {
         return bundled(agent, false);
     }
 
-    /** @param commandLine the agent's skill for the command line, which the jar has under {@code skills/cli} */
+    /** @param commandLine the agent's skill for the command line, which the jar has under {@code skills/cli}, where the other is under {@code skills/mcp} */
     static Map<String, byte[]> bundled(Agent agent, boolean commandLine) throws IOException {
         Map<String, byte[]> files = new LinkedHashMap<>();
         for (String file : agent.files()) {
-            String resource = "/skills/" + (commandLine ? "cli/" : "") + agent.id() + "/" + NAME + "/" + file;
+            String resource = "/skills/" + (commandLine ? "cli/" : "mcp/") + agent.id() + "/" + NAME + "/" + file;
             try (InputStream in = Skills.class.getResourceAsStream(resource)) {
                 if (in == null) {
                     throw new IOException("This build carries no " + resource.substring(1) + ". Build the server again.");

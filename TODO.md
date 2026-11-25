@@ -1247,7 +1247,7 @@ knowledge that they are three texts to keep the same by hand.
 On the branch `agent-skills` (made from `smoke-fixes`), and committed there on the owner's
 word.
 
-- **`skills/claude-code`, `skills/codex`, `skills/copilot`,** each with a `tabgoblin/SKILL.md`,
+- **`skills/claude-code`, `skills/codex`, `skills/copilot`** (under `skills/mcp` since 2026-11-25), each with a `tabgoblin/SKILL.md`,
   and `skills/README.md`, which says where each agent wants its skill. The head of each is its
   agent's own: how the tools are named there and what to ask the user for when they are
   missing; `when_to_use` for Claude Code; `agents/openai.yaml` for Codex; `argument-hint` for
@@ -1761,6 +1761,8 @@ keeps its agent apart is in the [security model](docs/security-model.md#agent-id
   registers the server; `--mode mcp`, and no mode, is what setup did.
 - **A skill of its own,** on the owner's word the same day ("Separate CLI-only skill"): three
   skills in `skills/cli`, one for each agent, in terms of commands and naming no MCP tool. The
+  skills for MCP moved to `skills/mcp` on the owner's word, so that the folder is split by the
+  way an agent reaches the tools. The
   skills for MCP name no command. `--mode cli` installs it, with `--setup` or
   `--install-skill`; the two of an agent have one name and one place and take each other's
   place.

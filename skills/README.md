@@ -6,15 +6,18 @@ authorized, how to read a long page, how to act and to submit, and what to do wh
 refuses. The server itself tells every agent a few lines of this when it connects; a skill has
 room for the rest.
 
-There is one for each of three agents. They follow the same open format
+They are in two folders, by the way an agent reaches the tools: `mcp/` for an agent that has
+TabGoblin's MCP tools, and `cli/` for one that runs the same tools as commands in a terminal
+([below](#the-skills-for-the-command-line)). In each there is one for each of three agents.
+They follow the same open format
 ([agentskills.io](https://agentskills.io/specification)), and each agent looks for skills in a
 place of its own:
 
-| Agent | The skill here | For you, in every project | For one project |
+| Agent | The skills here | For you, in every project | For one project |
 |---|---|---|---|
-| Claude Code | `claude-code/tabgoblin/` | `~/.claude/skills/tabgoblin/` | `.claude/skills/tabgoblin/` |
-| Codex | `codex/tabgoblin/` | `~/.agents/skills/tabgoblin/` | `.agents/skills/tabgoblin/` |
-| GitHub Copilot | `copilot/tabgoblin/` | `~/.copilot/skills/tabgoblin/` | `.github/skills/tabgoblin/` |
+| Claude Code | `mcp/claude-code/tabgoblin/`, `cli/claude-code/tabgoblin/` | `~/.claude/skills/tabgoblin/` | `.claude/skills/tabgoblin/` |
+| Codex | `mcp/codex/tabgoblin/`, `cli/codex/tabgoblin/` | `~/.agents/skills/tabgoblin/` | `.agents/skills/tabgoblin/` |
+| GitHub Copilot | `mcp/copilot/tabgoblin/`, `cli/copilot/tabgoblin/` | `~/.copilot/skills/tabgoblin/` | `.github/skills/tabgoblin/` |
 
 `~` is your home folder.
 
@@ -39,7 +42,7 @@ cloned TabGoblin into:
 
 ```sh
 mkdir -p <your project>/.claude/skills
-cp -r skills/claude-code/tabgoblin <your project>/.claude/skills/
+cp -r skills/mcp/claude-code/tabgoblin <your project>/.claude/skills/
 ```
 
 Start the agent again if it does not show the skill. A skill does not add the server: the

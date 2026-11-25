@@ -38,7 +38,7 @@ class SkillsTest {
     private static Map<String, String> skills() throws IOException {
         Map<String, String> skills = new LinkedHashMap<>();
         for (String agent : AGENTS) {
-            skills.put(agent, read(SKILLS.resolve(agent).resolve("tabgoblin").resolve("SKILL.md")));
+            skills.put(agent, read(SKILLS.resolve("mcp").resolve(agent).resolve("tabgoblin").resolve("SKILL.md")));
         }
         return skills;
     }
@@ -79,7 +79,7 @@ class SkillsTest {
         assertTrue(skills.get("claude-code").contains("\nwhen_to_use: "));
         assertTrue(skills.get("copilot").contains("\nargument-hint: "));
         assertFalse(skills.get("codex").contains("when_to_use") || skills.get("codex").contains("argument-hint"));
-        String codex = read(SKILLS.resolve("codex").resolve("tabgoblin").resolve("agents").resolve("openai.yaml"));
+        String codex = read(SKILLS.resolve("mcp").resolve("codex").resolve("tabgoblin").resolve("agents").resolve("openai.yaml"));
         assertTrue(codex.contains("interface:") && codex.contains("display_name:") && codex.contains("allow_implicit_invocation: true"),
                 codex);
     }
@@ -136,7 +136,7 @@ class SkillsTest {
     @Test
     void theJarCarriesEachSkillAsTheRepositoryHasItFileForFile() throws Exception {
         for (Skills.Agent agent : Skills.Agent.values()) {
-            Path folder = SKILLS.resolve(agent.id()).resolve(Skills.NAME);
+            Path folder = SKILLS.resolve("mcp").resolve(agent.id()).resolve(Skills.NAME);
             // Every file of the skill's folder is one the jar knows of, and no other.
             Set<String> inTheRepository = new TreeSet<>();
             try (var walk = Files.walk(folder)) {
@@ -197,6 +197,20 @@ class SkillsTest {
         Path empty = Files.createDirectories(home.resolve("other-home").resolve(".claude").resolve("skills").resolve("tabgoblin"));
         assertEquals(Skills.Outcome.INSTALLED, Skills.install(Skills.Agent.CLAUDE_CODE, home.resolve("other-home"), false).outcome());
         assertTrue(Files.isRegularFile(empty.resolve("SKILL.md")));
+    }
+
+    @Test
+    void theSkillsFolderHasTheTwoKindsAndInEachTheSameAgents() throws Exception {
+        try (var top = Files.list(SKILLS)) {
+            assertEquals(Set.of("README.md", "cli", "mcp"),
+                    top.map(path -> path.getFileName().toString()).collect(java.util.stream.Collectors.toSet()));
+        }
+        for (String kind : List.of("mcp", "cli")) {
+            try (var agents = Files.list(SKILLS.resolve(kind))) {
+                assertEquals(new TreeSet<>(AGENTS), agents.map(path -> path.getFileName().toString())
+                        .collect(java.util.stream.Collectors.toCollection(TreeSet::new)), kind);
+            }
+        }
     }
 
     // ---- The skills for the command line

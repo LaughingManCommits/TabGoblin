@@ -70,7 +70,7 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
   <name>`), for an agent without MCP. A command is one MCP tool call through the same link to
   the same server; the server keeps such an agent between its commands. `--setup <agent>
   --mode cli`, a skill of its own for the command line for each of the three agents
-  (`skills/cli`), and the documentation. Committed there by the
+  (`skills/cli`; the ones for MCP are in `skills/mcp` since then), and the documentation. Committed there by the
   session, and pushed to that branch on the owner's word ("Commit an push to a branch"). Not
   merged, and no pull request.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see

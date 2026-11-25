@@ -33,6 +33,10 @@ end-to-end suite was not run again after that: no skill takes part in it, and th
 code changed only where a skill is installed. One test of `CliTest` failed once on the way, by
 a fault of its own: it took an agent that was just leaving for the new one.
 
+Then the skills' folder was split in two, `skills/mcp` and `skills/cli`: `mvn verify` again,
+226 tests with one new in `SkillsTest`, and the built jar installed the skill for MCP and the
+one for the command line into a home folder made for the purpose.
+
 Not run: Windows and macOS; `tabgoblin.cmd` and a download's launcher with a command; the
 editor lab; the workflows; the server's window with an agent of the command line in it; a real
 agent with the skill's new section. Not measured: how long a first command takes on a slow
