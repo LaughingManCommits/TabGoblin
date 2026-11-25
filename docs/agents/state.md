@@ -71,9 +71,8 @@ Last updated: 2026-11-25. Claims here go stale; check the date, then `git status
   the same server; the server keeps such an agent between its commands. `--setup <agent>
   --mode cli`, a skill of its own for the command line for each of the three agents
   (`skills/cli`), and the documentation. Committed there by the
-  session. Not pushed: the owner pushes, and was not asked. The session's container does not
-  last, so the commit is lost with it unless it is pushed first. Not merged, and no pull
-  request.
+  session, and pushed to that branch on the owner's word ("Commit an push to a branch"). Not
+  merged, and no pull request.
 - A branch `svg-pictures` was made, pushed and deleted by the owner on 2026-11-23 (WP-23, see
   the backlog's overview). Nothing of it is in `main`.
 
