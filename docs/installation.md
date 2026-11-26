@@ -26,12 +26,24 @@ for each agent:
 | Good when | The agent or the IDE has no MCP support, or you prefer plain commands | The agent has MCP and you want the tools in its tool list |
 
 An agent uses the interface you set up for it and does not change to the other by itself. Both
-can be in use on one machine, for different agents.
+can be in use on one machine, for different agents. The CLI is an alternative interface, not a way around a rule: it
+grants nothing that MCP does not, and a rule about agents in the browser covers both
+([corporate assessment](corporate-assessment.md#restrictions-on-mcp-and-the-cli)).
 
 ## From a download
 
 You need Google Chrome 120 or newer, and an agent that can run local commands or that speaks
 MCP. The Java TabGoblin runs on is in the download.
+
+**Which release has what.** This page describes `main`. The one published release,
+[0.2.0](https://github.com/LaughingManCommits/TabGoblin/releases/tag/v0.2.0), supports MCP only:
+it has eleven tools, no CLI (`--mode cli` and the commands), no agent names (`--agent`), no
+workspaces, no policy beyond blocked sites and no audit record, and its setup prints a
+registration line without `--agent`. Its own steps are in
+[its README](https://github.com/LaughingManCommits/TabGoblin/blob/v0.2.0/README.md). For
+everything on this page before the next release, build `main` and pack it into the same folder
+a download has: [From source](#from-source), then
+[a folder like a download](#a-folder-like-a-download).
 
 1. **Download** the file for your system from the [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest),
    and unpack it where it can stay: your agent is told its place. It is one folder, `tabgoblin`.
@@ -152,7 +164,7 @@ and each is on its own line so it works the same in PowerShell, Command Prompt a
 | Google Chrome | 120 or newer | `chrome://version` | – |
 | Git | any | `git --version` | [git-scm.com](https://git-scm.com) |
 
-`mvn -v` also prints which Java it uses. It has to be 21 or newer too.
+`mvn -v` also prints which Java it uses. It has to be 25 or newer too.
 
 ## 1. Get the code
 
@@ -252,9 +264,10 @@ java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar tools
 java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar status --agent my-agent
 ```
 
-A build from source has no `tabgoblin` command of its own. Tell the agent that line once, or
-make an alias or a small script named `tabgoblin` for it. The commands are in the
-[CLI guide](cli.md).
+A build from source has no `tabgoblin` command of its own. Tell the agent that line once, make
+an alias or a small script named `tabgoblin` for it, or pack the build into
+[a folder like a download](#a-folder-like-a-download), which has the command. The commands are
+in the [CLI guide](cli.md).
 
 ### The agent's name
 
@@ -349,6 +362,20 @@ sequenceDiagram
 4. Ask it: *"Take a snapshot of the page and tell me what is on it."*
 
 That is the whole chain working. The [developer guide](developer-guide.md) takes it from here.
+
+## A folder like a download
+
+A build can be packed into the folder a download has: the server with a Java runtime of its own,
+the extension, and the `tabgoblin` command. After steps 2 and 3, in bash (on Windows, Git Bash),
+with a JDK 25 or newer on the path:
+
+```sh
+bash release/bundle.sh
+```
+
+It writes `release/out/tabgoblin-<version>-<system>-<machine>`, a `.zip` on Windows and a
+`.tar.gz` elsewhere, for the system it runs on. Unpack it where it can stay and go on from
+step 2 of [From a download](#from-a-download).
 
 ## Updating
 

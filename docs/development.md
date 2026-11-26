@@ -54,13 +54,16 @@ Other scripts in `e2e/`:
 
 ### About the diagrams
 
-Four diagrams are SVG files in `docs/assets/diagrams/`. Each is one file that carries its own
+Five diagrams are SVG files in `docs/assets/diagrams/`. Each is one file that carries its own
 ground and both sets of colours: it is light or dark by the reader's own setting, and readable
 on any page. A page shows one with the plain Markdown form of an image, `![…](…)`, which
 GitHub and an editor's preview both understand; a `<picture>` element with two files, as they
 had at first, did not show in IntelliJ's preview. They are drawn by one script, which holds
-their common style (three colours: slate for components, green for TabGoblin, red for what is
-denied or refused; rounded boxes, thin lines, dashed borders for boundaries):
+their common style (four colours, one meaning each: slate for what is not TabGoblin, such as
+the agent and Chrome; green for TabGoblin and what runs with its leave, such as an authorized
+tab; amber for what waits for the user's answer; red for what is denied or refused; rounded
+boxes, thin lines, dashed borders for boundaries). Each shows one idea: the README has the two
+simplest, and the detail is in the pages that own it:
 
 ```sh
 node docs/assets/diagrams/build.mjs
