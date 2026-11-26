@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/LaughingManCommits/TabGoblin/actions/workflows/ci.yml/badge.svg)](https://github.com/LaughingManCommits/TabGoblin/actions/workflows/ci.yml)
 
-<img src="chrome-extension/icons/icon128.png" width="64" align="left" alt="">
+<img src="docs/images/logo.png" width="104" height="60" align="left" alt="">
 
 **Extend your coding agent beyond the IDE.**
 

@@ -5,7 +5,7 @@
 #
 #   bash release/bundle.sh       in bash; on Windows that is Git Bash
 #
-# It needs a JDK 21 or newer on the path, for jdeps, jlink and jar. The download is written to
+# It needs a JDK 25 or newer on the path, for jdeps, jlink and jar. The download is written to
 # release/out. In a run for a version tag, where GitHub sets GITHUB_REF_TYPE and
 # GITHUB_REF_NAME, the tag has to be the version with a v in front, or nothing is made.
 set -euo pipefail
@@ -42,7 +42,7 @@ rm -rf "$stage"
 mkdir -p "$stage/tabgoblin"
 
 # The runtime: the modules the jar uses, and no more.
-modules=$(jdeps --multi-release 21 --ignore-missing-deps --print-module-deps "$jar" | tail -n 1)
+modules=$(jdeps --multi-release 25 --ignore-missing-deps --print-module-deps "$jar" | tail -n 1)
 echo "Java modules: $modules"
 jlink --add-modules "$modules" --strip-debug --no-header-files --no-man-pages --compress zip-6 \
   --output "$stage/tabgoblin/runtime"

@@ -262,7 +262,7 @@ public final class McpMain {
             } else {
                 Panel.raise();
             }
-        }, up::get);
+        }, () -> up.get() && Panel.onScreen());
         if (options.panel()) {
             hub.showWindow();
         }
@@ -314,7 +314,8 @@ public final class McpMain {
                 return;
             }
             if (asked.compareAndSet(false, true)) {
-                up.set(showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem(), options.settings().toAbsolutePath().toString()),
+                up.set(showPanel(() -> PanelModel.of(agent.bridge(), agent.startupProblem(),
+                                options.settings().toAbsolutePath().toString(), settings.port()),
                         command -> carryOut(command, agent.bridge()::setHeld, settings.token(), Panel::copySecret,
                                 () -> BlockedSites.edit(options.settings())), Panel::possible));
             } else {
@@ -330,7 +331,7 @@ public final class McpMain {
             if (refused && !options.quiet() && cameUp.compareAndSet(false, true)) {
                 window.run();
             }
-            return new BrowserService.Unpaired(false, refused, up.get());
+            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen());
         }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();
@@ -627,12 +628,8 @@ public final class McpMain {
         if (console == null) {
             return false;
         }
-        try {
-            // Java 22 and newer return a console even when input is a pipe; they can say which it is.
-            return (boolean) java.io.Console.class.getMethod("isTerminal").invoke(console);
-        } catch (ReflectiveOperationException e) {
-            return true; // Java 21: a console exists only when a terminal is attached
-        }
+        // A console is returned even when input is a pipe; it says which it is.
+        return console.isTerminal();
     }
 
     /** What is running and has to be ended in order: the server with its agents, or the one agent of a process that serves alone. */

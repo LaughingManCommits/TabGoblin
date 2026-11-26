@@ -13,7 +13,7 @@
 // popup-full*.png are the exception: the popup's content laid out at full length, without scrolling.
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -376,7 +376,11 @@ try {
     const view = await browser.newPage();
     await view.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: shot.scheme }]);
     await view.setViewport({ width: 344, height: 600, deviceScaleFactor: 2 });
-    await view.setContent(shot.html.replace(/<script[^>]*><\/script>/, '').replace(/<link[^>]*>/, `<style>${shot.css}</style>`));
+    // An ordinary tab has no extension behind it: the popup's pictures (the goblin in its header)
+    // come along in the page itself, or they would be empty boxes.
+    const inline = (html) => html.replace(/src="(icons\/[^"]+)"/g, (_, file) =>
+      `src="data:image/png;base64,${readFileSync(resolve(HERE, '../chrome-extension/dist', file)).toString('base64')}"`);
+    await view.setContent(inline(shot.html.replace(/<script[^>]*><\/script>/, '').replace(/<link[^>]*>/, `<style>${shot.css}</style>`)));
     await view.screenshot({ path: join(PROMPTS || IMAGES, shot.name), fullPage: true });
     await view.close();
     console.log(shot.name);

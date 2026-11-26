@@ -110,7 +110,7 @@ docker run --rm --cpuset-cpus=0,1 -v "${PWD}/chrome-extension:/src:ro" node:24 b
 Success: `ℹ fail 0` and exit code 0. The sources are copied inside the container, so that its
 `node_modules` are Linux's own and the working tree is left alone. `--cpuset-cpus=0,1` gives it
 two cores, as a small runner has; timing faults show sooner there. The Java server job is the
-same with the image `maven:3.9-eclipse-temurin-21`, the whole repository as `/src`, `target` and
+same with the image `maven:3.9-eclipse-temurin-25`, the whole repository as `/src`, `target` and
 `.git` excluded as well, and `mvn -B -f java-server/pom.xml verify` as the command.
 
 ## Try a change in a real browser
@@ -206,14 +206,14 @@ java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browse
 ```
 
 On Linux and macOS the separator in the class path is `:`. On a machine without a display, put
-`xvfb-run -a` in front of the `java` command, and of `mvn` for the window's tests. Success: nineteen pictures at
+`xvfb-run -a` in front of the `java` command, and of `mvn` for the window's tests. Success: twenty pictures at
 double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
 screen, the server without an agent, with two agents, the first and the second tab clicked, an
 agent clicked, sites blocked with a tab on one of them, and a settings file with a mistake in
 it, the log held, a browser that came with another token, and a security policy with a blocked
-site and without one. In the two of the policy the Control card's heading reads *Blocked sites
+site and without one. The twentieth is the first again in the light colours, as on a system that is set to light. In the two of the policy the Control card's heading reads *Blocked sites
 and security policy*, and a line *Policy: …* under the blocked sites says in short what it
 restricts, whole, on two lines at most. In the two of the blocked sites the Control card names what is blocked, or says that every site is refused,
 and the tab says *blocked*; with the mistake an amber box under the status names it. In the last, a green box under the status says *Pair the browser with this server* and has the
@@ -304,7 +304,7 @@ bash release/bundle.sh                              # on Windows: in Git Bash
 ```
 
 Success: `Made .../release/out/tabgoblin-<version>-<system>-<machine>` with `.zip` on Windows
-and `.tar.gz` elsewhere, about 50 MB; the folder is not in git. It needs a JDK 21 or newer on
+and `.tar.gz` elsewhere, about 50 MB; the folder is not in git. It needs a JDK 25 or newer on
 the path. Unpack it into a folder with a space in its name and try: `tabgoblin --help`;
 `tabgoblin --setup claude-code` with a home folder made for the purpose
 (`JAVA_TOOL_OPTIONS=-Duser.home=<folder without a space>`), which must put the skill there and

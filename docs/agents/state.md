@@ -2,6 +2,50 @@
 
 Last updated: 2026-11-25, the evening. Claims here go stale; check the date, then `git status` and `git log`.
 
+## The pixel goblin, 2026-11-26
+
+On branch `claude/goblin-mascot`, made from `claude/branch-review-fixes`, on the owner's word and to the owner's two pictures (a goblin in full with a hood, a pickaxe and a z, and the face that is the icon now). One drawing, `art/goblin.ts`, is every picture of the goblin: the icons (also the server's window icon), the popup's logo, the notice's face, and the panel's sprites; `art/mascot.ts` writes the files, and a test holds them to it. A critical review of the first form followed, on the owner's word, and its twelve points are mended in the second commit: the props stay in the goblin's own room, a running call is shown while it runs, a new mood waits for a whole round, at rest it is still but for a blink, it waits while the browser is not connected, the body stands out on the dark ground, the satchel and strap are gone, walking is a two-pixel step, the eyes have a shine of two by two, the 48-pixel icon is a 24-pixel face, a refusal is a shield and not a puzzle, and the z is one quiet one. The popup's and the notice's pictures in `docs/images` are drawn again (in this container's font). **Left:** no hood (the owner's icon has none); the look on Windows and macOS is not seen. The extensions page's picture was taken with this container's Chromium, with the line that it is managed by an organization hidden: the next run of `screenshots.mjs` on a machine of the owner's draws it plainly. What passed is in the validation log.
+
+## Review of `claude/branch-review-xcf2ty`, 2026-11-25
+
+A review of the branch's eight commits found ten faults; all are mended, in the working tree, not committed. `navigate`: a load that has to come is waited for on Chrome's events and no longer by looking at the tab every tenth of a second, so a quick load of the same address is not missed; a site that has not answered after 20 seconds, with the navigation still pending, is `timeout` and no longer `no-change`; and a move to the same address without its fragment is waited for as a new document. The window: on a screen lower than 560 plus its margin the screen wins; in a system's frame its lowest height counts the title bar; an agent is told that the window is open only while it is on the screen, not after it was hidden or put away; the port's tooltip is made once; and the log's short line says `outside scope` after a call refused for leaving its sites. Also `state.md`'s two older copies of two entries taken out, and two claims in `development.md` and `TODO.md` mended. What passed is in the validation log. Left as it was: a hidden window does not come up again by itself when the browser has another token (it does so once, as before); the agent is then sent to `--show-token`.
+
+## Server panel, 2026-11-25
+
+The working tree shows the popup's **First port** in the header before pairing. Click the number to copy it. Sessions, Metrics, Log and Control now fold independently. A running server picks up the change when started from the rebuilt jar.
+
+## Skills, 2026-11-25
+
+All three CLI skills now cover reusing a configured first port and investigating failed builds; the three MCP skills have the failed build too. The next release build will include the updated instructions.
+
+## Review of `smoke-tests`, 2026-11-25
+
+Four of the review's nine findings are mended, committed on `smoke-tests` (`ff65692`) on the owner's word, not pushed: three in the MCP test client (`e2e/mcp-client.mjs`) and the panel's first port, which is counted back from the server's link port. The end-to-end suite passed with the changed client, 110 of 110. Two more are mended since: the failed-build section is in the three MCP skills as well, in the words of tools, and `SkillsTest` lets a CLI skill name `--agent` and `--port` of the server's options and no other. The last three are mended as well, on the owner's word: an agent's port shows again, in its heading where a server has several, and for one agent at the end of the connection line where it is another than the port under the title; a folded Log card is written on and holds nothing; and an `error` event ends the test client only when the process never started. None of the review's findings is open. The window was drawn, not seen: the jar is not built.
+
+## The command line on Windows, 2026-11-25
+
+Used by hand with the real extension and a tab the owner gave with Explore: reading, Explore's actions and the refusals work, and are in the validation log. **`navigate` said `no-change` with the old address where a site was slow to answer,** though the tab went there: the extension took a tab to have stayed when no load had begun after a second and a half. It now waits for a load that has to come, up to the 20 seconds a load has. Mended, in the same commit, and seen on the site where it was found, for another address. For the address the tab is already at it was mended after that, and seen there too once the owner had loaded the extension again. Still not tried on Windows: Write, `submit`, `tabgoblin.cmd`.
+
+## Whose a tab is, 2026-11-25
+
+A tab given to *Any agent* is the first agent's that uses it, and closed to every other: the owner met that with an agent of the command line and found it hard to see. The popup's row now says `Owner: <agent>`, and the server's window `owner: <agent>` in a tab's row where it has several agents. In the same commit; the suite passed with it, 110 of 110. Not seen in the real window, which needs a new jar. Left as it is: the option's name *Any agent*, and that an agent which is refused is not told that another agent has the tab.
+
+## The window's port, 2026-11-25
+
+The chip under the title reads **Port** and no longer *First port*, on the owner's word; its tooltip says that it is the number for the popup's Connection. The popup's own field is still called *First port*, and so is the setting in the documentation: whether those follow is the owner's to say. Committed.
+
+## The window gone over critically, 2026-11-25
+
+On the owner's word, after a review of twelve of its drawn states. Committed (`b93640a`), and drawn, not seen in the real window. A tool call's line in the Log is short (`s1 navigate  31 ms  NAVIGATION_BLOCKED`), where it took four rows; the note under Stop and Kill is one line, and the rest is under the pointer; Metrics' second column is headed *typical*, with what it means under the pointer; a server that waits for the extension says what to do; a long problem is a line for each sentence; and where no browser is connected the Sessions card says that tabs show once it is. With several agents the list shows three rows since, and the window does not scroll there. Left on purpose: `owner: <agent>` under that agent's heading, which says the name twice and was asked for; and the label Kill, since it does end the process and needs two clicks as Stop does. Open for the owner: the popup's field and the documentation still say *First port*, and so does the message of a server without a port.
+
+## The window under the keyboard, 2026-11-25
+
+Looked at with two programs that drive the window's own code (in the session's scratch folder, not in the repository): Tab reaches every control in the order they are shown, Space and Enter press them, no label is cut short, and text has a contrast of 6.3 to 1 or more. What was found is mended, on the owner's word: the port chip is reached and pressed by the keyboard and takes a click 25 high; the window is light where the system is, as the popup is; its lower edge makes it higher or lower, down to 560, and it opens where and as high as it was left, kept in Java's preferences of the user, if that place is still on a screen; a switch that is off has an edge that is seen; a card's heading is 24 high; and with several agents the list shows three rows as with one, so the window itself does not scroll there. Seen in the real window on Windows, opened as the server opens it: the dark theme on a system set to dark, the edge's pointer and a drag by it, and a place kept and read back.
+
+**The server needs Java 25 since 2026-11-25, and has JavaFX 27.0.1.1,** on the owner's word ("ok go ahead with java 25"): JavaFX 27 is compiled for Java 25, and it is what tells the window the system's theme and whether less motion is asked for. Committed on `smoke-tests`. **What it changes for a setup:** a jar built from here does not start on an older Java (`UnsupportedClassVersionError`, class file version 69), so an agent's registration that names a Java 21 has to name a Java 25 or newer; the owner's own names `azul-21.0.10`, and the session did not change it. A download carries its own runtime and is not affected. The two workflows ask for Java 25 and **have not run on GitHub since.** Not seen: the light theme and less motion in a real window (the system here is set to dark and to motion), a change of either while the window is open, Linux and macOS, a scaled screen, a screen reader. 
+
+**The window on Windows has the system's frame around its own header since 2026-11-25,** on the owner's word after seeing a try of it in both themes ("adopt it, close hides the window, remove maximize"): `StageStyle.EXTENDED`, the system's buttons switched off, and the header's own two for putting the window away and for hiding it. Hiding ends nothing, and `--panel` shows the window again. No button fills the screen, and a request to is undone. Committed on `smoke-tests` on the owner's word. Seen in the real window, opened as the server opens it: the style, the two buttons and what the system takes them for, a height that follows the frame, the fill refused, hidden by a close request and shown again by what `--panel` calls; and every control pressed with the real pointer. On a real server started from the jar, Stop and Kill were each pressed twice through the system's accessibility interface, and the server's process ended both times. **By the owner, in the real window of a server started by hand on Java 27:** the header moves the window, a click on the port copies it, and the height can be changed. The session could not show the header's drag itself: a scripted pointer did not move the window, and a hit test sent from another process said *client area* for the header while JavaFX's own said *drag bar*; the owner's hand settled it. Not tried: `--panel` from a second process bringing a hidden window back. The window without any frame is still there for a Windows whose JavaFX says it cannot do this; nothing draws it any more, and the pictures are of the new one.
+
 ## Where the code is
 
 - `main` = `origin/main` = `fde041c`: the owner's merge of `release-keeps-ci` on
@@ -135,11 +179,13 @@ Last updated: 2026-11-25, the evening. Claims here go stale; check the date, the
   Chromium, started without its sandbox. Not tried: Windows and macOS, `tabgoblin.cmd` with
   arguments that have quotes in them, a download's launcher, and a real agent with the skill's
   new section. The server's window was not seen with an agent of the command line in it.
-- **One step of the end-to-end suite failed once in four runs** on 2026-11-25, in the
-  container: "an agent whose server restarts gets its sessions back", on a wait in the popup.
-  No command of the command line takes part in it, and the server was the same in the runs
-  where it passed. The cause was not found; the next session that sees it should run with
-  `SHOW_STDERR=1`.
+- **The step of the end-to-end suite that failed once in four runs is explained, by what mended it:** "an agent
+  whose server restarts gets its sessions back" waited for the tab's row to read `agent-one (not connected)`
+  while a second program under the same name was connected. The popup tells two agents of one name apart by
+  adding the owner's id, so that text is there only until the popup has the second one's name: a race. On the
+  jar built on 2026-11-25 at 20:06 it failed twice in two runs, and the steps after it with it; with the wait
+  taking the name with or without the id it passed, 110 of 110. The popup's text at the failing moment was
+  not read. A popup wait that fails now says what the popup showed.
 - **An agent of the command line holds one of the eight ports for ten minutes after its last
   command.** Many names in a short time can use the ports up; the message is the one for
   eight connected agents.

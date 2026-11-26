@@ -1172,14 +1172,30 @@ async function collect(op: Operation, session: SessionRecord, params: Record<str
   return { text: head.concat(body).join('\n') };
 }
 
-/** Resolves once the tab finished a load, or right away for same-document navigations. */
-function trackLoad(tabId: number, timeoutMs: number): Promise<'complete' | 'timeout'> {
+/**
+ * Resolves once the tab finished a load. Where no load has to come (a move to a place in the page
+ * that is shown, or through its history), a moment in which none began is `quiet`: that is how a
+ * move inside the same document looks. Where one has to come, the tab was sent to another
+ * document, or told to load again, and the site may take its time to answer: until it does the
+ * tab is where it was, and saying then that nothing moved would be saying it too early. So the
+ * whole time is waited, on Chrome's own events, which a load too quick to be seen between two
+ * looks at the tab cannot slip past. A load that never began is then `quiet` only where the tab
+ * has nothing pending either: an address that gives no page, such as a file to save. While a
+ * navigation is still pending the outcome is `timeout`, since it is not known where it ends.
+ *
+ * @returns `complete` when a load came and ended, `timeout` when one had not ended in time or is
+ *          still pending, and `quiet` when none began
+ */
+function trackLoad(tabId: number, timeoutMs: number, mustLoad: boolean): Promise<'complete' | 'quiet' | 'timeout'> {
   return new Promise((resolve) => {
     let sawLoading = false;
-    const done = (outcome: 'complete' | 'timeout'): void => {
+    let settled = false;
+    const done = (outcome: 'complete' | 'quiet' | 'timeout'): void => {
+      if (settled) return;
+      settled = true;
       chrome.tabs.onUpdated.removeListener(listener);
       clearTimeout(timer);
-      clearTimeout(idle);
+      if (idle) clearTimeout(idle);
       resolve(outcome);
     };
     const listener = (id: number, info: { status?: string }): void => {
@@ -1188,10 +1204,19 @@ function trackLoad(tabId: number, timeoutMs: number): Promise<'complete' | 'time
       if (info.status === 'complete' && sawLoading) done('complete');
     };
     chrome.tabs.onUpdated.addListener(listener);
-    const timer = setTimeout(() => done('timeout'), timeoutMs);
-    const idle = setTimeout(() => { if (!sawLoading) done('complete'); }, 1500);
+    const timer = setTimeout(() => {
+      if (sawLoading || !mustLoad) {
+        done('timeout');
+        return;
+      }
+      void getTab(tabId).then((tab) => done(tab?.pendingUrl || tab?.status === 'loading' ? 'timeout' : 'quiet'));
+    }, timeoutMs);
+    const idle = mustLoad ? undefined : setTimeout(() => { if (!sawLoading) done('quiet'); }, 1500);
   });
 }
+
+/** How long a load is waited for, from the moment the tab was sent on its way. */
+const LOAD_MS = 20000;
 
 async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.Tab, params: Record<string, unknown>): Promise<object> {
   const history = typeof params.history === 'string' ? params.history : null;
@@ -1203,7 +1228,13 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   // Text typed into the page and not sent is lost when the tab moves on: the agent is told.
   const unsaved = await sendToPage(session.tabId, { bcmcp: 1, op: 'unsaved', origins: session.origins }, 3000)
     .then((reply) => Number((reply?.result as { fields?: number } | undefined)?.fields) || 0, () => 0);
-  const loaded = trackLoad(session.tabId, 20000);
+  const strip = (u: string | undefined): string => (u ?? '').split('#')[0];
+  // Another address, or the same one again, is a new document; only a move to a place in the
+  // page that is shown (an address with a fragment), or through its history, can do without one.
+  // The same address without its fragment is a new document as well.
+  const loads = history === 'reload' || (requested !== null
+    && (strip(requested) !== strip(before.url) || !requested.includes('#')));
+  const loaded = trackLoad(session.tabId, LOAD_MS, loads);
   if (history === 'back' || history === 'forward') {
     // Done inside the page, towards a known entry of this origin; it refuses when there is none.
     try {
@@ -1246,7 +1277,6 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
     }
   }
   save();
-  const strip = (u: string | undefined): string => (u ?? '').split('#')[0];
   const notes: string[] = [];
   if (navigation === 'timeout') notes.push('The page is still loading.');
   if (unsaved && navigation === 'new-document') {

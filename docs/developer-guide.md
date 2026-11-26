@@ -74,7 +74,10 @@ Choose:
 - **the access level** (below),
 - **how long** it lasts: until you revoke it, one hour, or eight hours,
 - **which agent** gets the tab, when more than one is connected. *Any agent* gives it to
-  whichever agent uses it first,
+  whichever agent uses it first: that agent is its owner from then on, and no other agent can
+  use the tab. The tab's row in the popup names its owner, and so does the server's window
+  where several agents are connected. To give the tab to another agent, revoke it and
+  authorize it for that agent,
 - optionally a **workspace** name ([workspaces](#workspaces)).
 
 Press **Authorize**. The tab is now a session, such as `s1`. Only that tab and only that
@@ -381,20 +384,25 @@ same agent each time it starts.
 The server has no window unless you ask for one. `tabgoblin --panel` brings up the window of
 the running server, or starts a server with its window, which then stays until you stop it.
 Adding `--panel` to the agent's registration shows it whenever that agent runs.
+Click the **Sessions**, **Metrics**, **Log** or **Control** heading to collapse or expand that
+section. Each starts expanded and keeps its own state while the window is open. You can also
+focus a heading with Tab and toggle it with Space.
 
 <img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, the metrics, the log, and the controls">
 
 | Part | What it shows or does |
 |---|---|
-| The line under the title | Whose server it is, and its port. A click on a port, here or in an agent's row, copies the number to the clipboard |
-| The line with the dot | Whether the extension is connected, and if not, why |
-| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. A click on a tab or an agent shows its metrics and log lines alone |
-| Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers |
-| Log | The server's last 300 lines: connections, and one line per tool call with its tab, action, duration and outcome. Nothing of a page |
+| The goblin | What the server is at. Asleep while the connection is switched off; puzzled by a problem, or by a call that failed; waiting while the browser is not connected; while a call runs, and for three seconds after, reading a page, walking (a navigation) or at work; behind its shield for a moment when the rules refused a call; and otherwise at rest, still but for a blink. It moves only while the window is on the screen |
+| The line under the title | Click **Port** beside the agent information to copy the number for the extension popup, where it is set as *First port* under *Connection…*. It is available before an agent or browser connects |
+| The line with the dot | Whether the extension is connected, and if not, why. While it waits for the extension, a line below says what to do: open the popup, and pair it if it says so. With one agent whose port is another than the one under the title, the line ends with it (*agent port …*), as that agent's status names it; a click copies it |
+| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id and its port, and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
+| Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers. *share* is the part of all that time; *typical* is what the middle one of the calls spent there, so waiting for you can have a share and 0 ms |
+| Log | The server's last 300 lines: connections, and one line per tool call in short, as `s1 navigate  31 ms  NAVIGATION_BLOCKED`: its tab, action, duration, and `ok` or the error code, with `outside scope` after a call refused for leaving its session's sites. Nothing of a page |
 | Connection to the browser | A switch. Off, the server closes its connection to the extension until you switch it on. The agent's tabs stay authorized |
-| Pairing token | **Copy** puts the token on the clipboard without showing it. It leaves the clipboard after a minute |
+| Pairing token | **Copy** copies the pairing token, which leaves the clipboard after a minute |
 | Blocked sites | The sites on your list and, while a policy is in force, a line *Policy: …*. **Edit** opens the settings file |
-| Stop server, Kill | Stop ends the server in order, for every agent. Kill ends the process at once, for a server that hangs. Each takes two clicks |
+| Stop server, Kill | Stop ends the server in order, for every agent. Kill ends the process at once, for a server that hangs; agents that are still running start a new one. Each takes two clicks |
+| The window itself | It is light or dark as your system is, like the popup, and keeps still where your system asks for less motion. On Windows it has the system's frame around its own header: drag the header to move it and an upper or lower edge to make it higher or lower; its width is fixed, and it has no button to fill the screen. **–** puts it on the taskbar. **×** hides it and ends nothing: the server keeps running, and `tabgoblin --panel` shows the window again. It opens where and as high as you left it, kept in Java's preferences for your user. The server is ended with Stop |
 
 One case brings the window up by itself: the browser came with a token that is not the
 server's, because it was mistyped or replaced with `--rotate-token`. The window then says
@@ -416,7 +424,7 @@ The panel grants nothing: authorizing a tab, changing a level and revoking stay 
 
 | System | The window | Seen running |
 |---|---|---|
-| Windows | Without a system frame; its header moves it | On Java 21 and Java 26 |
+| Windows | The system's frame around the panel's own header, with the panel's two buttons | On Java 25, opened as the server opens it. Before that it was a window without any frame, seen on Java 21 and Java 26 |
 | Linux (x64), macOS (Apple silicon) | The same panel in a window with the system's frame | On Ubuntu in the Linux subsystem of Windows, without pressing its buttons. Not on another Linux desktop, not on macOS |
 | Any other system, or no display | None: the server says so in its log and runs as without the option | Without a display, on Linux |
 

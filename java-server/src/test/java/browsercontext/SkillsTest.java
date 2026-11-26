@@ -253,8 +253,10 @@ class SkillsTest {
     @Test
     void aSkillForTheCommandLineNamesTheCommandsAndTheirArgumentsAsTheyAreAndNoMcpTool() throws Exception {
         Set<String> commands = new TreeSet<>();
+        // Of the server's options a skill names two: who the agent is, and the first port of a setup
+        // that has one. The others are the user's, and no skill sends an agent to them.
         Set<String> options = new TreeSet<>(Cli.OWN);
-        options.add("--agent");
+        options.addAll(Set.of("--agent", "--port"));
         for (var tool : Cli.tools()) {
             commands.add(Cli.commandOf(tool.name()));
             ((Map<?, ?>) tool.inputSchema().get("properties")).keySet().forEach(name -> options.add("--" + name.toString().replace('_', '-')));

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * What the server's panel shows at one moment, in the words it shows it in. Read from the same
@@ -25,9 +26,84 @@ import java.util.Map;
  * alone: the window shows one agent's or one tab's when the user has clicked it, and everything
  * otherwise. What is chosen is the window's own affair and is in no model.
  */
-record PanelModel(String agent, String identity, int port, String version, String problem,
+record PanelModel(String agent, String identity, int port, int firstPort, String version, String problem,
         boolean connected, boolean switchedOff, String connection, List<Member> agents, List<Row> sessions, int tabs,
-        int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries, Blocked blocked) {
+        int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries, Blocked blocked, Mood mood) {
+
+    /**
+     * What the goblin in the header is doing: one of the rows of the sprite sheet that
+     * {@code art/mascot.ts} draws. It is read from what the server knows and from nothing else (see
+     * {@link #mood}); the window decides nothing about it.
+     */
+    enum Mood {
+        IDLE, WORKING, READING, WALKING, SLEEPING, CONFUSED, WAITING, GUARDING;
+
+        /** The name of its row in mascot.properties. */
+        String animation() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /** How long after a tool call ended the goblin still shows it, where no other runs. */
+    static final long SHOWN_MS = 3_000;
+
+    /**
+     * What the goblin shows, from the first of these that holds:
+     * <ol>
+     * <li>asleep where the connection is switched off;
+     * <li>puzzled where the server has a problem;
+     * <li>waiting where the browser is not connected to every agent (or there is no agent);
+     * <li>a tool call that is running now, as {@code running} names it;
+     * <li>else the last tool call that ended in the last {@link #SHOWN_MS}, as its log line has it:
+     *     guarding where the rules refused it (an authorization or a scope), puzzled where it failed
+     *     otherwise, and as one that runs where it went through;
+     * <li>at rest.
+     * </ol>
+     * A call is shown as reading where it reads a page, walking for a navigation, and at work for
+     * any other. A status asked is no work.
+     */
+    static Mood mood(boolean switchedOff, String problem, boolean connected, String running, List<Log.Line> log, long now) {
+        if (switchedOff) {
+            return Mood.SLEEPING;
+        }
+        if (problem != null) {
+            return Mood.CONFUSED;
+        }
+        if (!connected) {
+            return Mood.WAITING;
+        }
+        if (running != null && !running.equals("status")) {
+            return doing(running);
+        }
+        for (int i = log.size() - 1; i >= 0; i--) {
+            Log.Line line = log.get(i);
+            if (line.at() < now - SHOWN_MS) {
+                break;
+            }
+            String text = line.text();
+            if (!text.startsWith("command id=") || text.contains(" action=status ")) {
+                continue;
+            }
+            if (text.contains(" category=AUTHORIZATION") || text.contains(" category=SCOPE")) {
+                return Mood.GUARDING;
+            }
+            if (!text.contains(" outcome=ok")) {
+                return Mood.CONFUSED;
+            }
+            int at = text.indexOf(" action=") + " action=".length();
+            return doing(text.substring(at, text.indexOf(' ', at)));
+        }
+        return Mood.IDLE;
+    }
+
+    /** A tool call by its action: reading a page, walking to another, or at work. */
+    private static Mood doing(String action) {
+        return switch (action) {
+            case "snapshot", "extract", "collect", "screenshot" -> Mood.READING;
+            case "navigate" -> Mood.WALKING;
+            default -> Mood.WORKING;
+        };
+    }
 
     /**
      * The sites no agent may work on, as the window says them. They are the user's own list, shown
@@ -109,7 +185,14 @@ record PanelModel(String agent, String identity, int port, String version, Strin
 
     /** One agent as the server holds it: what the model is made from. */
     record Facts(String name, String id, int port, String problem, boolean connected, long connectedSince,
-            int lastCloseCode, List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf) {
+            int lastCloseCode, List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf,
+            String running) {
+
+        /** An agent with no tool call running now. */
+        Facts(String name, String id, int port, String problem, boolean connected, long connectedSince, int lastCloseCode,
+                List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf) {
+            this(name, id, port, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, null);
+        }
     }
 
     /**
@@ -178,12 +261,12 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         boolean connected = bridge.isExtensionConnected();
         return new Facts(bridge.clientName(), bridge.clientId(), bridge.getPort(), startupProblem, connected,
                 bridge.connectedSince(), bridge.lastCloseCode(), connected ? bridge.sessions() : List.of(),
-                bridge.timings().shares(), bridge.timings().sharesBySession());
+                bridge.timings().shares(), bridge.timings().sharesBySession(), bridge.running());
     }
 
     /** Reads everything from a running server that has one agent: a process that serves its agent alone. */
     static PanelModel of(WebSocketBridge bridge, String startupProblem) {
-        return of(bridge, startupProblem, "");
+        return of(bridge, startupProblem, "", bridge.getPort());
     }
 
     /**
@@ -191,9 +274,9 @@ record PanelModel(String agent, String identity, int port, String version, Strin
      *
      * @param settingsFile the path of the settings file, as the window shows it
      */
-    static PanelModel of(WebSocketBridge bridge, String startupProblem, String settingsFile) {
+    static PanelModel of(WebSocketBridge bridge, String startupProblem, String settingsFile, int firstPort) {
         return of(List.of(facts(bridge, startupProblem)), bridge.getPort(), McpMain.version(), bridge.isHeld(), Log.recent(),
-                ZoneId.systemDefault(), bridge.blocked(), settingsFile);
+                ZoneId.systemDefault(), bridge.blocked(), settingsFile, firstPort);
     }
 
     /** One agent, without times of single tabs: where only the whole is known, or looked at. */
@@ -209,27 +292,35 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             boolean switchedOff, long connectedSince, int lastCloseCode, List<Protocol.Session> sessions,
             Timings.Shares time, Map<String, Timings.Shares> timeOf, List<Log.Line> log, ZoneId zone) {
         return of(List.of(new Facts(agent, clientId, port, problem, connected, connectedSince, lastCloseCode, sessions, time,
-                timeOf)), port, version, switchedOff, log, zone);
+                timeOf)), port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "", port);
     }
 
     /**
      * Every agent of a server, in the order they came.
      *
-     * @param port the port to place the window by: the first agent's, or the server's own
+     * @param linkPort the shared server's link port ({@link Link#port}), immediately after the extension's
+     *                 port range: the first port the window shows is counted back from it, so an agent's
+     *                 own port given here shows a wrong one
      */
-    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
-        return of(agents, port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
+    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
+        return of(agents, linkPort, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
     }
 
     /**
      * Every agent of a server, and the sites the user has blocked: a tab on one of them says so in
      * its row, and a settings file that cannot be read is the window's problem.
      *
+     * @param linkPort     the shared server's link port, as above
      * @param rule         the blocked sites as they are in force
      * @param settingsFile the path of the settings file, as the window shows it
      */
-    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
+    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
             BlockedSites.Rule rule, String settingsFile) {
+        return of(agents, linkPort, version, switchedOff, log, zone, rule, settingsFile, linkPort - McpMain.PORT_RANGE);
+    }
+
+    private static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log,
+            ZoneId zone, BlockedSites.Rule rule, String settingsFile, int firstPort) {
         List<Member> members = new ArrayList<>();
         List<Row> rows = new ArrayList<>();
         Map<String, Metrics> metricsOf = new LinkedHashMap<>();
@@ -241,7 +332,8 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         for (Facts facts : agents) {
             // An agent says its name when it opens its connection. Until then it goes by its id, as in the popup.
             boolean named = facts.name() != null && !facts.name().isBlank();
-            members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), facts.port(), facts.connected(),
+            int listeningPort = facts.problem() == null ? facts.port() : 0;
+            members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), listeningPort, facts.connected(),
                     // Without a port no browser can come: that, and not a browser that is waited for.
                     facts.problem() != null && !facts.connected() && !switchedOff ? NO_PORT
                             : connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
@@ -277,17 +369,24 @@ record PanelModel(String agent, String identity, int port, String version, Strin
         boolean named = only != null && !only.name().equals("Agent " + only.id());
         String title = only != null ? only.name() : members.isEmpty() ? "no agent" : members.size() + " agents";
         String identity = only != null
-                ? (named ? only.name() + "  ·  " + only.id() : only.name()) + "  ·  port " + only.port()
+                ? (named ? only.name() + "  ·  " + only.id() : only.name())
                 // With no agent there is nobody to name: the line says what this window is. That no agent
                 // is connected is said once, in the line with the dot.
                 : members.isEmpty() ? "one server for all your agents" : members.size() + " agents";
-        return new PanelModel(title, identity, port, version, problem,
+        return new PanelModel(title, identity, port, firstPort, version, problem,
                 !members.isEmpty() && members.stream().allMatch(Member::connected), switchedOff,
                 only != null ? only.connection() : connection(members, switchedOff),
                 List.copyOf(members), List.copyOf(rows), rows.size(), open,
                 new Metrics(all.calls(), shares(all)), Map.copyOf(metricsOf),
                 log.stream().map(line -> new Entry(logLine(line, zone), line.session(), line.agent())).toList(),
-                blocked);
+                blocked, mood(switchedOff, problem, !members.isEmpty() && members.stream().allMatch(Member::connected),
+                        agents.stream().map(Facts::running).filter(Objects::nonNull).findFirst().orElse(null), log,
+                        System.currentTimeMillis()));
+    }
+
+    /** The port of the one agent a server has, or 0: with several each has its own, and one without a port has none. */
+    int agentPort() {
+        return agents.size() == 1 ? agents.get(0).port() : 0;
     }
 
     private static Timings.Shares plus(Timings.Shares a, Timings.Shares b) {
@@ -299,7 +398,37 @@ record PanelModel(String agent, String identity, int port, String version, Strin
 
     /** A line of the log as the panel shows it: the time of day, a mark on a warning, and the line as it was logged. */
     static String logLine(Log.Line line, ZoneId zone) {
-        return clock(line.at(), zone) + "  " + (line.level().equals("warn") ? "! " : "") + line.text();
+        return clock(line.at(), zone) + "  " + (line.level().equals("warn") ? "! " : "") + brief(line.text());
+    }
+
+    /**
+     * A tool call's line as the window shows it: the tab, the action, how long it took and how it
+     * ended, as "s1 navigate  31 ms  NAVIGATION_BLOCKED". A call refused for going outside the
+     * sites of its session says so at the end ("outside scope"): that is what the user most needs
+     * to see of it. The window is narrow, and the whole line with its id and category takes four of
+     * its rows; that one is in the server's log as it was written. Any other line is shown as it is.
+     */
+    static String brief(String text) {
+        if (!text.startsWith("command id=")) {
+            return text;
+        }
+        Map<String, String> said = new LinkedHashMap<>();
+        for (String part : text.split(" ")) {
+            int at = part.indexOf('=');
+            if (at > 0) {
+                said.put(part.substring(0, at), part.substring(at + 1));
+            }
+        }
+        String action = said.get("action");
+        String took = said.get("ms");
+        String outcome = said.get("outcome");
+        if (action == null || took == null || outcome == null) {
+            return text;
+        }
+        String tab = said.getOrDefault("session", "-");
+        return (tab.equals("-") ? "" : tab + " ") + action + "  " + took + " ms  "
+                + (outcome.equals("ok") ? "ok" : said.getOrDefault("code", outcome))
+                + ("true".equals(said.get("scope_violation")) ? "  outside scope" : "");
     }
 
     /** The site as the popup shows it: without the scheme when that is https. */
@@ -342,17 +471,6 @@ record PanelModel(String agent, String identity, int port, String version, Strin
             case Protocol.CLOSE_VERSION -> "Not connected: the extension is of another version";
             default -> "Not connected: waiting for the extension";
         };
-    }
-
-    /** The port the identity line ends with, or 0 where it names none: the window shows it apart, to be copied by a click. */
-    int identityPort() {
-        return agents.size() == 1 && identity.endsWith("port " + agents.get(0).port()) ? agents.get(0).port() : 0;
-    }
-
-    /** The identity line up to its port, or all of it where it names none. */
-    String identityBeforePort() {
-        int port = identityPort();
-        return port == 0 ? identity : identity.substring(0, identity.length() - ("port " + port).length());
     }
 
     /** The line of an agent whose server could open no port: the reason is in the box under it. */
@@ -501,11 +619,18 @@ record PanelModel(String agent, String identity, int port, String version, Strin
     }
 
     /**
-     * What stands under the status line of a server that has no agent, and is empty for any other:
-     * what the user does to have one. The line above says that there is none; this does not say it again.
+     * What stands under the status line where the next step is the user's: a server that has no
+     * agent, and one whose agents wait for the browser. Empty otherwise. The line above says what
+     * is so; this says what to do about it.
      */
     String note() {
-        return agents.isEmpty() ? "Start your agent (IDE or CLI): it connects by itself." : "";
+        if (agents.isEmpty()) {
+            return "Start your agent (IDE or CLI): it connects by itself.";
+        }
+        // Waiting for a browser that has not come, and for no reason the lines above name: the next step is the user's.
+        boolean waiting = problem == null && !switchedOff && !pairingWanted() && agents.stream().noneMatch(Member::connected);
+        return waiting ? "Open the TabGoblin popup in Chrome: the extension then finds this server at once. "
+                + "If the popup says it is not paired, copy the pairing token below into it." : "";
     }
 
     /** What stands in place of the sessions while none is listed. */
@@ -518,7 +643,7 @@ record PanelModel(String agent, String identity, int port, String version, Strin
 
     /** What stands in place of one agent's sessions while it has none. */
     static String noSessions(Member agent) {
-        return agent.connected() ? "No tab is authorized for this agent" : "Not known while the browser is not connected";
+        return agent.connected() ? "No tab is authorized for this agent" : "Tabs show here once the browser is connected";
     }
 
     /** What stands in place of the times while there are none to show. */

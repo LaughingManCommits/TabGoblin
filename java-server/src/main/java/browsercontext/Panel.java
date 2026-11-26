@@ -9,14 +9,13 @@ import java.util.stream.Stream;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
-import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.application.ConditionalFeature;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -28,18 +27,12 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
-import javafx.scene.image.WritableImage;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
-import javafx.scene.shape.Ellipse;
-import javafx.scene.shape.Rectangle;
-import javafx.scene.shape.SVGPath;
-import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.text.Font;
 import javafx.scene.transform.Transform;
 import javafx.stage.Screen;
@@ -144,22 +137,39 @@ final class Panel {
 
     /**
      * A port as the window shows it, that a click copies: the number alone goes to the clipboard,
-     * and the label says for a moment that it did. Nothing else happens by the click, also where
-     * the label stands in a row that a click chooses.
+     * and the label says for a moment that it did. The header also handles window dragging.
      */
     static final class PortLabel extends Label {
+        /** The room above and below the pill that takes a click as the pill does; the stylesheet has the same number. */
+        private static final double TOUCH = 4;
         private final PauseTransition said = new PauseTransition(Duration.seconds(2));
         private String idle = "";
         private int port;
+        /** Made once: a tooltip put in its place while it waits to show, or shows, is gone. */
+        private final Tooltip tip = new Tooltip();
+        private java.util.function.IntFunction<String> about = port -> "Click to copy the port number " + port;
 
         PortLabel(String... classes) {
+            setTooltip(tip);
             getStyleClass().addAll(classes);
             getStyleClass().add("port");
             setAccessibleRole(javafx.scene.AccessibleRole.BUTTON);
             setMinWidth(Region.USE_PREF_SIZE);
+            // It is higher to the pointer than to the eye: the stylesheet gives it room above and below
+            // its pill, and here that room is taken out of the row again, so that nothing around it moves.
+            HBox.setMargin(this, new Insets(-TOUCH, 0, -TOUCH, 0));
+            // It acts as a button does, so the keyboard reaches it and presses it as one: Tab, then Space or Enter.
+            setFocusTraversable(true);
+            setOnKeyPressed(key -> {
+                if (key.getCode() == javafx.scene.input.KeyCode.SPACE || key.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                    key.consume();
+                    copy();
+                }
+            });
             said.setOnFinished(over -> setText(idle));
-            // Pressing is taken here as well, or a row under the label would be armed and chosen.
+            // Pressing is taken here as well, so the header does not start a window drag.
             setOnMousePressed(javafx.scene.input.MouseEvent::consume);
+            setOnMouseDragged(javafx.scene.input.MouseEvent::consume);
             setOnMouseClicked(javafx.scene.input.MouseEvent::consume);
             setOnMouseReleased(release -> {
                 release.consume();
@@ -171,14 +181,30 @@ final class Panel {
 
         /** What it shows while nothing was copied just now, and the port a click copies. */
         PortLabel showing(String text, int port) {
+            if (this.port != port) said.stop();
             this.idle = text;
             this.port = port;
             if (said.getStatus() != Animation.Status.RUNNING) {
                 setText(text);
             }
             setAccessibleText("Port " + port + ". Copy the number to the clipboard");
-            setTooltip(new Tooltip("Click to copy the port number " + port));
+            explain();
             return this;
+        }
+
+        /** What its tooltip says, for the port it holds. */
+        PortLabel about(java.util.function.IntFunction<String> words) {
+            this.about = words;
+            explain();
+            return this;
+        }
+
+        /** Changes the tooltip's text only where it says something else now. */
+        private void explain() {
+            String words = about.apply(port);
+            if (!words.equals(tip.getText())) {
+                tip.setText(words);
+            }
         }
 
         void copy() {
@@ -214,7 +240,7 @@ final class Panel {
     private static final double TAB_ROW = 32;
     private static final double TAB_GAP = 6;
     /** How many rows the list shows at a time where a server has several agents: headings and tabs together. */
-    static final int ROWS_IN_VIEW_OF_SEVERAL = 4;
+    static final int ROWS_IN_VIEW_OF_SEVERAL = 3;
     /** How high a line of words in the list is: what stands in the place of an agent's tabs while it has none. */
     private static final double WORDS_ROW = 18;
     /** How wide the two numbers of a heap of the time are: its share, and what a call typically takes in it. */
@@ -226,6 +252,8 @@ final class Panel {
     static final double WIDTH = 400;
     /** As high as the window is where the screen has room for it; on a lower screen it is as high as fits. */
     static final double HEIGHT = 824;
+    /** How near the lower edge of a floating window the pointer takes hold of it, to make it higher or lower. */
+    private static final double EDGE = 8;
     /** Room around the window's body for its shadow, where the window floats. */
     private static final double SHADOW = 22;
     /** The ground of the panel, as the stylesheet has it: what a window in the system's frame is filled with. */
@@ -248,6 +276,7 @@ final class Panel {
      * @throws RuntimeException if the window system cannot be started; the server then runs without
      */
     static void open(Supplier<PanelModel> model, Consumer<Command> commands) {
+        onScreen = true;
         onFxThread(() -> {
             if (window != null) {
                 return;
@@ -256,25 +285,95 @@ final class Panel {
             Platform.setImplicitExit(false);
             var first = model.get();
             var view = new View(commands);
-            view.fit(Math.min(HEIGHT, Screen.getPrimary().getVisualBounds().getHeight() - 48));
+            var kept = Place.kept();
+            double highest = Screen.getPrimary().getVisualBounds().getHeight() - 48;
+            view.fit(Math.min(highest, Math.max(LOWEST, kept.height() > 0 ? kept.height() : HEIGHT)));
             view.show(first);
+            // As the system is set: light or dark as the popup is, and still where less motion is asked for.
+            var system = Platform.getPreferences();
+            view.light(system.getColorScheme() == javafx.application.ColorScheme.LIGHT);
+            calm = system.isReducedMotion();
+            system.reducedMotionProperty().addListener((property, was, less) -> {
+                calm = less;
+                view.mascot().running(onScreen);
+            });
 
-            boolean floating = floats(System.getProperty("os.name", ""), Platform.isSupported(ConditionalFeature.TRANSPARENT_WINDOW));
-            var stage = new Stage(floating ? StageStyle.TRANSPARENT : StageStyle.DECORATED);
+            String os = System.getProperty("os.name", "");
+            // The system's frame around the panel's own header, where the system has that: its edges
+            // make the window higher or lower and its corners and shadow are the system's. Failing that,
+            // on Windows, the floating window the panel had before; everywhere else the system's whole frame.
+            boolean framedByUs = ownsItsHeader(os, Platform.isSupported(ConditionalFeature.EXTENDED_WINDOW));
+            boolean floating = !framedByUs && floats(os, Platform.isSupported(ConditionalFeature.TRANSPARENT_WINDOW));
+            var stage = new Stage(framedByUs ? StageStyle.EXTENDED : floating ? StageStyle.TRANSPARENT : StageStyle.DECORATED);
+            if (framedByUs) {
+                view.ownsItsHeader();
+                // No buttons of the system's: the header has its own two, to put the window away and to
+                // hide it. There is none to make it fill the screen, which a window of one width has no use for.
+                javafx.scene.layout.HeaderBar.setSystemButtonHeight(stage, 0);
+            }
             var scene = new Scene(view.frame(floating), floating ? Color.TRANSPARENT : GROUND);
             scene.getStylesheets().add(STYLESHEET);
             stage.setScene(scene);
             stage.setTitle("TabGoblin server · " + first.agent());
-            stage.getIcons().setAll(Goblin.icons());
-            stage.setResizable(false);
-            view.movesAndMinimizes(stage);
+            stage.getIcons().setAll(icons());
+            system.colorSchemeProperty().addListener((property, was, scheme) -> {
+                boolean light = scheme == javafx.application.ColorScheme.LIGHT;
+                view.light(light);
+                if (!floating) {
+                    scene.setFill(light ? GROUND_LIGHT : GROUND);
+                }
+            });
+            if (!floating) {
+                scene.setFill(system.getColorScheme() == javafx.application.ColorScheme.LIGHT ? GROUND_LIGHT : GROUND);
+            }
+            // As wide as it is, always. As high as the user makes it: by the system's frame where it
+            // has one, and by its lower edge where it floats.
+            stage.setResizable(!floating);
+            view.movesAndMinimizes(stage, framedByUs);
+            // A double click on a header asks the system to fill the screen with the window: it stays as it is.
+            stage.maximizedProperty().addListener((property, was, filled) -> {
+                if (filled) {
+                    stage.setMaximized(false);
+                }
+            });
+            view.resizes(stage, floating, highest);
+            // Closing hides the window and ends nothing: the server is ended with its Stop button, and
+            // "tabgoblin --panel" shows the window again.
             stage.setOnCloseRequest(request -> {
                 request.consume();
-                stage.setIconified(true);
+                stage.hide();
             });
             place(stage, first.port(), floating ? SHADOW : 0);
+            if (kept.onAScreen(WIDTH)) {
+                // Where the user left it, as long as that is still on a screen.
+                stage.setX(kept.x());
+                stage.setY(kept.y());
+            }
             stage.show();
+            if (!floating) {
+                stage.setMinWidth(stage.getWidth());
+                stage.setMaxWidth(stage.getWidth());
+                // The stage's height holds the system's title bar where it has one, and the body is
+                // fitted to the scene: the lowest the stage is made is the lowest body and that bar.
+                // On a screen lower than that, the screen wins, and the middle scrolls.
+                stage.setMinHeight(lowest(highest) + Math.max(0, stage.getHeight() - scene.getHeight()));
+            }
+            // Its place and height are kept for the next time, whenever they have come to rest.
+            var keep = new PauseTransition(Duration.millis(600));
+            keep.setOnFinished(rest -> Place.keep(stage.getX(), stage.getY(), view.height()));
+            javafx.beans.value.ChangeListener<Number> moved = (property, was, now) -> keep.playFromStart();
+            stage.xProperty().addListener(moved);
+            stage.yProperty().addListener(moved);
+            stage.heightProperty().addListener(moved);
             window = stage;
+            // The goblin moves only while it can be seen.
+            Runnable seen = () -> {
+                onScreen = stage.isShowing() && !stage.isIconified();
+                view.mascot().running(onScreen);
+            };
+            stage.showingProperty().addListener((property, was, now) -> seen.run());
+            stage.iconifiedProperty().addListener((property, was, now) -> seen.run());
+            seen.run();
             Log.debug("panel window style=" + stage.getStyle());
             // Nothing that acts has the keyboard when the window appears: a key meant for another
             // window, typed as this one came up, presses no button here.
@@ -293,6 +392,73 @@ final class Panel {
     /** The window, once it is open. Used on JavaFX's thread only. */
     private static Stage window;
 
+    /** The lowest the window is made: its header, one card's worth of the middle, and the controls. */
+    static final double LOWEST = 560;
+
+    /** The lowest the body is made on a screen where it may be this high at most: the screen wins. */
+    static double lowest(double highest) {
+        return Math.min(LOWEST, highest);
+    }
+
+    /**
+     * Whether the window is on the user's screen: shown, and neither hidden by its close button nor
+     * put away. True as well from the moment it is asked to open, so that an agent told of it then
+     * is told what the user will see. Read by the server's threads, so it is kept here.
+     */
+    private static volatile boolean onScreen;
+
+    static boolean onScreen() {
+        return onScreen;
+    }
+    /** The ground of the light theme, for a window in the system's frame. */
+    private static final Color GROUND_LIGHT = Color.web("#f4f7f3");
+
+    /**
+     * Whether the user has asked the system for less motion, as JavaFX reports it. Nothing in the
+     * window moves then: the goblin holds still and the switch does not slide. Used on JavaFX's
+     * thread only.
+     */
+    static boolean calm;
+
+    /**
+     * Where the user left the window, and how high: kept in the user's own preferences of Java, and
+     * nothing else is. Read once when the window opens.
+     *
+     * @param height 0 where none was kept
+     */
+    record Place(double x, double y, double height, boolean known) {
+        private static java.util.prefs.Preferences store() {
+            return java.util.prefs.Preferences.userNodeForPackage(Panel.class).node("panel");
+        }
+
+        static Place kept() {
+            try {
+                var store = store();
+                double x = store.getDouble("x", Double.NaN);
+                double y = store.getDouble("y", Double.NaN);
+                return new Place(x, y, store.getDouble("height", 0), !Double.isNaN(x) && !Double.isNaN(y));
+            } catch (RuntimeException unreadable) {
+                return new Place(0, 0, 0, false);
+            }
+        }
+
+        static void keep(double x, double y, double height) {
+            try {
+                var store = store();
+                store.putDouble("x", x);
+                store.putDouble("y", y);
+                store.putDouble("height", height);
+            } catch (RuntimeException unwritable) {
+                // Then it opens in its usual place the next time.
+            }
+        }
+
+        /** Whether a window this wide, put there, has its header on one of the screens that are there now. */
+        boolean onAScreen(double width) {
+            return known && !Screen.getScreensForRectangle(x + 40, y + 20, Math.max(1, width - 80), 40).isEmpty();
+        }
+    }
+
     /**
      * Brings the window up where it was put away or lies under others: the user asked for it again.
      * Does nothing while there is no window.
@@ -300,6 +466,9 @@ final class Panel {
     static void raise() {
         onFxThread(() -> {
             if (window != null) {
+                if (!window.isShowing()) {
+                    window.show(); // it was hidden by its close button
+                }
                 window.setIconified(false);
                 window.toFront();
             }
@@ -315,6 +484,15 @@ final class Panel {
      */
     static boolean floats(String system, boolean seeThroughWindows) {
         return seeThroughWindows && system.toLowerCase(java.util.Locale.ROOT).startsWith("windows");
+    }
+
+    /**
+     * Whether the window has the system's frame around a header of its own: the system's edges,
+     * corners and shadow, and the panel's goblin and buttons where a title bar would be. On
+     * Windows, where it was seen, and only where JavaFX says the system can do it.
+     */
+    static boolean ownsItsHeader(String system, boolean extendedWindows) {
+        return extendedWindows && system.toLowerCase(java.util.Locale.ROOT).startsWith("windows");
     }
 
     /** Runs on JavaFX's thread, starting JavaFX if this is the first use of it. */
@@ -336,92 +514,202 @@ final class Panel {
 
     // ---------------------------------------------------------------- the goblin
 
-    /** The goblin of chrome-extension/icons/goblin.svg, from the same shapes. Its eyes can close and blink. */
-    static final class Goblin {
-        private static final String EARS = "M32 64 6 38l36 6zM96 64l26-26-36 6z";
-        private static final String SKIN = "M64 28c-22 0-38 15-38 36 0 22 16 38 38 38s38-16 38-38c0-21-16-36-38-36z";
-        private static final String MOUTH = "M48 82c5 6 27 6 32 0";
-        private static final String TOOTH = "m58 85 3 7 3-6z";
-        private static final Color INK = Color.web("#12201a");
-        private static final Color LIGHT = Color.web("#f4fff8");
+    /**
+     * The goblin in the header: a sprite from {@code mascot.png}, which {@code art/mascot.ts} draws
+     * with the row of each animation in {@code mascot.properties}. It shows one frame of 32 by 32
+     * pixels at a time, each pixel a square of {@link #SCALE}. The sheet is read twice as large again,
+     * by repeating pixels, and shown at half that: on a screen of twice the density, and in the
+     * documentation's pictures, it is then drawn pixel for pixel, and on any other halved exactly.
+     * A renderer that scales a picture by itself smooths it on some systems, whatever it is told.
+     *
+     * <p>How it moves, so that it says something and does not tire the eye:
+     * <ul>
+     * <li>At rest it holds still and blinks now and then, 8 to 15 seconds apart (an animation the
+     *     index marks {@code hold}). Every other animation goes round.
+     * <li>A new mood waits for the one that plays to come round once: a burst of calls shows whole
+     *     motions, not a frame of each. The newest mood is the one that comes; one that returns to
+     *     what plays cancels the wait. From rest, or while it is not seen, it changes at once.
+     * <li>It runs only while it is told it may ({@link #running}): while the window is on the
+     *     screen. Where the user asked the system for less motion it holds the first frame.
+     * <li>The same mood again changes nothing, so a refresh does not start it over.
+     * </ul>
+     */
+    static final class Mascot {
+        static final int CELL = 32;
+        static final int SCALE = 2;
+        private static Image sheet;
+        private static java.util.Properties rows;
 
-        private final Group eyes = new Group(new Ellipse(50, 62, 9, 10), new Ellipse(78, 62, 9, 10));
-        private final Group pupils = new Group(new Circle(53, 59, 3, LIGHT), new Circle(81, 59, 3, LIGHT));
-        private final Group face;
-        private final ScaleTransition blink = new ScaleTransition(Duration.millis(110), eyes);
+        /** One animation: its row of the sheet, how many frames it has, how long each stays, and whether its first is held. */
+        record Play(int row, int frames, Duration each, boolean hold) {
+        }
 
-        Goblin() {
-            eyes.getChildren().forEach(eye -> ((Ellipse) eye).setFill(INK));
-            var mouth = path(MOUTH, null);
-            mouth.setStroke(INK);
-            mouth.setStrokeWidth(5);
-            mouth.setStrokeLineCap(StrokeLineCap.ROUND);
-            face = new Group(path(EARS, Color.web("#4fc27b")), path(SKIN, Color.web("#63d68f")), eyes, pupils, mouth,
-                    path(TOOTH, LIGHT));
-            // A blink: the eyes shut and open again, now and then, while they are open at all.
-            blink.setFromY(1);
-            blink.setToY(0.1);
-            blink.setCycleCount(2);
-            blink.setAutoReverse(true);
-            var every = new Timeline(new KeyFrame(Duration.seconds(4.2), beat -> {
-                if (eyes.getScaleY() == 1) {
-                    blink.playFromStart();
+        private final javafx.scene.image.ImageView view = new javafx.scene.image.ImageView();
+        private final Timeline clock = new Timeline();
+        private final java.util.Random chance = new java.util.Random();
+        private PanelModel.Mood mood;
+        private PanelModel.Mood next;
+        private Play play;
+        private int frame;
+        /** Whether what plays has come round once since it began. */
+        private boolean round;
+        private boolean running;
+
+        Mascot() {
+            view.setImage(sheet());
+            view.setSmooth(false);
+            view.setFitWidth(CELL * SCALE);
+            view.setFitHeight(CELL * SCALE);
+            // The cell has room around the goblin, and what it holds and what rises over it stay in
+            // it. Only what no frame draws on takes no place in the header: the cell's first seven
+            // columns and its last two, and its rows under the soles. Above, the two empty rows and
+            // the room the z and the question rise in reach over the header's top, where nothing is.
+            HBox.setMargin(view, new Insets(-6 * SCALE, -2 * SCALE, -3 * SCALE, -7 * SCALE));
+            show(PanelModel.Mood.IDLE);
+        }
+
+        private static synchronized Image sheet() {
+            if (sheet == null) {
+                try (var in = Objects.requireNonNull(Panel.class.getResourceAsStream("mascot.png"), "mascot.png")) {
+                    var sized = new Image(Objects.requireNonNull(Panel.class.getResourceAsStream("mascot.png")));
+                    sheet = new Image(in, sized.getWidth() * SCALE * 2, sized.getHeight() * SCALE * 2, false, false);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
                 }
-            }));
-            every.setCycleCount(Animation.INDEFINITE);
-            every.play();
+            }
+            return sheet;
         }
 
-        private static SVGPath path(String shape, Color fill) {
-            var path = new SVGPath();
-            path.setContent(shape);
-            path.setFill(fill);
-            return path;
+        /** The animations as mascot.properties lists them: a name, then its row, its frames, the milliseconds of each, and "hold". */
+        static synchronized Play play(PanelModel.Mood mood) {
+            if (rows == null) {
+                rows = new java.util.Properties();
+                try (var in = Objects.requireNonNull(Panel.class.getResourceAsStream("mascot.properties"), "mascot.properties")) {
+                    rows.load(in);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }
+            String[] said = Objects.requireNonNull(rows.getProperty(mood.animation()), mood.animation()).trim().split(" ");
+            return new Play(Integer.parseInt(said[0]), Integer.parseInt(said[1]), Duration.millis(Integer.parseInt(said[2])),
+                    said.length > 3 && said[3].equals("hold"));
         }
 
-        /** Open eyes for a server that may work with the browser, closed ones for one that is switched off. */
-        void awake(boolean on) {
-            blink.stop();
-            eyes.setScaleY(on ? 1 : 0.12);
-            pupils.setVisible(on);
+        /** Shows this mood, at once or once what plays has come round. */
+        void show(PanelModel.Mood now) {
+            if (now == mood) {
+                next = null;
+                return;
+            }
+            if (play != null && !play.hold() && animating() && (frame != 0 || !round)) {
+                next = now;
+                return;
+            }
+            begin(now);
         }
 
-        /** The face alone, from ear to ear, {@code width} wide: bare, as in the notice in the page. */
-        Node bare(double width) {
-            double scale = width / 116;
-            face.getTransforms().setAll(Transform.scale(scale, scale), Transform.translate(-6, -28));
-            var place = new StackPane(new Group(face));
-            place.setMinSize(width, 74 * scale);
-            place.setMaxSize(width, 74 * scale);
-            return place;
+        private void begin(PanelModel.Mood now) {
+            mood = now;
+            next = null;
+            play = play(now);
+            frame = 0;
+            round = false;
+            draw();
+            restart();
         }
 
-        /**
-         * The goblin on its dark tile, as the extension's icon has it: for the window's icon, which
-         * is what the taskbar and the list of windows show instead of Java's cup.
-         */
-        static Image icon(int size) {
-            var goblin = new Goblin();
-            var tile = new Rectangle(128, 128, INK);
-            tile.setArcWidth(60);
-            tile.setArcHeight(60);
-            var drawing = new Group(tile, goblin.face);
-            var shot = new SnapshotParameters();
-            shot.setFill(Color.TRANSPARENT);
-            shot.setTransform(Transform.scale(size / 128.0, size / 128.0));
-            WritableImage drawn = drawing.snapshot(shot, null);
-            // A drawing comes back with each pixel as one number, and a window takes for its icon
-            // only a picture that holds its pixels as bytes: any other is passed over without a
-            // word, and the window keeps Java's cup. So the pixels go into a picture of that kind.
-            var icon = new WritableImage(size, size);
-            icon.getPixelWriter().setPixels(0, 0, Math.min(size, (int) drawn.getWidth()), Math.min(size, (int) drawn.getHeight()),
-                    drawn.getPixelReader(), 0, 0);
-            return icon;
+        /** Runs the animation while the window is on the screen, and stops it while it is not. */
+        void running(boolean on) {
+            running = on;
+            if (!on && next != null) {
+                begin(next);
+            }
+            restart();
         }
 
-        /** The window's icon in the sizes the systems ask for: small for a title or a taskbar, large for a dock. */
-        static List<Image> icons() {
-            return Stream.of(16, 24, 32, 48, 64, 128, 256).map(Goblin::icon).toList();
+        private void restart() {
+            clock.stop();
+            clock.setOnFinished(null);
+            if (!running || calm) {
+                frame = 0;
+                draw();
+                return;
+            }
+            if (play.hold()) {
+                // Held, and now and then the other frames once each: a blink.
+                var rest = Duration.seconds(8 + chance.nextInt(8));
+                var frames = new ArrayList<KeyFrame>();
+                for (int i = 1; i <= play.frames(); i++) {
+                    int shown = i % play.frames();
+                    frames.add(new KeyFrame(rest.add(play.each().multiply(i - 1)), tick -> {
+                        frame = shown;
+                        draw();
+                    }));
+                }
+                clock.getKeyFrames().setAll(frames);
+                clock.setCycleCount(1);
+                clock.setOnFinished(done -> restart());
+            } else {
+                clock.getKeyFrames().setAll(new KeyFrame(play.each(), tick -> tick()));
+                clock.setCycleCount(Animation.INDEFINITE);
+            }
+            clock.play();
+        }
+
+        /** One step of an animation that goes round; at the end of a round, the mood that waits comes. */
+        void tick() {
+            frame = (frame + 1) % play.frames();
+            if (frame == 0) {
+                round = true;
+                if (next != null) {
+                    begin(next);
+                    return;
+                }
+            }
+            draw();
+        }
+
+        private void draw() {
+            double side = CELL * SCALE * 2;
+            view.setViewport(new Rectangle2D(frame * side, play.row() * side, side, side));
+        }
+
+        PanelModel.Mood mood() {
+            return mood;
+        }
+
+        PanelModel.Mood next() {
+            return next;
+        }
+
+        int frame() {
+            return frame;
+        }
+
+        boolean animating() {
+            return clock.getStatus() == Animation.Status.RUNNING;
+        }
+
+        Node node() {
+            return view;
+        }
+    }
+
+    /**
+     * The window's icon: the goblin's face of chrome-extension/icons, which the build puts in the
+     * jar, in the sizes the systems ask for. The larger are the smaller in whole squares, never
+     * smoothed. It is loaded once and does not move.
+     */
+    static List<Image> icons() {
+        return List.of(icon("icon16.png", 16), icon("icon32.png", 32), icon("icon48.png", 48), icon("icon32.png", 64),
+                icon("icon128.png", 128), icon("icon128.png", 256));
+    }
+
+    private static Image icon(String file, int size) {
+        try (var in = Objects.requireNonNull(Panel.class.getResourceAsStream("icons/" + file), file)) {
+            return new Image(in, size, size, false, false);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
         }
     }
 
@@ -433,12 +721,17 @@ final class Panel {
      */
     static final class View {
         private final VBox root = new VBox();
-        private final Goblin goblin = new Goblin();
+        private final Mascot mascot = new Mascot();
         private final HBox header = new HBox();
         private final Button minimize = new Button("–");
+        /** Hides the window; shown only where the window has no button of the system's for it. */
+        private final Button close = new Button();
         private final Label agent = label("", "sub");
-        /** The port at the end of that line, where the line names one: a click copies it. */
-        private final PortLabel agentPort = new PortLabel("sub");
+        /** The first port the extension scans, available before any agent connects. */
+        private final PortLabel firstPort = new PortLabel("chip").about(port -> "The port to set in the extension's popup, "
+                + "under Connection. Click to copy " + port + ".");
+        /** The port of the one agent a server has: where the extension reaches that agent, in the line about that. A click copies it. */
+        private final PortLabel agentPort = new PortLabel("chip");
         private final Region dot = new Region();
         private final Label connection = label("");
         private final Label problem = label("", "problem");
@@ -484,7 +777,6 @@ final class Panel {
         private List<PanelModel.Share> shownTimes;
         private String shownNoSessions;
         private String shownNoTimes;
-        private Boolean shownConnected;
 
         View(Consumer<Command> commands) {
             root.getStyleClass().add("panel");
@@ -494,7 +786,7 @@ final class Panel {
             root.setStyle("-fx-font-family: '" + family("Segoe UI", "SF Pro Text", "Helvetica Neue", "Ubuntu", "Noto Sans") + "';");
             root.setFocusTraversable(true);
 
-            // The goblin, bare as in the page's notice, and beside it what this window is and whose server.
+            // The goblin, and beside it what this window is and whose server.
             header.getStyleClass().add("header");
             var dash = new Region();
             dash.getStyleClass().add("dash");
@@ -503,11 +795,22 @@ final class Panel {
             minimize.getStyleClass().add("window-button");
             minimize.setTooltip(new Tooltip("Put this window away. The server keeps running."));
             minimize.setAccessibleText("Minimize. The server keeps running.");
-            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), new HBox(agent, agentPort)), grow(), minimize);
+            var cross = new Region();
+            cross.getStyleClass().add("cross");
+            close.setGraphic(cross);
+            close.getStyleClass().addAll("window-button", "closes");
+            close.setTooltip(new Tooltip("Hide this window. The server keeps running; \"tabgoblin --panel\" shows it again."));
+            close.setAccessibleText("Close. Hides the window; the server keeps running.");
+            close.setVisible(false);
+            close.setManaged(false);
+            header.getChildren().addAll(mascot.node(), new VBox(label("TabGoblin server", "title"), new HBox(6, agent, firstPort)), grow(), minimize, close);
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
-            var status = new HBox(dot, connection);
+            // The one agent's port is where the browser reaches it: said at the end of the line about
+            // that connection, where there is room for it. The header keeps the agent's name whole.
+            var status = new HBox(dot, connection, grow(), agentPort);
+            status.setAlignment(Pos.CENTER_LEFT);
             status.getStyleClass().add("status");
 
             problem.setWrapText(true);
@@ -563,6 +866,10 @@ final class Panel {
             browser.setSelected(true);
             knob.setTranslateX(20);
             browser.selectedProperty().addListener((property, was, on) -> {
+                if (calm) {
+                    knob.setTranslateX(on ? 20 : 0);
+                    return;
+                }
                 var slide = new TranslateTransition(Duration.millis(130), knob);
                 slide.setToX(on ? 20 : 0);
                 slide.play();
@@ -586,7 +893,7 @@ final class Panel {
             copy.setMinWidth(76);
             copies(copy, "Copy", commands);
             var pairing = new HBox(
-                    new VBox(label("Pairing token", "strong"), label("Paste it into the extension's popup.", "hint")), grow(), copy);
+                    new VBox(label("Pairing token", "strong"), label("Paste in the popup.", "hint")), grow(), copy);
             pairing.getStyleClass().add("row");
 
             // While the browser holds a token that is not the server's, pairing is the one thing to do,
@@ -624,8 +931,8 @@ final class Panel {
             var blockedSites = new HBox(blockedWords, edit);
             blockedSites.getStyleClass().add("row");
 
-            var ending = label("Stop ends the server for every agent. Kill is for a server that hangs: "
-                    + "agents that are still running start it again.", "hint");
+            // One line: what is beside it is the log's room. The rest is under the pointer.
+            var ending = label("Kill is for a server that hangs: running agents start a new one.", "hint");
             ending.setWrapText(true);
             ending.setMinHeight(Region.USE_PREF_SIZE);
             var control = card("Control", null, connect, pairing, blockedSites, ends, ending);
@@ -654,6 +961,70 @@ final class Panel {
             root.setMaxHeight(height);
         }
 
+        /** How high the body is made. */
+        double height() {
+            return root.getPrefHeight();
+        }
+
+        /** The daylight colours, where the system is set to light; the cave's otherwise. */
+        void light(boolean on) {
+            root.getStyleClass().remove("light");
+            if (on) {
+                root.getStyleClass().add("light");
+            }
+        }
+
+        /**
+         * Lets the user make the window higher or lower, and never wider. In the system's frame the
+         * frame does it and the body follows. Floating, the body's lower edge is the handle: the
+         * pointer says so there, and a drag sets the height.
+         */
+        void resizes(Stage stage, boolean floating, double highest) {
+            if (!floating) {
+                stage.getScene().heightProperty().addListener((property, was, high) -> {
+                    if (high.doubleValue() > 0) {
+                        fit(Math.max(lowest(highest), high.doubleValue()));
+                    }
+                });
+                return;
+            }
+            boolean[] dragging = new boolean[1];
+            java.util.function.Predicate<javafx.scene.input.MouseEvent> atTheEdge =
+                    mouse -> mouse.getY() >= root.getHeight() - EDGE && mouse.getY() <= root.getHeight();
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_MOVED, mouse ->
+                    root.setCursor(atTheEdge.test(mouse) ? javafx.scene.Cursor.S_RESIZE : null));
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_EXITED, mouse -> {
+                if (!dragging[0]) {
+                    root.setCursor(null);
+                }
+            });
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, mouse -> {
+                dragging[0] = atTheEdge.test(mouse);
+                if (dragging[0]) {
+                    mouse.consume();
+                }
+            });
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_DRAGGED, mouse -> {
+                if (dragging[0]) {
+                    mouse.consume();
+                    setHeight(stage, mouse.getY(), highest);
+                }
+            });
+            root.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_RELEASED, mouse -> dragging[0] = false);
+        }
+
+        /** Makes a floating window's body this high, within what is allowed, and the window around it. */
+        void setHeight(Stage stage, double wanted, double highest) {
+            double high = Math.min(highest, Math.max(LOWEST, wanted));
+            fit(high);
+            stage.setHeight(high + 2 * SHADOW);
+        }
+
+        /** The goblin in the header. */
+        Mascot mascot() {
+            return mascot;
+        }
+
         /** The view's own node: the window's body. */
         Parent root() {
             return root;
@@ -672,37 +1043,71 @@ final class Panel {
         }
 
         /**
-         * The header moves the window and the button in it puts it away. A floating window has
-         * nothing else for either; in the system's frame they are there as well as the frame's own.
+         * Makes the header the window's own, in a window that has the system's frame and no title
+         * bar: the system moves the window by it, and takes its two buttons for the ones that put a
+         * window away and close it. The button to close shows. Done once, before the body is framed.
          */
-        void movesAndMinimizes(Stage stage) {
-            double[] grip = new double[2];
-            header.setOnMousePressed(press -> {
-                grip[0] = press.getScreenX() - stage.getX();
-                grip[1] = press.getScreenY() - stage.getY();
-            });
-            header.setOnMouseDragged(drag -> {
-                stage.setX(drag.getScreenX() - grip[0]);
-                stage.setY(drag.getScreenY() - grip[1]);
-            });
+        void ownsItsHeader() {
+            int at = root.getChildren().indexOf(header);
+            root.getChildren().remove(header);
+            var bar = new javafx.scene.layout.HeaderBar();
+            bar.setCenter(header);
+            header.setMaxWidth(Double.MAX_VALUE);
+            // The system has no buttons in this window, so it needs no room kept for them.
+            bar.setLeftSystemPadding(false);
+            bar.setRightSystemPadding(false);
+            javafx.scene.layout.HeaderBar.setDragType(header, javafx.scene.layout.HeaderDragType.DRAGGABLE_SUBTREE);
+            // A click on the port copies it; it does not take hold of the window.
+            javafx.scene.layout.HeaderBar.setDragType(firstPort, javafx.scene.layout.HeaderDragType.NONE);
+            javafx.scene.layout.HeaderBar.setButtonType(minimize, javafx.scene.layout.HeaderButtonType.ICONIFY);
+            javafx.scene.layout.HeaderBar.setButtonType(close, javafx.scene.layout.HeaderButtonType.CLOSE);
+            root.getChildren().add(at, bar);
+            close.setVisible(true);
+            close.setManaged(true);
+        }
+
+        /**
+         * The header moves the window and the buttons in it put it away and hide it. A floating
+         * window has nothing else for either; in the system's whole frame they are there as well as
+         * the frame's own.
+         *
+         * @param bySystem the window has the system's frame around this header, and the system
+         *                 moves the window by it: the header does not do it a second time
+         */
+        void movesAndMinimizes(Stage stage, boolean bySystem) {
+            if (!bySystem) {
+                double[] grip = new double[2];
+                header.setOnMousePressed(press -> {
+                    grip[0] = press.getScreenX() - stage.getX();
+                    grip[1] = press.getScreenY() - stage.getY();
+                });
+                header.setOnMouseDragged(drag -> {
+                    stage.setX(drag.getScreenX() - grip[0]);
+                    stage.setY(drag.getScreenY() - grip[1]);
+                });
+            }
+            // Pressed by the keyboard as well, where the system takes only the pointer's click.
             minimize.setOnAction(click -> stage.setIconified(true));
+            close.setOnAction(click -> stage.fireEvent(new javafx.stage.WindowEvent(stage, javafx.stage.WindowEvent.WINDOW_CLOSE_REQUEST)));
         }
 
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */
         void show(PanelModel model) {
-            agent.setText(model.identityBeforePort());
-            agentPort.setVisible(model.identityPort() > 0);
-            agentPort.setManaged(model.identityPort() > 0);
-            agentPort.showing("port " + model.identityPort(), model.identityPort());
+            firstPort.showing("Port " + model.firstPort(), model.firstPort());
+            agent.setText(model.identity());
+            // One agent: its port ends the line about its connection. Several have theirs in their rows.
+            // Only where it is another than the port in the header: the same number twice says nothing.
+            boolean another = model.agentPort() > 0 && model.agentPort() != model.firstPort();
+            agentPort.setVisible(another);
+            agentPort.setManaged(another);
+            agentPort.showing("agent port " + model.agentPort(), model.agentPort());
             connection.setText(model.connection());
             dot.getStyleClass().setAll("dot", model.connected() ? "connected" : model.switchedOff() ? "off" : "waiting");
-            if (!Objects.equals(shownConnected, !model.switchedOff())) {
-                shownConnected = !model.switchedOff();
-                goblin.awake(shownConnected);
-            }
+            mascot.show(model.mood());
             pair.setVisible(model.pairingWanted());
             pair.setManaged(model.pairingWanted());
-            problem.setText(model.problem() == null ? "" : model.problem());
+            // A long one is three things in a row: what is wrong, why, and what to do. A line each.
+            problem.setText(model.problem() == null ? "" : model.problem().replaceAll("(?<=[.]) (?=[A-Z])", "\n"));
             problem.setVisible(model.problem() != null);
             problem.setManaged(model.problem() != null);
             // Whose work does not show here: said by a server that no agent talks to, and by no other.
@@ -724,7 +1129,7 @@ final class Panel {
                 List<Node> lines = new ArrayList<>();
                 if (shownAgents.size() <= 1) {
                     // One agent: its tabs, as the panel always listed them.
-                    shownRows.forEach(row -> lines.add(choice(row.id(), sessionRow(row))));
+                    shownRows.forEach(row -> lines.add(choice(row.id(), sessionRow(row, null))));
                     if (lines.isEmpty()) {
                         lines.add(label(model.noSessions(), "empty"));
                     }
@@ -733,7 +1138,7 @@ final class Panel {
                     for (PanelModel.Member member : shownAgents) {
                         lines.add(choice(member.id(), agentRow(member)));
                         var its = shownRows.stream().filter(row -> member.id().equals(row.owner())).toList();
-                        its.forEach(row -> lines.add(choice(row.id(), sessionRow(row))));
+                        its.forEach(row -> lines.add(choice(row.id(), sessionRow(row, member.name()))));
                         if (its.isEmpty()) {
                             lines.add(label(PanelModel.noSessions(member), "empty"));
                         }
@@ -827,6 +1232,11 @@ final class Panel {
 
         /** Whether the user is reading in the log: has marked some of it, or has scrolled up from its last line. */
         boolean readingLog() {
+            if (!log.isVisible()) {
+                // Its card is folded: nobody reads what is not shown, whatever was marked in it or
+                // wherever it stood. It is written on, and is at its newest line when it shows again.
+                return false;
+            }
             if (!log.getSelectedText().isEmpty()) {
                 return true;
             }
@@ -859,10 +1269,15 @@ final class Panel {
         private static Node timeHead(List<PanelModel.Share> shares) {
             var share = label("share", "time-head");
             share.setMinWidth(SHARE_WIDE);
+            share.setTooltip(new Tooltip("How much of all the time of these calls went here."));
             var row = new HBox(grow(), share);
             if (shares.stream().anyMatch(each -> !each.typical().isEmpty())) {
-                var typical = label("per call", "time-head");
+                // The middle one of the calls, not the mean: one long wait does not move it. So a heap
+                // that few calls spend time in, such as the waiting for the user, can have a share and 0 ms.
+                var typical = label("typical", "time-head");
                 typical.setMinWidth(TYPICAL_WIDE);
+                typical.setTooltip(new Tooltip("What one call typically spends here: the middle one of the calls. "
+                        + "Where only a few calls spend time, as in waiting for you, this is 0 ms though the share is not."));
                 row.getChildren().add(typical);
             }
             row.getStyleClass().addAll("row", "time-head-row");
@@ -914,25 +1329,28 @@ final class Panel {
             id.setStyle("-fx-font-family: '" + monospace() + "';");
             id.setMinWidth(Region.USE_PREF_SIZE);
             var name = label(member.name(), "agent-name");
-            name.setMinWidth(Region.USE_PREF_SIZE);
-            // Its port while the extension is connected to it, and that it is not while it is not: the
-            // row has room for one of the two beside the name and the id.
-            // The port is copied by a click on it; the row is chosen by a click anywhere else.
-            Label last = member.connected() ? new PortLabel("chip").showing(":" + member.port(), member.port())
-                    : label("not connected", "chip", "state");
-            last.setMinWidth(Region.USE_PREF_SIZE);
+            var row = new HBox(name, grow(), id);
             if (!member.connected()) {
-                last.setTooltip(new Tooltip(member.connection()));
+                var state = label("not connected", "chip", "state");
+                state.setMinWidth(Region.USE_PREF_SIZE);
+                state.setTooltip(new Tooltip(member.connection()));
+                row.getChildren().add(state);
+            } else if (member.port() > 0) {
+                // Its port while the extension is connected to it: the row has room for one of the two.
+                // The port is copied by a click on it; the row is chosen by a click anywhere else.
+                row.getChildren().add(new PortLabel("chip").showing(":" + member.port(), member.port()));
             }
-            var row = new HBox(name, grow(), id, last);
             return chooser(row, member.id(), "agent", member.name() + ": show the metrics and the log of this agent only");
         }
 
         /**
          * One tab, as a button: a click on it chooses the tab, and its metrics and its log show in
          * the cards below. Pressed again, it gives the choice up.
+         *
+         * @param among the name of the agent the tab is listed under, where a server has several: the
+         *              row then says whose the tab is, or that it is nobody's yet. Null with one agent
          */
-        private ToggleButton sessionRow(PanelModel.Row session) {
+        private ToggleButton sessionRow(PanelModel.Row session, String among) {
             var id = label(session.id(), "chip", "id");
             id.setStyle("-fx-font-family: '" + monospace() + "';");
             id.setMinWidth(Region.USE_PREF_SIZE);
@@ -943,7 +1361,16 @@ final class Panel {
                 // Authorized for any agent and used by none yet: every server lists it until one has it.
                 var open = label("any agent", "chip");
                 open.setMinWidth(Region.USE_PREF_SIZE);
+                open.setTooltip(new Tooltip("No agent has used this tab yet. The first that does becomes its owner, "
+                        + "and no other agent can use it after that."));
                 row.getChildren().add(open);
+            } else if (among != null) {
+                // With several agents, whose a tab is decides who can work in it: said in the row.
+                var owner = label("owner: " + among, "chip");
+                owner.setMinWidth(Region.USE_PREF_SIZE);
+                owner.setTooltip(new Tooltip("Only " + among + " can use this tab. To give it to another agent, revoke it "
+                        + "in the extension's popup and authorize the tab for that agent."));
+                row.getChildren().add(owner);
             }
             if (!session.state().equals("active")) {
                 var state = label(session.state(), "chip", "state");
@@ -980,12 +1407,29 @@ final class Panel {
             var heading = label(title.toUpperCase(), "heading");
             // A box of text has no name of its own for a screen reader: its card's heading is its name.
             Stream.of(content).filter(TextArea.class::isInstance).findFirst().ifPresent(heading::setLabelFor);
-            var head = new HBox(heading, grow());
+            var arrow = new Region();
+            arrow.getStyleClass().add("disclosure-arrow");
+            var caption = new HBox(6, arrow, heading);
+            caption.setAlignment(Pos.CENTER_LEFT);
+            var toggle = new ToggleButton();
+            toggle.getStyleClass().add("card-toggle");
+            toggle.setGraphic(caption);
+            toggle.setAccessibleText(title);
+            toggle.setSelected(true);
+            toggle.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(toggle, Priority.ALWAYS);
+            var head = new HBox(toggle);
             head.getStyleClass().add("card-head");
             if (aside != null) {
                 head.getChildren().add(aside);
             }
             var card = new VBox(head);
+            for (Node section : content) {
+                section.visibleProperty().bind(toggle.selectedProperty());
+                section.managedProperty().bind(toggle.selectedProperty());
+            }
+            toggle.selectedProperty().addListener((property, was, expanded) ->
+                    card.setMaxHeight(expanded ? Region.USE_COMPUTED_SIZE : Region.USE_PREF_SIZE));
             card.getChildren().addAll(content);
             card.getStyleClass().add("card");
             return card;
@@ -1064,11 +1508,6 @@ final class Panel {
                 button.setText("Copied");
                 copied.playFromStart();
             });
-        }
-
-        /** The port in the line under the title, which a click copies. */
-        PortLabel agentPort() {
-            return agentPort;
         }
 
         /** The button that opens the settings file. */

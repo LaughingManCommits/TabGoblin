@@ -72,7 +72,8 @@ class LogTest {
         Log.keep(0);
         Log.keep(5);
         Log.command("8", "s1", "snapshot", 12, null);
-        assertEquals("00:00:00  command id=8 session=s1 action=snapshot ms=12 outcome=ok",
+        // The window shows a call's line in short: its tab, the action, how long, and how it ended.
+        assertEquals("00:00:00  s1 snapshot  12 ms  ok",
                 PanelModel.logLine(new Log.Line(0, "debug", texts().get(0)), java.time.ZoneId.of("UTC")));
         Log.keep(0);
         Log.keep(5);

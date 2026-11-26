@@ -3,11 +3,12 @@
 ## Layout
 
 ```text
-java-server/         the server, with its CLI and its MCP interface (Java 21, Maven)
+java-server/         the server, with its CLI and its MCP interface (Java 25, Maven)
 chrome-extension/    the extension (TypeScript, Manifest V3, esbuild)
   src/               sources
   test/              unit tests (node:test, jsdom)
-  icons/             goblin.svg and the PNGs rendered from it
+  icons/             the icon PNGs, written by art/mascot.ts
+art/                 mascot.ts: the goblin, the one source of its icons and sprites
   dist/              build output: load this folder in Chrome
 demo-site/           three local demo websites on three origins (test fixtures)
 e2e/                 end-to-end suite and helper scripts (Puppeteer, your Chrome)
@@ -50,7 +51,6 @@ Other scripts in `e2e/`:
 | `node agent.mjs` | Hands the tools to a real model (the `claude` CLI) with questions that need expanding, scrolling or loading more; prints the tool calls. Costs a few cents. |
 | `HEADED=1 node screenshots.mjs` | Regenerates the pictures of the popup and of the notice in `docs/images`, and `docs/examples` |
 | `node notice-pictures.mjs` | Pictures the notice in the page in every state, drawn by `notice.ts` in a plain page, to look at |
-| `node make-icons.mjs` | Renders the icon PNGs from `chrome-extension/icons/goblin.svg` |
 
 ### About the diagrams
 
@@ -90,7 +90,7 @@ panels folded to one line. Look at them after any change to the prompt. The end-
 reads the same texts, so wording cannot change unnoticed; how it looks, only eyes can tell.
 
 The picture of the server's panel, `docs/images/server-panel.png`, is not a capture: a class
-among the server's tests, `PanelPictures`, draws the panel in nineteen states with the server's own
+among the server's tests, `PanelPictures`, draws the panel in twenty states with the server's own
 code, without a window. The command, and what to look at in the real window besides, is in the
 [runbook](agents/runbook.md#look-at-the-servers-panel).
 
@@ -235,6 +235,62 @@ page that owns it:
 
 How two parts are built that the [architecture](architecture.md) only outlines.
 
+### The goblin
+
+Every picture of the goblin comes from one drawing, [`art/goblin.ts`](../art/goblin.ts): a
+palette, parts drawn as grids of letters (one letter a pixel), and the frames of each animation
+put together from those parts at whole offsets. Nothing is smoothed or scaled by a fraction.
+[`art/mascot.ts`](../art/mascot.ts) writes the pictures; run it from the repository's root after
+a change:
+
+```sh
+node art/mascot.ts
+```
+
+It writes the extension's icons (`chrome-extension/icons/icon16.png` to `icon128.png`), the
+panel's sprite sheet (`java-server/src/main/resources/browsercontext/mascot.png`) with the rows
+of its animations (`mascot.properties`), the README's logo (`docs/images/logo.png`, the 32-pixel
+face trimmed to its edges at three times, shown at its own size), and the picture below
+(`docs/images/mascot.png`). It
+needs Node 22.18 or newer and nothing installed. `chrome-extension/test/mascot.test.ts` fails
+when a file in the tree is not what the script draws, and holds the palette, the sizes, the frame
+counts and the symmetry of the faces.
+
+<img src="images/mascot.png" width="632" alt="The goblin's icons at 16, 32, 48 and 128 pixels, then its eight animations, idle, working, reading, walking, sleeping, confused, waiting and guarding, each frame at its own 32 by 32 pixels and below at three times that">
+
+From the top: the icons at 16, 32, 48 and 128 pixels. The 32-pixel face is the owner's drawing,
+and 128 is it at four times. The 16 and the 24-pixel faces are drawn again rather than shrunk; 48
+is the 24 at two times. Then one band for each animation, in the order of the sheet's rows:
+*idle*, *working* (mining), *reading* (a parchment), *walking*, *sleeping*, *confused*, *waiting*
+and *guarding* (a shield). Each frame is at its own size, a cell of 32 by 32 pixels in which the
+goblin stands 22 pixels high, and below at three times that. What a frame holds, and what rises
+over it, stays inside the cell.
+
+The panel shows a frame in its header, each pixel a square of two (`Panel.Mascot`). Which
+animation plays is the model's (`PanelModel.mood`), from what the server knows, the first that
+holds of:
+
+1. *sleeping* while the connection is switched off;
+2. *confused* while the server has a problem;
+3. *waiting* while the browser is not connected to every agent, or there is no agent;
+4. a tool call that is running now (`ExtensionConnection` knows the action of each command it
+   waits on): *reading* for a snapshot, an extract, a collect or a screenshot, *walking* for a
+   navigation, *working* for any other;
+5. for three seconds after a call ended, as the log has it: *guarding* where the rules refused it
+   (an authorization or a scope: that is TabGoblin working, not a fault), *confused* where it
+   failed otherwise, and as in 4 where it went through;
+6. *idle*.
+
+How it moves, so that it says something and does not tire the eye: at rest it holds still and
+blinks now and then, 8 to 15 seconds apart. Any other animation goes round, and a new one waits
+until it has come round once, so that a burst of calls shows whole motions and not a frame of
+each. A refresh with the same mood goes on where it is. It runs only while the window is on the
+screen, and where the system asks for less motion it holds its first frame. The window's icon
+does not move.
+
+The popup's header shows the 32-pixel icon, and the notice in the page draws the 16-pixel face
+from the same grid ([below](#the-notice-in-the-page)).
+
 ### The server's panel
 
 What the window shows is in the [developer guide](developer-guide.md#the-servers-panel), and what it
@@ -299,23 +355,30 @@ browser has to be paired. How it is built:
 - **No display, no panel.** Where there is no display, or JavaFX cannot start, the server logs
   `panel not shown reason=…` and runs as it does without the option. A JavaFX that cannot
   start prints a trace of its own to standard error first.
-- **Two kinds of window.** On Windows the window has no frame of the system's: a rounded body
-  with its own shadow, see-through around it, moved by its header. Everywhere else the same
-  body fills a window with the system's frame, because on Linux the see-through window was
-  there for the system and drew nothing (`Panel.floats`, held by a test). In both kinds a
-  request to close the window puts it away: the server ends by its button, or by its agent.
-- **The window's icon is drawn, not loaded.** The goblin comes from the shapes of
-  `chrome-extension/icons/goblin.svg`, written out in `Panel.java`. A window takes an icon only
-  as a picture that holds its pixels as bytes; a drawing comes as one number per pixel and is
-  passed over without a word, which leaves Java's icon on the taskbar. So the icons are copied
-  into the kind that is taken, and a test holds that.
-- **JavaFX 21 is in the jar,** with its native part for Windows on x64, Linux on x64 and macOS
+- **Three kinds of window.** On Windows the window has the system's frame around a header of its
+  own (`StageStyle.EXTENDED`, which JavaFX has since 25): the system draws the edge, the corners
+  and the shadow, moves the window by the panel's header (a `HeaderBar`) and makes it higher or
+  lower by its edges. The system's own buttons are switched off there (their height is set to 0)
+  and the header's two stand in for the ones that put a window away and close it; there is none
+  to fill the screen, and a request to do so is undone. Where JavaFX says the system cannot do
+  that, Windows gets the window it had before: no frame, a rounded body with its own shadow,
+  see-through around it, moved by its header and made higher by its lower edge. Everywhere else
+  the body fills a window with the system's whole frame, because on Linux the see-through window
+  was there for the system and drew nothing (`Panel.ownsItsHeader` and `Panel.floats`, held by
+  tests). In all of them a request to close the window hides it and ends nothing: the server ends
+  by its button, or by its agent, and `--panel` shows the window again (`Panel.raise`).
+- **The window's icon is the extension's.** The build takes `chrome-extension/icons` into the
+  jar (`pom.xml`), and `Panel.icons` reads them with smoothing off; 64 and 256 are 32 and 128
+  made larger in whole squares. A window takes an icon only as a picture that holds its pixels
+  as bytes, or it keeps Java's icon on the taskbar without a word; a PNG that is read is such a
+  picture, and a test holds that.
+- **JavaFX 27 is in the jar,** and it needs Java 25, which is why the server does. Each JavaFX is compiled for a Java of its time: 23 for Java 21, 27 for Java 25. It tells the window whether the system is set to light or dark, and whether the user asked the system for less motion, which JavaFX has said since 24. It also has a window style with the system's own frame around a header of one's own (`StageStyle.EXTENDED`), which the panel uses on Windows. JavaFX is there with its native part for Windows on x64, Linux on x64 and macOS
   on Apple silicon; that took the jar from 7.1 MB to 17.6 MB when it was added. A jar holds one
   set of native files per system, because those for Intel and for ARM have the same names.
   JavaFX unpacks them into
   `.openjfx` in the home folder, and writes to standard error: one warning at the start, that
   it was loaded from the class path, and on Java 26 four lines of Java's own, that a method
-  JavaFX draws with is to be removed. The 21 line of JavaFX is the one that runs on Java 21.
+  JavaFX draws with is to be removed. The jar is 19.2 MB with JavaFX 27.
 
 A drawing of the panel can be right where the window is not: how to look at the window after a
 change is in the [runbook](agents/runbook.md#look-at-the-servers-panel), and what was run on
@@ -363,8 +426,9 @@ happens, and it is what stays in the corner. The pills float above it, each as w
 words, with nothing drawn around the two. So what stays is small, and what passes covers no
 more of the page than its own text.
 
-The look is the popup's: its colours, its round marks, and the goblin of its header, drawn from
-the shapes of `icons/goblin.svg` with nothing fetched. The goblin stands bare on the bar, with no
+The look is the popup's: its colours and its round marks, and the goblin of the icons drawn with
+nothing fetched: the 16-pixel face of [`art/goblin.ts`](#the-goblin), as paths of whole pixels
+with crisp edges, at two times. The goblin stands bare on the bar, with no
 tile and no edge of its own. It shows the state through one class alone (its outline glows green
 while working and amber when the user is asked, and its eyes are closed when paused); it learns
 nothing about what the agent does beyond that. What each action looks like is not shown; that

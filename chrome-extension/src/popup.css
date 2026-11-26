@@ -16,9 +16,6 @@
   --warn: #9a6400;
   --warn-soft: #fff4d6;
   --warn-line: #e9b949;
-  --logo-bg: #12201a;
-  --logo-skin: #63d68f;
-  --logo-ear: #4fc27b;
   --shadow: 0 1px 2px rgba(18, 32, 26, 0.06);
 }
 
@@ -39,7 +36,6 @@
     --warn: #f3c25c;
     --warn-soft: #33290f;
     --warn-line: #b98a1f;
-    --logo-bg: #0a120d;
     --shadow: none;
   }
 }
@@ -60,7 +56,8 @@ body {
 /* ---------- header ---------- */
 .masthead { padding: 10px 12px 8px; }
 .brand { display: flex; align-items: center; gap: 10px; }
-.logo { width: 30px; height: 30px; flex: none; }
+/* The goblin of the icons, drawn in pixels: shown at whole sizes and never smoothed. */
+.logo { width: 32px; height: 32px; flex: none; image-rendering: pixelated; }
 .name { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
 .tagline { color: var(--muted); font-size: 11.5px; }
 .status {

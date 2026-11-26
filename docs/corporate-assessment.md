@@ -145,7 +145,7 @@ Detail: [agent identity](security-model.md#agent-identity-and-authentication),
 |---|---|
 | Extension | None. TypeScript sources bundled with esbuild |
 | Server | The MCP Java SDK, a WebSocket library (Java-WebSocket), a logging binding (SLF4J simple), JavaFX for the optional window; versions fixed in `pom.xml` |
-| Download | A Java runtime reduced with `jlink` from the Temurin JDK 21 of the build machine |
+| Download | A Java runtime reduced with `jlink` from the Temurin JDK 25 of the build machine |
 
 No service is contacted at run time. Each release carries two CycloneDX lists of components.
 

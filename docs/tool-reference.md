@@ -118,7 +118,7 @@ A session's block has further lines where they apply:
 | `Workspace: …` | The user filed the tab under a workspace. It is a name for the tabs of one task and gives an agent nothing |
 | `All authorized sites of this session: …` | The session spans several sites |
 | `State: suspended …` | The tab left the session's sites; the user has to resume it |
-| `Owner: not yet claimed …` | The tab was authorized for any agent; this agent's first command on it claims it |
+| `Owner: not yet claimed …` | The tab was authorized for any agent; this agent's first command on it claims it, and no other agent can use it after that |
 | `Blocked: …` | The session is on a site the user has [blocked](developer-guide.md#blocked-sites). The line names that site; the agent is not given the list. Every other tool answers `SITE_BLOCKED` in that session |
 | `Not allowed: …` | The policy limits agents to certain sites and this one is not among them. Every other tool answers `SITE_NOT_ALLOWED` |
 
@@ -810,12 +810,14 @@ fields of the page that was left which held text that was entered and not sent) 
 |---|---|
 | `new-document` | A new page loaded |
 | `same-document` | The address changed inside the same page (single-page app route) |
-| `no-change` | Nothing moved |
-| `timeout` | Still loading after 20 seconds |
+| `no-change` | Nothing moved: a place in the page that was already shown, or an address that gave no page within 20 seconds (a file to save, for one) |
+| `timeout` | Still loading after 20 seconds, or the site had not answered by then: where the tab ends up is not known |
 | `needs-user` | The tab moved to another site of the session, and the session is suspended (`suspended: true`); the user has to resume it there |
 | `unknown` | The page did not answer after the move, so it could not be told |
 
-**Limits:** a load is waited for up to 20 seconds; the server waits 45 seconds for the answer.
+**Limits:** a load is waited for up to 20 seconds, from the moment the tab is sent on its way: a
+site that is slow to answer is waited for like one that is slow to load, and the tab is not said
+to have stayed while its page is still to come. The server waits 45 seconds for the answer.
 
 **Restrictions**
 

@@ -2,6 +2,16 @@
 
 import { spawn } from 'node:child_process';
 
+/**
+ * A step may start a call and look at the popup before it waits for the answer. A server that
+ * ends meanwhile then fails that step where it awaits the call, and not the whole run as a
+ * rejection nobody was waiting for.
+ */
+function handled(promise) {
+  promise.catch(() => {});
+  return promise;
+}
+
 export class McpClient {
   /** @param name how this client introduces itself to the server (shown as the agent's name) */
   constructor(command, args, name = 'bcmcp-e2e') {
@@ -13,7 +23,29 @@ export class McpClient {
     /** Ids of answers that arrived for requests this client was no longer waiting for. */
     this.strays = [];
     this.nextId = 1;
-    this.exited = new Promise((resolve) => this.proc.once('exit', (code) => resolve(code)));
+    this.transportError = null;
+    this.stdinError = null;
+    this.exited = new Promise((resolve) => {
+      this.proc.once('exit', (code, signal) => {
+        const reason = signal ? `signal ${signal}` : `code ${code}`;
+        this.transportError = new Error(`MCP process ${this.name} exited with ${reason}`);
+        resolve(code);
+      });
+      // Only now is everything the process wrote read: an answer written just before the exit
+      // has been delivered, and what is still waiting gets none.
+      this.proc.once('close', () => this.rejectPending(this.transportError ?? new Error(`MCP process ${this.name} closed its output`)));
+      this.proc.on('error', (error) => {
+        // Only a process that never started ends here: it has no exit event. Any other error,
+        // such as a signal that could not be sent, says nothing of a process that still runs
+        // and answers: its end is what settles the rest.
+        if (this.proc.pid) return;
+        this.rejectPending(error);
+        resolve(null);
+      });
+    });
+    // A write that fails says nothing of the answers still on their way: the end of the process
+    // settles what waits, with its reason.
+    this.proc.stdin.on('error', (error) => { this.stdinError ??= error; });
     this.proc.stderr.on('data', (chunk) => { this.stderr += chunk; });
     let buffer = '';
     this.proc.stdout.on('data', (chunk) => {
@@ -42,9 +74,17 @@ export class McpClient {
     });
   }
 
+  rejectPending(error) {
+    this.transportError ??= error;
+    for (const waiter of this.pending.values()) waiter.reject(this.transportError);
+    this.pending.clear();
+  }
+
   request(method, params = {}, timeoutMs = 120000) {
+    if (this.transportError) return handled(Promise.reject(this.transportError));
+    if (this.proc.stdin.writableEnded) return handled(Promise.reject(new Error(`MCP input for ${this.name} is closed`)));
     const id = this.nextId++;
-    return new Promise((resolve, reject) => {
+    return handled(new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`MCP request ${method} timed out`));
@@ -54,10 +94,11 @@ export class McpClient {
         reject: (e) => { clearTimeout(timer); reject(e); },
       });
       this.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n');
-    });
+    }));
   }
 
   notify(method, params = {}) {
+    if (this.transportError) throw this.transportError;
     this.proc.stdin.write(JSON.stringify({ jsonrpc: '2.0', method, params }) + '\n');
   }
 
@@ -83,17 +124,21 @@ export class McpClient {
   }
 
   /** Calls a tool and flattens the result to { text, image, isError }. */
-  async tool(name, args = {}) {
-    const result = await this.request('tools/call', { name, arguments: args });
-    const text = result.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
-    const image = result.content.find((c) => c.type === 'image') ?? null;
-    return { text, image, isError: result.isError === true };
+  tool(name, args = {}) {
+    return handled(this.request('tools/call', { name, arguments: args }).then((result) => {
+      const text = result.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
+      const image = result.content.find((c) => c.type === 'image') ?? null;
+      return { text, image, isError: result.isError === true };
+    }));
   }
 
   /** Closes stdin, as an IDE does when it stops the server; resolves with the exit code. */
   async close(timeoutMs = 8000) {
     this.proc.stdin.end();
-    const code = await Promise.race([this.exited, new Promise((r) => setTimeout(() => r('still-running'), timeoutMs))]);
+    let timer;
+    const deadline = new Promise((resolve) => { timer = setTimeout(() => resolve('still-running'), timeoutMs); });
+    const code = await Promise.race([this.exited, deadline]);
+    clearTimeout(timer);
     if (code === 'still-running') this.proc.kill();
     return code;
   }

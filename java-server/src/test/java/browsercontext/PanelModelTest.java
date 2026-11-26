@@ -27,6 +27,44 @@ class PanelModelTest {
     }
 
     @Test
+    void theGoblinShowsWhatTheServerKnowsAndNothingMore() {
+        long now = 1_000_000;
+        Log.Line ok = new Log.Line(now - 500, "debug", "command id=4 session=s1 action=click ms=31 outcome=ok");
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, true, null, List.of(), now));
+        assertEquals(PanelModel.Mood.SLEEPING, PanelModel.mood(true, "a problem", false, "click", List.of(ok), now), "switched off: asleep, whatever else");
+        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, "no port", false, null, List.of(ok), now));
+        // Not connected: it waits, and looks it, even after a call; nothing it did a moment ago says otherwise.
+        assertEquals(PanelModel.Mood.WAITING, PanelModel.mood(false, null, false, null, List.of(ok), now));
+        // A call that runs now is shown while it runs, before anything the log has.
+        assertEquals(PanelModel.Mood.WALKING, PanelModel.mood(false, null, true, "navigate", List.of(ok), now));
+        assertEquals(PanelModel.Mood.READING, PanelModel.mood(false, null, true, "extract", List.of(), now));
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, true, "wait_for", List.of(), now));
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, true, "status", List.of(), now), "a status asked is no work");
+        // Else the call that ended last, for a moment.
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, true, null, List.of(ok), now));
+        for (String reads : List.of("snapshot", "extract", "collect", "screenshot")) {
+            assertEquals(PanelModel.Mood.READING, PanelModel.mood(false, null, true, null,
+                    List.of(new Log.Line(now, "debug", "command id=5 session=s1 action=" + reads + " ms=9 outcome=ok")), now), reads);
+        }
+        assertEquals(PanelModel.Mood.WALKING, PanelModel.mood(false, null, true, null,
+                List.of(new Log.Line(now, "debug", "command id=6 session=s1 action=navigate ms=900 outcome=ok")), now));
+        // A refusal is the rules at work: it guards. A failure of another kind puzzles it.
+        assertEquals(PanelModel.Mood.GUARDING, PanelModel.mood(false, null, true, null, List.of(new Log.Line(now, "info",
+                "command id=7 session=s1 action=navigate ms=31 outcome=error code=NAVIGATION_BLOCKED category=SCOPE scope_violation=true")), now));
+        assertEquals(PanelModel.Mood.GUARDING, PanelModel.mood(false, null, true, null, List.of(new Log.Line(now, "info",
+                "command id=8 session=s1 action=fill ms=3 outcome=error code=WRITE_NOT_AUTHORIZED category=AUTHORIZATION")), now));
+        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, null, true, null, List.of(new Log.Line(now, "info",
+                "command id=9 session=s1 action=click ms=3 outcome=error code=STALE_REF category=STALE")), now));
+        // The last call counts; a status asked, or a line that is no call, is passed over.
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, true, null, List.of(
+                new Log.Line(now - 900, "debug", "command id=1 session=s1 action=snapshot ms=9 outcome=ok"), ok,
+                new Log.Line(now - 100, "debug", "command id=8 session=- action=status ms=1 outcome=ok"),
+                new Log.Line(now - 50, "info", "extension connected client=c-1 protocol=3")), now));
+        // A call that ended longer ago than it is shown is over.
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, true, null, List.of(ok), now + PanelModel.SHOWN_MS));
+    }
+
+    @Test
     void pairingIsTheThingToDoWhileTheBrowserHoldsATokenThatIsNotTheServers() {
         assertTrue(model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).pairingWanted());
         // Not while no browser has come: one that is paired is on its way as a rule.
@@ -109,8 +147,15 @@ class PanelModelTest {
         assertEquals(10, shown.metrics("s1").calls());
         assertEquals(PanelModel.shares(ofOne), shown.metrics("s1").shares());
         assertEquals("s1  ·  time of the last 10 calls", shown.callsCount("s1"));
-        assertEquals(List.of("00:00:02  command id=1 session=s1 action=snapshot ms=12 outcome=ok",
-                "00:00:04  command id=3 session=s1 action=click ms=31 outcome=ok"), shown.log("s1"));
+        assertEquals(List.of("00:00:02  s1 snapshot  12 ms  ok", "00:00:04  s1 click  31 ms  ok"), shown.log("s1"));
+        // A call that failed ends with its code, and one for no tab names none. A line that is no call is as it was written.
+        assertEquals(List.of("00:00:03  s2 fill  4 ms  PAUSED"), shown.log("s2"));
+        assertTrue(shown.log().contains("00:00:05  status  1 ms  ok"), shown.log().toString());
+        assertEquals("extension connected client=c-1 protocol=3", PanelModel.brief("extension connected client=c-1 protocol=3"));
+        assertEquals("command id=9 and nothing else", PanelModel.brief("command id=9 and nothing else"));
+        // A call refused for going outside its session's sites is marked as such.
+        assertEquals("s1 navigate  31 ms  NAVIGATION_BLOCKED  outside scope", PanelModel.brief(
+                "command id=7 session=s1 action=navigate ms=31 outcome=error code=NAVIGATION_BLOCKED category=SCOPE scope_violation=true"));
         assertEquals("s1  ·  2 of the last 300 lines", shown.logCount("s1", 300));
         assertEquals("s2  ·  time of the last call", shown.callsCount("s2"));
         assertEquals(1, shown.log("s2").size());
@@ -175,14 +220,13 @@ class PanelModelTest {
             PanelModel unnamed = PanelModel.of(noName, "c-1a2b3c4d", 47821, "9.8.7", null, false, false, 0, 0, List.of(),
                     NO_CALLS, List.of(), UTC);
             assertEquals("Agent c-1a2b3c4d", unnamed.agent());
-            assertEquals("Agent c-1a2b3c4d  ·  port 47821", unnamed.identity());
+            assertEquals("Agent c-1a2b3c4d", unnamed.identity());
         }
         PanelModel named = model(true, false, 0, 0, List.of());
         assertEquals("claude-code", named.agent());
-        assertEquals("claude-code  ·  c-1a2b3c4d  ·  port 47821", named.identity());
+        assertEquals("claude-code  ·  c-1a2b3c4d", named.identity());
         // The window shows the port apart from the rest of the line, to be copied by a click.
-        assertEquals(47821, named.identityPort());
-        assertEquals("claude-code  ·  c-1a2b3c4d  ·  ", named.identityBeforePort());
+        assertEquals(47821, named.firstPort());
         PanelModel stuck = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", "Could not listen on any of ports 47821-47828.",
                 false, false, 0, 0, List.of(), NO_CALLS, List.of(new Log.Line(5, "warn", "a line")), UTC);
         assertEquals("Could not listen on any of ports 47821-47828.", stuck.problem());
@@ -198,6 +242,13 @@ class PanelModelTest {
         // The one server, started by the user, before any agent's program has connected to it.
         PanelModel empty = PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), UTC);
         assertEquals("no agent", empty.agent());
+        // An agent that waits for the browser: the next step is the user's, and the window says which.
+        assertTrue(model(false, false, 0, 0, List.of()).note().startsWith("Open the TabGoblin popup in Chrome"));
+        // Not where the line above already says why, or where nothing is to do.
+        assertEquals("", model(true, false, 1_000, 0, List.of()).note());
+        assertEquals("", model(false, true, 0, 0, List.of()).note());
+        assertEquals("", model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).note());
+        assertEquals(47821, empty.firstPort());
         assertEquals("one server for all your agents", empty.identity());
         assertFalse(empty.connected());
         assertEquals("No agent connected", empty.connection());
@@ -215,7 +266,7 @@ class PanelModelTest {
         assertEquals("", one.note());
         assertEquals("No tab is authorized for this agent", one.noSessions());
         assertEquals("No tool call has ended yet", one.noTimes());
-        assertEquals("Not known while the browser is not connected", model(false, false, 0, 0, List.of()).noSessions());
+        assertEquals("Tabs show here once the browser is connected", model(false, false, 0, 0, List.of()).noSessions());
     }
 
     @Test
@@ -274,7 +325,7 @@ class PanelModelTest {
         assertEquals("Both agents are connected to the browser", quiet.connection());
         assertTrue(quiet.connected());
         assertEquals("No tab is authorized for this agent", PanelModel.noSessions(quiet.agents().get(1)));
-        assertEquals("Not known while the browser is not connected", PanelModel.noSessions(shown.agents().get(1)));
+        assertEquals("Tabs show here once the browser is connected", PanelModel.noSessions(shown.agents().get(1)));
         assertEquals("All 3 agents are connected to the browser", PanelModel.connection(List.of(quiet.agents().get(0),
                 quiet.agents().get(1), quiet.agents().get(0)), false));
         assertEquals("No agent is connected to the browser", PanelModel.connection(List.of(shown.agents().get(1)), false));
@@ -290,6 +341,11 @@ class PanelModelTest {
         assertFalse(Panel.floats("", true));
         // And not where the system says it has no see-through windows.
         assertFalse(Panel.floats("Windows 11", false));
+        // The system's frame around the panel's own header comes before that, on Windows and where the system has it.
+        assertTrue(Panel.ownsItsHeader("Windows 11", true));
+        assertFalse(Panel.ownsItsHeader("Windows 11", false));
+        assertFalse(Panel.ownsItsHeader("Linux", true));
+        assertFalse(Panel.ownsItsHeader("Mac OS X", true));
     }
 
     @Test
@@ -300,7 +356,7 @@ class PanelModelTest {
             bridge.setClientName("claude-code");
             PanelModel alone = PanelModel.of(bridge, null);
             assertEquals("claude-code", alone.agent());
-            assertEquals("claude-code  ·  " + bridge.clientId() + "  ·  port " + bridge.getPort(), alone.identity());
+            assertEquals("claude-code  ·  " + bridge.clientId(), alone.identity());
             assertEquals(bridge.getPort(), alone.port());
             assertFalse(alone.connected());
             assertEquals("Not connected: waiting for the extension", alone.connection());
@@ -343,7 +399,9 @@ class PanelModelTest {
         String file = "~/.browser-context-mcp/tabgoblin.properties";
 
         // Nothing blocked: the rows are as they were, and the line says so.
-        PanelModel open = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        PanelModel open = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        // The server's link port comes after the agents' ports: the first of those is what the popup is told.
+        assertEquals(47821, open.firstPort());
         assertEquals(List.of("active", "paused", "active"), open.sessions().stream().map(PanelModel.Row::state).toList());
         assertEquals("No site is blocked", open.blocked().summary());
         assertTrue(open.blocked().explained().endsWith(file), open.blocked().explained());
@@ -354,19 +412,19 @@ class PanelModelTest {
         // Some: a tab on a blocked site says "blocked" in place of its state, and so does one that
         // spans a blocked site. The line names what fits and counts the rest; under the mouse is all of it.
         var rule = new BlockedSites.Rule(List.of("bank.example", "example.org", "intranet.example"), null);
-        PanelModel some = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, rule, file);
+        PanelModel some = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, rule, file);
         assertEquals(List.of("active", "blocked", "blocked"), some.sessions().stream().map(PanelModel.Row::state).toList());
         // The entries that block a tab come first: the line names what is in the user's way.
         assertEquals("example.org, intranet.example and 1 more", some.blocked().summary());
         assertTrue(some.blocked().explained().contains("Blocked now:\n  example.org\n  intranet.example\n  bank.example\n\n" + file),
                 some.blocked().explained());
-        assertEquals("example.org", PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        assertEquals("example.org", PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null), file).blocked().summary());
         assertNull(some.problem());
 
         // A file that cannot be read: every tab is blocked, and the window's problem says why, in the file's own words.
         var slip = new BlockedSites.Rule(List.of(), "\"exam_ple.org\" in blocked.sites is no domain");
-        PanelModel mistaken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, slip, file);
+        PanelModel mistaken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, slip, file);
         assertEquals(List.of("blocked", "blocked", "blocked"), mistaken.sessions().stream().map(PanelModel.Row::state).toList());
         assertEquals("Every site is refused until the settings file is mended: \"exam_ple.org\" in blocked.sites is no domain.",
                 mistaken.problem());
@@ -375,7 +433,7 @@ class PanelModelTest {
         // A server that could not start says that first: it is the greater trouble.
         var broken = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, "Could not listen.", false, 0, 0, List.of(),
                 NO_CALLS, Map.of()));
-        assertEquals("Could not listen.", PanelModel.of(broken, 47821, "9.8.7", false, List.of(), UTC, slip, file).problem());
+        assertEquals("Could not listen.", PanelModel.of(broken, 47829, "9.8.7", false, List.of(), UTC, slip, file).problem());
         // Nothing of a page is in it.
         assertFalse(some.toString().contains("Inbox"), "the page's title stays out");
         assertFalse(some.toString().contains("?q=from"), "the page's address stays out");
@@ -438,7 +496,7 @@ class PanelModelTest {
                 new Timings.Shares(0, 0, 0, 0, 0), Map.of()));
         String file = "/somewhere/tabgoblin.properties";
         var limits = new BlockedSites.Limits(true, List.of("ci.example"), false, BlockedSites.Access.EXPLORE, 240, 20);
-        PanelModel.Blocked shown = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked shown = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null, limits), file).blocked();
         assertEquals("Blocked sites and security policy", shown.heading());
         assertEquals("example.org", shown.summary(), "the line of the blocked sites says the blocked sites");
@@ -451,14 +509,14 @@ class PanelModelTest {
         assertTrue(under.endsWith(file));
 
         // A policy and no blocked site: the heading says that there is a policy, and each line says its own.
-        PanelModel.Blocked alone = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked alone = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0)), file).blocked();
         assertEquals("Blocked sites and security policy", alone.heading());
         assertEquals("No site is blocked", alone.summary());
         assertEquals("Policy: no screenshots", alone.policyLine());
 
         // Without a policy the heading, the line and the text are as they were, and there is no second line.
-        PanelModel.Blocked plain = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked plain = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null), file).blocked();
         assertEquals("Blocked sites", plain.heading());
         assertEquals("example.org", plain.summary());
@@ -466,7 +524,7 @@ class PanelModelTest {
         assertFalse(plain.restricts());
         assertFalse(plain.explained().contains("Security policy"));
         // A file that cannot be read refuses everything: that is what the window says, and not a policy.
-        PanelModel.Blocked broken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked broken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of(), "\"admin\" in access.max is none of read, explore, write", limits), file).blocked();
         assertEquals("Blocked sites", broken.heading());
         assertFalse(broken.restricts());

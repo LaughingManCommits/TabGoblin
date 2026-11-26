@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node run.mjs"
+    "test": "node --test mcp-client.test.mjs && node run.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^25.18.1"

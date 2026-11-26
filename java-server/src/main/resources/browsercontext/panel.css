@@ -22,6 +22,30 @@
     -fx-background-color: transparent;
 }
 
+/*
+ * Daylight, where the system is set to light: the popup's own light colours, on the panel's body
+ * and so on everything in it. The shadow under a floating window is lighter there too.
+ */
+.panel.light {
+    -tg-bg: #f4f7f3;
+    -tg-card: #ffffff;
+    -tg-raised: #eef3ee;
+    -tg-line: #dbe4dc;
+    -tg-fg: #152019;
+    -tg-muted: #5b6d61;
+    -tg-accent: #1c8a4b;
+    -tg-accent-soft: #dff3e6;
+    -tg-accent-ink: #ffffff;
+    -tg-bad: #c0392b;
+    -tg-bad-soft: #fbe9e6;
+    -tg-warn: #9a6400;
+    -tg-warn-soft: #fff4d6;
+    -tg-warn-line: #e9b949;
+}
+.panel.floating.light {
+    -fx-effect: dropshadow(gaussian, rgba(18, 32, 26, 0.28), 26, 0.12, 0, 8);
+}
+
 /* The window itself: a rounded ground with a fine edge, as the popup's cards have, and a shadow under it. */
 .panel {
     -fx-background-color: -tg-line, -tg-bg;
@@ -80,8 +104,23 @@
     -fx-background-radius: 1;
     -fx-background-color: -tg-muted;
 }
+/* The cross of the button that hides the window: two bars, drawn as one shape. */
+.button.window-button .cross {
+    -fx-shape: "M1 0 L5 4 L9 0 L10 1 L6 5 L10 9 L9 10 L5 6 L1 10 L0 9 L4 5 L0 1 Z";
+    -fx-min-width: 10;
+    -fx-max-width: 10;
+    -fx-min-height: 10;
+    -fx-max-height: 10;
+    -fx-background-color: -tg-muted;
+}
 .button.window-button:hover {
     -fx-background-color: -tg-raised;
+}
+.button.window-button.closes:hover {
+    -fx-background-color: -tg-bad-soft;
+}
+.button.window-button.closes:hover .cross {
+    -fx-background-color: -tg-bad;
 }
 .button.window-button:hover .dash {
     -fx-background-color: -tg-fg;
@@ -103,6 +142,11 @@
 }
 .status .label {
     -fx-font-size: 12.5px;
+}
+/* The agent's port at the end of the line is a chip as any other, and adds no height to the line. */
+.status .chip {
+    -fx-font-size: 11px;
+    -fx-padding: 0 7 1 7;
 }
 .dot {
     -fx-min-width: 8;
@@ -174,6 +218,32 @@
 }
 .card-head {
     -fx-alignment: center-left;
+}
+.toggle-button.card-toggle {
+    -fx-alignment: center-left;
+    -fx-background-color: transparent;
+    -fx-padding: 2 0;
+    -fx-min-height: 24;
+    -fx-cursor: hand;
+}
+.card-toggle .disclosure-arrow {
+    -fx-shape: "M 0 0 L 6 4 L 0 8 Z";
+    -fx-min-width: 6;
+    -fx-pref-width: 6;
+    -fx-max-width: 6;
+    -fx-min-height: 8;
+    -fx-pref-height: 8;
+    -fx-max-height: 8;
+    -fx-background-color: -tg-muted;
+}
+.card-toggle:selected .disclosure-arrow {
+    -fx-rotate: 90;
+}
+.card-toggle:hover .heading, .card-toggle:focused .heading {
+    -fx-text-fill: -tg-accent;
+}
+.card-toggle:focused .heading {
+    -fx-underline: true;
 }
 .heading {
     -fx-text-fill: -tg-muted;
@@ -267,6 +337,19 @@
 .port:hover {
     -fx-underline: true;
     -fx-text-fill: -tg-accent;
+}
+/* Under the keyboard it is edged as a button is. */
+.port:focused {
+    -fx-background-color: -tg-accent, -tg-card;
+    -fx-text-fill: -tg-accent;
+}
+/*
+ * It takes a click 4 above and below its pill: 25 high to the pointer, 17 to the eye. The room is
+ * padding that the pill's ground stays out of; PortLabel takes the same 4 out of the row again.
+ */
+.chip.port, .status .chip.port {
+    -fx-padding: 5 7 6 7;
+    -fx-background-insets: 4 0 4 0, 5 1 5 1;
 }
 .chip.state {
     -fx-background-color: -tg-warn-line, -tg-warn-soft;
@@ -436,7 +519,7 @@
     -fx-max-width: 44;
     -fx-min-height: 24;
     -fx-max-height: 24;
-    -fx-background-color: -tg-line, -tg-raised;
+    -fx-background-color: -tg-muted, -tg-raised;
     -fx-background-insets: 0, 1;
     -fx-background-radius: 12;
     -fx-alignment: center-left;

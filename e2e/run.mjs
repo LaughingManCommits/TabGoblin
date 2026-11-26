@@ -614,6 +614,15 @@ try {
     assert(page.url() === `${demo.originA}/`, `tab moved to ${page.url()}`);
     has((await one.tool('browser_status')).text, `Authorized origin: ${demo.originA}`);
   });
+  await step('a page that a site is slow to send is waited for: the tab is not said to have stayed', async () => {
+    const slow = json(await one.tool('browser_navigate', { url: '/slow.html' }));
+    assert(slow.navigation === 'new-document' && slow.url === `${demo.originA}/slow.html` && slow.title === 'Slow page'
+      && !slow.redirected, JSON.stringify(slow));
+    has(ok(await one.tool('browser_extract')).text, 'This page took its time.');
+    const home = json(await one.tool('browser_navigate', { url: '/' }));
+    assert(home.navigation === 'new-document' && home.url === `${demo.originA}/`, JSON.stringify(home));
+    snap = ok(await one.tool('browser_snapshot')).text;
+  });
   await step('find returns the errors of a long log with their stack traces, and where each one is', async () => {
     json(await one.tool('browser_navigate', { url: '/build-log.html' }));
     // How long the page is, from the header of a read that returns almost nothing of it.
@@ -2099,8 +2108,20 @@ try {
     const exit = await one.close();
     assert(exit === 0, `server exit code ${exit}`);
     const popup = await openPopup();
-    await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
-    await popup.waitForFunction((sel) => document.querySelector(sel)?.textContent.includes('agent-one (not connected)'), {}, row(sA, '.meta'));
+    async function waitForPopupState(description, predicate, ...args) {
+      try {
+        await popup.waitForFunction(predicate, {}, ...args);
+      } catch (cause) {
+        // What the popup did say, so that a wait that fails names what it saw and not only how long it waited.
+        const saw = await popup.evaluate((sel) => (typeof sel === 'string' ? document.querySelector(sel)?.textContent : null)
+          ?? document.getElementById('connection')?.textContent ?? '', args[0]).catch(() => '(the popup could not be read)');
+        throw new Error(`Waiting for ${description}: ${cause.message}. The popup said: "${saw}"`, { cause });
+      }
+    }
+    await waitForPopupState('one agent to remain connected after agent-one exits',
+      () => document.getElementById('connection').textContent === '1 agent connected');
+    await waitForPopupState('the session to show agent-one disconnected after exit',
+      (sel) => document.querySelector(sel)?.textContent.includes('agent-one (not connected)'), row(sA, '.meta'));
     // The owner is gone, but a different agent still may not take the tab.
     fails(await two.tool('browser_snapshot', { session: sA }), 'SESSION_NOT_OWNED');
 
@@ -2116,7 +2137,11 @@ try {
     lacks(seen, 'Demo Tracker');
     fails(await impostor.tool('browser_snapshot', { session: sA }), 'SESSION_NOT_OWNED');
     fails(await impostor.tool('browser_extract', { session: sC }), 'SESSION_NOT_OWNED');
-    await popup.waitForFunction((sel) => document.querySelector(sel)?.textContent.includes('agent-one (not connected)'), {}, row(sA, '.meta'));
+    // The owner is still named and still away. With another agent of the same name connected, the popup
+    // tells the two apart by adding the owner's id to its name; whether it has learned that name yet
+    // depends on which came first, the browser's connection or the agent's own word of its name.
+    await waitForPopupState('the session to keep its disconnected owner while the unkeyed agent is connected',
+      (sel) => /^Owner: agent-one( \([^)]+\))? \(not connected\)/.test(document.querySelector(sel)?.textContent ?? ''), row(sA, '.meta'));
     assert(await impostor.close() === 0, 'the agent without a key ends in order');
 
     one = new McpClient('java', argsOf('agent-one'), 'agent-one');
@@ -2124,18 +2149,20 @@ try {
     await one.initialize();
     // The agent's process proved its key to the server, so it has the id it had. The tabs are its
     // own again as soon as the extension has found the new server, before the agent has called a single tool.
-    await popup.waitForFunction((sel) => {
-      const meta = document.querySelector(sel)?.textContent ?? '';
-      return meta.startsWith('agent-one') && !meta.includes('not connected');
-    }, {}, row(sA, '.meta'));
+    await waitForPopupState('the restarted agent to reclaim its session in the popup',
+      (sel) => {
+        const meta = document.querySelector(sel)?.textContent ?? '';
+        return meta.startsWith('Owner: agent-one') && !meta.includes('not connected');
+      }, row(sA, '.meta'));
     await until(async () => (await badge()) === 'ON', 'the badge to say ON once the restarted agent is back');
     await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the restarted agent to connect', 15000);
     has((await one.tool('browser_status')).text, `on port ${wsPort}`);
     has((await one.tool('browser_status')).text, 'identity "agent-one": the same agent at every start');
     has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
     has(ok(await one.tool('browser_snapshot', { session: sC })).text, 'Page: Widget Handbook');
-    await popup.waitForFunction((sel) => document.querySelector(sel)?.textContent.startsWith('agent-one ·')
-      || document.querySelector(sel)?.textContent === 'agent-one', {}, row(sA, '.meta'));
+    await waitForPopupState('the session owner label to settle after the restarted agent reads its tabs',
+      (sel) => document.querySelector(sel)?.textContent.startsWith('Owner: agent-one ·')
+        || document.querySelector(sel)?.textContent === 'Owner: agent-one', row(sA, '.meta'));
   });
   await step('the extension\'s service worker can be stopped and restarted without losing sessions', async () => {
     // Something the user allowed in the automatic mode, to see below that it is not kept.

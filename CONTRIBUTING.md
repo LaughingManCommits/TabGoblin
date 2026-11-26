@@ -1,12 +1,12 @@
 # Contributing
 
 TabGoblin is a browser bridge for AI agents: a local server with a CLI and an MCP interface
-(`java-server/`, Java 21) and a Chrome extension (`chrome-extension/`, TypeScript, Manifest V3). This page is the short version; build, tests,
+(`java-server/`, Java 25) and a Chrome extension (`chrome-extension/`, TypeScript, Manifest V3). This page is the short version; build, tests,
 conventions and the protocol are in [development](docs/development.md).
 
 ## Build and test
 
-You need a JDK 21 or newer, Maven, Node.js 24 and Chrome.
+You need a JDK 25 or newer, Maven, Node.js 24 and Chrome.
 
 ```sh
 mvn -f java-server/pom.xml verify              # server: tests, the jar, the jar against MCP

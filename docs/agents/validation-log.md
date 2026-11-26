@@ -3,6 +3,58 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-26, branch `claude/goblin-mascot` from `ebdfafe`: the pixel goblin, and its review mended
+
+In the same Linux container (OpenJDK 25.0.5, Chromium 1243 through the `--no-sandbox` wrapper). `node art/mascot.ts` wrote the icons, the sprite sheet, its index and `docs/images/mascot.png`; every animation and the icons were looked at enlarged on the panel's ground. The header was drawn in a frame of working, sleeping, confused and guarding with a probe (not in the repository): nothing of a frame meets the words. The real window opened at scale 1 and at `-Dglass.gtk.uiScale=2`: the goblin is sharp at both. `HEADED=1 node screenshots.mjs` drew the popup and the notice again; each changed picture looked at; the three text examples it changed (a page's height, from the font) were put back. The extensions page was taken again by a script of the session (not in the repository) with the steps of `screenshots.mjs`, in Chrome's dark theme as before, and with the line that this container's browser is managed by an organization hidden before the capture: the container's own policies put it there, and a reader's Chrome does not show it. The ID and the card without an *Errors* button, which the installation guide asks to check, are in it. The README's logo is its own picture now, `docs/images/logo.png`, written by `art/mascot.ts` and shown at its own size; looked at beside the README's first lines in a page of the same width. The two full-length pictures of the popup (`popup-full.png`, `popup-full-light.png`) had an empty box for the goblin: they are laid out in an ordinary tab, where the popup's `icons/` path leads nowhere. `screenshots.mjs` now puts the icons into that page; both drawn again and looked at. Passed: the extension's check, 218 tests (`mascot.test.ts` four, the notice's face among `notice.test.ts`); Maven's package under `xvfb-run`, 223 tests and none skipped, with the mood's rules in `PanelModelTest` and the sprite's playing in `PanelTest` (a new mood after a whole round, the wait called off, still while hidden); the end-to-end suite, 110 of 110. Not run: Windows and macOS; the animations seen moving in a real window (frames, and the timeline's state and its rounds through `tick`, were checked).
+
+## 2026-11-25, working tree from `a1107fc`: the fixes of the branch's review
+
+In a Linux container, with OpenJDK 25.0.5 and Chromium 1243 (started with `--no-sandbox` through a wrapper, since the container runs as root). Passed: the extension's check, 214 tests, among them the slow-site case of `navigate`, now driven by Chrome's events, with a load over in one moment and a move from `/later#part` to `/later`; Maven's package, 221 server tests, with `PanelTest` skipped for want of a display, then `PanelTest`'s 19 under `xvfb-run` with the JDK that has its window libraries; and the end-to-end suite, 110 of 110. The real window opened by a probe (not in the repository) on a virtual screen 600 high, without a window manager: 552 high, where it was made 560 before; on a screen 1024 high it opens 824 high with a lowest height of 560; and whether it is on the screen followed hiding, showing again and putting it away. The twenty pictures of the panel drawn the next day under `xvfb-run` and looked at: the header and the Control card are whole in each, `outside scope` ends the refused calls' lines, and the first is `docs/images/server-panel.png` now. Drawn with this system's font (Inter), wider than the Windows one of the picture before: the client id in the header is cut to `c-7240d…`, and a long log line goes on a second row. Not run: a `navigate` that runs out its 20 seconds (no case for it, it would take that long); the window in a system's frame with a title bar, Windows, macOS; the window's tooltip by hand; `mvn verify`.
+
+## 2026-11-25, working tree from `52143a5`: panel controls, CLI skills and MCP test-client exit handling
+
+On Windows with JDK 21, the four focused server suites passed 67 tests. Maven packaged the final jar in a copy with all 218 server tests passing and none skipped. The panel test copied a custom first port with no agents present using a test clipboard. The 19 panel pictures were rendered and inspected. Documentation links and the personal-information checks passed. The extension and browser end-to-end suites were not run.
+
+With collapsible sections added, the focused suites passed 68 tests. On Windows, Maven packaged the jar with 219 tests passing and none skipped. The JavaFX test folded each section, refreshed the view and reopened it. All 19 panel pictures were inspected and the guide picture was refreshed. Other platforms and the browser suites were not exercised for this change.
+
+The three CLI skills now carry the custom first port through browser commands and include a failed-build investigation. All 9 SkillsTest checks passed, followed by all 219 server tests during packaging. Each CLI skill in the built jar matched its source byte for byte. Documentation link and personal-information checks passed. The browser suites were not rerun for the skill edits.
+
+The MCP test client's three child-process regression tests failed against the previous client and passed with the fix. The Windows Chrome end-to-end suite passed 109 of 109, including cancellation, agent restart and session recovery, with server diagnostics enabled. The extension type-check, all 213 tests and the build passed. The original intermittent popup timeout did not occur in this run. The Java server suite was not repeated for these harness edits.
+
+After moving the first-port control to the header, 68 focused tests and all 219 server tests passed on Windows. The header copy test covered a custom port before connection. The 19 panel renders were inspected and the guide picture refreshed. Browser suites were not rerun for this display change.
+
+After a review of the branch, on `smoke-tests` from `8f47982`: the MCP test client settles what waits when the child's output is closed, not at its exit, leaves a failed write to that, and a call that a step has not awaited yet fails there and not the run. Its 6 tests passed, three of them new. The panel's factories for a list of agents name the link port they take, and the tests that gave them an agent's port give the link port and assert the first port. On Windows with JDK 21, `mvn test` in the tree passed 219 server tests with none skipped. The personal-information check passed. Not run: the browser end-to-end suite, which uses this client, and a build of the jar.
+
+The command line by hand, the same day, on Windows 11 with JDK 21: the jar of the tree, the owner's server on a port given with `--port`, the owner's Chrome with the real extension, and a tab on a public site that the owner authorized with Explore for an agent of the command line. Passed: `tools`, `tools --json` (14 tools), `--help` of a command; `status`, `request-access`, `snapshot`, `extract` with `--outline` and with `--find`, `scroll`, `screenshot --out` (the picture opened and looked at), `wait-for`, `hover`, a click on a link by the tool's own name with `--session`, `press-key`, `navigate --history back`, `collect` with `--args-file`, `extract` with `--args -` and the name from `BCMCP_AGENT`. Refused as they should be: no `--agent`, an unknown argument and a missing one (exit 2); `fill` and Enter under Explore, another origin, a stale ref, an unknown session, a wait that ran out (exit 1). Every answer was one line of JSON. **One fault:** `navigate --url` to another page of that site answered `no-change` with the address before and `redirected: true`, twice of three times, while the tab had gone where it was sent. Not tried: Write, `submit`, exit codes 3 and 4, `tabgoblin.cmd`, and an agent with the skill.
+
+The end-to-end suite then passed with the changed test client, 109 of 109, in Chrome on Windows against the tree's jar. After the mend of `navigate` (a load that has to come is waited for, where the tab was taken to have stayed after a second and a half): the extension's check passed, 214 tests with the type-check and the build, one test new, a site that answers after two seconds; and the suite passed 110 of 110, one step new, a demo page that is sent after two and a half seconds. Links and the personal-information check passed. Not done: the new step run against the code before the mend; the mend seen on the public site where the fault was found, which needs the owner's Chrome to load the extension again; and an address that gives no page, which now answers after 20 seconds.
+
+Seen on that site after the owner loaded the extension again: `navigate --url` to two other pages answered `new-document` with the new address, one of them after 2.6 seconds, where it had said `no-change`. The address the tab was already at still answered `no-change` after a second and a half: asked for again it is loaded again, and that was not waited for. Mended as well, with a case in the unit test; the extension's check passed, 214 tests. That last mend has not been seen on the site. The suite passed with it, 110 of 110.
+
+Whose a tab is, said to the user, after the owner found that a tab given to *Any agent* was closed to the agent of the command line once another agent had used it: the popup's row reads `Owner: <agent>`, or that the tab has no owner yet, and in the server's window a tab's row has `owner: <agent>` where several agents are connected. No tool's text changed. The server's 219 tests and the extension's 214 passed. The window's 19 pictures were drawn and the one with two agents looked at; the 13 pictures of the documentation were made anew with a visible Chrome and each opened. The end-to-end suite then passed with the popup's new words, 110 of 110.
+
+At `3f162a7`, with the owner's Chrome and the extension loaded again: `navigate --url` on the public site, two addresses each asked for twice and a third once, answered `new-document` with the right address all five times, in 2.0 to 3.4 seconds each. The address the tab was already at is among them. A run a few minutes before, on the extension as it was loaded before, still said `no-change` for that case. The owner saw the popup's row name its owner.
+
+The failed-build section added to the three MCP skills, and `SkillsTest` narrowed to `--agent` and `--port`: its 9 tests passed, and the server's 219 with none skipped. The skills in the jar were not compared, since no jar was built.
+
+The review's last three findings: a folded Log card (three steps more in the window's test of a held log), the test client and an `error` event of a process that runs (one test more, which failed against the client as it was; 7 pass), and an agent's port shown again. The server's 219 tests passed, and the end-to-end suite passed with the changed client, 110 of 110, before the port was put back. The port was first put in the header, where it cut the agent's id short in the picture; it is at the end of the connection line now. The window's 19 pictures were drawn anew, 12 of them opened, and the documentation's picture replaced.
+
+The chip under the title renamed from *First port* to **Port**, and the one agent's own port shown only where it differs: the server's 219 tests passed, the pictures were drawn anew, the connected one opened and made the documentation's picture.
+
+The window's wording and its log after the critical review: the server's 219 tests passed after eight of them were brought to the new words, with cases added for a call's short line and for the hint while the extension is waited for. The 19 pictures were drawn anew and four opened: connected (four calls' lines where there was part of one), waiting (the hint), without a port (three lines), and two agents, where the window still scrolls and the Log has two rows. No jar was built and the real window was not seen.
+
+The window's behaviour, read from its own controls by a program in the session's scratch folder: 14 controls, 13 of them reached by Tab in the order shown and the port chip not; Space and Enter both pressed a card's heading and a button; no label cut short; contrasts computed from the stylesheet's colours, 6.3 to 14.3 for text, 1.4 and 1.5 for a switch that is off and a card's edge. After the mend the chip is reached and pressed by the keyboard, with steps for it in the window's test; the server's 219 tests passed and the pictures were drawn anew.
+
+The window's theme, height and place, on JavaFX 23.0.2: the server's 220 tests passed, one new; `mvn verify` built the jar in the tree, with no server running from it, and the conformance check passed its 8 on that jar. Twenty pictures were drawn and three opened: connected, two agents (no second scroll bar, three rows of the log) and the light one. The real window was opened as the server opens it, on Windows 11 with a system set to dark: a see-through window, the dark colours, the pointer for the lower edge and a drag by it from 868 to 748, a drag elsewhere that changed nothing, the place kept and read back, and a place off every screen refused; what Java's preferences held before was put back. JavaFX 23 named no key about motion on this system, so the window was not seen to keep still. Read from Maven Central the same day: JavaFX 23 is compiled for Java 21, 24 for 22, 25 for 23, 26 for 24 and 27 for 25.
+
+End to end against that jar: 93 of 110 twice, the first failure each time the wait "the session to keep its disconnected owner while the unkeyed agent is connected" after 30 seconds, and the 16 steps after it for want of the agent that step starts again. The wait asked for a text the popup shows only until it knows the second agent's name; made to take the owner's name with or without its id, the suite passed 110 of 110, once. The five runs earlier in the day were on the jar of 18:19 and passed with the wait as it was.
+
+Java 25 and JavaFX 27.0.1.1, on Windows 11 with a JDK 25: `mvn verify` passed the server's 220 tests and the 8 of the conformance check, and made a jar of 19.2 MB. That jar listed its commands on Java 25 and on Java 27, and on Java 21 it stopped with `UnsupportedClassVersionError`. The real window, opened as the server opens it: JavaFX said that less motion is not asked for here, which JavaFX 23 could not say; the theme, the lower edge and the kept place as before. Twenty pictures drawn, the connected one opened and the same as on JavaFX 23. The download for Windows was made with that JDK (50 MB; its runtime now has `java.prefs`, which the kept place needs), unpacked into a folder with a space in its name, and its command listed the tools and printed its help on the runtime inside. End to end on Java 25 against that jar: 110 of 110. Links and the personal-information check passed. Not run: the two workflows, which run on GitHub only and now ask for Java 25; the downloads for Linux and macOS; the extension's own suite, which this did not touch.
+
+The window with the system's frame around its own header (`StageStyle.EXTENDED`), on Windows 11 with Java 25: the server's 221 tests passed, one new for the header's two buttons. Opened as the server opens it, the window said: style EXTENDED, resizable, 416 wide and no wider or narrower, 560 at the lowest; no room taken by buttons of the system's; the header's two taken for ICONIFY and CLOSE; asked to fill the screen, it stayed as it was; made 120 lower, its body followed; a close request hid it, and `Panel.raise` showed it again. Twenty pictures drawn, the connected and the light one opened: the header with its two buttons, the body unchanged. The owner looked at a try of it in the dark and the light theme before it was built in.
+
+The window's controls after that, in the real window with the real pointer (commands taken into a list, the port into a clipboard of the check's own): the port chip copied and left the window where it was; minimize and close, by the pointer and by Space; a card's heading folded and opened; a tab's row chosen; the switch, Copy and Edit each sent their command; Kill and Stop each armed at the first press and sent theirs at the second. On a real server started from the jar of 20:42 in a console of its own, with a port and a token file of its own: Stop pressed twice through the accessibility interface ended the process, and so did Kill. Not shown by the session: a drag by the header, which the owner then did by hand in the window of a server started with Java 27, with a click on the port and a change of the height.
+
 ## 2026-11-25, on `ccr-6350ba03-tntbzp` from `cf9bbca`: a last review of the documentation, and the reference renamed
 
 Narrow in scope. The reference is `docs/tool-reference.md`; the old name is a pointer.
@@ -268,46 +320,9 @@ Not run: the server's tests, which this did not touch; Windows; the button by ha
 owner's browser. Not decided, and the owner's: whether the button also shows for a question
 that belongs to another tab's session; it does not.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `9b287f0`: a server that has no port says why, and a smoke test
-
-Two sessions. The second, on Windows 11 with a display, found a fault in use and mended what it
-says; the first, in its container, ran what the second had left for the mending. What the
-second session ran is as it reported it.
-
-**The fault.** The server's window said that it could not listen on any of ports 47821 to
-47828 because too many servers were running, and the popup said *Disconnected*. No other
-server ran, and nothing listened there. Windows had kept the range 47749 to 47848 back for its
-own networking, as Hyper-V, WSL and Docker have it done, out of the dynamic range, which on
-that machine begins at 1024. A plain Node program was refused on the same ports and opened
-39821. Java says *Address already in use* for a port that is kept back as for one that is held.
-The owner runs with `--port 39821` and the same first port in the popup since.
-
-| Where | Command | Result |
-|---|---|---|
-| Windows, second session | `mvn test`, at `8b7656d` | 184 passed |
-| Windows, second session | `PanelPictures` | the window's state without a port was drawn and looked at |
-| Container, first session | `xvfb-run -a mvn -B -f java-server/pom.xml verify`, at `9b287f0` | 184 tests, none skipped, and the 8 of the conformance check on the built jar |
-| Container, first session | `cd e2e && node run.mjs`, at `9b287f0` | 102 passed, 0 failed |
-
-**By hand, on Windows, with the real extension** at protocol 3 and Explore access on a tab of a
-public site. Worked: the status, also with diagnostics, a snapshot, an extract, a click on a
-link, a wait, a navigation back, a hover, a scroll, collecting with `find` (4 readings, 1.1
-seconds), a screenshot without the notice in it. Refused as they should be: a click on a
-button and a fill (`WRITE_NOT_AUTHORIZED`), a navigation to another site
-(`NAVIGATION_BLOCKED`). Then, with the owner at the popup: a request for write access, which
-the owner allowed, after which the status said read/write; a fill into a search field, which
-kept its text; Enter in that search field with `intent=submit`, sent without a question, as a
-search is; and a submission with two fields and an expected text, which the owner allowed and
-which came back `CONFIRMED` by content, with three pieces of evidence. It made a real issue in
-the owner's repository, which is open. A typical call took 22 ms in the extension and the page.
-Not seen, since no tool sees the popup: that it came up by itself, and what the request and
-the prompt showed. Not tried: a Deny of either question; pause, revoke and disconnect from the
-user's side; a navigation that suspends the session.
-
-Not run: the extension's check, which neither commit touched; the live window's log with the
-new short line; the editor lab with `BACKGROUND=1`; the workflows.
-
 ## Earlier, in one line each
+
+- 2026-11-24, Windows at `8b7656d` and Linux at `9b287f0`: Windows reserved the default port range. The panel explained the bind failure. Both server suites passed 184 tests, Linux also passed 8 conformance and 102 end-to-end checks. A live Windows smoke test covered Explore, submission confirmation and access refusals.
 
 - 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` (the server's window names a
   security policy; under `xvfb-run` in a container): the server 179 tests with none skipped,

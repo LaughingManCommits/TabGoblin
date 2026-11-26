@@ -11,10 +11,10 @@
     <name>Browser Context MCP server</name>
 
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- The long-term line of JavaFX that runs on Java 21, which this server targets. Newer lines need a newer Java. -->
-        <javafx.version>21.0.13</javafx.version>
+        <!-- JavaFX 27 needs Java 25, the long-term release this server targets. It tells the window the system's theme and whether less motion is asked for. -->
+        <javafx.version>27.0.1.1</javafx.version>
     </properties>
 
     <dependencies>
@@ -89,6 +89,15 @@
                     <!-- For each agent one for the MCP tools and one for the command line, which the mode "cli" installs. -->
                     <include>mcp/*/tabgoblin/**</include>
                     <include>cli/*/tabgoblin/**</include>
+                </includes>
+            </resource>
+            <resource>
+                <!-- The goblin's icons, which art/mascot.ts writes there: the window's icon is the extension's. -->
+                <directory>${project.basedir}/../chrome-extension/icons</directory>
+                <targetPath>browsercontext/icons</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>icon*.png</include>
                 </includes>
             </resource>
             <resource>

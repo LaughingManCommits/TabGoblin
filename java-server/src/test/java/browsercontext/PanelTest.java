@@ -60,6 +60,38 @@ class PanelTest {
     }
 
     @Test
+    void eachCardCanFoldAndReopenAcrossRefreshes() throws Exception {
+        inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model(true, false));
+            var scene = new javafx.scene.Scene(view.frame(false));
+            scene.getRoot().applyCss();
+            var headings = view.root().lookupAll(".card-toggle").stream()
+                    .map(javafx.scene.control.ToggleButton.class::cast).toList();
+            assertEquals(4, headings.size());
+            for (var heading : headings) {
+                assertTrue(heading.isSelected());
+                heading.fire();
+                view.show(model(false, false));
+                var card = (javafx.scene.layout.VBox) heading.getParent().getParent();
+                var children = card.getChildren();
+                for (var body : children.subList(1, children.size())) {
+                    assertFalse(body.isVisible());
+                    assertFalse(body.isManaged());
+                }
+                assertEquals(3, headings.stream().filter(javafx.scene.control.ToggleButton::isSelected).count());
+                heading.fire();
+                for (var body : children.subList(1, children.size())) {
+                    assertTrue(body.isVisible());
+                    assertTrue(body.isManaged());
+                }
+            }
+            assertTrue(sent.isEmpty());
+            return true;
+        });
+    }
+
+    @Test
     void itSaysWhatTheServerHoldsAndNothingOfAPage() throws Exception {
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
@@ -67,7 +99,7 @@ class PanelTest {
             return view.words();
         });
         String all = String.join("\n", words);
-        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d  ·  ", "port 47821",
+        for (String shown : List.of("TabGoblin server", "claude-code  ·  c-1a2b3c4d", "Port 47821",
                 "Connected to the browser since 00:00:01", "SESSIONS", "2 tabs", "s1", "mail.example.com", "Read / Write",
                 "s2", "docs.example.org", "Read", "paused", "METRICS", "time of the last 5 calls", "Agent and its model",
                 "90%", "Waiting for you", "3%", "LOG", "Connection to the browser", "On: the extension may connect.",
@@ -244,16 +276,43 @@ class PanelTest {
                 var view = new Panel.View(sent::add);
                 view.show(model(true, false));
                 var steps = new ArrayList<String>();
-                var port = view.agentPort();
+                java.util.function.Supplier<String> ports = () -> view.root().lookupAll(".port").stream()
+                        .filter(javafx.scene.Node::isVisible).map(javafx.scene.control.Label.class::cast)
+                        .map(javafx.scene.control.Label::getText).toList().toString();
+                // The port the popup is told is in the header. The one agent's own shows only where it is another.
+                steps.add(ports.get());
+                view.show(PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47823, null, true, 1_000, 0,
+                        List.of(), TIME, java.util.Map.of())), Link.port(47821), "9.8.7", false, List.of(), ZoneId.of("UTC")));
+                steps.add(ports.get());
+                view.show(model(true, false));
+                var port = (Panel.PortLabel) view.root().lookup(".header .port");
                 steps.add(port.getText() + " shown=" + port.isVisible() + " -> " + clipboard[0]);
                 port.copy();
                 steps.add(port.getText() + " -> " + clipboard[0] + " asked=" + sent);
                 // Bringing the view up to date leaves what it says for the moment.
                 view.show(model(true, false));
                 steps.add(port.getText());
+                view.show(PanelModel.of(List.of(), Link.port(37821), "9.8.7", false, List.of(), ZoneId.of("UTC")));
+                // No agent, no agent's port: the first port is the one that shows.
+                assertEquals(1, view.root().lookupAll(".port").stream().filter(javafx.scene.Node::isVisible).count());
+                steps.add(port.getText());
+                port.copy();
+                steps.add(clipboard[0]);
+                // The keyboard reaches it as it reaches a button, and Enter or Space presses it.
+                clipboard[0] = "what the user had";
+                for (var code : List.of(javafx.scene.input.KeyCode.ENTER, javafx.scene.input.KeyCode.SPACE, javafx.scene.input.KeyCode.A)) {
+                    javafx.event.Event.fireEvent(port, new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED, "", "",
+                            code, false, false, false, false));
+                    steps.add(code + " -> " + clipboard[0]);
+                    clipboard[0] = "what the user had";
+                }
+                steps.add("reached by Tab: " + port.isFocusTraversable());
                 return steps;
             });
-            assertEquals(List.of("port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied"), seen);
+            assertEquals(List.of("[Port 47821]", "[Port 47821, agent port 47823]",
+                    "Port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied",
+                    "Port 37821", "37821", "ENTER -> 37821", "SPACE -> 37821", "A -> what the user had",
+                    "reached by Tab: true"), seen);
         } finally {
             Panel.portClipboard = system;
         }
@@ -271,7 +330,7 @@ class PanelTest {
             // Bringing the view up to date asks for nothing again.
             view.show(model(true, false));
             steps.add(view.copy().getText() + " -> " + sent);
-            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "Paste it into the extension's popup."))));
+            steps.add(String.valueOf(view.words().containsAll(List.of("Pairing token", "Paste in the popup."))));
             return steps;
         });
         assertEquals(List.of("Copy -> []", "Copied -> [CopyToken[]]", "Copied -> [CopyToken[]]", "true"), seen);
@@ -308,19 +367,100 @@ class PanelTest {
 
     @Test
     void theWindowsIconIsTheGoblinInAFormTheWindowTakes() throws Exception {
-        List<String> icons = inTheWindow(sent -> Panel.Goblin.icons().stream().map(icon -> {
+        List<String> icons = inTheWindow(sent -> Panel.icons().stream().map(icon -> {
             int size = (int) icon.getWidth();
             var pixels = icon.getPixelReader();
-            // The forehead, above the eyes at every size, is the goblin's green, and the corner outside the tile is clear.
-            var face = pixels.getColor(size / 2, size * 5 / 16);
+            // Between the eyes is the goblin's skin at every size, and the corner is clear: the face is the icon.
+            var face = pixels.getColor(size / 2, size * 3 / 8);
             boolean green = face.getGreen() > 0.7 && face.getGreen() > face.getRed() + 0.2 && face.getOpacity() > 0.99;
+            // Made larger in whole squares: no pixel is a blend of two, so every one is a colour of the drawing or clear.
+            boolean sharp = true;
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    double alpha = pixels.getColor(x, y).getOpacity();
+                    sharp &= alpha == 0 || alpha == 1;
+                }
+            }
             return size + "x" + (int) icon.getHeight() + " " + pixels.getPixelFormat().getType()
-                    + (green ? " green face" : " face is " + face) + (pixels.getColor(0, 0).getOpacity() == 0 ? " clear corner" : " corner is filled");
+                    + (green ? " green face" : " face is " + face) + (pixels.getColor(0, 0).getOpacity() == 0 ? " clear corner" : " corner is filled")
+                    + (sharp ? " sharp" : " smoothed");
         }).toList());
         // Bytes, and not one number for a pixel as a drawing comes: a window passes that kind over
         // without a word and keeps Java's own icon, which is what the taskbar then shows.
-        assertEquals(List.of(16, 24, 32, 48, 64, 128, 256).stream()
-                .map(size -> size + "x" + size + " BYTE_BGRA_PRE green face clear corner").toList(), icons);
+        assertEquals(List.of(16, 32, 48, 64, 128, 256).stream()
+                .map(size -> size + "x" + size + " BYTE_BGRA_PRE green face clear corner sharp").toList(), icons);
+    }
+
+    @Test
+    void theGoblinPlaysWhatTheModelSaysAndOnlyWhileItIsSeen() throws Exception {
+        List<String> steps = inTheWindow(sent -> {
+            List<String> seen = new java.util.ArrayList<>();
+            var mascot = new Panel.Mascot();
+            var view = (javafx.scene.image.ImageView) mascot.node();
+            // Each pixel of the drawing is a square of four in the sheet as it is read: four columns alike, and four rows.
+            var pixels = view.getImage().getPixelReader();
+            boolean squares = true;
+            for (int y = 0; y < view.getImage().getHeight(); y++) {
+                for (int x = 0; x < view.getImage().getWidth(); x++) {
+                    squares &= pixels.getArgb(x, y) == pixels.getArgb(x - x % 4, y - y % 4);
+                }
+            }
+            seen.add("made: " + mascot.mood() + " smooth=" + view.isSmooth() + " cell " + (int) view.getViewport().getWidth()
+                    + " shown " + (int) view.getFitWidth() + "x" + (int) view.getFitHeight() + " squares=" + squares
+                    + " animating=" + mascot.animating());
+            mascot.running(true);
+            seen.add("seen: animating=" + mascot.animating());
+            mascot.show(PanelModel.Mood.WORKING);
+            var cell = view.getViewport();
+            seen.add("working: row " + (int) (cell.getMinY() / 128) + " animating=" + mascot.animating());
+            // A refresh with the same mood leaves the animation where it is.
+            for (int i = 0; i < 3; i++) {
+                mascot.show(PanelModel.Mood.WORKING);
+            }
+            seen.add("same again: animating=" + mascot.animating());
+            mascot.running(false);
+            seen.add("hidden: animating=" + mascot.animating());
+            mascot.show(PanelModel.Mood.SLEEPING);
+            seen.add("asleep while hidden: row " + (int) (view.getViewport().getMinY() / 128) + " frame " + mascot.frame()
+                    + " animating=" + mascot.animating());
+
+            // Busy, and seen again: a new mood waits until what plays has come round once.
+            mascot.show(PanelModel.Mood.WORKING);
+            mascot.running(true);
+            mascot.show(PanelModel.Mood.READING);
+            seen.add("reading asked while working: " + mascot.mood() + ", then " + mascot.next());
+            int rounds = Panel.Mascot.play(PanelModel.Mood.WORKING).frames();
+            for (int i = 1; i < rounds; i++) {
+                mascot.tick();
+            }
+            seen.add("one frame short of a round: " + mascot.mood() + " frame " + mascot.frame());
+            mascot.tick();
+            seen.add("round done: " + mascot.mood() + " frame " + mascot.frame());
+            // Asked for what plays, the wait is called off.
+            mascot.show(PanelModel.Mood.WALKING);
+            mascot.show(PanelModel.Mood.READING);
+            seen.add("asked back: " + mascot.mood() + ", then " + mascot.next());
+            mascot.running(false);
+            return seen;
+        });
+        assertEquals(List.of(
+                "made: IDLE smooth=false cell 128 shown 64x64 squares=true animating=false",
+                "seen: animating=true",
+                "working: row 1 animating=true",
+                "same again: animating=true",
+                "hidden: animating=false",
+                "asleep while hidden: row 4 frame 0 animating=false",
+                "reading asked while working: WORKING, then READING",
+                "one frame short of a round: WORKING frame 5",
+                "round done: READING frame 0",
+                "asked back: READING, then null"), steps);
+        // Every mood has its animation in the sheet, of four to eight frames.
+        for (var mood : PanelModel.Mood.values()) {
+            var play = Panel.Mascot.play(mood);
+            // At rest it holds still: one frame, and a blink now and then. The others go round, four to eight frames.
+            assertTrue(play.hold() ? mood == PanelModel.Mood.IDLE && play.frames() == 2 : play.frames() >= 4 && play.frames() <= 8,
+                    mood + " has " + play.frames());
+        }
     }
 
     @Test
@@ -332,10 +472,11 @@ class PanelTest {
                     false, false, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), List.of(), ZoneId.of("UTC")));
             return view.words();
         });
-        for (String shown : List.of("Agent c-1a2b3c4d  ·  ", "port 47821",
+        for (String shown : List.of("Agent c-1a2b3c4d", "Port 47821",
                 "Not connected: this server has no port to listen on",
-                Agent.noPort(47821, 0),
-                "Not known while the browser is not connected", "No tool call has ended yet", "Nothing logged yet.")) {
+                // What is wrong, why, and what to do: a line each, and no word of it changed.
+                Agent.noPort(47821, 0).replace(". On Windows", ".\nOn Windows").replace(". Start the server", ".\nStart the server"),
+                "Tabs show here once the browser is connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));
         }
     }
@@ -397,9 +538,9 @@ class PanelTest {
             assertTrue(seen.one().contains(shown), shown + " is not among:\n" + String.join("\n", seen.one()));
         }
         String ofOne = String.join("\n", seen.one());
-        assertTrue(ofOne.contains("command id=2 session=s2 action=fill"), ofOne);
+        assertTrue(ofOne.contains("s2 fill  4 ms  PAUSED"), ofOne);
         assertFalse(ofOne.contains("extension connected"), "a line of no tab is not a chosen tab's");
-        assertFalse(ofOne.contains("session=s1"), ofOne);
+        assertFalse(ofOne.contains("s1 snapshot"), ofOne);
         assertTrue(seen.marked(), "the chosen row is marked and the other is not");
 
         // The first tab instead.
@@ -407,7 +548,7 @@ class PanelTest {
                 "showing s1 only  ·  click again for all")) {
             assertTrue(seen.other().contains(shown), shown + " is not among:\n" + String.join("\n", seen.other()));
         }
-        assertTrue(String.join("\n", seen.other()).contains("command id=1 session=s1 action=snapshot"));
+        assertTrue(String.join("\n", seen.other()).contains("s1 snapshot  12 ms  ok"));
 
         // Given up: as at the start.
         assertEquals(seen.all(), seen.again());
@@ -439,7 +580,7 @@ class PanelTest {
         }
         assertFalse(empty.note().isEmpty());
         assertFalse(shown.withOne().contains(empty.note()), String.join("\n", shown.withOne()));
-        assertTrue(shown.withOne().containsAll(List.of("claude-code  ·  c-1a2b3c4d  ·  ", "port 47821")));
+        assertTrue(shown.withOne().containsAll(List.of("claude-code  ·  c-1a2b3c4d", "Port 47821")));
     }
 
     @Test
@@ -475,11 +616,13 @@ class PanelTest {
 
         // Both agents, each with what it has: the first its tabs, the second the words in their place.
         for (String shown : List.of("2 agents", "1 of 2 agents is connected to the browser", "2 agents  ·  2 tabs",
-                "claude-code", "c-11111111", ":47821", "s1", "mail.example.com", "s3", "wiki.example.net", "any agent",
-                "IntelliJ IDEA", "c-22222222", "not connected", "Not known while the browser is not connected",
+                "claude-code", "c-11111111", ":47821", "s1", "mail.example.com", "owner: claude-code", "s3", "wiki.example.net", "any agent",
+                "IntelliJ IDEA", "c-22222222", "Port 47821", "not connected", "Tabs show here once the browser is connected",
                 "time of the last 5 calls", "the last 300 lines")) {
             assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
         }
+        // Whose a tab is, is said in its row: one tab is the first agent's, the other nobody's yet.
+        assertEquals(1, seen.all().stream().filter(word -> word.startsWith("owner: ")).count());
         assertEquals(4, seen.rows(), "two headings and two tabs can be chosen");
         // The second agent chosen: its one call, all of it the user's, and its one line.
         for (String shown : List.of("IntelliJ IDEA  ·  time of the last call", "100%", "IntelliJ IDEA  ·  1 of the last 300 lines",
@@ -506,12 +649,12 @@ class PanelTest {
         List<String> seen = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
             var steps = new ArrayList<String>();
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"), BlockedSites.Rule.NONE, file));
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"), BlockedSites.Rule.NONE, file));
             steps.add(String.valueOf(view.words().containsAll(List.of("Blocked sites", "No site is blocked"))));
             steps.add(String.valueOf(view.words().contains("blocked")));
             // The user's click asks for the file; bringing the view up to date asks for nothing.
             view.edit().fire();
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"),
                     new BlockedSites.Rule(List.of("example.org"), null), file));
             steps.add(sent.toString());
             // The site that is blocked now is named, and the tab on it is marked.
@@ -519,7 +662,7 @@ class PanelTest {
             steps.add(String.valueOf(view.blockedExplained().contains("Blocked now:\n  example.org") && view.blockedExplained().endsWith(file)));
             // The path is under the mouse, and in no line of the window.
             steps.add(String.valueOf(view.words().stream().noneMatch(word -> word.contains("tabgoblin.properties"))));
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"),
                     new BlockedSites.Rule(List.of(), "it cannot be read (AccessDeniedException)"), file));
             steps.add(String.valueOf(view.words().containsAll(List.of("Every site is refused: the file has a mistake",
                     "Every site is refused until the settings file is mended: it cannot be read (AccessDeniedException)."))));
@@ -536,12 +679,12 @@ class PanelTest {
                 new Timings.Shares(4, 70_000, 8, 1_276, 0, each), java.util.Map.of()));
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
-            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC")));
+            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC")));
             return view.words();
         });
         // Over the numbers stands what they are; each heap has its share and its typical time.
         int at = words.indexOf("share");
-        assertEquals(List.of("share", "per call",
+        assertEquals(List.of("share", "typical",
                 "Agent and its model", "98%", "6.0 s",
                 "This server", "0%", "2 ms",
                 "Extension and page", "2%", "28 ms",
@@ -621,6 +764,19 @@ class PanelTest {
             seen.add("some of it marked: " + corner.get());
             held.view.follow().fire();
             seen.add("pressed again: " + corner.get() + ", marked '" + held.view.log().getSelectedText() + "', " + last.get());
+            // A log that is folded away is read by nobody: a mark left in it holds nothing.
+            length = held.view.log().getLength();
+            held.view.log().selectRange(length - 8, length);
+            held.view.show(lines.apply(116));
+            seen.add("marked again: " + corner.get());
+            var fold = held.view.root().lookupAll(".card-toggle").stream().map(javafx.scene.control.ToggleButton.class::cast)
+                    .filter(toggle -> "Log".equals(toggle.getAccessibleText())).findFirst().orElseThrow();
+            fold.fire();
+            held.view.show(lines.apply(117));
+            seen.add("folded: " + corner.get() + ", " + last.get());
+            fold.fire();
+            held.view.show(lines.apply(118));
+            seen.add("opened again: " + corner.get() + ", " + last.get());
             return null;
         });
         assertEquals(List.of(
@@ -631,6 +787,82 @@ class PanelTest {
                 "pressed: the last 300 lines | no button, last is '00:01:52  line 112', reading=false",
                 "and it follows again: the last 300 lines | no button, last is '00:01:53  line 113'",
                 "some of it marked: held while you read | button '2 newer lines  ↓'",
-                "pressed again: the last 300 lines | no button, marked '', last is '00:01:55  line 115'"), seen);
+                "pressed again: the last 300 lines | no button, marked '', last is '00:01:55  line 115'",
+                "marked again: held while you read | button '1 newer line  ↓'",
+                "folded: the last 300 lines | no button, last is '00:01:57  line 117'",
+                "opened again: the last 300 lines | no button, last is '00:01:58  line 118'"), seen);
+    }
+
+    @Test
+    void theWindowTakesTheSystemsThemeKeepsStillWhereAskedAndIsPutBackOnlyOnAScreen() throws Exception {
+        // Daylight is a class on the body, which the stylesheet has the light colours for; taken off, it is the cave again.
+        List<String> classes = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            var seen = new ArrayList<String>();
+            seen.add(String.valueOf(view.root().getStyleClass().contains("light")));
+            view.light(true);
+            view.light(true);
+            seen.add(String.valueOf(view.root().getStyleClass().stream().filter("light"::equals).count()));
+            view.light(false);
+            seen.add(String.valueOf(view.root().getStyleClass().contains("light")));
+            return seen;
+        });
+        assertEquals(List.of("false", "1", "false"), classes);
+        // Less motion, where the system asks for it: the switch is where it belongs at once, without a slide.
+        boolean was = Panel.calm;
+        try {
+            double[] knob = inTheWindow(sent -> {
+                Panel.calm = true;
+                var view = new Panel.View(sent::add);
+                view.show(model(true, false));
+                var toggle = (javafx.scene.control.ToggleButton) view.root().lookup(".switch");
+                double on = toggle.getGraphic().lookup(".knob").getTranslateX();
+                toggle.fire();
+                return new double[] {on, toggle.getGraphic().lookup(".knob").getTranslateX()};
+            });
+            assertEquals(20, knob[0]);
+            assertEquals(0, knob[1], "off, and there already");
+        } finally {
+            Panel.calm = was;
+        }
+        // A place that was kept is used only while it is on a screen: a screen that is gone does not take the window with it.
+        assertFalse(new Panel.Place(0, 0, 0, false).onAScreen(Panel.WIDTH), "nothing was kept");
+        boolean[] on = inTheWindow(sent -> {
+            var screen = javafx.stage.Screen.getPrimary().getVisualBounds();
+            return new boolean[] {
+                new Panel.Place(screen.getMinX() + 10, screen.getMinY() + 10, 700, true).onAScreen(Panel.WIDTH),
+                new Panel.Place(-90_000, -90_000, 700, true).onAScreen(Panel.WIDTH)};
+        });
+        assertTrue(on[0], "a place on the main screen");
+        assertFalse(on[1], "a place on no screen");
+        // With several agents the list shows as many rows as with one: the window itself need not scroll.
+        assertEquals(Panel.TABS_IN_VIEW, Panel.ROWS_IN_VIEW_OF_SEVERAL);
+    }
+
+    @Test
+    void whereTheWindowHasTheSystemsFrameAroundItsOwnHeaderTheHeaderHasAButtonThatHidesIt() throws Exception {
+        List<String> seen = inTheWindow(sent -> {
+            var view = new Panel.View(sent::add);
+            view.show(model(true, false));
+            var steps = new ArrayList<String>();
+            java.util.function.Supplier<String> buttons = () -> view.root().lookupAll(".window-button").stream()
+                    .map(javafx.scene.control.Button.class::cast)
+                    .map(button -> button.getAccessibleText().split("\\.")[0] + (button.isVisible() ? "" : " (not shown)")
+                            + " as " + javafx.scene.layout.HeaderBar.getButtonType(button)).toList().toString();
+            // A window with the system's whole frame, or with none, has that frame's button to close it, or none.
+            steps.add(buttons.get());
+            view.ownsItsHeader();
+            // The header is the window's own: its two buttons are the system's two, and the port still takes its click.
+            steps.add(buttons.get());
+            var port = (Panel.PortLabel) view.root().lookup(".header .port");
+            steps.add("header " + javafx.scene.layout.HeaderBar.getDragType(view.root().lookup(".header"))
+                    + ", port " + javafx.scene.layout.HeaderBar.getDragType(port));
+            // And the body is as it was but for that: what the window says has not changed.
+            steps.add(String.valueOf(view.words().containsAll(List.of("TabGoblin server", "Port 47821", "SESSIONS", "Stop server"))));
+            return steps;
+        });
+        assertEquals(List.of("[Minimize as null, Close (not shown) as null]", "[Minimize as ICONIFY, Close as CLOSE]",
+                "header DRAGGABLE_SUBTREE, port NONE", "true"), seen);
+
     }
 }

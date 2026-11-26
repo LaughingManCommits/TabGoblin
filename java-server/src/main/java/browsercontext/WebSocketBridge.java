@@ -174,6 +174,11 @@ public class WebSocketBridge extends WebSocketServer {
     }
 
     /** Whether the user switched this server's connection to the browser off, in the panel. */
+    /** The action of a tool call sent to the extension and not answered yet, or null. */
+    String running() {
+        return connection.running();
+    }
+
     boolean isHeld() {
         return connection.held();
     }
