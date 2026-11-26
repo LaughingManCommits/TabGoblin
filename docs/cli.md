@@ -237,6 +237,9 @@ tabgoblin snapshot --agent my-agent --interactive-only
 tabgoblin click --agent my-agent --ref 12
 tabgoblin wait-for --agent my-agent --text "Review comments"
 
+# A new page has new refs: take a new snapshot before acting on it.
+tabgoblin snapshot --agent my-agent --interactive-only
+
 # A picture, for what text does not show.
 tabgoblin screenshot --agent my-agent --out page.jpg
 
@@ -244,8 +247,9 @@ tabgoblin screenshot --agent my-agent --out page.jpg
 tabgoblin submit --agent my-agent --args '{"ref": 31, "fields": [{"ref": 30, "text": "Fixed in the next push."}], "expect_text": "Fixed in the next push."}'
 ```
 
-The refs (`12`, `30`, `31`) come from the snapshot before; they belong to the page they were
-taken from, and `STALE_REF` asks for a new snapshot. The same submission from a file, where
+Each ref comes from the latest snapshot of the page it is used on: `12` from the first, `30` and
+`31` from the one taken after the link was followed. A ref belongs to the page it was taken
+from; after a navigation, or a change of the page, `STALE_REF` asks for a new snapshot. The same submission from a file, where
 quoting is hard:
 
 ```sh

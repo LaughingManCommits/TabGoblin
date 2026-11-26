@@ -100,7 +100,8 @@ extension's own check of the tab's address before every command is the second.
 Start with the lowest level that does the job. You can change it at any time in the session's
 dropdown; lowering it stops whatever needed the higher level.
 
-- **Read** sends nothing to the website on the agent's behalf. It is enough for most reading
+- **Read** neither navigates, clicks nor types: the agent looks, searches and scrolls (a page may
+  load more of itself as it is scrolled, as it does for you). It is enough for most reading
   tasks on a page you opened yourself: review comments, a log, a ticket.
 - **Explore** lets the agent move around the site by itself. It makes the browser load pages,
   which on a few badly built sites has side effects (a "log out" link, for example).
@@ -114,7 +115,8 @@ dropdown; lowering it stops whatever needed the higher level.
 controls.
 
 - The dropdown changes the access level.
-- **Pause** stops the agent in that tab at once and refuses new commands until you resume.
+- **Pause** stops the agent in that tab: a running command is cancelled before its next step,
+  and new ones are refused until you resume.
 - **Revoke** ends the session.
 - Closing the tab ends its session. Closing the browser ends all of them.
 
@@ -268,12 +270,15 @@ Keep *Ask me every time* wherever a wrong submission would do harm.
 
 | Control | Effect |
 |---|---|
-| **Pause** on a session, or in the notice in the page | Stops the agent in that tab at once; the session and its level are kept |
+| **Pause** on a session, or in the notice in the page | Stops the agent in that tab: a running command is cancelled before its next step, and new ones are refused. The session and its level are kept |
 | **Revoke** | Ends the session |
 | **Pause all** / **Revoke all** on a workspace | The same for every tab of that name |
 | **Disconnect** next to an agent | Cuts the agent off and ends every session it has. *Allow again* restores the connection and no tab |
 
-None of these stops the server, and none needs to.
+None of these stops the server, and none needs to. None undoes a step that has already happened
+in the page: a click that was dispatched stays clicked. A command stopped this way answers
+`CANCELLED`, and one whose outcome cannot be known answers that it is unknown; neither is retried,
+so look at the page before asking the agent to do it again.
 
 **Take an agent away for good:** `tabgoblin --revoke-agent <name>` deletes its key; every tool
 of that agent then answers that it was revoked. See [agents](#agents).
@@ -508,10 +513,10 @@ Commands an agent runs through the CLI: `tabgoblin tools --json`,
 |---|---|---|
 | *Not paired* | No token stored | Paste the token: **Copy** in the server's window, or `--show-token` |
 | *Paste the server's current token to connect* | A server refused the token the extension holds: it was mistyped, or replaced with `--rotate-token` | Paste the current token: **Copy token** in the server's window, which comes up by itself then |
-| *Disconnected: is the MCP server running?* | No server found on the ports, or the connection is switched off in the server's window | Start your agent, or have it call any TabGoblin tool; check the *First port* under *Connection…*; switch the connection on |
+| *Disconnected: is the MCP server running?* (for either interface) | No server found on the ports, or the connection is switched off in the server's window | Start a server: have your agent use any TabGoblin tool or command, or run `tabgoblin --panel`. Check the *First port* under *Connection…*; switch the connection on |
 | *Server and extension versions differ* | The server and the extension are from different releases | Update both and reload the extension |
 | Agent says "not connected" right after starting | It asked before the extension found its server | It waits up to 10 seconds by itself; opening the popup connects at once |
-| Agent has no tabs after a restart | It was registered without `--agent`, so it is a new agent each time | Add `--agent <name>` to its registration |
+| Agent has no tabs after a restart | An MCP agent registered without `--agent` is a new agent each time (a command of the CLI always has a name) | Add `--agent <name>` to its registration |
 | A command answers `AGENT_IN_USE` | An agent of that name is connected through MCP. A name has one agent at a time | Use that agent's MCP tools, or set the command line up under another name. It is then another agent, and needs its tabs authorized |
 | A command answers `NO_SERVER` | The server could not be reached or started: another program holds its port, or the command has another `--port` or `--token-file` than the server | Run `tabgoblin --panel`; give the commands the options the server has |
 | A command says "not connected" after a pause | The agent had no command for ten minutes and was let go; the extension has to find it again | Run the command again in half a minute, or open the popup. `BCMCP_COMMAND_IDLE_SECONDS` sets a longer time |

@@ -15,27 +15,33 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-// The three colours. A fill is its colour at low opacity; text and ground differ by theme.
+// The four colours, one meaning each, in every picture: slate for what is not TabGoblin (the
+// agent, Chrome, other systems), green for TabGoblin and what runs with its leave, amber for what
+// waits for the user's answer, red for what is refused or out of reach. A fill is its colour at
+// low opacity; text and ground differ by theme.
 const SLATE = '#64748B';
 const GREEN = '#16A34A';
+const AMBER = '#D97706';
 const RED = '#DC2626';
-const COLOUR = { slate: SLATE, green: GREEN, red: RED };
+const COLOUR = { slate: SLATE, green: GREEN, amber: AMBER, red: RED };
 const FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif";
 const STYLE = `
-svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; }
+svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; --amber-text: #B45309; }
 @media (prefers-color-scheme: dark) {
-  svg { --ground: #0D1117; --edge: #30363D; --text: #E2E8F0; --soft: #94A3B8; --line: #94A3B8; --tint: 0.14; --red-text: #F87171; --green-text: #4ADE80; }
+  svg { --ground: #0D1117; --edge: #30363D; --text: #E2E8F0; --soft: #94A3B8; --line: #94A3B8; --tint: 0.14; --red-text: #F87171; --green-text: #4ADE80; --amber-text: #FBBF24; }
 }
 .ground { fill: var(--ground); stroke: var(--edge); }
 .name { fill: var(--text); font-weight: 600; }
 .sub { fill: var(--soft); }
 .red-text { fill: var(--red-text); }
 .green-text { fill: var(--green-text); }
+.amber-text { fill: var(--amber-text); }
 .tint { fill-opacity: var(--tint); }
 .half { fill-opacity: calc(var(--tint) / 2); }
 .wire { fill: none; stroke: var(--line); stroke-width: 1.25; }
 .wire.red { stroke: ${RED}; }
 .wire.green { stroke: ${GREEN}; }
+.wire.amber { stroke: ${AMBER}; }
 .tip { fill: var(--line); }
 .rule { stroke: var(--line); stroke-opacity: 0.35; }
 `;
@@ -66,7 +72,7 @@ function picture(width, height, title, desc, draw) {
     },
     /** A connector through points, with an arrow head at its end unless told otherwise. */
     line(points, opts = {}) {
-      const kind = opts.kind === 'red' || opts.kind === 'green' ? opts.kind : '';
+      const kind = ['red', 'green', 'amber'].includes(opts.kind) ? opts.kind : '';
       const head = opts.head === false ? '' : ` marker-end="url(#head${kind ? `-${kind}` : ''})"`;
       const tail = opts.both ? ' marker-start="url(#head)"' : '';
       out.push(`<polyline class="wire${kind ? ` ${kind}` : ''}" fill="none" stroke="${kind ? COLOUR[kind] : SLATE}" stroke-width="1.25" points="${points.map((p) => p.join(',')).join(' ')}"${opts.dashed ? ' stroke-dasharray="4 4"' : ''}${head}${tail}/>`);
@@ -89,10 +95,10 @@ function picture(width, height, title, desc, draw) {
     },
     /** A small label beside a connector. */
     label(x, y, text, opts = {}) {
-      const cls = opts.kind === 'red' ? 'red-text' : opts.kind === 'green' ? 'green-text' : 'sub';
+      const cls = opts.kind === 'red' ? 'red-text' : opts.kind === 'green' ? 'green-text' : opts.kind === 'amber' ? 'amber-text' : 'sub';
       const lines = Array.isArray(text) ? text : [text];
       lines.forEach((line, i) => out.push(
-        `<text class="${cls}" fill="${opts.kind === 'red' ? '#B91C1C' : opts.kind === 'green' ? '#15803D' : '#475569'}" x="${x}" y="${y + i * 14}" text-anchor="${opts.anchor ?? 'start'}" font-size="11"${opts.bold ? ' font-weight="600"' : ''}${opts.spaced ? ' letter-spacing="0.6"' : ''}>${esc(line)}</text>`));
+        `<text class="${cls}" fill="${{ red: '#B91C1C', green: '#15803D', amber: '#B45309' }[opts.kind] ?? '#475569'}" x="${x}" y="${y + i * 14}" text-anchor="${opts.anchor ?? 'start'}" font-size="11"${opts.bold ? ' font-weight="600"' : ''}${opts.spaced ? ' letter-spacing="0.6"' : ''}>${esc(line)}</text>`));
     },
   };
   draw(api);
@@ -105,6 +111,7 @@ function picture(width, height, title, desc, draw) {
 ${tip('head', `class="tip" fill="${SLATE}"`)}
 ${tip('head-red', `fill="${RED}"`)}
 ${tip('head-green', `fill="${GREEN}"`)}
+${tip('head-amber', `fill="${AMBER}"`)}
 </defs>
 <rect class="ground" fill="#FFFFFF" stroke="#D0D7DE" x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" rx="12" stroke-width="1"/>
 ${out.join('\n')}
@@ -140,12 +147,12 @@ picture(760, 742, named('overview', 'TabGoblin at a glance'),
     const ext = d.node(160, 476, 440, 80, 'Browser extension', ['User-controlled execution'], 'green', big);
     d.line([[380, 428], [380, ext.top]], plain);
 
-    const tabs = d.node(40, 604, 320, 56, 'Tabs you authorized', [], 'slate', big);
+    const tabs = d.node(40, 604, 320, 56, 'Tabs you authorized', [], 'green', big);
     const other = d.node(400, 604, 320, 56, 'Every other tab', [], 'red', { big: true, dashed: true });
     d.line([[ext.cx, ext.bottom], [ext.cx, 580]], plain);
     d.line([[tabs.cx, tabs.top], [tabs.cx, 580], [ext.cx, 580]], plain);
     d.line([[ext.cx, 580], [other.cx, 580], [other.cx, other.top]], { head: false, kind: 'red', dashed: true });
-    d.legend(692);
+    d.legend(692, [['slate', 'Your agent'], ['green', 'TabGoblin · authorized'], ['red', 'Denied']]);
   });
 
 // ---- 2. Components: the architecture's picture
@@ -201,7 +208,7 @@ picture(800, 1066, named('command-checks', 'Where a command is checked'),
     const RW = 276;
     const check = (y, h, name, lines, cls, codes, kind = 'green', no = 'no') => {
       const n = d.node(X, y, W, h, name, lines, kind);
-      d.label(X - 14, n.cy + 4, cls, { anchor: 'end', bold: true, spaced: true, kind: cls === 'ENFORCED' ? 'green' : undefined });
+      d.label(X - 14, n.cy + 4, cls, { anchor: 'end', bold: true, spaced: true, kind: cls === 'ENFORCED' ? 'green' : kind === 'amber' ? 'amber' : undefined });
       if (codes) {
         const r = d.node(RX, n.cy - 26, RW, 52, 'Refused', codes, 'red');
         d.line([[n.right, n.cy], [r.left, n.cy]], { kind: 'red' });
@@ -226,19 +233,19 @@ picture(800, 1066, named('command-checks', 'Where a command is checked'),
     d.box(36, 378, 728, 430, 'TabGoblin extension · in Chrome', 'green');
     const e1 = check(408, 72, 'Is the session valid?', ["this agent's · not paused or expired", 'tab on its authorized origins'], 'ENFORCED', ['NOT_AUTHORIZED · SESSION_NOT_OWNED', 'PAUSED · SESSION_SUSPENDED']);
     const e2 = check(512, 56, 'Does the access level cover it?', ['Read · Explore · Read / Write'], 'ENFORCED', ['EXPLORE_NOT_AUTHORIZED', 'WRITE_NOT_AUTHORIZED']);
-    const e3 = check(600, 72, 'A submission: ask the user?', ["the user's setting decides · always under", 'the strict profile or for high impact'], 'CONFIGURABLE', ['SUBMIT_DENIED', 'SUBMIT_NOT_CONFIRMED'], 'slate', 'deny');
+    const e3 = check(600, 72, 'A submission: ask the user?', ["the user's setting decides · always under", 'the strict profile or for high impact'], 'CONFIGURABLE', ['SUBMIT_DENIED', 'SUBMIT_NOT_CONFIRMED'], 'amber', 'deny');
     const e4 = check(704, 72, 'Still allowed?', ['checked again right before', 'the page is touched'], 'ENFORCED', ['CANCELLED · ORIGIN_MISMATCH', 'APPROVAL_STALE']);
     down(s2, e1);
     down(e1, e2);
     down(e2, e3);
     down(e3, e4, 'allowed, or not asked');
 
-    const tab = d.node(X, 838, W, 56, 'Authorized tab', ['one fixed operation']);
+    const tab = d.node(X, 838, W, 56, 'Authorized tab', ['one fixed operation'], 'green');
     down(e4, tab);
     const result = d.node(X, 942, W, 56, 'Result to the agent', ['only allowlisted text · enforced', 'credentials taken out · best effort']);
     d.line([[tab.cx, tab.bottom], [result.cx, result.top]]);
     d.label(RX, result.cy - 3, ['Nothing is retried. A refusal ends', 'the command where it happens.']);
-    d.legend(1022, [['slate', 'Components'], ['green', 'Enforced by TabGoblin'], ['red', 'Refused']]);
+    d.legend(1022, [['slate', 'Components'], ['green', 'Enforced by TabGoblin'], ['amber', 'Asks the user'], ['red', 'Refused']]);
   });
 
 // ---- 4. Deployment and data flow: the corporate assessment's picture
@@ -279,4 +286,26 @@ picture(760, 830, named('data-flow', 'Deployment boundary and data flow'),
     d.legend(786, [['slate', 'Components'], ['green', 'TabGoblin']]);
   });
 
-console.log('4 files written to docs/assets/diagrams');
+// ---- 5. The security boundary: the README's second picture, one idea only
+
+picture(760, 452, named('security-boundary', 'What an agent can reach'),
+  'TabGoblin checks every command from the agent: who is asking, whether the tab is authorized for it, whether the page is still on its website, whether the access level covers the action, and whether the policy allows it. What passes reaches only the tabs the user authorized. A submission is shown to the user first, by default. Other tabs, cookies, request headers, website storage, password fields, scripts, the debugger and network requests are out of reach.', (d) => {
+    const agent = d.node(230, 24, 300, 52, 'AI coding agent', ['through the CLI or MCP'], 'slate');
+    const gate = d.node(80, 110, 600, 92, 'TabGoblin checks every command', [
+      'the agent is who it says · the tab is authorized for it',
+      'the page is on its website · the level covers it · the policy allows it'], 'green', { big: true });
+    d.line([[agent.cx, agent.bottom], [agent.cx, gate.top]]);
+
+    const tab = d.node(30, 262, 220, 112, 'Authorized tabs', ['only the tabs you chose', 'on their exact websites', 'Read, Explore or Read / Write'], 'green');
+    const ask = d.node(270, 262, 220, 112, 'Submissions', ['declared by the agent', 'shown to you first by default', 'you allow or deny'], 'amber');
+    const no = d.node(510, 262, 220, 112, 'Out of reach', ['other tabs and websites', 'cookies, headers, site storage', 'password fields', 'scripts, debugger, requests'], 'red', { dashed: true });
+    d.line([[gate.cx, gate.bottom], [gate.cx, 232]], { head: false });
+    d.line([[tab.cx, 232], [no.cx, 232]], { head: false });
+    d.line([[tab.cx, 232], [tab.cx, tab.top]], { kind: 'green' });
+    d.line([[ask.cx, 232], [ask.cx, ask.top]], { kind: 'amber' });
+    // No arrow: nothing goes there.
+    d.line([[no.cx, 232], [no.cx, no.top]], { kind: 'red', dashed: true, head: false });
+    d.legend(404, [['slate', 'Your agent'], ['green', 'TabGoblin · authorized'], ['amber', 'Asks you'], ['red', 'Denied']]);
+  });
+
+console.log('5 files written to docs/assets/diagrams');
