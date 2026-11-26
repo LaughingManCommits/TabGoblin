@@ -27,6 +27,31 @@ class PanelModelTest {
     }
 
     @Test
+    void theGoblinShowsWhatTheServerKnowsAndNothingMore() {
+        long now = 1_000_000;
+        Log.Line ok = new Log.Line(now - 500, "debug", "command id=4 session=s1 action=click ms=31 outcome=ok");
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, List.of(), now));
+        assertEquals(PanelModel.Mood.SLEEPING, PanelModel.mood(true, "a problem", List.of(ok), now), "switched off: asleep, whatever else");
+        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, "no port", List.of(ok), now));
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, List.of(ok), now));
+        for (String reads : List.of("snapshot", "extract", "collect", "screenshot")) {
+            assertEquals(PanelModel.Mood.READING, PanelModel.mood(false, null,
+                    List.of(new Log.Line(now, "debug", "command id=5 session=s1 action=" + reads + " ms=9 outcome=ok")), now), reads);
+        }
+        assertEquals(PanelModel.Mood.WALKING, PanelModel.mood(false, null,
+                List.of(new Log.Line(now, "debug", "command id=6 session=s1 action=navigate ms=900 outcome=ok")), now));
+        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, null, List.of(new Log.Line(now, "info",
+                "command id=7 session=s1 action=navigate ms=31 outcome=error code=NAVIGATION_BLOCKED category=SCOPE scope_violation=true")), now));
+        // The last call counts; a status asked, or a line that is no call, is passed over.
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, List.of(
+                new Log.Line(now - 900, "debug", "command id=1 session=s1 action=snapshot ms=9 outcome=ok"), ok,
+                new Log.Line(now - 100, "debug", "command id=8 session=- action=status ms=1 outcome=ok"),
+                new Log.Line(now - 50, "info", "extension connected client=c-1 protocol=3")), now));
+        // A call that ended longer ago than it is shown is over.
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, List.of(ok), now + PanelModel.SHOWN_MS));
+    }
+
+    @Test
     void pairingIsTheThingToDoWhileTheBrowserHoldsATokenThatIsNotTheServers() {
         assertTrue(model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).pairingWanted());
         // Not while no browser has come: one that is paired is on its way as a rule.

@@ -9,7 +9,6 @@ import java.util.stream.Stream;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
-import javafx.animation.ScaleTransition;
 import javafx.animation.Timeline;
 import javafx.animation.TranslateTransition;
 import javafx.application.ConditionalFeature;
@@ -17,7 +16,6 @@ import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -29,18 +27,12 @@ import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
-import javafx.scene.image.WritableImage;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
-import javafx.scene.shape.Ellipse;
-import javafx.scene.shape.Rectangle;
-import javafx.scene.shape.SVGPath;
-import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.text.Font;
 import javafx.scene.transform.Transform;
 import javafx.stage.Screen;
@@ -301,7 +293,10 @@ final class Panel {
             var system = Platform.getPreferences();
             view.light(system.getColorScheme() == javafx.application.ColorScheme.LIGHT);
             calm = system.isReducedMotion();
-            system.reducedMotionProperty().addListener((property, was, less) -> calm = less);
+            system.reducedMotionProperty().addListener((property, was, less) -> {
+                calm = less;
+                view.mascot().running(onScreen);
+            });
 
             String os = System.getProperty("os.name", "");
             // The system's frame around the panel's own header, where the system has that: its edges
@@ -320,7 +315,7 @@ final class Panel {
             scene.getStylesheets().add(STYLESHEET);
             stage.setScene(scene);
             stage.setTitle("TabGoblin server · " + first.agent());
-            stage.getIcons().setAll(Goblin.icons());
+            stage.getIcons().setAll(icons());
             system.colorSchemeProperty().addListener((property, was, scheme) -> {
                 boolean light = scheme == javafx.application.ColorScheme.LIGHT;
                 view.light(light);
@@ -371,7 +366,11 @@ final class Panel {
             stage.yProperty().addListener(moved);
             stage.heightProperty().addListener(moved);
             window = stage;
-            Runnable seen = () -> onScreen = stage.isShowing() && !stage.isIconified();
+            // The goblin moves only while it can be seen.
+            Runnable seen = () -> {
+                onScreen = stage.isShowing() && !stage.isIconified();
+                view.mascot().running(onScreen);
+            };
             stage.showingProperty().addListener((property, was, now) -> seen.run());
             stage.iconifiedProperty().addListener((property, was, now) -> seen.run());
             seen.run();
@@ -416,7 +415,7 @@ final class Panel {
 
     /**
      * Whether the user has asked the system for less motion, as JavaFX reports it. Nothing in the
-     * window moves then: the goblin does not blink and the switch does not slide. Used on JavaFX's
+     * window moves then: the goblin holds still and the switch does not slide. Used on JavaFX's
      * thread only.
      */
     static boolean calm;
@@ -515,92 +514,139 @@ final class Panel {
 
     // ---------------------------------------------------------------- the goblin
 
-    /** The goblin of chrome-extension/icons/goblin.svg, from the same shapes. Its eyes can close and blink. */
-    static final class Goblin {
-        private static final String EARS = "M32 64 6 38l36 6zM96 64l26-26-36 6z";
-        private static final String SKIN = "M64 28c-22 0-38 15-38 36 0 22 16 38 38 38s38-16 38-38c0-21-16-36-38-36z";
-        private static final String MOUTH = "M48 82c5 6 27 6 32 0";
-        private static final String TOOTH = "m58 85 3 7 3-6z";
-        private static final Color INK = Color.web("#12201a");
-        private static final Color LIGHT = Color.web("#f4fff8");
+    /**
+     * The goblin in the header: a sprite from {@code mascot.png}, which {@code art/mascot.ts} draws
+     * with the row of each animation in {@code mascot.properties}. It shows one frame of 32 by 32
+     * pixels at a time, each pixel a square of {@link #SCALE}. The sheet is read twice as large again,
+     * by repeating pixels, and shown at half that: on a screen of twice the density, and in the
+     * documentation's pictures, it is then drawn pixel for pixel, and on any other halved exactly.
+     * A renderer that scales a picture by itself smooths it on some systems, whatever it is told.
+     *
+     * <p>Its animation runs only while it is told it may ({@link #running}): while the window is on
+     * the screen. Being told the same mood again changes nothing, so a refresh does not start it over.
+     * Where the user asked the system for less motion it holds still on the animation's first frame.
+     */
+    static final class Mascot {
+        static final int CELL = 32;
+        static final int SCALE = 2;
+        private static Image sheet;
+        private static java.util.Properties rows;
 
-        private final Group eyes = new Group(new Ellipse(50, 62, 9, 10), new Ellipse(78, 62, 9, 10));
-        private final Group pupils = new Group(new Circle(53, 59, 3, LIGHT), new Circle(81, 59, 3, LIGHT));
-        private final Group face;
-        private final ScaleTransition blink = new ScaleTransition(Duration.millis(110), eyes);
+        /** One animation: its row of the sheet, how many frames it has, and how long each stays. */
+        record Play(int row, int frames, Duration each) {
+        }
 
-        Goblin() {
-            eyes.getChildren().forEach(eye -> ((Ellipse) eye).setFill(INK));
-            var mouth = path(MOUTH, null);
-            mouth.setStroke(INK);
-            mouth.setStrokeWidth(5);
-            mouth.setStrokeLineCap(StrokeLineCap.ROUND);
-            face = new Group(path(EARS, Color.web("#4fc27b")), path(SKIN, Color.web("#63d68f")), eyes, pupils, mouth,
-                    path(TOOTH, LIGHT));
-            // A blink: the eyes shut and open again, now and then, while they are open at all.
-            blink.setFromY(1);
-            blink.setToY(0.1);
-            blink.setCycleCount(2);
-            blink.setAutoReverse(true);
-            var every = new Timeline(new KeyFrame(Duration.seconds(4.2), beat -> {
-                if (eyes.getScaleY() == 1 && !calm) {
-                    blink.playFromStart();
+        private final javafx.scene.image.ImageView view = new javafx.scene.image.ImageView();
+        private final Timeline clock = new Timeline();
+        private PanelModel.Mood mood;
+        private Play play;
+        private int frame;
+        private boolean running;
+
+        Mascot() {
+            view.setImage(sheet());
+            view.setSmooth(false);
+            view.setFitWidth(CELL * SCALE);
+            view.setFitHeight(CELL * SCALE);
+            // The cell has room around the goblin for what it holds and what rises over it: that room
+            // takes no place in the header, so the header is as high as its words.
+            HBox.setMargin(view, new Insets(-6 * SCALE, -7 * SCALE, -3 * SCALE, -6 * SCALE));
+            clock.setCycleCount(Animation.INDEFINITE);
+            show(PanelModel.Mood.IDLE);
+        }
+
+        private static synchronized Image sheet() {
+            if (sheet == null) {
+                try (var in = Objects.requireNonNull(Panel.class.getResourceAsStream("mascot.png"), "mascot.png")) {
+                    var sized = new Image(Objects.requireNonNull(Panel.class.getResourceAsStream("mascot.png")));
+                    sheet = new Image(in, sized.getWidth() * SCALE * 2, sized.getHeight() * SCALE * 2, false, false);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
                 }
+            }
+            return sheet;
+        }
+
+        /** The animations as mascot.properties lists them: a name, then its row, its frames and the milliseconds of each. */
+        static synchronized Play play(PanelModel.Mood mood) {
+            if (rows == null) {
+                rows = new java.util.Properties();
+                try (var in = Objects.requireNonNull(Panel.class.getResourceAsStream("mascot.properties"), "mascot.properties")) {
+                    rows.load(in);
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }
+            String[] said = Objects.requireNonNull(rows.getProperty(mood.animation()), mood.animation()).trim().split(" ");
+            return new Play(Integer.parseInt(said[0]), Integer.parseInt(said[1]), Duration.millis(Integer.parseInt(said[2])));
+        }
+
+        /** Shows this mood. The same mood again changes nothing: the animation goes on where it is. */
+        void show(PanelModel.Mood now) {
+            if (now == mood) {
+                return;
+            }
+            mood = now;
+            play = play(now);
+            frame = 0;
+            draw();
+            clock.stop();
+            clock.getKeyFrames().setAll(new KeyFrame(play.each(), tick -> {
+                frame = (frame + 1) % play.frames();
+                draw();
             }));
-            every.setCycleCount(Animation.INDEFINITE);
-            every.play();
+            if (running && !calm) {
+                clock.play();
+            }
         }
 
-        private static SVGPath path(String shape, Color fill) {
-            var path = new SVGPath();
-            path.setContent(shape);
-            path.setFill(fill);
-            return path;
+        /** Runs the animation while the window is on the screen, and stops it while it is not. */
+        void running(boolean on) {
+            running = on;
+            if (on && !calm) {
+                clock.play();
+            } else {
+                clock.stop();
+            }
         }
 
-        /** Open eyes for a server that may work with the browser, closed ones for one that is switched off. */
-        void awake(boolean on) {
-            blink.stop();
-            eyes.setScaleY(on ? 1 : 0.12);
-            pupils.setVisible(on);
+        private void draw() {
+            double side = CELL * SCALE * 2;
+            view.setViewport(new Rectangle2D(frame * side, play.row() * side, side, side));
         }
 
-        /** The face alone, from ear to ear, {@code width} wide: bare, as in the notice in the page. */
-        Node bare(double width) {
-            double scale = width / 116;
-            face.getTransforms().setAll(Transform.scale(scale, scale), Transform.translate(-6, -28));
-            var place = new StackPane(new Group(face));
-            place.setMinSize(width, 74 * scale);
-            place.setMaxSize(width, 74 * scale);
-            return place;
+        PanelModel.Mood mood() {
+            return mood;
         }
 
-        /**
-         * The goblin on its dark tile, as the extension's icon has it: for the window's icon, which
-         * is what the taskbar and the list of windows show instead of Java's cup.
-         */
-        static Image icon(int size) {
-            var goblin = new Goblin();
-            var tile = new Rectangle(128, 128, INK);
-            tile.setArcWidth(60);
-            tile.setArcHeight(60);
-            var drawing = new Group(tile, goblin.face);
-            var shot = new SnapshotParameters();
-            shot.setFill(Color.TRANSPARENT);
-            shot.setTransform(Transform.scale(size / 128.0, size / 128.0));
-            WritableImage drawn = drawing.snapshot(shot, null);
-            // A drawing comes back with each pixel as one number, and a window takes for its icon
-            // only a picture that holds its pixels as bytes: any other is passed over without a
-            // word, and the window keeps Java's cup. So the pixels go into a picture of that kind.
-            var icon = new WritableImage(size, size);
-            icon.getPixelWriter().setPixels(0, 0, Math.min(size, (int) drawn.getWidth()), Math.min(size, (int) drawn.getHeight()),
-                    drawn.getPixelReader(), 0, 0);
-            return icon;
+        int frame() {
+            return frame;
         }
 
-        /** The window's icon in the sizes the systems ask for: small for a title or a taskbar, large for a dock. */
-        static List<Image> icons() {
-            return Stream.of(16, 24, 32, 48, 64, 128, 256).map(Goblin::icon).toList();
+        boolean animating() {
+            return clock.getStatus() == Animation.Status.RUNNING;
+        }
+
+        Node node() {
+            return view;
+        }
+    }
+
+    /**
+     * The window's icon: the goblin's face of chrome-extension/icons, which the build puts in the
+     * jar, in the sizes the systems ask for. The larger are the smaller in whole squares, never
+     * smoothed. It is loaded once and does not move.
+     */
+    static List<Image> icons() {
+        return List.of(icon("icon16.png", 16), icon("icon32.png", 32), icon("icon48.png", 48), icon("icon32.png", 64),
+                icon("icon128.png", 128), icon("icon128.png", 256));
+    }
+
+    private static Image icon(String file, int size) {
+        try (var in = Objects.requireNonNull(Panel.class.getResourceAsStream("icons/" + file), file)) {
+            return new Image(in, size, size, false, false);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
         }
     }
 
@@ -612,7 +658,7 @@ final class Panel {
      */
     static final class View {
         private final VBox root = new VBox();
-        private final Goblin goblin = new Goblin();
+        private final Mascot mascot = new Mascot();
         private final HBox header = new HBox();
         private final Button minimize = new Button("–");
         /** Hides the window; shown only where the window has no button of the system's for it. */
@@ -668,7 +714,6 @@ final class Panel {
         private List<PanelModel.Share> shownTimes;
         private String shownNoSessions;
         private String shownNoTimes;
-        private Boolean shownConnected;
 
         View(Consumer<Command> commands) {
             root.getStyleClass().add("panel");
@@ -678,7 +723,7 @@ final class Panel {
             root.setStyle("-fx-font-family: '" + family("Segoe UI", "SF Pro Text", "Helvetica Neue", "Ubuntu", "Noto Sans") + "';");
             root.setFocusTraversable(true);
 
-            // The goblin, bare as in the page's notice, and beside it what this window is and whose server.
+            // The goblin, and beside it what this window is and whose server.
             header.getStyleClass().add("header");
             var dash = new Region();
             dash.getStyleClass().add("dash");
@@ -695,7 +740,7 @@ final class Panel {
             close.setAccessibleText("Close. Hides the window; the server keeps running.");
             close.setVisible(false);
             close.setManaged(false);
-            header.getChildren().addAll(goblin.bare(46), new VBox(label("TabGoblin server", "title"), new HBox(6, agent, firstPort)), grow(), minimize, close);
+            header.getChildren().addAll(mascot.node(), new VBox(label("TabGoblin server", "title"), new HBox(6, agent, firstPort)), grow(), minimize, close);
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
@@ -912,6 +957,11 @@ final class Panel {
             stage.setHeight(high + 2 * SHADOW);
         }
 
+        /** The goblin in the header. */
+        Mascot mascot() {
+            return mascot;
+        }
+
         /** The view's own node: the window's body. */
         Parent root() {
             return root;
@@ -990,10 +1040,7 @@ final class Panel {
             agentPort.showing("agent port " + model.agentPort(), model.agentPort());
             connection.setText(model.connection());
             dot.getStyleClass().setAll("dot", model.connected() ? "connected" : model.switchedOff() ? "off" : "waiting");
-            if (!Objects.equals(shownConnected, !model.switchedOff())) {
-                shownConnected = !model.switchedOff();
-                goblin.awake(shownConnected);
-            }
+            mascot.show(model.mood());
             pair.setVisible(model.pairingWanted());
             pair.setManaged(model.pairingWanted());
             // A long one is three things in a row: what is wrong, why, and what to do. A line each.

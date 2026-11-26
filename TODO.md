@@ -117,7 +117,8 @@ newest at the bottom. It came to that in three steps, each on the owner's word:
   that fits the theme of our app". So it has the popup's colours and round marks, and the
   goblin of the popup's header in the bar, which shows the state: it glows green in pulses
   while the agent works, amber when the user is asked, and has its eyes closed when paused.
-  That is the face of `icons/goblin.svg` and no new drawing. It uses part of what WP-12 lists
+  That was the face of the extension's icon then (`icons/goblin.svg`, since replaced by the pixel
+  goblin of `art/mascot.ts`), and no new drawing. It uses part of what WP-12 lists
   as its smallest form; acting out each action is still WP-12. It first stood on a dark tile
   with a ring around it, as in the popup's header; on the owner's word, "the little goblin
   should be have no background and border", it stands bare, and what lights up is its outline.
@@ -155,10 +156,10 @@ Read from the source on 2026-11-21, and brought up to WP-11 on 2026-11-22.
   nothing else (`setNotice` in `background.ts`). The page part does not learn which action
   runs, in which direction a scroll goes, or which element is clicked; it gets the command
   itself separately, in `content.ts`, and answers it.
-- The goblin exists as one drawing, `chrome-extension/icons/goblin.svg`: a face of ten shapes
-  with ears, eyes, a mouth and a tooth. The toolbar icons are rendered from it, the popup shows
-  the same face, and the notice draws it from the same shapes with a name on each part that
-  moves. It has no body, arms or legs.
+- The goblin is drawn in pixels in `art/mascot.ts`, which writes the toolbar icons, the popup's
+  logo and the server panel's sprite sheet: a goblin in full, 22 pixels high, with six
+  animations (idle, working, reading, walking, sleeping, confused). The notice still draws the
+  earlier round face from ten shapes of its own, with a name on each part that moves.
 
 ### Proposal
 

@@ -7,7 +7,8 @@ java-server/         the server, with its CLI and its MCP interface (Java 25, Ma
 chrome-extension/    the extension (TypeScript, Manifest V3, esbuild)
   src/               sources
   test/              unit tests (node:test, jsdom)
-  icons/             goblin.svg and the PNGs rendered from it
+  icons/             the icon PNGs, written by art/mascot.ts
+art/                 mascot.ts: the goblin, the one source of its icons and sprites
   dist/              build output: load this folder in Chrome
 demo-site/           three local demo websites on three origins (test fixtures)
 e2e/                 end-to-end suite and helper scripts (Puppeteer, your Chrome)
@@ -50,7 +51,6 @@ Other scripts in `e2e/`:
 | `node agent.mjs` | Hands the tools to a real model (the `claude` CLI) with questions that need expanding, scrolling or loading more; prints the tool calls. Costs a few cents. |
 | `HEADED=1 node screenshots.mjs` | Regenerates the pictures of the popup and of the notice in `docs/images`, and `docs/examples` |
 | `node notice-pictures.mjs` | Pictures the notice in the page in every state, drawn by `notice.ts` in a plain page, to look at |
-| `node make-icons.mjs` | Renders the icon PNGs from `chrome-extension/icons/goblin.svg` |
 
 ### About the diagrams
 
@@ -235,6 +235,46 @@ page that owns it:
 
 How two parts are built that the [architecture](architecture.md) only outlines.
 
+### The goblin
+
+Every picture of the goblin comes from one file, [`art/mascot.ts`](../art/mascot.ts): a palette,
+parts drawn as grids of letters (one letter a pixel), and the frames of each animation put
+together from those parts at whole offsets. Nothing is smoothed or scaled by a fraction. Run it
+from the repository's root after a change:
+
+```sh
+node art/mascot.ts
+```
+
+It writes the extension's icons (`chrome-extension/icons/icon16.png` to `icon128.png`), the
+panel's sprite sheet (`java-server/src/main/resources/browsercontext/mascot.png`) with the rows
+of its animations (`mascot.properties`), and the picture below (`docs/images/mascot.png`). It
+needs Node 22.18 or newer and nothing installed. `chrome-extension/test/mascot.test.ts` fails
+when a file in the tree is not what the script draws, and holds the palette, the sizes and the
+frame counts.
+
+<img src="images/mascot.png" width="840" alt="The goblin's icons at 16, 32, 48 and 128 pixels, then its six animations, idle, working, reading, walking, sleeping and confused, each frame at its own 32 by 32 pixels and below at three times that">
+
+From the top: the icons at 16, 32, 48 and 128 pixels. The 32-pixel face is the owner's drawing;
+48 is the 16-pixel face, which is drawn again rather than shrunk, at three times, and 128 is the
+32 at four times. Then one band for each animation, in the order of the sheet's rows: *idle*
+(breathing and a blink), *working* (mining), *reading* (a parchment), *walking*, *sleeping* and
+*confused*. Each frame is at its own size, a cell of 32 by 32 pixels in which the goblin stands
+22 pixels high, and below at three times that.
+
+The panel shows a frame in its header, each pixel a square of two (`Panel.Mascot`). Which
+animation plays is the model's (`PanelModel.mood`), from what the server knows: *sleeping* while
+the connection is switched off, *confused* while the server has a problem, and otherwise the
+last tool call that ended in the last three seconds, as the log has it: *confused* where it
+failed, *reading* for a snapshot, an extract, a collect or a screenshot, *walking* for a
+navigation, and *working* for any other. Otherwise *idle*. The log has a call when it has ended,
+so a call that runs long is shown once it is over, and not while it runs. A refresh with the same
+mood goes on with the animation where it is; it runs only while the window is on the screen, and
+where the system asks for less motion it holds its first frame. The window's icon does not move.
+
+The popup's header shows the 32-pixel icon. The notice in the page still draws the round face the
+icons had before (see [the notice in the page](#the-notice-in-the-page)).
+
 ### The server's panel
 
 What the window shows is in the [developer guide](developer-guide.md#the-servers-panel), and what it
@@ -311,11 +351,11 @@ browser has to be paired. How it is built:
   was there for the system and drew nothing (`Panel.ownsItsHeader` and `Panel.floats`, held by
   tests). In all of them a request to close the window hides it and ends nothing: the server ends
   by its button, or by its agent, and `--panel` shows the window again (`Panel.raise`).
-- **The window's icon is drawn, not loaded.** The goblin comes from the shapes of
-  `chrome-extension/icons/goblin.svg`, written out in `Panel.java`. A window takes an icon only
-  as a picture that holds its pixels as bytes; a drawing comes as one number per pixel and is
-  passed over without a word, which leaves Java's icon on the taskbar. So the icons are copied
-  into the kind that is taken, and a test holds that.
+- **The window's icon is the extension's.** The build takes `chrome-extension/icons` into the
+  jar (`pom.xml`), and `Panel.icons` reads them with smoothing off; 64 and 256 are 32 and 128
+  made larger in whole squares. A window takes an icon only as a picture that holds its pixels
+  as bytes, or it keeps Java's icon on the taskbar without a word; a PNG that is read is such a
+  picture, and a test holds that.
 - **JavaFX 27 is in the jar,** and it needs Java 25, which is why the server does. Each JavaFX is compiled for a Java of its time: 23 for Java 21, 27 for Java 25. It tells the window whether the system is set to light or dark, and whether the user asked the system for less motion, which JavaFX has said since 24. It also has a window style with the system's own frame around a header of one's own (`StageStyle.EXTENDED`), which the panel uses on Windows. JavaFX is there with its native part for Windows on x64, Linux on x64 and macOS
   on Apple silicon; that took the jar from 7.1 MB to 17.6 MB when it was added. A jar holds one
   set of native files per system, because those for Intel and for ARM have the same names.
@@ -370,8 +410,9 @@ happens, and it is what stays in the corner. The pills float above it, each as w
 words, with nothing drawn around the two. So what stays is small, and what passes covers no
 more of the page than its own text.
 
-The look is the popup's: its colours, its round marks, and the goblin of its header, drawn from
-the shapes of `icons/goblin.svg` with nothing fetched. The goblin stands bare on the bar, with no
+The look is the popup's: its colours and its round marks, and a goblin drawn with nothing
+fetched: the round face of ten shapes that the extension's icons had before they became pixels
+(`notice.ts`). The pixel goblin of [`art/mascot.ts`](#the-goblin) is not in the notice yet. The goblin stands bare on the bar, with no
 tile and no edge of its own. It shows the state through one class alone (its outline glows green
 while working and amber when the user is asked, and its eyes are closed when paused); it learns
 nothing about what the agent does beyond that. What each action looks like is not shown; that

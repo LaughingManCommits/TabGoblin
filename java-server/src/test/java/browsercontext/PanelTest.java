@@ -367,19 +367,76 @@ class PanelTest {
 
     @Test
     void theWindowsIconIsTheGoblinInAFormTheWindowTakes() throws Exception {
-        List<String> icons = inTheWindow(sent -> Panel.Goblin.icons().stream().map(icon -> {
+        List<String> icons = inTheWindow(sent -> Panel.icons().stream().map(icon -> {
             int size = (int) icon.getWidth();
             var pixels = icon.getPixelReader();
-            // The forehead, above the eyes at every size, is the goblin's green, and the corner outside the tile is clear.
-            var face = pixels.getColor(size / 2, size * 5 / 16);
+            // Between the eyes is the goblin's skin at every size, and the corner is clear: the face is the icon.
+            var face = pixels.getColor(size / 2, size * 3 / 8);
             boolean green = face.getGreen() > 0.7 && face.getGreen() > face.getRed() + 0.2 && face.getOpacity() > 0.99;
+            // Made larger in whole squares: no pixel is a blend of two, so every one is a colour of the drawing or clear.
+            boolean sharp = true;
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    double alpha = pixels.getColor(x, y).getOpacity();
+                    sharp &= alpha == 0 || alpha == 1;
+                }
+            }
             return size + "x" + (int) icon.getHeight() + " " + pixels.getPixelFormat().getType()
-                    + (green ? " green face" : " face is " + face) + (pixels.getColor(0, 0).getOpacity() == 0 ? " clear corner" : " corner is filled");
+                    + (green ? " green face" : " face is " + face) + (pixels.getColor(0, 0).getOpacity() == 0 ? " clear corner" : " corner is filled")
+                    + (sharp ? " sharp" : " smoothed");
         }).toList());
         // Bytes, and not one number for a pixel as a drawing comes: a window passes that kind over
         // without a word and keeps Java's own icon, which is what the taskbar then shows.
-        assertEquals(List.of(16, 24, 32, 48, 64, 128, 256).stream()
-                .map(size -> size + "x" + size + " BYTE_BGRA_PRE green face clear corner").toList(), icons);
+        assertEquals(List.of(16, 32, 48, 64, 128, 256).stream()
+                .map(size -> size + "x" + size + " BYTE_BGRA_PRE green face clear corner sharp").toList(), icons);
+    }
+
+    @Test
+    void theGoblinPlaysWhatTheModelSaysAndOnlyWhileItIsSeen() throws Exception {
+        List<String> steps = inTheWindow(sent -> {
+            List<String> seen = new java.util.ArrayList<>();
+            var mascot = new Panel.Mascot();
+            var view = (javafx.scene.image.ImageView) mascot.node();
+            // Each pixel of the drawing is a square of four in the sheet as it is read: four columns alike, and four rows.
+            var pixels = view.getImage().getPixelReader();
+            boolean squares = true;
+            for (int y = 0; y < view.getImage().getHeight(); y++) {
+                for (int x = 0; x < view.getImage().getWidth(); x++) {
+                    squares &= pixels.getArgb(x, y) == pixels.getArgb(x - x % 4, y - y % 4);
+                }
+            }
+            seen.add("made: " + mascot.mood() + " smooth=" + view.isSmooth() + " cell " + (int) view.getViewport().getWidth()
+                    + " shown " + (int) view.getFitWidth() + "x" + (int) view.getFitHeight() + " squares=" + squares
+                    + " animating=" + mascot.animating());
+            mascot.running(true);
+            seen.add("seen: animating=" + mascot.animating());
+            mascot.show(PanelModel.Mood.WORKING);
+            var cell = view.getViewport();
+            seen.add("working: row " + (int) (cell.getMinY() / 128) + " animating=" + mascot.animating());
+            // A refresh with the same mood leaves the animation where it is.
+            for (int i = 0; i < 3; i++) {
+                mascot.show(PanelModel.Mood.WORKING);
+            }
+            seen.add("same again: animating=" + mascot.animating());
+            mascot.running(false);
+            seen.add("hidden: animating=" + mascot.animating());
+            mascot.show(PanelModel.Mood.SLEEPING);
+            seen.add("asleep while hidden: row " + (int) (view.getViewport().getMinY() / 128) + " frame " + mascot.frame()
+                    + " animating=" + mascot.animating());
+            return seen;
+        });
+        assertEquals(List.of(
+                "made: IDLE smooth=false cell 128 shown 64x64 squares=true animating=false",
+                "seen: animating=true",
+                "working: row 1 animating=true",
+                "same again: animating=true",
+                "hidden: animating=false",
+                "asleep while hidden: row 4 frame 0 animating=false"), steps);
+        // Every mood has its animation in the sheet, of four to eight frames.
+        for (var mood : PanelModel.Mood.values()) {
+            var play = Panel.Mascot.play(mood);
+            assertTrue(play.frames() >= 4 && play.frames() <= 8, mood + " has " + play.frames());
+        }
     }
 
     @Test

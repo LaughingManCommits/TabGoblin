@@ -92,6 +92,15 @@
                 </includes>
             </resource>
             <resource>
+                <!-- The goblin's icons, which art/mascot.ts writes there: the window's icon is the extension's. -->
+                <directory>${project.basedir}/../chrome-extension/icons</directory>
+                <targetPath>browsercontext/icons</targetPath>
+                <filtering>false</filtering>
+                <includes>
+                    <include>icon*.png</include>
+                </includes>
+            </resource>
+            <resource>
                 <directory>src/main/resources</directory>
                 <filtering>true</filtering>
                 <includes>

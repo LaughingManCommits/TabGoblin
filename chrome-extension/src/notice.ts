@@ -283,7 +283,11 @@ const STYLE = ':host{all:initial;position:fixed;right:12px;bottom:12px;z-index:2
   + '@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}.fading{opacity:1}}';
 
 const SVG = 'http://www.w3.org/2000/svg';
-/** The goblin's face, the shapes of chrome-extension/icons/goblin.svg, with a name on each part that moves. */
+/**
+ * The goblin's face as the extension drew it before its icons became pixels (art/mascot.ts), with a
+ * name on each part that moves. The notice keeps these shapes for now: it is drawn in the page, from
+ * nothing the page could fetch.
+ */
 const GOBLIN: readonly [string, string, Record<string, string>][] = [
   ['path', 'ears', { d: 'M32 64 6 38l36 6zM96 64l26-26-36 6z', fill: '#4fc27b' }],
   ['path', 'skin', { d: 'M64 28c-22 0-38 15-38 36 0 22 16 38 38 38s38-16 38-38c0-21-16-36-38-36z', fill: '#63d68f' }],

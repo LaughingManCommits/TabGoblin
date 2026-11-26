@@ -27,7 +27,59 @@ import java.util.Map;
  */
 record PanelModel(String agent, String identity, int port, int firstPort, String version, String problem,
         boolean connected, boolean switchedOff, String connection, List<Member> agents, List<Row> sessions, int tabs,
-        int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries, Blocked blocked) {
+        int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries, Blocked blocked, Mood mood) {
+
+    /**
+     * What the goblin in the header is doing: one of the rows of the sprite sheet that
+     * {@code art/mascot.ts} draws. It is read from what the server knows and from nothing else (see
+     * {@link #mood}); the window decides nothing about it.
+     */
+    enum Mood {
+        IDLE, WORKING, READING, WALKING, SLEEPING, CONFUSED;
+
+        /** The name of its row in mascot.properties. */
+        String animation() {
+            return name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /** How long after a tool call the goblin still shows it. The log has a call when it ended, not while it runs. */
+    static final long SHOWN_MS = 3_000;
+
+    /**
+     * What the goblin shows: asleep where the connection is switched off, puzzled where the server
+     * has a problem, and otherwise the last tool call that ended in the last {@link #SHOWN_MS}, as
+     * its log line has it: puzzled where it failed, reading for what reads a page, walking for a
+     * navigation, and at work for any other. A status asked is no work. With nothing of that, it waits.
+     */
+    static Mood mood(boolean switchedOff, String problem, List<Log.Line> log, long now) {
+        if (switchedOff) {
+            return Mood.SLEEPING;
+        }
+        if (problem != null) {
+            return Mood.CONFUSED;
+        }
+        for (int i = log.size() - 1; i >= 0; i--) {
+            Log.Line line = log.get(i);
+            if (line.at() < now - SHOWN_MS) {
+                break;
+            }
+            String text = line.text();
+            if (!text.startsWith("command id=") || text.contains(" action=status ")) {
+                continue;
+            }
+            if (!text.contains(" outcome=ok")) {
+                return Mood.CONFUSED;
+            }
+            for (String reads : List.of("snapshot", "extract", "collect", "screenshot")) {
+                if (text.contains(" action=" + reads + " ")) {
+                    return Mood.READING;
+                }
+            }
+            return text.contains(" action=navigate ") ? Mood.WALKING : Mood.WORKING;
+        }
+        return Mood.IDLE;
+    }
 
     /**
      * The sites no agent may work on, as the window says them. They are the user's own list, shown
@@ -296,7 +348,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
                 List.copyOf(members), List.copyOf(rows), rows.size(), open,
                 new Metrics(all.calls(), shares(all)), Map.copyOf(metricsOf),
                 log.stream().map(line -> new Entry(logLine(line, zone), line.session(), line.agent())).toList(),
-                blocked);
+                blocked, mood(switchedOff, problem, log, System.currentTimeMillis()));
     }
 
     /** The port of the one agent a server has, or 0: with several each has its own, and one without a port has none. */
