@@ -61,7 +61,7 @@ function optionalRefs(msg: Request, state: PageState): ExtractOptions['roots'] {
 
 interface NavigationApi {
   currentEntry?: { index: number };
-  entries(): { key: string }[];
+  entries(): { key: string; sameDocument?: boolean }[];
   traverseTo(key: string): unknown;
 }
 
@@ -73,7 +73,7 @@ interface NavigationApi {
  * (The browser's own back button would not do: it skips entries that were opened without a user
  * gesture, which is every page an agent opened, and so can jump straight out of the origin.)
  */
-function historyGo(direction: 'back' | 'forward'): { started: true } {
+function historyGo(direction: 'back' | 'forward'): { started: true; sameDocument?: boolean } {
   const nav = (window as unknown as { navigation?: NavigationApi }).navigation;
   const index = nav?.currentEntry?.index;
   if (!nav || typeof index !== 'number') {
@@ -87,8 +87,11 @@ function historyGo(direction: 'back' | 'forward'): { started: true } {
     throw new DomError('NAVIGATION_BLOCKED',
       `Going ${direction} would leave the authorized origin, or there is no ${direction === 'back' ? 'earlier' : 'later'} page in this tab.`);
   }
+  // Whether the entry is an earlier state of this document or another document: a fact of the
+  // tab's own history, and what tells the extension whether a page has to load.
+  const sameDocument = typeof target.sameDocument === 'boolean' ? target.sameDocument : undefined;
   void Promise.resolve(nav.traverseTo(target.key)).catch(() => undefined);
-  return { started: true };
+  return { started: true, ...(sameDocument === undefined ? {} : { sameDocument }) };
 }
 
 /** The notice in this page: what it holds, where it is drawn, and when it changes next by itself. */
