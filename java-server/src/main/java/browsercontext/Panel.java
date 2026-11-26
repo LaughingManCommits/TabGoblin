@@ -522,9 +522,17 @@ final class Panel {
      * documentation's pictures, it is then drawn pixel for pixel, and on any other halved exactly.
      * A renderer that scales a picture by itself smooths it on some systems, whatever it is told.
      *
-     * <p>Its animation runs only while it is told it may ({@link #running}): while the window is on
-     * the screen. Being told the same mood again changes nothing, so a refresh does not start it over.
-     * Where the user asked the system for less motion it holds still on the animation's first frame.
+     * <p>How it moves, so that it says something and does not tire the eye:
+     * <ul>
+     * <li>At rest it holds still and blinks now and then, 8 to 15 seconds apart (an animation the
+     *     index marks {@code hold}). Every other animation goes round.
+     * <li>A new mood waits for the one that plays to come round once: a burst of calls shows whole
+     *     motions, not a frame of each. The newest mood is the one that comes; one that returns to
+     *     what plays cancels the wait. From rest, or while it is not seen, it changes at once.
+     * <li>It runs only while it is told it may ({@link #running}): while the window is on the
+     *     screen. Where the user asked the system for less motion it holds the first frame.
+     * <li>The same mood again changes nothing, so a refresh does not start it over.
+     * </ul>
      */
     static final class Mascot {
         static final int CELL = 32;
@@ -532,15 +540,19 @@ final class Panel {
         private static Image sheet;
         private static java.util.Properties rows;
 
-        /** One animation: its row of the sheet, how many frames it has, and how long each stays. */
-        record Play(int row, int frames, Duration each) {
+        /** One animation: its row of the sheet, how many frames it has, how long each stays, and whether its first is held. */
+        record Play(int row, int frames, Duration each, boolean hold) {
         }
 
         private final javafx.scene.image.ImageView view = new javafx.scene.image.ImageView();
         private final Timeline clock = new Timeline();
+        private final java.util.Random chance = new java.util.Random();
         private PanelModel.Mood mood;
+        private PanelModel.Mood next;
         private Play play;
         private int frame;
+        /** Whether what plays has come round once since it began. */
+        private boolean round;
         private boolean running;
 
         Mascot() {
@@ -548,10 +560,11 @@ final class Panel {
             view.setSmooth(false);
             view.setFitWidth(CELL * SCALE);
             view.setFitHeight(CELL * SCALE);
-            // The cell has room around the goblin for what it holds and what rises over it: that room
-            // takes no place in the header, so the header is as high as its words.
-            HBox.setMargin(view, new Insets(-6 * SCALE, -7 * SCALE, -3 * SCALE, -6 * SCALE));
-            clock.setCycleCount(Animation.INDEFINITE);
+            // The cell has room around the goblin, and what it holds and what rises over it stay in
+            // it. Only what no frame draws on takes no place in the header: the cell's first seven
+            // columns and its last two, and its rows under the soles. Above, the two empty rows and
+            // the room the z and the question rise in reach over the header's top, where nothing is.
+            HBox.setMargin(view, new Insets(-6 * SCALE, -2 * SCALE, -3 * SCALE, -7 * SCALE));
             show(PanelModel.Mood.IDLE);
         }
 
@@ -567,7 +580,7 @@ final class Panel {
             return sheet;
         }
 
-        /** The animations as mascot.properties lists them: a name, then its row, its frames and the milliseconds of each. */
+        /** The animations as mascot.properties lists them: a name, then its row, its frames, the milliseconds of each, and "hold". */
         static synchronized Play play(PanelModel.Mood mood) {
             if (rows == null) {
                 rows = new java.util.Properties();
@@ -578,36 +591,82 @@ final class Panel {
                 }
             }
             String[] said = Objects.requireNonNull(rows.getProperty(mood.animation()), mood.animation()).trim().split(" ");
-            return new Play(Integer.parseInt(said[0]), Integer.parseInt(said[1]), Duration.millis(Integer.parseInt(said[2])));
+            return new Play(Integer.parseInt(said[0]), Integer.parseInt(said[1]), Duration.millis(Integer.parseInt(said[2])),
+                    said.length > 3 && said[3].equals("hold"));
         }
 
-        /** Shows this mood. The same mood again changes nothing: the animation goes on where it is. */
+        /** Shows this mood, at once or once what plays has come round. */
         void show(PanelModel.Mood now) {
             if (now == mood) {
+                next = null;
                 return;
             }
+            if (play != null && !play.hold() && animating() && (frame != 0 || !round)) {
+                next = now;
+                return;
+            }
+            begin(now);
+        }
+
+        private void begin(PanelModel.Mood now) {
             mood = now;
+            next = null;
             play = play(now);
             frame = 0;
+            round = false;
             draw();
-            clock.stop();
-            clock.getKeyFrames().setAll(new KeyFrame(play.each(), tick -> {
-                frame = (frame + 1) % play.frames();
-                draw();
-            }));
-            if (running && !calm) {
-                clock.play();
-            }
+            restart();
         }
 
         /** Runs the animation while the window is on the screen, and stops it while it is not. */
         void running(boolean on) {
             running = on;
-            if (on && !calm) {
-                clock.play();
-            } else {
-                clock.stop();
+            if (!on && next != null) {
+                begin(next);
             }
+            restart();
+        }
+
+        private void restart() {
+            clock.stop();
+            clock.setOnFinished(null);
+            if (!running || calm) {
+                frame = 0;
+                draw();
+                return;
+            }
+            if (play.hold()) {
+                // Held, and now and then the other frames once each: a blink.
+                var rest = Duration.seconds(8 + chance.nextInt(8));
+                var frames = new ArrayList<KeyFrame>();
+                for (int i = 1; i <= play.frames(); i++) {
+                    int shown = i % play.frames();
+                    frames.add(new KeyFrame(rest.add(play.each().multiply(i - 1)), tick -> {
+                        frame = shown;
+                        draw();
+                    }));
+                }
+                clock.getKeyFrames().setAll(frames);
+                clock.setCycleCount(1);
+                clock.setOnFinished(done -> restart());
+            } else {
+                clock.getKeyFrames().setAll(new KeyFrame(play.each(), tick -> tick()));
+                clock.setCycleCount(Animation.INDEFINITE);
+            }
+            clock.play();
+        }
+
+        /** One step of an animation that goes round; at the end of a round, the mood that waits comes. */
+        void tick() {
+            frame = (frame + 1) % play.frames();
+            if (frame == 0) {
+                round = true;
+                if (next != null) {
+                    begin(next);
+                    return;
+                }
+            }
+            draw();
         }
 
         private void draw() {
@@ -617,6 +676,10 @@ final class Panel {
 
         PanelModel.Mood mood() {
             return mood;
+        }
+
+        PanelModel.Mood next() {
+            return next;
         }
 
         int frame() {

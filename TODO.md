@@ -156,10 +156,10 @@ Read from the source on 2026-11-21, and brought up to WP-11 on 2026-11-22.
   nothing else (`setNotice` in `background.ts`). The page part does not learn which action
   runs, in which direction a scroll goes, or which element is clicked; it gets the command
   itself separately, in `content.ts`, and answers it.
-- The goblin is drawn in pixels in `art/mascot.ts`, which writes the toolbar icons, the popup's
-  logo and the server panel's sprite sheet: a goblin in full, 22 pixels high, with six
-  animations (idle, working, reading, walking, sleeping, confused). The notice still draws the
-  earlier round face from ten shapes of its own, with a name on each part that moves.
+- The goblin is drawn in pixels in `art/goblin.ts`: the toolbar icons, the popup's logo, the
+  notice's face and the server panel's sprite sheet, a goblin in full, 22 pixels high, with eight
+  animations (idle, working, reading, walking, sleeping, confused, waiting, guarding). The notice
+  shows the face only, and the state through its glow and its eyes.
 
 ### Proposal
 

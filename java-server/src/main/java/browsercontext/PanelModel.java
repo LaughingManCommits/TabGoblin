@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * What the server's panel shows at one moment, in the words it shows it in. Read from the same
@@ -35,7 +36,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
      * {@link #mood}); the window decides nothing about it.
      */
     enum Mood {
-        IDLE, WORKING, READING, WALKING, SLEEPING, CONFUSED;
+        IDLE, WORKING, READING, WALKING, SLEEPING, CONFUSED, WAITING, GUARDING;
 
         /** The name of its row in mascot.properties. */
         String animation() {
@@ -43,21 +44,36 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
         }
     }
 
-    /** How long after a tool call the goblin still shows it. The log has a call when it ended, not while it runs. */
+    /** How long after a tool call ended the goblin still shows it, where no other runs. */
     static final long SHOWN_MS = 3_000;
 
     /**
-     * What the goblin shows: asleep where the connection is switched off, puzzled where the server
-     * has a problem, and otherwise the last tool call that ended in the last {@link #SHOWN_MS}, as
-     * its log line has it: puzzled where it failed, reading for what reads a page, walking for a
-     * navigation, and at work for any other. A status asked is no work. With nothing of that, it waits.
+     * What the goblin shows, from the first of these that holds:
+     * <ol>
+     * <li>asleep where the connection is switched off;
+     * <li>puzzled where the server has a problem;
+     * <li>waiting where the browser is not connected to every agent (or there is no agent);
+     * <li>a tool call that is running now, as {@code running} names it;
+     * <li>else the last tool call that ended in the last {@link #SHOWN_MS}, as its log line has it:
+     *     guarding where the rules refused it (an authorization or a scope), puzzled where it failed
+     *     otherwise, and as one that runs where it went through;
+     * <li>at rest.
+     * </ol>
+     * A call is shown as reading where it reads a page, walking for a navigation, and at work for
+     * any other. A status asked is no work.
      */
-    static Mood mood(boolean switchedOff, String problem, List<Log.Line> log, long now) {
+    static Mood mood(boolean switchedOff, String problem, boolean connected, String running, List<Log.Line> log, long now) {
         if (switchedOff) {
             return Mood.SLEEPING;
         }
         if (problem != null) {
             return Mood.CONFUSED;
+        }
+        if (!connected) {
+            return Mood.WAITING;
+        }
+        if (running != null && !running.equals("status")) {
+            return doing(running);
         }
         for (int i = log.size() - 1; i >= 0; i--) {
             Log.Line line = log.get(i);
@@ -68,17 +84,25 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
             if (!text.startsWith("command id=") || text.contains(" action=status ")) {
                 continue;
             }
+            if (text.contains(" category=AUTHORIZATION") || text.contains(" category=SCOPE")) {
+                return Mood.GUARDING;
+            }
             if (!text.contains(" outcome=ok")) {
                 return Mood.CONFUSED;
             }
-            for (String reads : List.of("snapshot", "extract", "collect", "screenshot")) {
-                if (text.contains(" action=" + reads + " ")) {
-                    return Mood.READING;
-                }
-            }
-            return text.contains(" action=navigate ") ? Mood.WALKING : Mood.WORKING;
+            int at = text.indexOf(" action=") + " action=".length();
+            return doing(text.substring(at, text.indexOf(' ', at)));
         }
         return Mood.IDLE;
+    }
+
+    /** A tool call by its action: reading a page, walking to another, or at work. */
+    private static Mood doing(String action) {
+        return switch (action) {
+            case "snapshot", "extract", "collect", "screenshot" -> Mood.READING;
+            case "navigate" -> Mood.WALKING;
+            default -> Mood.WORKING;
+        };
     }
 
     /**
@@ -161,7 +185,14 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
 
     /** One agent as the server holds it: what the model is made from. */
     record Facts(String name, String id, int port, String problem, boolean connected, long connectedSince,
-            int lastCloseCode, List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf) {
+            int lastCloseCode, List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf,
+            String running) {
+
+        /** An agent with no tool call running now. */
+        Facts(String name, String id, int port, String problem, boolean connected, long connectedSince, int lastCloseCode,
+                List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf) {
+            this(name, id, port, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, null);
+        }
     }
 
     /**
@@ -230,7 +261,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
         boolean connected = bridge.isExtensionConnected();
         return new Facts(bridge.clientName(), bridge.clientId(), bridge.getPort(), startupProblem, connected,
                 bridge.connectedSince(), bridge.lastCloseCode(), connected ? bridge.sessions() : List.of(),
-                bridge.timings().shares(), bridge.timings().sharesBySession());
+                bridge.timings().shares(), bridge.timings().sharesBySession(), bridge.running());
     }
 
     /** Reads everything from a running server that has one agent: a process that serves its agent alone. */
@@ -348,7 +379,9 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
                 List.copyOf(members), List.copyOf(rows), rows.size(), open,
                 new Metrics(all.calls(), shares(all)), Map.copyOf(metricsOf),
                 log.stream().map(line -> new Entry(logLine(line, zone), line.session(), line.agent())).toList(),
-                blocked, mood(switchedOff, problem, log, System.currentTimeMillis()));
+                blocked, mood(switchedOff, problem, !members.isEmpty() && members.stream().allMatch(Member::connected),
+                        agents.stream().map(Facts::running).filter(Objects::nonNull).findFirst().orElse(null), log,
+                        System.currentTimeMillis()));
     }
 
     /** The port of the one agent a server has, or 0: with several each has its own, and one without a port has none. */

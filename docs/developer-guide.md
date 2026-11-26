@@ -392,7 +392,7 @@ focus a heading with Tab and toggle it with Space.
 
 | Part | What it shows or does |
 |---|---|
-| The goblin | What the server is at: asleep while the connection is switched off, puzzled by a problem or a call that failed, reading, walking (a navigation) or at work for three seconds after a call ends, and otherwise waiting. It moves only while the window is on the screen |
+| The goblin | What the server is at. Asleep while the connection is switched off; puzzled by a problem, or by a call that failed; waiting while the browser is not connected; while a call runs, and for three seconds after, reading a page, walking (a navigation) or at work; behind its shield for a moment when the rules refused a call; and otherwise at rest, still but for a blink. It moves only while the window is on the screen |
 | The line under the title | Click **Port** beside the agent information to copy the number for the extension popup, where it is set as *First port* under *Connection…*. It is available before an agent or browser connects |
 | The line with the dot | Whether the extension is connected, and if not, why. While it waits for the extension, a line below says what to do: open the popup, and pair it if it says so. With one agent whose port is another than the one under the title, the line ends with it (*agent port …*), as that agent's status names it; a click copies it |
 | Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id and its port, and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |

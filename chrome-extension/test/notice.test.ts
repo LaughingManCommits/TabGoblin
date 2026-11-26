@@ -217,13 +217,18 @@ test('the goblin is a picture in the box: its parts can move, and it says nothin
   const rules = [...style.matchAll(/([^{}]*\.goblin(?![\w-])[^{}]*)\{([^}]*)\}/g)];
   assert.ok(rules.length >= 3, 'the goblin has rules of its own');
   for (const [, selector, body] of rules) assert.doesNotMatch(body, /background|border|box-shadow|outline/, selector);
-  // The face alone, from ear to ear, fills its place.
-  assert.equal(svg.getAttribute('viewBox'), '4 26 120 78');
+  // The face alone, from ear to ear, fills its place: the 16-pixel face of the icons, never smoothed.
+  assert.equal(svg.getAttribute('viewBox'), '0 3 16 11');
+  assert.equal(svg.getAttribute('shape-rendering'), 'crispEdges');
   // What the state is, the row beside it says in words: the picture is hidden from a screen reader.
   assert.equal(svg.getAttribute('aria-hidden'), 'true');
   assert.equal(svg.textContent, '');
-  assert.deepEqual([...svg.children].map((part) => part.getAttribute('class')),
-    ['ears', 'skin', 'eye', 'eye', 'pupil', 'pupil', 'mouth', 'tooth']);
+  // The face, its open eyes, and the shut ones that take their place in a blink and while paused.
+  assert.deepEqual([...new Set([...svg.children].map((part) => part.getAttribute('class')))].sort(), ['eye', 'face', 'shut']);
+  for (const part of svg.children) assert.match(part.getAttribute('d') ?? '', /^(M\d+ \d+h1v1h-1z)+$/, 'whole pixels');
+  assert.match(style, /\.shut\{opacity:0\}/);
+  assert.match(style, /\.paused \.eye\{opacity:0\}/);
+  assert.match(style, /\.paused \.shut\{opacity:1\}/);
   // Drawn from shapes in this file: nothing in it points anywhere else.
   for (const part of svg.children) assert.deepEqual(part.getAttributeNames().filter((name) => /href|src/.test(name)), []);
   // The state reaches it through the box's class alone, which the drawing sets.

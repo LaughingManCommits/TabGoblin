@@ -30,25 +30,38 @@ class PanelModelTest {
     void theGoblinShowsWhatTheServerKnowsAndNothingMore() {
         long now = 1_000_000;
         Log.Line ok = new Log.Line(now - 500, "debug", "command id=4 session=s1 action=click ms=31 outcome=ok");
-        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, List.of(), now));
-        assertEquals(PanelModel.Mood.SLEEPING, PanelModel.mood(true, "a problem", List.of(ok), now), "switched off: asleep, whatever else");
-        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, "no port", List.of(ok), now));
-        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, List.of(ok), now));
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, true, null, List.of(), now));
+        assertEquals(PanelModel.Mood.SLEEPING, PanelModel.mood(true, "a problem", false, "click", List.of(ok), now), "switched off: asleep, whatever else");
+        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, "no port", false, null, List.of(ok), now));
+        // Not connected: it waits, and looks it, even after a call; nothing it did a moment ago says otherwise.
+        assertEquals(PanelModel.Mood.WAITING, PanelModel.mood(false, null, false, null, List.of(ok), now));
+        // A call that runs now is shown while it runs, before anything the log has.
+        assertEquals(PanelModel.Mood.WALKING, PanelModel.mood(false, null, true, "navigate", List.of(ok), now));
+        assertEquals(PanelModel.Mood.READING, PanelModel.mood(false, null, true, "extract", List.of(), now));
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, true, "wait_for", List.of(), now));
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, true, "status", List.of(), now), "a status asked is no work");
+        // Else the call that ended last, for a moment.
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, true, null, List.of(ok), now));
         for (String reads : List.of("snapshot", "extract", "collect", "screenshot")) {
-            assertEquals(PanelModel.Mood.READING, PanelModel.mood(false, null,
+            assertEquals(PanelModel.Mood.READING, PanelModel.mood(false, null, true, null,
                     List.of(new Log.Line(now, "debug", "command id=5 session=s1 action=" + reads + " ms=9 outcome=ok")), now), reads);
         }
-        assertEquals(PanelModel.Mood.WALKING, PanelModel.mood(false, null,
+        assertEquals(PanelModel.Mood.WALKING, PanelModel.mood(false, null, true, null,
                 List.of(new Log.Line(now, "debug", "command id=6 session=s1 action=navigate ms=900 outcome=ok")), now));
-        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, null, List.of(new Log.Line(now, "info",
+        // A refusal is the rules at work: it guards. A failure of another kind puzzles it.
+        assertEquals(PanelModel.Mood.GUARDING, PanelModel.mood(false, null, true, null, List.of(new Log.Line(now, "info",
                 "command id=7 session=s1 action=navigate ms=31 outcome=error code=NAVIGATION_BLOCKED category=SCOPE scope_violation=true")), now));
+        assertEquals(PanelModel.Mood.GUARDING, PanelModel.mood(false, null, true, null, List.of(new Log.Line(now, "info",
+                "command id=8 session=s1 action=fill ms=3 outcome=error code=WRITE_NOT_AUTHORIZED category=AUTHORIZATION")), now));
+        assertEquals(PanelModel.Mood.CONFUSED, PanelModel.mood(false, null, true, null, List.of(new Log.Line(now, "info",
+                "command id=9 session=s1 action=click ms=3 outcome=error code=STALE_REF category=STALE")), now));
         // The last call counts; a status asked, or a line that is no call, is passed over.
-        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, List.of(
+        assertEquals(PanelModel.Mood.WORKING, PanelModel.mood(false, null, true, null, List.of(
                 new Log.Line(now - 900, "debug", "command id=1 session=s1 action=snapshot ms=9 outcome=ok"), ok,
                 new Log.Line(now - 100, "debug", "command id=8 session=- action=status ms=1 outcome=ok"),
                 new Log.Line(now - 50, "info", "extension connected client=c-1 protocol=3")), now));
         // A call that ended longer ago than it is shown is over.
-        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, List.of(ok), now + PanelModel.SHOWN_MS));
+        assertEquals(PanelModel.Mood.IDLE, PanelModel.mood(false, null, true, null, List.of(ok), now + PanelModel.SHOWN_MS));
     }
 
     @Test

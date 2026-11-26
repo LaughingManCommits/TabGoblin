@@ -7,6 +7,8 @@
 // ended: the words of the activity list. Nothing of the page's content, and no entered text.
 
 /** How long a line of what ended is shown, and how long it then takes to fade. */
+import { EYE_COLUMNS, EYE_ROWS, FACE_16, PALETTE } from '../../art/goblin.ts';
+
 export const LINE_STAYS_MS = 4000;
 export const LINE_FADES_MS = 1000;
 /** How many lines of what ended are shown at most; an older one makes room. */
@@ -231,22 +233,21 @@ const STYLE = ':host{all:initial;position:fixed;right:12px;bottom:12px;z-index:2
   + '@keyframes rise{from{opacity:0;transform:translateY(8px) scale(.96)}}'
   // The goblin, bare: no tile under it and no edge around it. It stands on the bar itself, and
   // what lights up is its own outline.
-  + '.goblin{flex:none;width:34px;height:22px}'
-  + '.goblin svg{display:block;width:100%;height:100%;overflow:visible}'
-  + '.eye,.pupil,.ears{transform-box:fill-box;transform-origin:center;transition:transform 160ms ease-out,opacity 160ms ease-out}'
+  // The face of the icons, in its own pixels, each a square of two: never smoothed.
+  + '.goblin{flex:none;width:32px;height:22px}'
+  + '.goblin svg{display:block;width:100%;height:100%;overflow:visible;shape-rendering:crispEdges}'
+  + '.shut{opacity:0}'
   + '.working .goblin svg{animation:glow 1.6s ease-in-out infinite}'
   + `@keyframes glow{0%,100%{filter:drop-shadow(0 0 0 rgba(${GREEN},0))}50%{filter:drop-shadow(0 0 4px rgba(${GREEN},.8))}}`
-  + '.working .eye{animation:blink 3.8s infinite}'
-  + '@keyframes blink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}'
-  + '.working .pupil{animation:wink 3.8s infinite}'
-  + '@keyframes wink{0%,92%,100%{opacity:1}96%{opacity:0}}'
-  + '.working .ears{animation:twitch 3.8s ease-in-out infinite}'
-  + '@keyframes twitch{0%,40%,60%,100%{transform:rotate(0)}50%{transform:rotate(-5deg)}}'
+  // A blink: the open eyes give way to the shut ones for a moment, a frame and not a fade.
+  + '.working .eye{animation:open 3.8s step-end infinite}'
+  + '@keyframes open{0%,95%,100%{opacity:1}96%{opacity:0}}'
+  + '.working .shut{animation:blink 3.8s step-end infinite}'
+  + '@keyframes blink{0%,95%,100%{opacity:0}96%{opacity:1}}'
   + '.asking .goblin svg{animation:ask 1.6s ease-in-out infinite}'
   + `@keyframes ask{0%,100%{filter:drop-shadow(0 0 1px rgba(${AMBER},.5))}50%{filter:drop-shadow(0 0 5px rgba(${AMBER},.95))}}`
-  + '.asking .pupil{transform:translate(4px,-5px)}'
-  + '.paused .eye{transform:scaleY(.12)}'
-  + '.paused .pupil{opacity:0}'
+  + '.paused .eye{opacity:0}'
+  + '.paused .shut{opacity:1}'
   + '.paused .goblin svg{opacity:.7}'
   + '.lines{display:flex;flex-direction:column;align-items:flex-end;gap:5px;max-width:100%}'
   + '.lines:empty{display:none}'
@@ -283,35 +284,51 @@ const STYLE = ':host{all:initial;position:fixed;right:12px;bottom:12px;z-index:2
   + '@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}.fading{opacity:1}}';
 
 const SVG = 'http://www.w3.org/2000/svg';
+
 /**
- * The goblin's face as the extension drew it before its icons became pixels (art/mascot.ts), with a
- * name on each part that moves. The notice keeps these shapes for now: it is drawn in the page, from
- * nothing the page could fetch.
+ * The goblin's face, the 16-pixel face of the icons (art/goblin.ts), as paths of pixels: one for
+ * each colour of each part. The parts are the face, the open eyes and the shut ones, which take
+ * each other's place in a blink and while paused.
  */
-const GOBLIN: readonly [string, string, Record<string, string>][] = [
-  ['path', 'ears', { d: 'M32 64 6 38l36 6zM96 64l26-26-36 6z', fill: '#4fc27b' }],
-  ['path', 'skin', { d: 'M64 28c-22 0-38 15-38 36 0 22 16 38 38 38s38-16 38-38c0-21-16-36-38-36z', fill: '#63d68f' }],
-  ['ellipse', 'eye', { cx: '50', cy: '62', rx: '9', ry: '10', fill: '#12201a' }],
-  ['ellipse', 'eye', { cx: '78', cy: '62', rx: '9', ry: '10', fill: '#12201a' }],
-  ['circle', 'pupil', { cx: '53', cy: '59', r: '3', fill: '#f4fff8' }],
-  ['circle', 'pupil', { cx: '81', cy: '59', r: '3', fill: '#f4fff8' }],
-  ['path', 'mouth', { d: 'M48 82c5 6 27 6 32 0', stroke: '#12201a', 'stroke-width': '5', fill: 'none', 'stroke-linecap': 'round' }],
-  ['path', 'tooth', { d: 'm58 85 3 7 3-6z', fill: '#f4fff8' }],
-];
+function goblinParts(): { part: string; fill: string; d: string }[] {
+  const shut = ['ggg', 'ooo', 'ggg'];
+  const pixels = new Map<string, string[]>();
+  const add = (part: string, letter: string, x: number, y: number): void => {
+    const key = `${part} ${letter}`;
+    pixels.set(key, [...(pixels.get(key) ?? []), `M${x} ${y}h1v1h-1z`]);
+  };
+  FACE_16.forEach((line, y) => [...line].forEach((letter, x) => {
+    if (letter === '.') return;
+    const eyeRow = (EYE_ROWS as readonly number[]).indexOf(y);
+    const eyeColumn = EYE_COLUMNS.find((first) => x >= first && x < first + 3);
+    if (eyeRow >= 0 && eyeColumn !== undefined) {
+      add('eye', letter, x, y);
+      add('shut', shut[eyeRow][x - eyeColumn], x, y);
+    } else {
+      add('face', letter, x, y);
+    }
+  }));
+  return [...pixels].map(([key, d]) => {
+    const [part, letter] = key.split(' ');
+    return { part, fill: PALETTE[letter], d: d.join('') };
+  });
+}
 
 function goblin(doc: Document): HTMLElement {
   const tile = doc.createElement('div');
   tile.className = 'goblin';
   const svg = doc.createElementNS(SVG, 'svg');
-  // The face alone, from ear to ear: the drawing's own square has room around it for the tile it stands on elsewhere.
-  svg.setAttribute('viewBox', '4 26 120 78');
+  // The face alone, from ear to ear and from its brow to its chin.
+  svg.setAttribute('viewBox', '0 3 16 11');
+  svg.setAttribute('shape-rendering', 'crispEdges');
   // A picture and nothing to read: what it shows is said in words in the row beside it.
   svg.setAttribute('aria-hidden', 'true');
-  for (const [tag, name, attributes] of GOBLIN) {
-    const part = doc.createElementNS(SVG, tag);
-    part.setAttribute('class', name);
-    for (const [key, value] of Object.entries(attributes)) part.setAttribute(key, value);
-    svg.append(part);
+  for (const { part, fill, d } of goblinParts()) {
+    const path = doc.createElementNS(SVG, 'path');
+    path.setAttribute('class', part);
+    path.setAttribute('fill', fill);
+    path.setAttribute('d', d);
+    svg.append(path);
   }
   tile.append(svg);
   return tile;

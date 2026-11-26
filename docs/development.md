@@ -237,10 +237,11 @@ How two parts are built that the [architecture](architecture.md) only outlines.
 
 ### The goblin
 
-Every picture of the goblin comes from one file, [`art/mascot.ts`](../art/mascot.ts): a palette,
-parts drawn as grids of letters (one letter a pixel), and the frames of each animation put
-together from those parts at whole offsets. Nothing is smoothed or scaled by a fraction. Run it
-from the repository's root after a change:
+Every picture of the goblin comes from one drawing, [`art/goblin.ts`](../art/goblin.ts): a
+palette, parts drawn as grids of letters (one letter a pixel), and the frames of each animation
+put together from those parts at whole offsets. Nothing is smoothed or scaled by a fraction.
+[`art/mascot.ts`](../art/mascot.ts) writes the pictures; run it from the repository's root after
+a change:
 
 ```sh
 node art/mascot.ts
@@ -250,30 +251,43 @@ It writes the extension's icons (`chrome-extension/icons/icon16.png` to `icon128
 panel's sprite sheet (`java-server/src/main/resources/browsercontext/mascot.png`) with the rows
 of its animations (`mascot.properties`), and the picture below (`docs/images/mascot.png`). It
 needs Node 22.18 or newer and nothing installed. `chrome-extension/test/mascot.test.ts` fails
-when a file in the tree is not what the script draws, and holds the palette, the sizes and the
-frame counts.
+when a file in the tree is not what the script draws, and holds the palette, the sizes, the frame
+counts and the symmetry of the faces.
 
-<img src="images/mascot.png" width="840" alt="The goblin's icons at 16, 32, 48 and 128 pixels, then its six animations, idle, working, reading, walking, sleeping and confused, each frame at its own 32 by 32 pixels and below at three times that">
+<img src="images/mascot.png" width="632" alt="The goblin's icons at 16, 32, 48 and 128 pixels, then its eight animations, idle, working, reading, walking, sleeping, confused, waiting and guarding, each frame at its own 32 by 32 pixels and below at three times that">
 
-From the top: the icons at 16, 32, 48 and 128 pixels. The 32-pixel face is the owner's drawing;
-48 is the 16-pixel face, which is drawn again rather than shrunk, at three times, and 128 is the
-32 at four times. Then one band for each animation, in the order of the sheet's rows: *idle*
-(breathing and a blink), *working* (mining), *reading* (a parchment), *walking*, *sleeping* and
-*confused*. Each frame is at its own size, a cell of 32 by 32 pixels in which the goblin stands
-22 pixels high, and below at three times that.
+From the top: the icons at 16, 32, 48 and 128 pixels. The 32-pixel face is the owner's drawing,
+and 128 is it at four times. The 16 and the 24-pixel faces are drawn again rather than shrunk; 48
+is the 24 at two times. Then one band for each animation, in the order of the sheet's rows:
+*idle*, *working* (mining), *reading* (a parchment), *walking*, *sleeping*, *confused*, *waiting*
+and *guarding* (a shield). Each frame is at its own size, a cell of 32 by 32 pixels in which the
+goblin stands 22 pixels high, and below at three times that. What a frame holds, and what rises
+over it, stays inside the cell.
 
 The panel shows a frame in its header, each pixel a square of two (`Panel.Mascot`). Which
-animation plays is the model's (`PanelModel.mood`), from what the server knows: *sleeping* while
-the connection is switched off, *confused* while the server has a problem, and otherwise the
-last tool call that ended in the last three seconds, as the log has it: *confused* where it
-failed, *reading* for a snapshot, an extract, a collect or a screenshot, *walking* for a
-navigation, and *working* for any other. Otherwise *idle*. The log has a call when it has ended,
-so a call that runs long is shown once it is over, and not while it runs. A refresh with the same
-mood goes on with the animation where it is; it runs only while the window is on the screen, and
-where the system asks for less motion it holds its first frame. The window's icon does not move.
+animation plays is the model's (`PanelModel.mood`), from what the server knows, the first that
+holds of:
 
-The popup's header shows the 32-pixel icon. The notice in the page still draws the round face the
-icons had before (see [the notice in the page](#the-notice-in-the-page)).
+1. *sleeping* while the connection is switched off;
+2. *confused* while the server has a problem;
+3. *waiting* while the browser is not connected to every agent, or there is no agent;
+4. a tool call that is running now (`ExtensionConnection` knows the action of each command it
+   waits on): *reading* for a snapshot, an extract, a collect or a screenshot, *walking* for a
+   navigation, *working* for any other;
+5. for three seconds after a call ended, as the log has it: *guarding* where the rules refused it
+   (an authorization or a scope: that is TabGoblin working, not a fault), *confused* where it
+   failed otherwise, and as in 4 where it went through;
+6. *idle*.
+
+How it moves, so that it says something and does not tire the eye: at rest it holds still and
+blinks now and then, 8 to 15 seconds apart. Any other animation goes round, and a new one waits
+until it has come round once, so that a burst of calls shows whole motions and not a frame of
+each. A refresh with the same mood goes on where it is. It runs only while the window is on the
+screen, and where the system asks for less motion it holds its first frame. The window's icon
+does not move.
+
+The popup's header shows the 32-pixel icon, and the notice in the page draws the 16-pixel face
+from the same grid ([below](#the-notice-in-the-page)).
 
 ### The server's panel
 
@@ -410,9 +424,9 @@ happens, and it is what stays in the corner. The pills float above it, each as w
 words, with nothing drawn around the two. So what stays is small, and what passes covers no
 more of the page than its own text.
 
-The look is the popup's: its colours and its round marks, and a goblin drawn with nothing
-fetched: the round face of ten shapes that the extension's icons had before they became pixels
-(`notice.ts`). The pixel goblin of [`art/mascot.ts`](#the-goblin) is not in the notice yet. The goblin stands bare on the bar, with no
+The look is the popup's: its colours and its round marks, and the goblin of the icons drawn with
+nothing fetched: the 16-pixel face of [`art/goblin.ts`](#the-goblin), as paths of whole pixels
+with crisp edges, at two times. The goblin stands bare on the bar, with no
 tile and no edge of its own. It shows the state through one class alone (its outline glows green
 while working and amber when the user is asked, and its eyes are closed when paused); it learns
 nothing about what the agent does beyond that. What each action looks like is not shown; that

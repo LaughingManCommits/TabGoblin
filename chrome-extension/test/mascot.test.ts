@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ANIMATIONS, CELL, PALETTE, outputs, repositoryPath, unpng } from '../../art/mascot.ts';
+import { FACE_16, FACE_24 } from '../../art/goblin.ts';
 
 test('every picture of the goblin in the tree is what art/mascot.ts draws', () => {
   for (const [path, drawn] of outputs()) {
@@ -37,10 +38,13 @@ test('the icons have the sizes the manifest names, and are pixels of the palette
   }
 });
 
-test('each animation has four to eight frames of one size, and the goblin stands 22 pixels high', () => {
-  assert.deepEqual(ANIMATIONS.map((a) => a.name), ['idle', 'working', 'reading', 'walking', 'sleeping', 'confused']);
+test('each animation has frames of one size, and the goblin stands 22 pixels high', () => {
+  assert.deepEqual(ANIMATIONS.map((a) => a.name),
+    ['idle', 'working', 'reading', 'walking', 'sleeping', 'confused', 'waiting', 'guarding']);
   for (const animation of ANIMATIONS) {
-    assert.ok(animation.frames.length >= 4 && animation.frames.length <= 8, `${animation.name}: ${animation.frames.length}`);
+    // At rest it holds one frame and blinks; what goes round has four to eight.
+    const frames = animation.frames.length;
+    assert.ok(animation.hold ? animation.name === 'idle' && frames === 2 : frames >= 4 && frames <= 8, `${animation.name}: ${frames}`);
     for (const frame of animation.frames) {
       assert.equal(frame.length, CELL);
       for (const row of frame) assert.equal(row.length, CELL);
@@ -50,4 +54,13 @@ test('each animation has four to eight frames of one size, and the goblin stands
   const rest = ANIMATIONS[0].frames[0];
   const filled = rest.map((row, y) => (row.replace(/\./g, '') ? y : -1)).filter((y) => y >= 0);
   assert.equal(filled.at(-1)! - filled[0] + 1, 22);
+});
+
+test('the faces the owner did not draw are the same on both sides, but for the light in the eyes', () => {
+  for (const face of [FACE_16, FACE_24]) {
+    for (const row of face) {
+      const plain = row.replace(/w/g, 'o');
+      assert.equal(plain, [...plain].reverse().join(''), row);
+    }
+  }
 });

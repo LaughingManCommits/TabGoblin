@@ -28,6 +28,8 @@ final class ExtensionConnection {
     private final ObjectMapper json;
     private final Timings timings;
     private final Map<String, CompletableFuture<Protocol.Response>> pending = new ConcurrentHashMap<>();
+    /** The action of each command sent and not yet answered, by its id: what the panel's goblin shows while it runs. */
+    private final Map<String, String> running = new ConcurrentHashMap<>();
     private final Map<String, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
     private final AtomicLong ids = new AtomicLong();
     private volatile WebSocket conn;
@@ -206,6 +208,7 @@ final class ExtensionConnection {
                 System.currentTimeMillis() + timeout.toMillis());
         CompletableFuture<Protocol.Response> future = new CompletableFuture<>();
         pending.put(id, future);
+        running.put(id, action);
         try {
             c.send(command.toJson(json));
             Protocol.Response response = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -239,7 +242,13 @@ final class ExtensionConnection {
             throw new BrowserException("NOT_CONNECTED", "The Chrome extension connection was lost.");
         } finally {
             pending.remove(id);
+            running.remove(id);
         }
+    }
+
+    /** The action of a command that was sent and is not answered yet, or null when none is. */
+    String running() {
+        return running.values().stream().findFirst().orElse(null);
     }
 
     /** Tells the extension to drop or stop a command, so it cannot run after we stopped waiting. */

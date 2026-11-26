@@ -423,6 +423,24 @@ class PanelTest {
             mascot.show(PanelModel.Mood.SLEEPING);
             seen.add("asleep while hidden: row " + (int) (view.getViewport().getMinY() / 128) + " frame " + mascot.frame()
                     + " animating=" + mascot.animating());
+
+            // Busy, and seen again: a new mood waits until what plays has come round once.
+            mascot.show(PanelModel.Mood.WORKING);
+            mascot.running(true);
+            mascot.show(PanelModel.Mood.READING);
+            seen.add("reading asked while working: " + mascot.mood() + ", then " + mascot.next());
+            int rounds = Panel.Mascot.play(PanelModel.Mood.WORKING).frames();
+            for (int i = 1; i < rounds; i++) {
+                mascot.tick();
+            }
+            seen.add("one frame short of a round: " + mascot.mood() + " frame " + mascot.frame());
+            mascot.tick();
+            seen.add("round done: " + mascot.mood() + " frame " + mascot.frame());
+            // Asked for what plays, the wait is called off.
+            mascot.show(PanelModel.Mood.WALKING);
+            mascot.show(PanelModel.Mood.READING);
+            seen.add("asked back: " + mascot.mood() + ", then " + mascot.next());
+            mascot.running(false);
             return seen;
         });
         assertEquals(List.of(
@@ -431,11 +449,17 @@ class PanelTest {
                 "working: row 1 animating=true",
                 "same again: animating=true",
                 "hidden: animating=false",
-                "asleep while hidden: row 4 frame 0 animating=false"), steps);
+                "asleep while hidden: row 4 frame 0 animating=false",
+                "reading asked while working: WORKING, then READING",
+                "one frame short of a round: WORKING frame 5",
+                "round done: READING frame 0",
+                "asked back: READING, then null"), steps);
         // Every mood has its animation in the sheet, of four to eight frames.
         for (var mood : PanelModel.Mood.values()) {
             var play = Panel.Mascot.play(mood);
-            assertTrue(play.frames() >= 4 && play.frames() <= 8, mood + " has " + play.frames());
+            // At rest it holds still: one frame, and a blink now and then. The others go round, four to eight frames.
+            assertTrue(play.hold() ? mood == PanelModel.Mood.IDLE && play.frames() == 2 : play.frames() >= 4 && play.frames() <= 8,
+                    mood + " has " + play.frames());
         }
     }
 
