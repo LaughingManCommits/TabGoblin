@@ -58,7 +58,7 @@ cd e2e && npm install && npm test
 ```
 
 Success: each step prints `ok`, the last line is `N passed, 0 failed`, and the process exits 0. It
-takes a few minutes and opens no window. Options: `HEADED=1` shows the browser, `BCMCP_CHROME=<path>` picks another Chrome,
+takes about eight minutes. The browser opens no window. **On Windows the server's own window comes up twice, at the top right, near the end of the run:** the section "The server's window" reads and presses the real window through the accessibility interface of Windows (`e2e/panel-window.ps1`, which captures nothing of the screen), on the suite's own server and on a second one that it ends with Kill and Stop. Leave the windows alone while it runs. On another system that section prints one line that begins with `skip` and counts no step. Options: `HEADED=1` shows the browser, `BCMCP_CHROME=<path>` picks another Chrome,
 `SHOW_STDERR=1` prints the servers' logs at the end, `SHOW_TIMES=1` the report of where the time
 of one agent's tool calls went.
 
