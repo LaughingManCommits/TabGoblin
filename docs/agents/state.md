@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-26. Claims here go stale; check the date, then `git status` and `git log`.
 
+## Two files to double-click in the Windows download, 2026-11-26
+
+On branch `release-window-and-token-scripts`, made from `main` at `b82f97c`; in the working tree, not committed. The Windows download gets `tabgoblin-window.cmd` (the command with `--panel`) and `tabgoblin-token.cmd` (the command with `--show-token`, then a wait for a key), next to `tabgoblin.cmd`, which is unchanged. Both tried from a download made here and unpacked into a folder with a space in its name; see the validation log. Linux and macOS get no such files: what a double-click does there differs by file manager and was not looked into. The owner asked whether the files can have an icon: a `.cmd` file cannot; a program of its own with the goblin's icon would be a larger change to the download and is not decided.
+
 ## A move through history that loads late, and the window's steps made steady, 2026-11-26
 
 On branch `history-waits-for-load`, made from `main` at `7bca71d`; in the working tree, not committed. Found in a test of the command line on a public site with the owner's Chrome: `navigate --history back` answered `no-change` with the address it was leaving, once; in 24 further tries, 16 of them after the mend, it answered rightly, each within 150 ms. The cause is concluded from the code, not seen: a move through history had a second and a half for a load to begin. The page now says whether the entry it goes to is another document, and the extension then waits for that load as for any other. Shown by a test with a made-up tab only; no slow move was met on the site.

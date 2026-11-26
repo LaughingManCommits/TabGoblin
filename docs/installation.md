@@ -69,7 +69,9 @@ a download has: [From source](#from-source), then
 
 5. **Check that it works**, as in [step 7](#7-check-that-it-works).
 
-On Linux and macOS the command is `./tabgoblin` while you are in the folder.
+On Linux and macOS the command is `./tabgoblin` while you are in the folder. On Windows the
+folder also has two files to double-click: `tabgoblin-window.cmd` is `tabgoblin --panel`, and
+`tabgoblin-token.cmd` is `tabgoblin --show-token`, which prints the token and starts nothing.
 
 ### CLI
 

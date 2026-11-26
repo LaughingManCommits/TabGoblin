@@ -52,7 +52,10 @@ cp -R "$extension" "$stage/tabgoblin/extension"
 cp "$root/LICENSE" "$stage/tabgoblin/LICENSE"
 cp "$root/release/README.txt" "$stage/tabgoblin/README.txt"
 if [ "$system" = windows ]; then
-  cp "$root/release/tabgoblin.cmd" "$stage/tabgoblin/tabgoblin.cmd"
+  # The command, and two files to double-click that are that command with one option each.
+  for file in tabgoblin.cmd tabgoblin-window.cmd tabgoblin-token.cmd; do
+    cp "$root/release/$file" "$stage/tabgoblin/$file"
+  done
   java="$stage/tabgoblin/runtime/bin/java.exe"
 else
   cp "$root/release/tabgoblin" "$stage/tabgoblin/tabgoblin"
