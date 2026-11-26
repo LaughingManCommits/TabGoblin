@@ -2698,6 +2698,129 @@ try {
     await pageCli.close();
   });
 
+  console.log("\nThe server's window");
+  if (process.platform !== 'win32') {
+    // The window is a desktop window of the server's own process, which the browser's driver does
+    // not reach. It is read and pressed through the accessibility interface of Windows; the same
+    // has not been built for another system.
+    console.log(`  skip  the window is driven through the accessibility interface of Windows; this is ${process.platform}`);
+  } else {
+    /** Reads the window of the server on a port, or presses what is named in it: what a screen reader is told, and does. */
+    const inWindow = (port, action = 'read', name = '') => JSON.parse(execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass',
+      '-File', join(HERE, 'panel-window.ps1'), '-Port', String(port), '-Action', action, ...(name ? ['-Name', name] : [])], { encoding: 'utf8' }));
+    const windowOf = (port, what, when = () => true) => until(async () => {
+      const seen = inWindow(port);
+      return seen.found && when(seen) ? seen : null;
+    }, what, 30000);
+    const press = (port, name) => assert(inWindow(port, 'press', name).pressed, `nothing to press is named "${name}" in the window`);
+    // An agent that asks for the window, as "--panel" in its registration does. The others have "--no-panel".
+    const asksForWindow = (agent) => [...argsOf(agent).filter((arg) => arg !== '--no-panel'), '--panel'];
+    let watcher;
+    let session;
+    await step('the server shows its window when an agent asks for it: its agents, the port, a tab and the call just made, and nothing of a page', async () => {
+      watcher = new McpClient('java', asksForWindow('agent-window'), 'agent-window');
+      servers.push(watcher);
+      await watcher.initialize();
+      await watcher.tool('browser_status');
+      // A tab of the first agent that a call goes through in, and a call in it.
+      const status = (await one.tool('browser_status')).text;
+      for (const [, id] of status.matchAll(/^Session (s\d+)$/gm)) {
+        if (!(await one.tool('browser_snapshot', { session: id })).isError) {
+          session = id;
+          break;
+        }
+      }
+      assert(session, `the first agent has no tab a call goes through in:\n${status}`);
+      const origin = new RegExp(`Session ${session}\\n  Authorized origin: (\\S+)`).exec(status)[1];
+      const seen = await windowOf(wsPort, 'the window to show the call',
+        (shown) => shown.names.some((name) => name.includes(`${session} snapshot`)));
+      const all = seen.names.join('\n');
+      has(seen.title, 'TabGoblin server');
+      for (const shown of [`Port ${wsPort}`, 'agent-one', 'agent-two', 'agent-window', session, origin.replace(/^https:\/\//, ''),
+        'SESSIONS', 'METRICS', 'LOG', 'Connection to the browser', 'Stop server', 'Kill']) {
+        has(all, shown);
+      }
+      // A call's line is short: its tab, the action, how long, and how it ended.
+      assert(new RegExp(`${session} snapshot  \\d+ ms  ok`).test(all), `no line of the call in:\n${all.slice(-1200)}`);
+      // The pairing token is copied, never shown; and nothing of a page is in the window.
+      lacks(all, token);
+      for (const leak of [ENTERED_TEXT, 'Demo Tracker', 'Widget Handbook', 'Ada Lovelace', 'hunter2']) lacks(all, leak);
+    });
+    await step('its switch closes the connection to the browser for every agent, and opens it again', async () => {
+      press(wsPort, 'Connection to the browser');
+      await until(async () => (await one.tool('browser_status')).text.includes("switched off in this server's window"),
+        'the first agent to be told that the connection is switched off');
+      has((await two.tool('browser_status')).text, "switched off in this server's window");
+      assert((await one.tool('browser_snapshot', { session })).isError, 'a call went through while the connection was switched off');
+      has((await windowOf(wsPort, 'the window to say that it is switched off',
+        (shown) => shown.names.some((name) => name.startsWith('Off:')))).names.join('\n'), 'Off: the extension is not let in.');
+
+      press(wsPort, 'Connection to the browser');
+      // The extension finds a server again within half a minute by itself, and at once when its popup is opened.
+      await openPopup();
+      await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the first agent to be connected again', 40000);
+      await until(async () => (await two.tool('browser_status')).text.includes('Extension: connected'), 'the second agent to be connected again', 40000);
+      await until(async () => !(await one.tool('browser_snapshot', { session })).isError, 'a call to go through again', 20000);
+    });
+    await step('its close button hides the window and ends nothing; asked for again, the window is there', async () => {
+      press(wsPort, 'Close. Hides the window; the server keeps running.');
+      await until(async () => !inWindow(wsPort).found, 'the window to be hidden');
+      has((await one.tool('browser_status')).text, 'Extension: connected');
+      assert(!(await one.tool('browser_snapshot', { session })).isError, 'a call failed while the window was hidden');
+      // Another agent that asks for the window brings it back, as "tabgoblin --panel" does.
+      assert(await watcher.close() === 0, 'the agent that asked for the window did not exit cleanly');
+      watcher = new McpClient('java', asksForWindow('agent-window'), 'agent-window');
+      servers.push(watcher);
+      await watcher.initialize();
+      await watcher.tool('browser_status');
+      has((await windowOf(wsPort, 'the window to be shown again')).names.join('\n'), `Port ${wsPort}`);
+    });
+    await step('Kill in the window ends the server at once and its agent starts a new one; Stop ends it for good, and the suite\'s own server is not touched', async () => {
+      // A server of its own, on other ports and with another token: no browser is paired with it.
+      const port = await freePort();
+      const own = new McpClient('java', ['-jar', JAR, '--port', String(port), '--token-file', join(work, 'window-token'),
+        '--agent', 'agent-ends', '--panel'], 'agent-ends');
+      try {
+        await own.initialize();
+        await own.tool('browser_status');
+        const first = await windowOf(port, 'the window of the second server');
+        const all = first.names.join('\n');
+        has(all, 'Not connected: waiting for the extension');
+        has(all, 'Open the TabGoblin popup in Chrome');
+        lacks(all, 'agent-one');
+
+        // One press arms the button and ends nothing.
+        press(port, 'Kill');
+        const armed = await windowOf(port, 'Kill to be armed', (shown) => shown.names.includes('Click again to kill'));
+        assert(armed.process === first.process && await listens(port + 8), 'the server ended at the first press of Kill');
+        press(port, 'Click again to kill');
+        // The process is gone, and the agent, which still runs, has started another: a new window of a new process.
+        const next = await windowOf(port, 'the agent to start a new server', (shown) => shown.process !== first.process);
+        has((await own.tool('browser_status')).text, 'Extension: not connected');
+
+        press(port, 'Stop server');
+        const toStop = await windowOf(port, 'Stop to be armed', (shown) => shown.names.includes('Click again to stop'));
+        assert(toStop.process === next.process && await listens(port + 8), 'the server ended at the first press of Stop');
+        press(port, 'Click again to stop');
+        await until(async () => !(await listens(port + 8)), 'the server to end by its Stop button', 20000);
+        await until(async () => !inWindow(port).found, 'its window to be gone');
+        // Stopped, it is ended for its agent as well: nothing starts it again.
+        assert(await Promise.race([own.exited, new Promise((later) => setTimeout(() => later('still running'), 15000))]) === 0,
+          'the agent of a stopped server did not end in order');
+        assert(!(await listens(port + 8)), 'a stopped server was started again');
+      } finally {
+        if (own.proc.exitCode === null) own.proc.kill();
+      }
+      has((await one.tool('browser_status')).text, 'Extension: connected');
+      assert(await listens(wsPort + 8), "the suite's own server is gone");
+    });
+    await step('the agent that asked for the window leaves, and the window stays while the server has agents', async () => {
+      assert(await watcher.close() === 0, 'the agent that asked for the window did not exit cleanly');
+      assert(inWindow(wsPort).found, 'the window went with the agent that asked for it');
+      for (const server of servers) lacks(server.stderr, token);
+    });
+  }
+
   console.log('\nShutdown');
   await step('server logs carry ids and outcomes but never the token or page content; stdout stayed pure JSON-RPC', async () => {
     for (const server of servers) {

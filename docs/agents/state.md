@@ -1,6 +1,10 @@
 # Current state and handoff
 
-Last updated: 2026-11-25, the evening. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-26. Claims here go stale; check the date, then `git status` and `git log`.
+
+## The server's window in the end-to-end suite, 2026-11-26
+
+On branch `e2e-server-panel`, made from `main` at `c39b71f`, on the owner's word ("make sure our end2end tests also include the server panel"). In the working tree, not committed. A section of five steps, "The server's window", before the shutdown: an agent asks for the window and it names the port, the agents, a tab and the call just made, and nothing of a page or the token; its switch closes and opens the connection for every agent; its close button hides it and ends nothing, and it comes back when asked for; on a second server of its own, Kill replaces the process and the agent goes on, and Stop ends server and agent for good; and the window stays when the agent that asked for it leaves. The window is read and pressed through the accessibility interface of Windows, by `e2e/panel-window.ps1`. **Windows only:** elsewhere the section prints a line that begins with `skip`. **CI's end-to-end job runs on a Windows runner, so the section will run there, and has not:** whether that runner shows a JavaFX window and answers the accessibility interface is not known until a run. Not in the section: a drag by the header, a change of the height, the theme, and the port chip's copy, which the owner did by hand on 2026-11-25.
 
 ## The README and the documentation's review, 2026-11-26
 
