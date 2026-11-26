@@ -249,7 +249,9 @@ node art/mascot.ts
 
 It writes the extension's icons (`chrome-extension/icons/icon16.png` to `icon128.png`), the
 panel's sprite sheet (`java-server/src/main/resources/browsercontext/mascot.png`) with the rows
-of its animations (`mascot.properties`), and the picture below (`docs/images/mascot.png`). It
+of its animations (`mascot.properties`), the README's logo (`docs/images/logo.png`, the 32-pixel
+face trimmed to its edges at three times, shown at its own size), and the picture below
+(`docs/images/mascot.png`). It
 needs Node 22.18 or newer and nothing installed. `chrome-extension/test/mascot.test.ts` fails
 when a file in the tree is not what the script draws, and holds the palette, the sizes, the frame
 counts and the symmetry of the faces.

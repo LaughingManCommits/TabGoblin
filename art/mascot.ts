@@ -1,6 +1,6 @@
 // Writes every picture of the goblin from what art/goblin.ts draws: the icons of the extension
-// (which are also the server's window icon), the panel's animated sprite sheet and its index, and
-// the picture of them all for the documentation. Run `node art/mascot.ts` from the repository's
+// (which are also the server's window icon), the panel's animated sprite sheet and its index, the
+// README's logo, and the picture of them all for the documentation. Run `node art/mascot.ts` from the repository's
 // root after a change. `chrome-extension/test/mascot.test.ts` fails when a file in the tree no
 // longer shows what is drawn.
 //
@@ -51,6 +51,21 @@ function icon(size: number): Picture {
   const [grid, scale]: [Grid, number] = size % 32 === 0 ? [FACE_32, size / 32] : size % 24 === 0 ? [FACE_24, size / 24] : [FACE_16, size / 16];
   const picture = blank(size, size);
   paint(picture, grid, 0, 0, scale);
+  return picture;
+}
+
+/**
+ * The README's logo: the 32-pixel face trimmed to its edges, at three times, with clear room on
+ * its right, where the text beside it begins (a README keeps no margin of its own). It is shown at
+ * its own size there, so no one scales it.
+ */
+function logo(): Picture {
+  const rows = FACE_32.filter((row) => row.replace(/\./g, ''));
+  const first = Math.min(...rows.map((row) => row.search(/[^.]/)));
+  const last = Math.max(...rows.map((row) => row.length - [...row].reverse().join('').search(/[^.]/) - 1));
+  const face = rows.map((row) => row.slice(first, last + 1));
+  const picture = blank(face[0].length * 3 + 14, face.length * 3);
+  paint(picture, face, 0, 0, 3);
   return picture;
 }
 
@@ -167,6 +182,7 @@ export function outputs(): Map<string, Picture | string> {
   files.set('java-server/src/main/resources/browsercontext/mascot.png', sheet());
   files.set('java-server/src/main/resources/browsercontext/mascot.properties', sheetIndex());
   files.set('docs/images/mascot.png', preview());
+  files.set('docs/images/logo.png', logo());
   return files;
 }
 
