@@ -100,6 +100,24 @@ function freePort() {
     });
   });
 }
+/**
+ * A port with the eight after it free as well: a server takes its agents' ports from its first one
+ * up and its own after them, and one that does not get them all serves in another way.
+ */
+async function freeRange() {
+  const bindable = (port) => new Promise((done) => {
+    const s = createServer();
+    s.once('error', () => done(false));
+    s.listen(port, '127.0.0.1', () => s.close(() => done(true)));
+  });
+  for (let tries = 0; tries < 30; tries++) {
+    const first = await freePort();
+    let free = first + 8 <= 65535;
+    for (let port = first + 1; free && port <= first + 8; port++) free = await bindable(port);
+    if (free) return first;
+  }
+  throw new Error('no nine free ports in a row were found');
+}
 
 const work = mkdtempSync(join(tmpdir(), 'bcmcp-e2e-'));
 const tokenFile = join(work, 'pairing-token');
@@ -2732,8 +2750,9 @@ try {
       }
       assert(session, `the first agent has no tab a call goes through in:\n${status}`);
       const origin = new RegExp(`Session ${session}\\n  Authorized origin: (\\S+)`).exec(status)[1];
-      const seen = await windowOf(wsPort, 'the window to show the call',
-        (shown) => shown.names.some((name) => name.includes(`${session} snapshot`)));
+      // An agent goes by its id in the window until it has said its name: the newest one a moment longer.
+      const seen = await windowOf(wsPort, 'the window to show the call and to know every agent by its name',
+        (shown) => shown.names.some((name) => name.includes(`${session} snapshot`)) && shown.names.includes('agent-window'));
       const all = seen.names.join('\n');
       has(seen.title, 'TabGoblin server');
       for (const shown of [`Port ${wsPort}`, 'agent-one', 'agent-two', 'agent-window', session, origin.replace(/^https:\/\//, ''),
@@ -2777,13 +2796,14 @@ try {
     });
     await step('Kill in the window ends the server at once and its agent starts a new one; Stop ends it for good, and the suite\'s own server is not touched', async () => {
       // A server of its own, on other ports and with another token: no browser is paired with it.
-      const port = await freePort();
+      const port = await freeRange();
       const own = new McpClient('java', ['-jar', JAR, '--port', String(port), '--token-file', join(work, 'window-token'),
         '--agent', 'agent-ends', '--panel'], 'agent-ends');
       try {
         await own.initialize();
         await own.tool('browser_status');
         const first = await windowOf(port, 'the window of the second server');
+        assert(await listens(port + 8), `the second server is not the one server of its ports: nothing listens on ${port + 8}`);
         const all = first.names.join('\n');
         has(all, 'Not connected: waiting for the extension');
         has(all, 'Open the TabGoblin popup in Chrome');
@@ -2792,7 +2812,8 @@ try {
         // One press arms the button and ends nothing.
         press(port, 'Kill');
         const armed = await windowOf(port, 'Kill to be armed', (shown) => shown.names.includes('Click again to kill'));
-        assert(armed.process === first.process && await listens(port + 8), 'the server ended at the first press of Kill');
+        assert(armed.process === first.process,
+          `the server ended at the first press of Kill: its window was process ${first.process}'s and is ${armed.process}'s`);
         press(port, 'Click again to kill');
         // The process is gone, and the agent, which still runs, has started another: a new window of a new process.
         const next = await windowOf(port, 'the agent to start a new server', (shown) => shown.process !== first.process);
@@ -2800,7 +2821,8 @@ try {
 
         press(port, 'Stop server');
         const toStop = await windowOf(port, 'Stop to be armed', (shown) => shown.names.includes('Click again to stop'));
-        assert(toStop.process === next.process && await listens(port + 8), 'the server ended at the first press of Stop');
+        assert(toStop.process === next.process,
+          `the server ended at the first press of Stop: its window was process ${next.process}'s and is ${toStop.process}'s`);
         press(port, 'Click again to stop');
         await until(async () => !(await listens(port + 8)), 'the server to end by its Stop button', 20000);
         await until(async () => !inWindow(port).found, 'its window to be gone');

@@ -11,7 +11,9 @@ test('every picture of the goblin in the tree is what art/mascot.ts draws', () =
   for (const [path, drawn] of outputs()) {
     const file = readFileSync(repositoryPath(path));
     if (typeof drawn === 'string') {
-      assert.equal(file.toString('utf8'), drawn, `${path}: run node art/mascot.ts`);
+      // The words are compared, not the line ends: a checkout on Windows gives a text file the
+      // system's own, and the repository holds the file as the script wrote it either way.
+      assert.equal(file.toString('utf8').replaceAll('\r\n', '\n'), drawn, `${path}: run node art/mascot.ts`);
       continue;
     }
     const kept = unpng(file);

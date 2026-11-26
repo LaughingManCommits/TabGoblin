@@ -2236,8 +2236,24 @@ test('a tab sent to an address that answers late is waited for, and is not said 
     };
     const whole = await one.command('navigate', { session, params: { url: '/later' } });
     assert.deepEqual(whole.result, { navigation: 'new-document', url: 'https://slow.example/later', title: 'Later' });
+
+    // Back through the tab's history to another document, which the site is slow to send: the page
+    // says that the entry is another document, and its load is waited for like any other.
+    pageResults.set('history_go', { started: true, sameDocument: false });
+    setTimeout(() => loading(95), 2000);
+    setTimeout(() => { Object.assign(tab, { url: 'https://slow.example/', title: 'Start' }); complete(95, 'doc-95-back'); }, 2300);
+    const back = await one.command('navigate', { session, params: { history: 'back' } });
+    assert.deepEqual(back.result, { navigation: 'new-document', url: 'https://slow.example/', title: 'Start' });
+
+    // To an earlier state of the same document nothing loads, and nothing is waited for.
+    pageResults.set('history_go', { started: true, sameDocument: true });
+    began = Date.now();
+    const state = await one.command('navigate', { session, params: { history: 'forward' } });
+    assert.equal(state.result.navigation, 'no-change');
+    assert.ok(Date.now() - began < 4000, 'no load was waited for');
   } finally {
     onTabUpdate = () => undefined;
+    pageResults.delete('history_go');
     docOf.delete(95);
     await popup({ type: 'revoke', session });
     tabs.delete(95);
