@@ -193,10 +193,23 @@ public final class McpMain {
             return;
         }
         boolean byHand = startedByHand();
+        boolean inTerminal = inTerminal();
         if (byHand && options.panel()) {
             // A person asked for the server's window. There is one server: its window is brought up,
             // and the server is started first if none runs. Nothing else is started here.
-            System.exit(showWindow(settings, options, serverPorts, mcpOut) ? 0 : 1);
+            if (inTerminal) {
+                System.exit(showWindow(settings, options, serverPorts, mcpOut, System.err) ? 0 : 1);
+                return;
+            }
+            // The download's program, started by a double-click: there is no console to say in why
+            // the window did not come, so it is said in a window.
+            var problems = new java.io.ByteArrayOutputStream();
+            boolean shown = showWindow(settings, options, serverPorts, new PrintStream(java.io.OutputStream.nullOutputStream()),
+                    new PrintStream(problems, true, java.nio.charset.StandardCharsets.UTF_8));
+            if (!shown) {
+                Panel.tell("The server's window could not be opened", problems.toString(java.nio.charset.StandardCharsets.UTF_8).strip());
+            }
+            System.exit(shown ? 0 : 1);
             return;
         }
         if (byHand) {
@@ -367,8 +380,9 @@ public final class McpMain {
      * bring its window up; if not, it is started for the user, with its window, and stays until
      * the user stops it. Says whether the window is up.
      */
-    private static boolean showWindow(Agent.Settings settings, Options options, List<Integer> serverPorts, PrintStream said) {
-        Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(), System.err,
+    private static boolean showWindow(Agent.Settings settings, Options options, List<Integer> serverPorts, PrintStream said,
+            PrintStream problems) {
+        Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(), problems,
                 settings.token(), serverPorts, true, false, () -> { }, null, null);
         try {
             if (asker.show()) {
@@ -388,12 +402,16 @@ public final class McpMain {
                     return true;
                 }
             }
-            System.err.println("The TabGoblin server did not start within 20 seconds.");
+            problems.println("The TabGoblin server did not start within 20 seconds.");
         } catch (Link.Refused e) {
-            System.err.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that is not this "
+            problems.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that is not this "
                     + "TabGoblin server (" + e.getMessage() + ").");
+        } catch (java.net.SocketTimeoutException e) {
+            // Something took the connection and said nothing: another program, or a server that hangs.
+            problems.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that does not answer. "
+                    + "If it is a TabGoblin server that hangs, end its process (javaw or java) and try again.");
         } catch (java.io.IOException e) {
-            System.err.println("The TabGoblin server could not be started: " + e.getMessage());
+            problems.println("The TabGoblin server could not be started: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -447,11 +465,31 @@ public final class McpMain {
 
     /** The Java this process runs on. On Windows the launcher without a console: the server has no terminal, and none is to open for it. */
     private static String launcher() {
-        Path running = ProcessHandle.current().info().command().map(Path::of)
-                .orElse(Path.of(System.getProperty("java.home"), "bin", "java"));
+        Path home = Path.of(System.getProperty("java.home"));
+        return launcher(ProcessHandle.current().info().command().map(Path::of).orElse(home.resolve("bin").resolve("java")),
+                home, java.nio.file.Files::isRegularFile).toString();
+    }
+
+    /**
+     * The Java program the one server is started with: the one this process runs on, without a
+     * console where there is such a one. This process may have been started by a program that is
+     * not Java's own, which is the download's program with the icon: it takes none of Java's
+     * arguments, so the server is started with the Java it runs on.
+     *
+     * @param running the program of this process
+     * @param home    the folder of the Java this process runs on
+     */
+    static Path launcher(Path running, Path home, java.util.function.Predicate<Path> isFile) {
+        String name = running.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
         Path windowless = running.resolveSibling("javaw.exe");
-        boolean console = running.getFileName().toString().equalsIgnoreCase("java.exe");
-        return (console && java.nio.file.Files.isRegularFile(windowless) ? windowless : running).toString();
+        if (name.equals("java.exe") && isFile.test(windowless)) {
+            return windowless;
+        }
+        if (List.of("java", "java.exe", "javaw.exe").contains(name)) {
+            return running;
+        }
+        Path bin = home.resolve("bin");
+        return java.util.stream.Stream.of("javaw.exe", "java.exe", "java").map(bin::resolve).filter(isFile).findFirst().orElse(running);
     }
 
     /**
@@ -624,12 +662,28 @@ public final class McpMain {
      * it through pipes.
      */
     private static boolean startedByHand() {
+        return byHand(inTerminal(), System.getProperty(DOWNLOADS_PROGRAM));
+    }
+
+    private static boolean inTerminal() {
         java.io.Console console = System.console();
-        if (console == null) {
-            return false;
-        }
         // A console is returned even when input is a pipe; it says which it is.
-        return console.isTerminal();
+        return console != null && console.isTerminal();
+    }
+
+    /**
+     * The property that the program with the icon in the Windows download sets: the JDK's packaging
+     * tool makes that program, and it says its own path there. No agent starts it: an agent is told
+     * the Java and the jar.
+     */
+    static final String DOWNLOADS_PROGRAM = "jpackage.app-path";
+
+    /**
+     * Whether a person started this process: in a terminal, or by a double-click on the download's
+     * program, which has no console at all and looks like an agent's process but for its name.
+     */
+    static boolean byHand(boolean terminal, String downloadsProgram) {
+        return terminal || (downloadsProgram != null && !downloadsProgram.isBlank());
     }
 
     /** What is running and has to be ended in order: the server with its agents, or the one agent of a process that serves alone. */

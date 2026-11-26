@@ -5,7 +5,8 @@
 #
 #   bash release/bundle.sh       in bash; on Windows that is Git Bash
 #
-# It needs a JDK 25 or newer on the path, for jdeps, jlink and jar. The download is written to
+# It needs a JDK 25 or newer on the path, for jdeps, jlink and jar; on Windows also for jpackage,
+# and Node, which writes the icon of the program it makes. The download is written to
 # release/out. In a run for a version tag, where GitHub sets GITHUB_REF_TYPE and
 # GITHUB_REF_NAME, the tag has to be the version with a v in front, or nothing is made.
 set -euo pipefail
@@ -52,11 +53,30 @@ cp -R "$extension" "$stage/tabgoblin/extension"
 cp "$root/LICENSE" "$stage/tabgoblin/LICENSE"
 cp "$root/release/README.txt" "$stage/tabgoblin/README.txt"
 if [ "$system" = windows ]; then
-  # The command, and two files to double-click that are that command with one option each.
-  for file in tabgoblin.cmd tabgoblin-window.cmd tabgoblin-token.cmd; do
+  # The command, and a file to double-click that is that command with --show-token.
+  for file in tabgoblin.cmd tabgoblin-token.cmd; do
     cp "$root/release/$file" "$stage/tabgoblin/$file"
   done
   java="$stage/tabgoblin/runtime/bin/java.exe"
+
+  # The program to double-click for the server's window, with the goblin as its icon. The JDK's
+  # packaging tool makes it. Of what the tool makes, the program and its settings are taken: the
+  # jar and the runtime stay where an agent is told they are, and the settings name that jar.
+  made="$out/launcher"
+  rm -rf "$made"
+  mkdir -p "$made/in"
+  cp "$jar" "$made/in/browser-context-mcp.jar"
+  node "$root/art/mascot.ts" --windows-icon "$made/tabgoblin.ico" > /dev/null
+  jpackage --type app-image --name TabGoblin --app-version "$version" --input "$made/in" \
+    --main-jar browser-context-mcp.jar --runtime-image "$stage/tabgoblin/runtime" \
+    --icon "$made/tabgoblin.ico" --arguments --panel --dest "$made/out"
+  settings="$made/out/TabGoblin/app/TabGoblin.cfg"
+  grep -q '^app\.mainjar=\$APPDIR.browser-context-mcp\.jar' "$settings" \
+    || { echo "The packaging tool's settings do not name the jar as expected: $settings" >&2; exit 1; }
+  mkdir "$stage/tabgoblin/app"
+  sed 's/^app\.mainjar=\$APPDIR/app.mainjar=$ROOTDIR/' "$settings" > "$stage/tabgoblin/app/TabGoblin.cfg"
+  cp "$made/out/TabGoblin/TabGoblin.exe" "$stage/tabgoblin/TabGoblin.exe"
+  rm -rf "$made"
 else
   cp "$root/release/tabgoblin" "$stage/tabgoblin/tabgoblin"
   chmod +x "$stage/tabgoblin/tabgoblin"

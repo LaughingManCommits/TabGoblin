@@ -285,4 +285,29 @@ class McpMainTest {
         String help = McpMain.usage(false);
         assertTrue(help.contains("tools --json") && help.contains("--mode <mcp or cli>") && help.contains("4: sent, and"), help);
     }
+
+    @Test
+    void aDoubleClickOnTheDownloadsProgramIsAPersonAsATerminalIs() {
+        assertTrue(McpMain.byHand(true, null));
+        assertTrue(McpMain.byHand(false, "C:/somewhere/tabgoblin/TabGoblin.exe"));
+        // An agent's process: pipes, and Java's own program.
+        assertFalse(McpMain.byHand(false, null));
+        assertFalse(McpMain.byHand(false, " "));
+    }
+
+    @Test
+    void theOneServerIsStartedWithJavaEvenWhenThisProcessIsTheDownloadsProgram() {
+        Path home = Path.of("download", "runtime");
+        Path bin = home.resolve("bin");
+        java.util.Set<Path> files = java.util.Set.of(bin.resolve("java.exe"), bin.resolve("javaw.exe"));
+        // Java with a console: its sibling without one, so that no console stays with the server.
+        assertEquals(bin.resolve("javaw.exe"), McpMain.launcher(bin.resolve("java.exe"), home, files::contains));
+        assertEquals(bin.resolve("javaw.exe"), McpMain.launcher(bin.resolve("javaw.exe"), home, files::contains));
+        // The program with the icon takes none of Java's arguments: the Java it runs on is taken.
+        assertEquals(bin.resolve("javaw.exe"), McpMain.launcher(Path.of("download", "TabGoblin.exe"), home, files::contains));
+        // Elsewhere there is one Java program, and it is the one running.
+        Path unix = Path.of("jdk", "bin", "java");
+        assertEquals(unix, McpMain.launcher(unix, Path.of("jdk"), unix::equals));
+        assertEquals(Path.of("jdk", "bin", "java"), McpMain.launcher(Path.of("app", "bin", "TabGoblin"), Path.of("jdk"), unix::equals));
+    }
 }

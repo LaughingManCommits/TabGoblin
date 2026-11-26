@@ -8,9 +8,10 @@ What is in this folder
 
   tabgoblin                  (tabgoblin.cmd on Windows) starts the server for you: setup, the server's window, the token;
                              and runs one tool as a command, for an agent that has a terminal and no MCP
-  tabgoblin-window.cmd       Windows, to double-click: opens the server's window, and starts the server if none runs
+  TabGoblin.exe              Windows, to double-click: opens the server's window, and starts the server if none runs
   tabgoblin-token.cmd        Windows, to double-click: shows the pairing token for the extension's popup
   browser-context-mcp.jar    the server
+  app                        Windows: the settings of TabGoblin.exe, which name the jar
   runtime                    the Java the server runs on; nothing has to be installed
   extension                  the Chrome extension, to be loaded unpacked
   LICENSE                    the licence

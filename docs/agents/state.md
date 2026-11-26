@@ -2,9 +2,11 @@
 
 Last updated: 2026-11-26. Claims here go stale; check the date, then `git status` and `git log`.
 
-## Two files to double-click in the Windows download, 2026-11-26
+## A program with the goblin's icon in the Windows download, 2026-11-26
 
-On branch `release-window-and-token-scripts`, made from `main` at `b82f97c`; in the working tree, not committed. The Windows download gets `tabgoblin-window.cmd` (the command with `--panel`) and `tabgoblin-token.cmd` (the command with `--show-token`, then a wait for a key), next to `tabgoblin.cmd`, which is unchanged. Both tried from a download made here and unpacked into a folder with a space in its name; see the validation log. Linux and macOS get no such files: what a double-click does there differs by file manager and was not looked into. The owner asked whether the files can have an icon: a `.cmd` file cannot; a program of its own with the goblin's icon would be a larger change to the download and is not decided.
+On branch `windows-launcher`, made from `release-window-and-token-scripts` at `bcb890e`, which is not merged; in the working tree, not committed. The Windows download gets `TabGoblin.exe`, to double-click for the server's window, in place of `tabgoblin-window.cmd`, and keeps `tabgoblin-token.cmd` and `tabgoblin.cmd`. `release/bundle.sh` has `jpackage` make the program and takes the program and its settings only; the settings (`app/TabGoblin.cfg`) name the jar where it lies, so the jar is there once and an agent's registration is as before. The icon file is written by `art/mascot.ts --windows-icon` when a download is made and is not in the tree. In the server: a start by that program is a person's though it has no console (`McpMain.byHand`), the one server is then started with the Java the program runs on (`McpMain.launcher`), and a window that could not be opened is said in a message window (`Panel.tell`). Tried from a download made here; see the validation log.
+
+**Not signed.** Nothing of ours in the download is: the Java that `jlink` puts into it is not either, though the JDK's own is. Windows may ask before it runs these files, and a machine that runs signed programs only refuses them; this was so before the program was added. Signing the download is not begun. **Not done:** the same for macOS, which refuses an unsigned program outright, and Linux, where a program in a folder shows no icon; setup still names the command for the window, not the program.
 
 ## A move through history that loads late, and the window's steps made steady, 2026-11-26
 

@@ -495,6 +495,37 @@ final class Panel {
         return extendedWindows && system.toLowerCase(java.util.Locale.ROOT).startsWith("windows");
     }
 
+    /**
+     * Says something in a window of the system's kind and waits until it is closed: for a person
+     * who started the download's program by a double-click and so has no console to read it in.
+     * Without a display nothing is said.
+     */
+    static void tell(String heading, String message) {
+        if (!possible()) {
+            return;
+        }
+        var closed = new java.util.concurrent.CountDownLatch(1);
+        onFxThread(() -> {
+            try {
+                var alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+                alert.setTitle("TabGoblin");
+                alert.setHeaderText(heading);
+                alert.setContentText(message);
+                ((Stage) alert.getDialogPane().getScene().getWindow()).getIcons().setAll(icons());
+                alert.setOnHidden(event -> closed.countDown());
+                alert.show();
+            } catch (RuntimeException e) {
+                Log.warn("message not shown reason=" + e.getClass().getSimpleName());
+                closed.countDown();
+            }
+        });
+        try {
+            closed.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     /** Runs on JavaFX's thread, starting JavaFX if this is the first use of it. */
     static void onFxThread(Runnable work) {
         try {

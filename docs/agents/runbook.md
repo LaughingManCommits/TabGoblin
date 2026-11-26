@@ -305,12 +305,14 @@ bash release/bundle.sh                              # on Windows: in Git Bash
 
 Success: `Made .../release/out/tabgoblin-<version>-<system>-<machine>` with `.zip` on Windows
 and `.tar.gz` elsewhere, about 50 MB; the folder is not in git. It needs a JDK 25 or newer on
-the path. Unpack it into a folder with a space in its name and try: `tabgoblin --help`;
+the path, and on Windows Node as well, which writes the icon of `TabGoblin.exe`. Unpack it into a folder with a space in its name and try: `tabgoblin --help`;
 `tabgoblin --setup claude-code` with a home folder made for the purpose
 (`JAVA_TOOL_OPTIONS=-Duser.home=<folder without a space>`), which must put the skill there and
 print the line for the agent, the extension's folder and the command for the window; and the
 end-to-end suite with the download's `runtime/bin` first on the path, which runs every step
-on the runtime that is inside.
+on the runtime that is inside. On Windows also start `TabGoblin.exe`: the server's window has
+to come and the program's own process has to end, with the server left running on the
+download's `javaw`. From PowerShell start it without `-Wait`, which ends the server with it.
 
 ## Check the documentation links
 

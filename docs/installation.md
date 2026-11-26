@@ -70,8 +70,12 @@ a download has: [From source](#from-source), then
 5. **Check that it works**, as in [step 7](#7-check-that-it-works).
 
 On Linux and macOS the command is `./tabgoblin` while you are in the folder. On Windows the
-folder also has two files to double-click: `tabgoblin-window.cmd` is `tabgoblin --panel`, and
-`tabgoblin-token.cmd` is `tabgoblin --show-token`, which prints the token and starts nothing.
+folder also has two files to double-click. `TabGoblin.exe`, with the goblin as its icon, is
+`tabgoblin --panel` without a console: it opens the server's window, starts the server if none
+runs, and says in a small window why if it could not. `tabgoblin-token.cmd` is
+`tabgoblin --show-token`, which prints the token and starts nothing. Neither is signed, as the
+Java in the download is not: Windows may ask before it runs a file that came from the
+internet, and a machine that runs signed programs only refuses them.
 
 ### CLI
 
