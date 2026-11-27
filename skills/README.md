@@ -26,7 +26,7 @@ place of its own:
 The server's jar carries the three skills and puts one in its place for you, in every project:
 
 ```sh
-java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code
+java -jar java-server/target/tabgoblin.jar --install-skill claude-code
 ```
 
 with `claude-code`, `codex` or `copilot`. It says where it put the skill. `--setup` with
@@ -61,7 +61,7 @@ in terms of commands: `tabgoblin snapshot --interactive-only` where the other sa
 every command names its agent. It names no MCP tool, and the skill for MCP names no command.
 
 ```sh
-java -jar java-server/target/browser-context-mcp.jar --install-skill claude-code --mode cli
+java -jar java-server/target/tabgoblin.jar --install-skill claude-code --mode cli
 ```
 
 `--setup <agent> --mode cli` does the same as its first step. The two skills of an agent have

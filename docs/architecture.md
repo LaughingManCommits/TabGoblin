@@ -45,15 +45,21 @@ puts into its prompts, including what it read through TabGoblin. TabGoblin contr
 
 ## Integration interfaces: CLI and MCP
 
-An agent reaches TabGoblin as CLI commands or as MCP tools. Both are thin: neither defines a
-tool or decides what is allowed. A CLI command and an MCP tool call become the same message to
-the same server, and everything after that point is one path.
+An agent reaches TabGoblin as CLI commands or as MCP tools. Both are thin adapters, side by
+side over one core: neither defines a tool or decides what is allowed, and neither runs through
+the other. The tools are defined once, in no protocol's terms (`ToolDefs`); the MCP server
+builds its tool specifications from that, and the CLI its commands. A CLI command reaches the
+server through the same link and the same proofs as an MCP client's process, and then speaks
+three messages of its own (`call`, `cancel`, `result`), which the server runs straight through
+`BrowserService` (`Commands`); an MCP call goes through the MCP SDK to the same place. From
+`BrowserService` on everything is one path. The settings file can turn either interface off
+(`interfaces`).
 
 **Shared by both, without exception:**
 
 | | |
 |---|---|
-| Tools | The same fourteen, from one set of definitions; a CLI command's arguments are the MCP tool's input schema |
+| Tools | The same fourteen, from one definition (`ToolDefs`); a CLI command's arguments are the tool's input schema |
 | The user's control | A tab is authorized by the user's click in the extension's popup; access levels; approval of submissions, as the user's setting and the policy have it; pause, revoke, disconnect |
 | Scope | One tab, exact origins, one agent per session, checked before every command and step |
 | Policy | Blocked sites, allowed sites, maximum access level, no screenshots, time limits, the strict profile |
@@ -72,11 +78,13 @@ the same server, and everything after that point is one path.
 | The agent between calls | Kept by the server for ten minutes after its last command | There while its link is connected; gone when the program closes it |
 | Two processes with one key at once | Are the one agent | The second gets an id of its own |
 | A name in use on the other interface | A command is refused (`AGENT_IN_USE`) while an MCP agent holds the name | An MCP agent that connects while the name is kept for the CLI gets an id for that start only |
-| An answer | One JSON object and an exit code | An MCP result: text, an object, an image |
+| The wire to the server | The link's proofs, then `call` and `result` lines of the command line's own; no MCP is spoken or run for a command | The link's proofs, then MCP over the link as over stdio |
+| An answer | One JSON object and an exit code, with the error's code as a field of the result | An MCP result: text, an object, an image |
 | While a call runs | No progress is reported | Progress, for a client that asked for it |
-| Cancelling | Ending the process: the command is stopped in the browser and says `CANCELLED` | `notifications/cancelled`: stopped in the browser, no answer |
+| Cancelling | Ending the process sends `cancel`: the command is stopped in the browser and says `CANCELLED` | `notifications/cancelled`: stopped in the browser, no answer |
 | No server to be had | The command ends with `NO_SERVER`; nothing was sent | The link's process serves its agent alone |
 | The server is lost during a call | `CONNECTION_LOST`; that command starts no server | `CONNECTION_LOST`; the link starts the server anew for the calls that follow |
+| Turned off by the settings (`interfaces`) | A command says `INTERFACE_NOT_ALLOWED` and sends nothing | The start ends with the reason before any MCP message; a connected agent is answered `INTERFACE_NOT_ALLOWED` by every tool |
 
 None of these differences is a difference in what an agent may do. Sessions, permissions and
 approvals are the extension's, bound to the agent's id, and the extension has no rule that
@@ -159,7 +167,7 @@ sequenceDiagram
   else both hold
     S->>L: attached { proof of the pairing token }
   end
-  Note over A,S: Tool calls now pass: a CLI command's one call, or an MCP client's calls
+  Note over A,S: Tool calls now pass: a CLI command's one call (call / result), or an MCP client's calls (MCP)
   E->>S: WebSocket handshake on the agent's port (Origin: the extension's id)
   S->>E: challenge { nonce, versions: [3], clientId }
   E->>S: auth { nonce, proof of the pairing token, version: 3 }
@@ -489,7 +497,7 @@ of the server's process. What a user does with it is in the
 ## Where things are
 
 ```text
-java-server/src/main/java/browsercontext/
+java-server/src/main/java/tabgoblin/
   McpMain.java             entry point, command line, tool definitions
   Link.java                the process an agent starts: passes messages to the one server
   Cli.java                 the tools as commands of a terminal: one tool call through a link

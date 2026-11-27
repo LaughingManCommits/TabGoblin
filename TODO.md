@@ -2,7 +2,7 @@
 
 ## Overview
 
-Eighteen packages are listed. The newest is WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before it, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Twenty packages are listed. The newest is WP-32, one name for everything (the jar, the package, the folder, the variables and the notice's element are `tabgoblin`) and the documentation inside the download, asked for and built on 2026-11-27. Before it, WP-31, the CLI and MCP as two adapters side by side over one core, and a switch in the settings file that turns MCP off, asked for and built on 2026-11-27 by its own proposals; its decisions wait for the owner. Before it, WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before that, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -35,7 +35,7 @@ fourteen points, in three priorities; its entry has the gap analysis, the backlo
 built and what was left. WP-28, filed on 2026-11-24, is the ports that Windows can keep back, so
 that no server has one; what it says is mended, and the way around it was built on
 2026-11-24 with the entry's own proposals taken for its decisions: it has not run on a machine
-whose ports are kept back. New work gets the next number, WP-29.
+whose ports are kept back. New work gets the next number, WP-33.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -1878,4 +1878,273 @@ by side, a green "TabGoblin bridge" with what it checks, the browser extension, 
   two files in a `<picture>` element, and the plain Markdown form of an image in the pages.
   Each shape has the light colours as plain attributes too, for a viewer that reads no style
   sheet.
+
+## WP-31: The CLI and MCP side by side, and MCP that can be turned off
+
+Asked for by the owner on 2026-11-27: the CLI and MCP are to be two layers at the same level,
+neither built on the other, because a company may forbid MCP. A user then has to be able to
+show that the CLI does not use MCP, and an organisation has to be able to turn MCP off. Built
+the same day on the branch `cli-mcp-side-by-side`, on the owner's word ("start new branch from
+current and building it"), by the proposals; the owner then took the decisions below as
+proposed. What was built, and where it differs from the proposal, is
+under "What was built". What the window shows of the mode was asked for the same day and is in
+its own section.
+
+What it is not: a way around a rule against agents in the browser. Where that is forbidden,
+the CLI is forbidden too, as the
+[corporate assessment](docs/corporate-assessment.md#restrictions-on-mcp-and-the-cli) says; this
+package is for an organisation that forbids a protocol and allows the activity.
+
+### What happens today
+
+Read from the source on 2026-11-27.
+
+- **The core is already free of MCP.** `BrowserService.call(name, arguments)` checks the
+  arguments, the blocked sites and the policy, sends the command and returns a `ToolResult`.
+  Its timings are its own (`Timings`). Nothing in it imports the MCP SDK.
+- **The tools are defined as MCP objects.** Names, titles, descriptions, input schemas, the
+  read-only mark and which tools return an object are written as `SyncToolSpecification` in
+  `McpMain.toolSpecs`. The CLI reads its commands and their options from there (`Cli.tools`).
+- **A command speaks MCP.** `Cli` sends `initialize`, `notifications/initialized` and one
+  `tools/call` over the link, and cancels with `notifications/cancelled`. In the server,
+  `Hub.serveCommand` gives each command an MCP session of its own (`Agent.converse`), with
+  `StdinTap` for the end of input and for cancelling.
+- **A command reads its error code from text.** `ToolResult` has `isError` and no code; the
+  code is in the text (`Error [CODE]: …`, made in one place, `BrowserService.java` near line
+  261), and `Cli` takes it out again with a pattern.
+- **Nothing turns MCP off.** The settings file has no such key. A server refuses no link for
+  its interface.
+- **A refused link serves its agent alone.** When an MCP agent's process cannot have the server
+  (`Link.connect` is false, a refusal included), it serves its agent with a server of its own
+  (`McpMain.serveAlone`). A refusal in the server alone would therefore not stop MCP.
+- **The extension cannot tell the interfaces apart.** It knows an agent by the id the server
+  proved; "(command line)" in the popup is a label the server sends.
+
+### What the request runs into
+
+- **"Does the CLI use MCP?" is answered yes today,** in the wire and in the server. That is
+  what has to change, not only what the documentation says.
+- **AGENTS.md forbids a second way to the server** (`Cli.java`: "no rule, no tool and no
+  second way to the server there"). The first two stay true. The third has to be reworded:
+  one way to `BrowserService`, two adapters to it.
+- **Two adapters can drift.** What a tool takes and says must stay one definition, and what a
+  command prints must stay what it prints now: agents read it.
+- **A switch in a file the user can edit** is a guard-rail, as every entry of the settings file
+  is: an agent with a shell can edit it. It holds against the user only where the
+  organisation protects the file. That goes into the security model in so many words.
+- **The extension cannot check the switch.** It would have to trust the server's word on which
+  interface a command came by. Enforced in the server only, and said so.
+- **The names stay:** the jar `browser-context-mcp.jar`, `~/.browser-context-mcp`, `BCMCP_*` and
+  the MCP SDK in the jar. A reviewer will see them. A build without the SDK is not part of
+  this; the package makes one possible later.
+
+### Proposal
+
+```
+          agent with a shell                 agent with MCP
+                 |                                 |
+        Cli (tabgoblin <command>)           Link (stdio, MCP)
+                 |  call / cancel / result         |  JSON-RPC
+                 +--------------+------------------+
+                                |   same handshake: token proof, agent key
+                              Hub
+                 +--------------+------------------+
+         CommandAdapter                       McpAdapter
+                 +--------------+------------------+
+                     ToolDefs + BrowserService.call
+                                |
+                     WebSocketBridge -> extension
+```
+
+1. **One definition of the tools, without MCP types: `ToolDefs`.** For each tool: name,
+   title, description, input schema (the JSON text it has now), read-only, whether it returns
+   an object, and the "still running" text. Moved from `McpMain.toolSpecs`, not rewritten.
+   `McpAdapter` builds the `SyncToolSpecification`s from it; `Cli` reads its commands from it.
+2. **The error code is a field.** `ToolResult` gets `code`, set where the text `Error [CODE]: …`
+   is made. The text stays as it is, so no answer an agent reads changes. MCP ignores the
+   field; the CLI uses it instead of the pattern.
+3. **A command's own messages after the same handshake.** The attach with `"cli": true` and
+   its proofs stay as they are. Then one line each way, one call for each connection:
+
+   ```
+   -> {"type":"call","tool":"browser_snapshot","arguments":{...}}
+   -> {"type":"cancel"}                      (Ctrl+C, a signal, the time limit)
+   <- {"type":"result","isError":false,"code":null,"text":"...","structured":{...},"image":null}
+   ```
+
+   `Hub.serveCommand` hands the connection to `Agent.command`, which runs the call through
+   `BrowserService.call` on a thread of its own and interrupts that thread on `cancel` or when
+   the connection ends, as `StdinTap` does now for MCP. `Link.VERSION` goes to 2, so that an
+   old command and a new server refuse each other by the reason that exists
+   (`server_of_another_version`). Nothing else of the identity, the idle time or the agent's
+   life between commands changes.
+4. **MCP stays where it is,** in `McpAdapter` (what is now `toolSpecs`, `tool`, `toMcp`),
+   `Agent.converse` and `StdinTap`, and only an MCP agent's link reaches them.
+5. **A test holds the separation:** `Cli`, `ToolDefs`, `Agent.command` and the core import
+   nothing from `io.modelcontextprotocol`. That is the sentence a user can point a reviewer
+   to, and the precondition for a build without the SDK.
+6. **`interfaces` in the settings file:** `cli`, `mcp`, or `cli, mcp` (the default when the
+   key is absent). It only takes away, as every entry does; a value that cannot be read blocks
+   everything (`SETTINGS_UNREADABLE`), as now. With `interfaces = cli`:
+   - the MCP entry of the jar reads the policy before it connects and, if MCP is off, ends
+     with a line on standard error and exit code 2, before any MCP message, and does not
+     serve alone;
+   - the server refuses an attach without `"cli"` (`refused: interface_not_allowed`), for a
+     process of an older jar that does not look;
+   - an MCP agent that is connected when the file changes is refused at its next call
+     (`INTERFACE_NOT_ALLOWED`), as a change to the file acts now;
+   - `browser_status`, the server's window and `--setup --mode mcp` say that MCP is off by
+     the settings file. `interfaces = mcp` does the same for commands.
+7. **Everything but an agent's MCP start still runs with MCP off.** The server's process is
+   not an MCP server: it is started with `--hub` and runs an MCP session only for an MCP agent,
+   which it refuses then. The check is in the one place where the jar would serve an agent
+   over stdio, not at the top of `main`:
+
+   | Start | With `interfaces = cli` |
+   |---|---|
+   | The window: `--panel`, or `TabGoblin.exe` | Starts as now; the window shows the mode (below) |
+   | A command when no server runs | Starts the server as now |
+   | `--show-token`, `--setup`, `--help`, the commands for agents' keys | As now |
+   | An agent's program, starting the jar as its MCP server | Ends with the reason, exit code 2; no server is started |
+
+### The mode in the window
+
+The owner asked on 2026-11-27 that the window show at a glance which mode the server is in,
+and that MCP being off is marked by a sign that says no MCP agent is let in.
+
+1. **A pill for each interface in the header,** beside the port's: `CLI` and `MCP`. One that
+   is on has the accent colours, as the port's pill. One that is off has the colours of a
+   refusal (`-tg-bad` on `-tg-bad-soft`) and a sign before its name: a circle with a stroke
+   through it. The sign is drawn from shapes in `panel.css`, as the window's own buttons draw
+   their dash and cross, and is no character of a font, which looks different on each system
+   or is missing. So with `interfaces = cli` the header reads `CLI` and `⊘ MCP`.
+2. **Under the mouse,** the pill that is off says why and where: "MCP is off by the settings
+   file (`interfaces = cli`). No MCP agent is let in; one that tries is told why. Edit opens
+   the file", with the file's path, as the blocked sites say theirs.
+3. **A file that cannot be read** shows both pills off, with the reason, since everything is
+   refused then.
+4. **Each agent's card is marked `CLI` or `MCP`,** whatever the setting: the server knows by
+   which way each came (`Hub`, the agents of commands apart from the others). Today the window
+   does not say it; only the popup does, with "(command line)".
+5. **A refused MCP agent is a line in the log:** "MCP agent turned away: MCP is off by the
+   settings file". The server sees only an attach from a jar that does not check (an older
+   one); a jar that checks ends before it reaches the server. Whether that start tells a
+   running server, so that the window counts it, is decision 6.
+6. **What does not change:** the status line and the goblin keep saying what they say now; a
+   mode is a setting, not a state. The popup is not changed by this.
+
+### Decisions for the owner
+
+Decided by the owner on 2026-11-27, after it was built, from the options below with a
+recommendation: 1, 2 and 3 as proposed and built; 6 as proposed (the count in the window); 7 as
+proposed (the popup is not changed), and neither a build without the MCP library nor new names
+now. 4 and 5 were overtaken by the building.
+
+1. **The key.** `interfaces = cli` (proposal), which reads the same way for either side. Or
+   `mcp = off`, which names only the case that was asked about.
+2. **What an MCP start does when MCP is off.** It ends before any MCP message, with the reason
+   on standard error (proposal): then no MCP runs at all, and the agent's program shows only
+   that the server did not start. Or it answers every tool with `INTERFACE_NOT_ALLOWED`: the
+   agent is told why, and an MCP session does run.
+3. **The command's wire.** Its own three messages (proposal). Or MCP as now, with the
+   separation only in the code: smaller, and the answer to "does the CLI use MCP?" stays yes.
+4. **The order.** `ToolDefs` first, then the wire with the code field, then the switch
+   (proposal): each part can be merged alone, and the first changes no behaviour. Or the
+   switch first, which an organisation can use soonest, on today's wire.
+5. **Not now:** a build without the MCP SDK, and new names for the jar and its folder. Both
+   can come later without changing this.
+6. **Whether an MCP start that is turned away tells the window.** If a server runs, the start
+   proves the token as a window request does and sends one message, `turned_away`, before it
+   ends; it starts no server for it. The window then counts them under the pill ("2 MCP starts
+   turned away since 14:02"), so that the user sees that something tried (proposal). Or not:
+   the agent's program says it, and the window shows nothing of a start it did not see.
+7. **Whether the popup marks the mode too.** The extension is told the policy already. Proposal:
+   not now; the popup marks an agent of the command line, and what is off is the server's.
+
+### What was built
+
+On 2026-11-27, on the branch `cli-mcp-side-by-side`, in a session that ran in the cloud. The
+proposals stand, with these differences:
+
+- **`ToolDefs.java`** holds the fourteen tools (name, read-only, description, schema; the titles
+  and which return an object). `McpMain.toolSpecs` builds the MCP specifications from it and
+  stays in `McpMain`, which is the MCP entry point: no class `McpAdapter` was made. `Cli` reads
+  its commands from `ToolDefs` and imports nothing of MCP.
+- **`ToolResult.code`** is set where the text `Error [CODE]: …` is made (`ToolResult.error(code,
+  message)`); the text is as it was.
+- **The wire**: `call`, `cancel`, `result` and `error`, in `Commands.java` on the server's side,
+  and `Link.VERSION` 2. `Agent.command` was not added: `Commands` stands beside `Agent.converse`,
+  so that `Agent.java` keeps the MCP conversation and the command's way has a file of its own.
+  A command of a name the user revoked, which has no agent to keep, is served once by the same
+  conversation on an agent that goes with it; before, it got an MCP conversation.
+- **`SeparationTest`** holds `Cli`, `Link`, `Hub`, `Commands`, `ToolDefs`, `BrowserService`,
+  `WebSocketBridge`, `BlockedSites`, `AgentKeys`, `Pairing`, `Timings` and `Ports` to importing
+  nothing of `io.modelcontextprotocol`, and that only `Agent`, `McpMain` and `Progress` do.
+- **`interfaces`** in the settings file, as proposed. Enforced in `McpMain.main` (an MCP start
+  ends with exit code 2 and the reason on standard error, and tells a running server with
+  `turned_away`, which that server counts), `Hub.welcome` (`refused: interface_not_allowed`; an
+  MCP link's process then ends instead of serving alone), `BrowserService.run`
+  (`INTERFACE_NOT_ALLOWED`) and `Cli.call`. `--setup` adds a note when the mode it sets up is off.
+  A file that cannot be read turns nobody away at the link: every tool says
+  `SETTINGS_UNREADABLE`, as before.
+- **The window** as its section says: `Panel.WayLabel` for the two pills, beside the title and
+  not beside the port, so that the agent's line keeps its room; `PanelModel.Member.way()` for
+  each agent's mark; the count of turned-away starts in the MCP pill's tooltip; a log line for a
+  refused link. Decision 6 was taken as proposed (the start tells the server), decision 7 as
+  proposed (the popup is not changed).
+- **Not done:** a build without the MCP SDK; new names. The extension is not changed. The
+  end-to-end suite and the extension's check were not run in the session that built it; the
+  validation log says what was.
+
+### Tasks and acceptance
+
+1. **`ToolDefs`.** `tools/list` is the same before and after, tool for tool and field for
+   field (a test that compares it with a copy taken before the move); `ToolReferenceTest`,
+   `SkillsTest`, `CliTest` and `mvn verify` (`McpConformanceIT`) pass unchanged.
+2. **The code field and the wire.** `CliTest`'s expected output and exit codes unchanged; a
+   test for each message (call, cancel, a connection that ends during a call, a message that
+   is not one); `HubTest` for one call per connection and for `server_of_another_version`;
+   the separation test of point 5; end to end, the section "The command line" unchanged.
+3. **The switch.** `BlockedSitesTest` for the key, its values and an unreadable value;
+   `McpMainTest` for the MCP entry that ends and does not serve alone; `HubTest` for the
+   refused attach; `BrowserServiceTest` for a change while an MCP agent is connected; end to
+   end, one step with `interfaces = cli` (an MCP agent is refused with the reason, a command
+   works) and one with `interfaces = mcp`.
+4. **The window.** `PanelModelTest` for the pills and their words with each value of
+   `interfaces` and with a file that cannot be read, for each agent's mark, and for the log
+   line; `PanelTest` on a display for the drawn sign; `McpMainTest` for each start in the
+   table of point 7; the window's pictures made again with their script and looked at, in
+   both colour schemes (runbook: "Look at the server's panel").
+5. **Documentation.** `docs/tool-reference.md` for `INTERFACE_NOT_ALLOWED`; the table of the
+   security policy and the section "CLI and MCP: one set of controls" in
+   `docs/security-model.md`, with the limits above; the restrictions in
+   `docs/corporate-assessment.md`; the settings and the server's panel in
+   `docs/developer-guide.md`; the wire in
+   `docs/architecture.md` and `docs/development.md` (protocol reference); `docs/cli.md`; the
+   row of the CLI in the task map of `AGENTS.md` and its rule, reworded; the six skills if
+   what an agent should do changes (a command refused because the CLI is off).
+
+## WP-32: One name, and the documentation in the download
+
+Asked for by the owner on 2026-11-27, in two parts, and built the same day on the branch
+`cli-mcp-side-by-side`, on top of WP-31.
+
+**One name.** The jar, the MCP server's name, the Maven artifact and group, the Java package,
+the folder of the token and keys, the environment variables, the log's prefix, the threads'
+names and the notice's element in the page were named from before the product had its name:
+`browser-context-mcp`, `browsercontext`, `~/.browser-context-mcp`, `BCMCP_*`, `bcmcp-*`,
+`bcmcp-indicator`. The constraint that kept them ("for existing setups") had no reason left:
+there are no users yet, and the one published release, 0.2.0, is far behind `main`. They are
+now `tabgoblin.jar`, `tabgoblin`, `~/.tabgoblin`, `TABGOBLIN_*`, `tabgoblin-*` and
+`tabgoblin-notice`, in one commit by one substitution over the tree (the records in this file
+and in the validation log keep the old names, as history). A setup from before it has to be
+run again: the registration names the jar, and the token and keys are looked for in the new
+folder. The renaming was not put to the owner as a design first: the owner said "no users yet"
+and "do it". **Not done:** a note in the release notes (WP-25, not started).
+
+**The documentation in the download.** `release/bundle.sh` copies `docs/*.md`, `docs/images`,
+`docs/assets`, the README, CONTRIBUTING, SECURITY and `skills/README.md` into the download, at
+the places the pages' relative links expect, so that they read offline in a Markdown viewer as
+they were for that version. The pages for agents' sessions (`docs/agents`) and the examples are
+not in it. `release/README.txt` names the folder. Tried: see the validation log.
 

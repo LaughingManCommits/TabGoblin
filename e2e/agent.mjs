@@ -18,7 +18,7 @@ import puppeteer from 'puppeteer-core';
 import { startDemo } from '../demo-site/server.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const JAR = resolve(HERE, '../java-server/target/browser-context-mcp.jar');
+const JAR = resolve(HERE, '../java-server/target/tabgoblin.jar');
 const EXTENSION = resolve(HERE, '../chrome-extension/dist');
 const MODEL = process.env.AGENT_MODEL || 'sonnet';
 const SERVER = 'browser-context';
@@ -133,7 +133,7 @@ function runAgent(prompt, allowed, configPath, cwd) {
   });
 }
 
-const work = mkdtempSync(join(tmpdir(), 'bcmcp-agent-'));
+const work = mkdtempSync(join(tmpdir(), 'tabgoblin-agent-'));
 const wsPort = await freePort();
 const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token')];
 const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' }))[1];
@@ -145,7 +145,7 @@ let failed = 0;
 
 try {
   browser = await puppeteer.launch({
-    ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),
+    ...(process.env.TABGOBLIN_CHROME ? { executablePath: process.env.TABGOBLIN_CHROME } : { channel: 'chrome' }),
     headless: !process.env.HEADED,
     pipe: true,
     enableExtensions: true,

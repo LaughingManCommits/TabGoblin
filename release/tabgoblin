@@ -4,4 +4,4 @@
 # themselves, and setup prints the line for that; an agent without MCP runs this command with a
 # tool's name ("tabgoblin tools" lists them).
 here=$(cd "$(dirname "$0")" && pwd)
-exec "$here/runtime/bin/java" -jar "$here/browser-context-mcp.jar" "$@"
+exec "$here/runtime/bin/java" -jar "$here/tabgoblin.jar" "$@"

@@ -18,7 +18,7 @@ docs/                this documentation, screenshots, example outputs
 ## Build
 
 ```sh
-mvn -f java-server/pom.xml package                    # tests + java-server/target/browser-context-mcp.jar
+mvn -f java-server/pom.xml package                    # tests + java-server/target/tabgoblin.jar
 cd chrome-extension && npm install && npm run check   # type-check, unit tests, build to dist/
 ```
 
@@ -41,7 +41,7 @@ How the end-to-end run works:
 - It launches your installed Chrome with a temporary profile, installs the unmodified extension,
   and triggers its toolbar button the way a click does, so Chrome's real `activeTab` grant is used.
 - It drives the popup through its real controls.
-- `HEADED=1 npm test` shows the browser; `BCMCP_CHROME=<path>` picks another Chrome.
+- `HEADED=1 npm test` shows the browser; `TABGOBLIN_CHROME=<path>` picks another Chrome.
 
 Other scripts in `e2e/`:
 
@@ -122,7 +122,7 @@ the downloads are kept with the run, to be tried, and nothing is published.
 | Job | Runs on | Does |
 |---|---|---|
 | Suites | as in the table above | Every job of `ci.yml`, which the release calls as it is. Nothing is made if one fails. They run beside a CI run for the same branch, not in its place: the two are in groups of their own |
-| Download, three times | Windows, Linux, macOS | Builds both parts and runs `release/bundle.sh`: a Java runtime with only the modules the jar uses (`jdeps`, `jlink`), the jar, the extension and a command to start it by, in one folder, packed. A runtime is made by the JDK of the system it is for, which is why there are three. The script refuses a tag that is not the version in the files, and a server that does not start on the runtime made for it |
+| Download, three times | Windows, Linux, macOS | Builds both parts and runs `release/bundle.sh`: a Java runtime with only the modules the jar uses (`jdeps`, `jlink`), the jar, the extension, the documentation (`docs/` with its pictures and diagrams, the README, CONTRIBUTING, SECURITY and the skills' README, as they are at that commit) and a command to start it by (on Windows also two files to double-click: `TabGoblin.exe` for the window, which `jpackage` makes with an icon that `art/mascot.ts` writes, and of which only the program and its settings are kept, the settings naming the jar where it lies; and a command file for the token), in one folder, packed. A runtime is made by the JDK of the system it is for, which is why there are three. The script refuses a tag that is not the version in the files, and a server that does not start on the runtime made for it |
 | Lists of components | Linux | Two files in the CycloneDX format: the libraries in the server's jar (`cyclonedx-maven-plugin`), and the tools the extension is built with (`npm sbom`), none of which is in the extension |
 | Publish | Linux | Only for a tag. Writes `SHA256SUMS.txt` for the three downloads and the two lists, has GitHub attest where each was built, and makes the release with `gh`. It is the only job that may write to the repository; the others read |
 
@@ -251,7 +251,7 @@ node art/mascot.ts
 ```
 
 It writes the extension's icons (`chrome-extension/icons/icon16.png` to `icon128.png`), the
-panel's sprite sheet (`java-server/src/main/resources/browsercontext/mascot.png`) with the rows
+panel's sprite sheet (`java-server/src/main/resources/tabgoblin/mascot.png`) with the rows
 of its animations (`mascot.properties`), the README's logo (`docs/images/logo.png`, the 32-pixel
 face trimmed to its edges at three times, shown at its own size), and the picture below
 (`docs/images/mascot.png`). It
@@ -298,7 +298,7 @@ from the same grid ([below](#the-notice-in-the-page)).
 
 What the window shows is in the [developer guide](developer-guide.md#the-servers-panel), and what it
 may and may not do in the [security model](security-model.md#the-servers-panel). The window's
-code is loaded when a window is first shown: for `--panel` (or `BCMCP_PANEL=1`), or when the
+code is loaded when a window is first shown: for `--panel` (or `TABGOBLIN_PANEL=1`), or when the
 browser has to be paired. How it is built:
 
 - **A model, a window, five commands.** Once a second the window asks for a `PanelModel`: a
@@ -347,8 +347,8 @@ browser has to be paired. How it is built:
   popup. Meanwhile a tool call is answered [`NOT_CONNECTED`](tool-reference.md#errors), with words that
   say where the connection was switched off.
 - **The log is kept for the window, which may come up at any time:** the last 300 lines, in
-  memory, from the server's first line on. They are the lines written to standard error at the level `BCMCP_LOG`
-  sets, with two additions: info and warning lines are kept even where `BCMCP_LOG` silences
+  memory, from the server's first line on. They are the lines written to standard error at the level `TABGOBLIN_LOG`
+  sets, with two additions: info and warning lines are kept even where `TABGOBLIN_LOG` silences
   them, and so is the line of each tool call that went through, which standard error has only
   at the level `debug`. Without that the window's log has the calls that failed and none that
   worked, and it is where the user looks for what the agent did (`Log.command`). In
@@ -488,7 +488,7 @@ does at once with its sessions, and again when the list has changed. It is not s
 `auth_ok`: an extension from before this message, still checking the server's proof, would take a
 message it does not know for a failed pairing. Once paired, such an extension ignores it. What an
 entry blocks is decided in two places, `BlockedSites.java` and `blockedBy` in `policy.ts`; both are
-held to one list of cases, `java-server/src/test/resources/browsercontext/blocked-sites-cases.json`.
+held to one list of cases, `java-server/src/test/resources/tabgoblin/blocked-sites-cases.json`.
 The same message carries the rest of the user's [security policy](security-model.md#the-security-policy):
 `strict`, `allowed` (domains, matched as blocked ones are), `screenshots`, `maxAccess`, and the
 two times in minutes, 0 for none. A field that is missing restricts nothing; one that is there
@@ -526,11 +526,12 @@ the session the command named.
 
 Between the process an agent starts and the one server there is a second, smaller protocol, on
 the port after the agents' eight (`Link.java`, `Hub.java`): one line of JSON each way to prove
-the pairing token, then the agent's MCP messages as they are. Its version is 1.
+the pairing token, then the agent's messages: MCP as it is for an MCP client's process, or the
+command line's own three messages for a command. Its version is 2 (1 had MCP for both).
 
 ```json
-{ "type": "hello", "nonce": "…", "link": 1 }
-{ "type": "attach", "nonce": "…", "proof": "…", "link": 1, "panel": false, "quiet": false, "agent": "claude-code", "agentProof": "…" }
+{ "type": "hello", "nonce": "…", "link": 2 }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 2, "panel": false, "quiet": false, "agent": "claude-code", "agentProof": "…" }
 { "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
 
 { "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
@@ -546,8 +547,25 @@ A process that runs one command of the [command line](cli.md) adds
 `"cli": true` to its `attach`. The server then serves the agent of that key without ending it
 when the connection closes, and takes further such connections of the same key as the same
 agent; `refused` with the reason `agent_in_use` says that the key's agent is connected in the
-other way. What follows the `attached` is MCP as for any link: `initialize`, one `tools/call`,
-and `notifications/cancelled` if the process is ended first.
+other way. What follows the `attached` is the command line's own (`Commands.java`), one call
+for each connection, and nothing of MCP:
+
+```json
+{ "type": "call", "tool": "browser_snapshot", "arguments": { "session": "s1" } }
+{ "type": "cancel" }
+{ "type": "result", "tool": "browser_snapshot", "isError": false, "code": null, "text": "…", "structured": null, "image": null }
+{ "type": "error", "message": "One call for each connection: this connection has had its call." }
+```
+
+`cancel` is sent when the command's process is ended while its call runs: the call is
+interrupted, which stops the command in the browser at its next safe point, and gets no
+`result`. A connection that ends under a call does the same. `code` is the error's code, as
+the tool reference lists it, where `isError` is true; `structured` is the object of a tool
+that returns one; `image` has `mimeType` and `base64`.
+`refused` with the reason `interface_not_allowed` says that the settings file has this
+interface off (`interfaces`). A `turned_away` in the place of `attach`, with the same proof,
+tells a running server that an MCP start found MCP off before it came; it is answered with
+`counted`, and the server's window counts it.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
 two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
 agent: a line of the agent's log, and the word that the user stopped the server, without which
@@ -573,16 +591,19 @@ Proofs are `HMAC-SHA256(token, "client:" + serverNonce + ":" + clientNonce)` and
 
 ## Names
 
-The product is TabGoblin. Some technical names predate it and are kept so existing setups keep
-working: the jar and MCP server name (`browser-context-mcp`), the Java package (`browsercontext`),
-the token directory (`~/.browser-context-mcp`) and the `BCMCP_*` environment variables.
+The product is TabGoblin, and so is every technical name: the jar and MCP server name
+(`tabgoblin`), the Java package (`tabgoblin`), the token directory (`~/.tabgoblin`), the
+`TABGOBLIN_*` environment variables, and the notice's element in the page (`tabgoblin-notice`).
+Until 2026-11-27 these were `browser-context-mcp`, `browsercontext`, `~/.browser-context-mcp`,
+`BCMCP_*` and `bcmcp-indicator`, from before the product had its name; they were renamed in one
+commit while there were no users to migrate, and a setup from before it has to be run again.
 
-The Java package and the Maven group, both `browsercontext`, do not follow the convention of a
+The Java package and the Maven group, both `tabgoblin`, do not follow the convention of a
 reversed domain name. That is left as it is, decided on 2026-11-21:
 
 - Nothing outside this repository sees either name. The jar is run by its path. Since 2026-11-23
-  it is also inside a download, under its own name, `browser-context-mcp.jar`, in a folder and
-  beside a command that are both called `tabgoblin`.
+  it is also inside a download, as `tabgoblin.jar`, in a folder and beside a command that are
+  both called `tabgoblin`.
 - A conventional name needs a domain or an account name, which is the owner's to choose.
 - The change touches every Java file and the jar's entry point, for no change in behaviour.
 

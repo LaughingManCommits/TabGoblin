@@ -1,6 +1,24 @@
 # Current state and handoff
 
-Last updated: 2026-11-26. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
+
+## A review of WP-31 and WP-32, 2026-11-27
+
+On branch `ccr-2317e25f-tftdvd` (the same commits as `cli-mcp-side-by-side`): a review found four faults in the command line's conversation with the server and six smaller ones, mended (see the validation log). **Left open:** the window says every agent is turned away while the settings file cannot be read, where agents are let in and only sites refused (`PanelModel.Blocked`); every command's process logs the blocked sites and the policy on its standard error (`Cli.java` reads the file through `BlockedSites.source`); the validation log is not folded to about ten entries; `release/bundle.sh` does not look at an `app.classpath` line of `TabGoblin.cfg`; the download's documentation links to pages it does not hold (`docs/agents/`, `TODO.md`, `art/`). Pushed to `cli-mcp-side-by-side`, the branch of pull request 6, after every CI job passed here. **Next:** the owner's merge.
+
+## One name, and the documentation in the download, 2026-11-27
+
+On branch `cli-mcp-side-by-side`, after WP-31, on the owner's word ("no users yet", "do it"): every technical name is `tabgoblin` now ([WP-32](../../TODO.md#wp-32-one-name-and-the-documentation-in-the-download)): the jar, the package and group, `~/.tabgoblin`, `TABGOBLIN_*`, the threads, the notice's element `tabgoblin-notice`. One substitution over the tree; `TODO.md` and the validation log keep the old names as history. The download now holds the documentation (`docs/`, with pictures and diagrams, and the root pages it links to). **A setup from before has to be run again**, and a token from before is not found: `~/.tabgoblin` is new. Every suite passed after it (see the validation log); the Windows and macOS downloads were not made.
+
+## The CLI and MCP side by side, 2026-11-27
+
+On branch `cli-mcp-side-by-side`, made from `ccr-dae1119b-klvwgh` (the Windows program and the review's mends, not merged); built on the owner's word by the proposals of [WP-31](../../TODO.md#wp-31-the-cli-and-mcp-side-by-side-and-mcp-that-can-be-turned-off), whose decisions the owner took as proposed after it was built. The tools are defined once (`ToolDefs`), a command speaks its own three messages to the server (`Commands`, link version 2) and nothing of MCP (`SeparationTest`), the error's code is a field of a result, and `interfaces = cli` or `mcp` in the settings file turns the other interface off: an MCP start ends with the reason, the server refuses the link, a connected agent is told `INTERFACE_NOT_ALLOWED`. The window has a pill for each interface beside the title, red with a drawn no-entry sign where one is off, marks each agent `CLI` or `MCP`, and counts MCP starts turned away. The pictures of the window were drawn here under Xvfb and looked at. **Not run here:** the end-to-end suite and the extension's check (the extension is not changed); a Windows download. **Next:** end to end on a machine with Chrome, if the run here did not pass; then the owner's merge.
+
+## A program with the goblin's icon in the Windows download, 2026-11-26
+
+On branch `windows-launcher`, not merged: two commits on `main` at `b82f97c`, `bcb890e` (the scripts to double-click for the window and the token) and `26d4f39` (the program), and the review's mends after them. The Windows download gets `TabGoblin.exe`, to double-click for the server's window, in place of `tabgoblin-window.cmd`, and keeps `tabgoblin-token.cmd` and `tabgoblin.cmd`. `release/bundle.sh` has `jpackage` make the program and takes the program and its settings only; the settings (`app/TabGoblin.cfg`) name the jar where it lies, so the jar is there once and an agent's registration is as before. The icon file is written by `art/mascot.ts --windows-icon` when a download is made and is not in the tree. In the server: a start by that program is a person's though it has no console (`McpMain.byHand`), the one server is then started with the Java the program runs on (`McpMain.launcher`), and a window that could not be opened is said in a message window (`Panel.tell`), or in the log if JavaFX itself does not start. The program means the window whatever its arguments (`McpMain.wantsWindow`): the packaging tool's `--panel` is only a default that any argument replaces. While the server that the program started comes up, a look that times out is waited out; only the first look, at a server that was there already, says that the port is held by something that does not answer. Tried from a download made here before the review's mends; see the validation log. The mends are tested in the unit tests only, not in a download on Windows.
+
+**Not signed.** Nothing of ours in the download is: the Java that `jlink` puts into it is not either, though the JDK's own is. Windows may ask before it runs these files, and a machine that runs signed programs only refuses them; this was so before the program was added. Signing the download is not begun. **Not done:** the same for macOS, which refuses an unsigned program outright, and Linux, where a program in a folder shows no icon; setup still names the command for the window, not the program.
 
 ## A move through history that loads late, and the window's steps made steady, 2026-11-26
 
@@ -274,7 +292,7 @@ Looked at with two programs that drive the window's own code (in the session's s
   is built not to send such an extension the list while it checks the pairing, which it would
   take for a failed pairing; that is covered by a test of the server alone.
 - **The settings file is beside the token that is in use.** A setup with `--token-file` has its
-  own list there, and the owner's own list is `tabgoblin.properties` in `.browser-context-mcp`
+  own list there, and the owner's own list is `tabgoblin.properties` in `.tabgoblin`
   of the home folder. None exists until **Edit** is pressed or the file is written by hand.
 - **The server's window is 824 pixels high,** 64 more than before the row of blocked sites and
   the line over the metrics' numbers. On a screen lower than that it is as high as fits, as
@@ -375,7 +393,7 @@ Looked at with two programs that drive the window's own code (in the session's s
   limits (0.05 and 0.02) whose measured values were not written down. One pass does not show
   that it always will.
 - **One thing has three names.** The popup's setting reads "Indicator in the page", the
-  documentation says notice, and the code says indicator (`bcmcp-indicator`, `indicator.png`,
+  documentation says notice, and the code says indicator (`tabgoblin-notice`, `indicator.png`,
   the `indicator` setting). The setting's line in the popup, "Shows the agent at work. Has a
   pause button.", is still true and says less than the notice does. Not changed: it is wording
   for the owner, and a change to it changes two of the popup's pictures.

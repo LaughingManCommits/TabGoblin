@@ -41,7 +41,7 @@ arguments:
   "mcpServers": {
     "tabgoblin": {
       "command": "<folder>/tabgoblin/runtime/bin/java",
-      "args": ["-jar", "<folder>/tabgoblin/browser-context-mcp.jar", "--agent", "my-ide"]
+      "args": ["-jar", "<folder>/tabgoblin/tabgoblin.jar", "--agent", "my-ide"]
     }
   }
 }
@@ -315,7 +315,7 @@ messages and says so. Press Ctrl+C.
 ## Restricting what agents may do
 
 The server's settings file, `tabgoblin.properties`, lies beside the pairing token (by default
-in `.browser-context-mcp` in your home folder). **Edit** in the
+in `.tabgoblin` in your home folder). **Edit** in the
 [server's window](#the-servers-panel) opens it, and creates it if it is not there. A change is
 in force as soon as the file is saved. Every line takes something away; none gives an agent
 anything.
@@ -346,6 +346,7 @@ access.max = explore
 session.max.minutes = 240
 session.idle.minutes = 20
 audit.log = on
+interfaces = cli
 ```
 
 | Line | What it does |
@@ -357,6 +358,7 @@ audit.log = on
 | `session.max.minutes` | An authorization ends this many minutes after you gave it |
 | `session.idle.minutes` | An authorization ends when no command came for this many minutes. `0` switches a limit off |
 | `audit.log` | `on`: one line of JSON per command in `audit.jsonl` beside the file, with ids, actions, durations and outcomes, and nothing of a page |
+| `interfaces` | `cli`, `mcp`, or both (the default): how agents may reach the tools. With `cli` alone no MCP agent is let in: an agent's program that starts the server as its MCP server is told so and does not start, and the server's window shows **MCP** crossed out. With `mcp` alone the same for commands of the command line. The window, the status tool and `--setup` say what holds |
 
 The popup shows what is in force in a line above the sessions, and each session shows when it
 ends. An agent is told what holds when it asks for its status. A value that cannot be read
@@ -398,9 +400,10 @@ focus a heading with Tab and toggle it with Space.
 | Part | What it shows or does |
 |---|---|
 | The goblin | What the server is at. Asleep while the connection is switched off; puzzled by a problem, or by a call that failed; waiting while the browser is not connected; while a call runs, and for three seconds after, reading a page, walking (a navigation) or at work; behind its shield for a moment when the rules refused a call; and otherwise at rest, still but for a blink. It moves only while the window is on the screen |
+| The title line | Beside the title, a pill for each interface: **CLI** and **MCP**. Green while agents may come that way; red with a no-entry sign where the settings file has it off (`interfaces`), and then its tooltip says so, how many MCP starts were turned away since the server started, and where the file is. Both are red while the file cannot be read |
 | The line under the title | Click **Port** beside the agent information to copy the number for the extension popup, where it is set as *First port* under *Connection…*. It is available before an agent or browser connects |
 | The line with the dot | Whether the extension is connected, and if not, why. While it waits for the extension, a line below says what to do: open the popup, and pair it if it says so. With one agent whose port is another than the one under the title, the line ends with it (*agent port …*), as that agent's status names it; a click copies it |
-| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id and its port, and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
+| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id, its port and the way it comes (**CLI** or **MCP**), and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
 | Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers. *share* is the part of all that time; *typical* is what the middle one of the calls spent there, so waiting for you can have a share and 0 ms |
 | Log | The server's last 300 lines: connections, and one line per tool call in short, as `s1 navigate  31 ms  NAVIGATION_BLOCKED`: its tab, action, duration, and `ok` or the error code, with `outside scope` after a call refused for leaving its session's sites. Nothing of a page |
 | Connection to the browser | A switch. Off, the server closes its connection to the extension until you switch it on. The agent's tabs stay authorized |
@@ -412,7 +415,7 @@ focus a heading with Tab and toggle it with Space.
 One case brings the window up by itself: the browser came with a token that is not the
 server's, because it was mistyped or replaced with `--rotate-token`. The window then says
 *Pair the browser with this server*, with **Copy token**. `--no-panel` in an agent's
-registration, or `BCMCP_PANEL=0`, prevents that for that agent.
+registration, or `TABGOBLIN_PANEL=0`, prevents that for that agent.
 
 | The line with the dot says | What to do |
 |---|---|
@@ -479,14 +482,14 @@ variable is set in the environment the server is started in; the option wins.
 
 | Option | Variable | Default | What it sets |
 |---|---|---|---|
-| `--agent <name>` | `BCMCP_AGENT` | none | The name of the agent that starts the server ([agents](#agents)) |
-| `--port` | `BCMCP_PORT` | `47821`, else `37821`, else `27821` | The first of the eight agents' ports. Without it the server takes the first of the three whose range the system gives out, and the extension finds it. With it, only that port is tried, and the popup's *First port* has to say the same |
-| `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
-| `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is |
-| `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
-| `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
-| none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
-| none | `BCMCP_COMMAND_IDLE_SECONDS` | `600` | How long the server keeps an agent of the [command line](cli.md) after its last command. Read by the server when it starts |
+| `--agent <name>` | `TABGOBLIN_AGENT` | none | The name of the agent that starts the server ([agents](#agents)) |
+| `--port` | `TABGOBLIN_PORT` | `47821`, else `37821`, else `27821` | The first of the eight agents' ports. Without it the server takes the first of the three whose range the system gives out, and the extension finds it. With it, only that port is tried, and the popup's *First port* has to say the same |
+| `--token-file` | `TABGOBLIN_TOKEN_FILE` | `~/.tabgoblin/pairing-token` | Where the pairing token is kept |
+| `--settings` | `TABGOBLIN_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is |
+| `--panel`, `--no-panel` | `TABGOBLIN_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
+| `--extension-origin` | `TABGOBLIN_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
+| none | `TABGOBLIN_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
+| none | `TABGOBLIN_COMMAND_IDLE_SECONDS` | `600` | How long the server keeps an agent of the [command line](cli.md) after its last command. Read by the server when it starts |
 
 Commands you run yourself, each of which does its part and returns:
 
@@ -500,7 +503,7 @@ Commands you run yourself, each of which does its part and returns:
 | `tabgoblin --list-agents`, `--revoke-agent <name>`, `--allow-agent <name>` | [Agents](#agents) |
 | `tabgoblin --help` | Lists the options |
 
-In a build from source, `java -jar java-server/target/browser-context-mcp.jar` stands for
+In a build from source, `java -jar java-server/target/tabgoblin.jar` stands for
 `tabgoblin`.
 
 Commands an agent runs through the CLI: `tabgoblin tools --json`,
@@ -519,7 +522,7 @@ Commands an agent runs through the CLI: `tabgoblin tools --json`,
 | Agent has no tabs after a restart | An MCP agent registered without `--agent` is a new agent each time (a command of the CLI always has a name) | Add `--agent <name>` to its registration |
 | A command answers `AGENT_IN_USE` | An agent of that name is connected through MCP. A name has one agent at a time | Use that agent's MCP tools, or set the command line up under another name. It is then another agent, and needs its tabs authorized |
 | A command answers `NO_SERVER` | The server could not be reached or started: another program holds its port, or the command has another `--port` or `--token-file` than the server | Run `tabgoblin --panel`; give the commands the options the server has |
-| A command says "not connected" after a pause | The agent had no command for ten minutes and was let go; the extension has to find it again | Run the command again in half a minute, or open the popup. `BCMCP_COMMAND_IDLE_SECONDS` sets a longer time |
+| A command says "not connected" after a pause | The agent had no command for ten minutes and was let go; the extension has to find it again | Run the command again in half a minute, or open the popup. `TABGOBLIN_COMMAND_IDLE_SECONDS` sets a longer time |
 | An agent of the command line stays listed in the popup after its work | The server keeps it for ten minutes after its last command | Nothing; **Disconnect** ends it at once |
 | Agent says a ref is stale | The page changed since its snapshot | Nothing; the agent takes a new snapshot |
 | Agent says the session is suspended | The tab left its website | Click the TabGoblin icon on that tab and resume |

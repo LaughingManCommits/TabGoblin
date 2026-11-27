@@ -17,7 +17,7 @@ import puppeteer from 'puppeteer-core';
 import { McpClient } from '../mcp-client.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const JAR = resolve(HERE, '../../java-server/target/browser-context-mcp.jar');
+const JAR = resolve(HERE, '../../java-server/target/tabgoblin.jar');
 const EXTENSION = resolve(HERE, '../../chrome-extension/dist');
 
 const PAGES = [
@@ -54,7 +54,7 @@ const freePort = () => new Promise((done) => {
   });
 });
 
-const work = mkdtempSync(join(tmpdir(), 'bcmcp-editors-live-'));
+const work = mkdtempSync(join(tmpdir(), 'tabgoblin-editors-live-'));
 const wsPort = await freePort();
 const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token')];
 const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' }))?.[1];
@@ -65,7 +65,7 @@ const rows = [];
 try {
   await agent.initialize();
   browser = await puppeteer.launch({
-    ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),
+    ...(process.env.TABGOBLIN_CHROME ? { executablePath: process.env.TABGOBLIN_CHROME } : { channel: 'chrome' }),
     headless: !process.env.HEADED,
     pipe: true,
     enableExtensions: true,

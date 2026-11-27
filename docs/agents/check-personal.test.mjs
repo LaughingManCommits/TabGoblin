@@ -57,7 +57,7 @@ test('lets pass what only looks like it', () => {
   const harmless = [
     'C:\\Users\\<name>\\project and /home/<you>/project and %USERPROFILE% and ~/project',
     'C:\\Users\\%USERNAME% and /home/$USER',
-    '"args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar"]',
+    '"args": ["-jar", "<folder>/TabGoblin/java-server/target/tabgoblin.jar"]',
     'file:///C:/Windows/win.ini and file:///C:/x.html and D:/code',
     'https://example.com/home/page and http://127.0.0.1:8931/home/index.html and src/home/x',
     'ada@example.org, a@b.example, pw@app.example, x@host.test, x@mail.example.com',

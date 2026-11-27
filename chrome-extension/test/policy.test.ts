@@ -535,7 +535,7 @@ test('a server that leaves two heartbeats in a row unanswered is taken for gone'
 
 /** The cases the server's rule is held to as well (BlockedSitesTest.java). */
 const BLOCKED_CASES = JSON.parse(readFileSync(
-  new URL('../../java-server/src/test/resources/browsercontext/blocked-sites-cases.json', import.meta.url), 'utf8'));
+  new URL('../../java-server/src/test/resources/tabgoblin/blocked-sites-cases.json', import.meta.url), 'utf8'));
 
 test('a blocked domain blocks itself and its subdomains, and the server and the extension agree on every case', () => {
   for (const c of BLOCKED_CASES.hosts) {

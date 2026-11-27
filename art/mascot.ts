@@ -47,7 +47,7 @@ function paint(picture: Picture, grid: Grid, x: number, y: number, scale = 1): v
 }
 
 /** An icon: 16 and 24 are their own drawings, 32 the owner's; a larger one is one of them in whole squares. */
-function icon(size: number): Picture {
+export function icon(size: number): Picture {
   const [grid, scale]: [Grid, number] = size % 32 === 0 ? [FACE_32, size / 32] : size % 24 === 0 ? [FACE_24, size / 24] : [FACE_16, size / 16];
   const picture = blank(size, size);
   paint(picture, grid, 0, 0, scale);
@@ -179,18 +179,78 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function outputs(): Map<string, Picture | string> {
   const files = new Map<string, Picture | string>();
   for (const size of [16, 32, 48, 128]) files.set(`chrome-extension/icons/icon${size}.png`, icon(size));
-  files.set('java-server/src/main/resources/browsercontext/mascot.png', sheet());
-  files.set('java-server/src/main/resources/browsercontext/mascot.properties', sheetIndex());
+  files.set('java-server/src/main/resources/tabgoblin/mascot.png', sheet());
+  files.set('java-server/src/main/resources/tabgoblin/mascot.properties', sheetIndex());
   files.set('docs/images/mascot.png', preview());
   files.set('docs/images/logo.png', logo());
   return files;
+}
+
+/** The sizes of the icon of the program in the Windows download: what Windows asks for, from a list's row to a large tile. */
+export const WINDOWS_ICON_SIZES = [16, 24, 32, 48, 64, 256];
+
+/**
+ * The goblin's face as a Windows icon file, for the program in the download. It is made when a
+ * download is made (release/bundle.sh) and is not kept in the tree. The largest picture is a PNG,
+ * as Windows wants it; the others are plain bitmaps, which every reader of such a file knows.
+ */
+export function windowsIcon(): Buffer {
+  const entries = WINDOWS_ICON_SIZES.map((size) => ({ size, data: size >= 256 ? png(icon(size)) : bitmap(icon(size)) }));
+  const head = Buffer.alloc(6 + 16 * entries.length);
+  head.writeUInt16LE(1, 2);
+  head.writeUInt16LE(entries.length, 4);
+  let offset = head.length;
+  entries.forEach(({ size, data }, index) => {
+    const at = 6 + 16 * index;
+    // A side of 256 is written as 0.
+    head.writeUInt8(size % 256, at);
+    head.writeUInt8(size % 256, at + 1);
+    head.writeUInt16LE(1, at + 4);
+    head.writeUInt16LE(32, at + 6);
+    head.writeUInt32LE(data.length, at + 8);
+    head.writeUInt32LE(offset, at + 12);
+    offset += data.length;
+  });
+  return Buffer.concat([head, ...entries.map((entry) => entry.data)]);
+}
+
+/** A picture as an icon file holds a bitmap: rows from the bottom up, blue first, and a mask of the clear pixels after them. */
+function bitmap(picture: Picture): Buffer {
+  const { width, height, rgba } = picture;
+  const maskRow = Math.ceil(width / 32) * 4;
+  const out = Buffer.alloc(40 + width * height * 4 + maskRow * height);
+  out.writeUInt32LE(40, 0);
+  out.writeInt32LE(width, 4);
+  // The height counts the picture and its mask.
+  out.writeInt32LE(height * 2, 8);
+  out.writeUInt16LE(1, 12);
+  out.writeUInt16LE(32, 14);
+  out.writeUInt32LE(width * height * 4 + maskRow * height, 20);
+  for (let y = 0; y < height; y++) {
+    const row = height - 1 - y;
+    for (let x = 0; x < width; x++) {
+      const from = (y * width + x) * 4;
+      const to = 40 + (row * width + x) * 4;
+      out[to] = rgba[from + 2];
+      out[to + 1] = rgba[from + 1];
+      out[to + 2] = rgba[from];
+      out[to + 3] = rgba[from + 3];
+      if (rgba[from + 3] === 0) out[40 + width * height * 4 + row * maskRow + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  }
+  return out;
 }
 
 export function repositoryPath(path: string): string {
   return resolve(ROOT, path);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === repositoryPath('art/mascot.ts')) {
+if (process.argv[1] && resolve(process.argv[1]) === repositoryPath('art/mascot.ts') && process.argv[2] === '--windows-icon') {
+  // node art/mascot.ts --windows-icon <file>: only the icon file, to where the download is made.
+  if (!process.argv[3]) throw new Error('--windows-icon needs the file to write');
+  writeFileSync(resolve(process.argv[3]), windowsIcon());
+  console.log(process.argv[3]);
+} else if (process.argv[1] && resolve(process.argv[1]) === repositoryPath('art/mascot.ts')) {
   for (const [path, content] of outputs()) {
     mkdirSync(dirname(repositoryPath(path)), { recursive: true });
     writeFileSync(repositoryPath(path), typeof content === 'string' ? content : png(content));

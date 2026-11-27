@@ -14,7 +14,7 @@ export const LINE_FADES_MS = 1000;
 /** How many lines of what ended are shown at most; an older one makes room. */
 export const MAX_LINES = 3;
 /** The element that holds the notice. Snapshots and extracts leave it out by this name. */
-export const NOTICE_TAG = 'bcmcp-indicator';
+export const NOTICE_TAG = 'tabgoblin-notice';
 /**
  * How many frames a page has to begin before what was taken out of it is out of the picture too.
  * A frame's callback runs before that frame is drawn: at the second, the first has been drawn,

@@ -7,7 +7,11 @@ authorized.
 
 The CLI and [MCP](installation.md#mcp) give an agent the same fourteen tools. A CLI command is
 one tool call: it goes to the same local TabGoblin server, is checked by the same rules in the
-server and in the browser extension, and returns what the tool returns. Nothing is allowed to
+server and in the browser extension, and returns what the tool returns. It does not go through
+MCP: a command speaks three small messages of its own to the server, and the server runs the
+tool for it directly. Where MCP is forbidden, the CLI is a way in that uses none of it
+([the security model](security-model.md#cli-and-mcp-one-set-of-controls) says what that covers
+and where it stops). Nothing is allowed to
 a command that is not allowed to the MCP tool, and the user decides in the extension's popup
 either way. What the two share and where they differ is in the
 [architecture](architecture.md#integration-interfaces-cli-and-mcp).
@@ -55,7 +59,7 @@ tabgoblin click --agent my-agent --ref 12                # needs Explore or Read
 
 `tabgoblin` is the command in a [download](installation.md#from-a-download)'s folder; put that
 folder on your `PATH`, or call it by its full path. In a build from source,
-`java -jar java-server/target/browser-context-mcp.jar` stands for it.
+`java -jar java-server/target/tabgoblin.jar` stands for it.
 
 To hand this to a coding agent, see [agents and IDEs without MCP](#agents-and-ides-without-mcp).
 
@@ -89,7 +93,7 @@ The tool's own name is taken as well (`tabgoblin browser_click …`). One more c
 
 | Part | What it is |
 |---|---|
-| `--agent <name>` | Who the agent is: the name of its [key](security-model.md#agent-identity-and-authentication). Every command but `tools` needs it; the variable `BCMCP_AGENT` stands in for it. The commands of one name are one agent, with one set of sessions |
+| `--agent <name>` | Who the agent is: the name of its [key](security-model.md#agent-identity-and-authentication). Every command but `tools` needs it; the variable `TABGOBLIN_AGENT` stands in for it. The commands of one name are one agent, with one set of sessions |
 | `--session <id>` | Which authorized tab, as `status` lists them (`s1`, `s2`, …). May be left out while the agent has exactly one |
 | Tool arguments | The tool's input, each by its name in the [tool reference](tool-reference.md): `--ref 12`, `--max-lines 40` (a dash may stand for an underscore), or `--links=none`. A boolean needs no value: `--diff`, and `--diff=false` to say no. An array or an object is given as JSON: `--refs '[3,8]'` |
 | `--args <json>` | All arguments as one JSON object. `--args -` reads it from standard input and `--args-file <path>` from a file: for text with quotes or line breaks, and where a shell's quoting is in the way (on Windows above all). Single arguments given beside it come on top |
@@ -148,7 +152,7 @@ result. A command never asks anything in the terminal.
 | 0 | The tool answered, and not with an error. A submission that ended `FAILED` or `UNCERTAIN` is such an answer: its state is in `result` |
 | 1 | The tool answered with an error; `error.code` says which |
 | 2 | The command line was not understood (`USAGE`). Nothing was sent |
-| 3 | Nothing was sent: no server could be reached or started (`NO_SERVER`), or the name is that of an agent connected through MCP (`AGENT_IN_USE`) |
+| 3 | Nothing was sent: no server could be reached or started (`NO_SERVER`), the name is that of an agent connected through MCP (`AGENT_IN_USE`), or the settings file has the command line turned off (`INTERFACE_NOT_ALLOWED`, `interfaces = mcp`) |
 | 4 | The outcome is unknown, and the answer has `"outcome": "unknown"`: the command was sent and no answer came (`TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED`), or the command's process was ended while it ran (`CANCELLED`) |
 
 **Nothing is retried.** A command is sent once. After exit code 4, look at the page before
@@ -203,7 +207,7 @@ sequenceDiagram
    if no other agent is there. The next command makes the agent again, with the same id, and
    its sessions are its own again once the extension has found it: within about 30 seconds, or
    at once when you open the popup. A command before that answers `NOT_CONNECTED`.
-   `BCMCP_COMMAND_IDLE_SECONDS`, set in the environment the server starts in, changes the ten
+   `TABGOBLIN_COMMAND_IDLE_SECONDS`, set in the environment the server starts in, changes the ten
    minutes.
 
 A session ends as it does for any agent: you revoke it, its time is up, the tab is closed or

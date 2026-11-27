@@ -133,7 +133,10 @@ Session s2
 ```
 
 While the server cannot read its settings file, the result begins with a `Blocked sites:` line
-that says so, and every other tool answers `SETTINGS_UNREADABLE`.
+that says so, and every other tool answers `SETTINGS_UNREADABLE`. Where the policy has one
+interface off, the policy line says so (*agents come by the command line only (MCP is off)*, or
+the other way round); an agent of the interface that is off gets `INTERFACE_NOT_ALLOWED` from
+every tool, the status included.
 
 Without the extension the result says why, as far as the server knows, and what to ask the user
 for. No tool pairs the browser: tell the user, and go on when they have done it. Every other
@@ -227,7 +230,7 @@ length is still the *longest*. Where there was such a pause, a last line says ho
 
 An extension that gives no times has the round trip counted whole under the extension and the
 page, and a note says for how many calls. Nothing but tool names and durations is kept. With
-`BCMCP_LOG=debug` the server also writes one line for each tool call:
+`TABGOBLIN_LOG=debug` the server also writes one line for each tool call:
 `call tool=browser_click ms=412 gap=2140 waited=0 trip=380 ran=352 queued=3 asked=0 outcome=ok`.
 
 ### browser_request_access
@@ -1170,7 +1173,8 @@ See [Errors](#errors).
 
 Every tool on this page is also a CLI command, for an agent that runs local commands: `browser_press_key` is `tabgoblin press-key`, and its argument `ref: 12` is
 `--ref 12`. A command is one tool call under the same rules, and returns the same text inside
-one JSON object. The commands, their arguments, the output, the exit codes and how many
+one JSON object. The two are built from one definition of the tools, and neither runs through
+the other: a command speaks no MCP, to the server or inside it. The commands, their arguments, the output, the exit codes and how many
 commands are one agent are in the [CLI guide](cli.md).
 
 ## Completeness
@@ -1209,6 +1213,7 @@ Every failure is `Error [CODE]: message`. This table has every code.
 | `SCREENSHOTS_DISABLED` | The policy allows no screenshots. Read the page with `browser_snapshot` or `browser_extract` |
 | `AGENT_REVOKED` | The user revoked this agent on this machine. No tool works. Do not try another way; tell the user |
 | `SETTINGS_UNREADABLE` | The server cannot read its settings file, so it refuses every site until the user has mended the file. The server's window says what is wrong with it |
+| `INTERFACE_NOT_ALLOWED` | The user's [security policy](developer-guide.md#the-security-policy) has the interface this agent comes by turned off (`interfaces = cli` turns MCP off; `interfaces = mcp` the command line). Nothing was sent. Only the user can change that; do not switch to the other interface by yourself, tell the user. An MCP agent's program whose start finds MCP off does not start at all: it ends with the reason on its standard error |
 | `SUBMIT_INTENT_REQUIRED` | The action submits; state it as a submission |
 | `SUBMIT_DENIED`, `SUBMIT_NOT_CONFIRMED` | The user declined, or did not answer within 60 seconds. `SUBMIT_DENIED` also comes without a question: for a request the user declined in the last five minutes, and for a session whose last three requests were declined or not answered. Do not retry; tell the user, who can let the session ask again in the popup |
 | `CONFIRMATION_PENDING` | The user is being asked about another submission. Try again when that is answered |
