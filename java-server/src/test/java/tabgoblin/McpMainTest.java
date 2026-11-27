@@ -321,6 +321,16 @@ class McpMainTest {
     }
 
     @Test
+    void javaFxTakesItsNativeFilesFromTheDownloadsRuntimeOnly() {
+        // A download's runtime holds them, and JavaFX is sent there instead of the home folder.
+        Path runtime = Path.of("download", "runtime");
+        Path folder = runtime.resolve("tabgoblin-javafx");
+        assertEquals(folder, McpMain.nativeFiles(runtime, folder::equals));
+        // Any other Java has none: JavaFX does as it always did.
+        assertNull(McpMain.nativeFiles(Path.of("jdk"), path -> false));
+    }
+
+    @Test
     void whatIsSaidWhenAnInterfaceIsOffNamesTheFileAndTheEntry() {
         Path file = Path.of("somewhere", "tabgoblin.properties");
         String off = McpMain.mcpOff(file);

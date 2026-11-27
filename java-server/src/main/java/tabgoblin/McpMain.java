@@ -516,6 +516,32 @@ public final class McpMain {
                 .getOutputStream().close();
     }
 
+    /** The folder in a download's runtime that holds JavaFX's native files; {@code release/bundle.sh} puts them there. */
+    static final String NATIVE_FILES = "tabgoblin-javafx";
+
+    /**
+     * Has JavaFX take its native files from the download, where a download has them. JavaFX looks
+     * for its native files in the folder that {@code javafx.cachedir} names, and takes each that is
+     * there and the same as its own, writing nothing. Without that it unpacks them from the jar into
+     * {@code .openjfx} in the home folder and loads them from there, and a virus scanner on Windows
+     * took that for a program that drops code into the user's profile and runs it. Run from a jar
+     * outside a download, or where the property is set already, nothing changes.
+     */
+    static void nativeFilesFromDownload() {
+        if (System.getProperty("javafx.cachedir") == null) {
+            Path folder = nativeFiles(Path.of(System.getProperty("java.home")), java.nio.file.Files::isDirectory);
+            if (folder != null) {
+                System.setProperty("javafx.cachedir", folder.toString());
+            }
+        }
+    }
+
+    /** The folder of JavaFX's native files in the Java at {@code home}, or null where that Java has none, as every Java but a download's. */
+    static Path nativeFiles(Path home, java.util.function.Predicate<Path> isDirectory) {
+        Path folder = home.resolve(NATIVE_FILES);
+        return isDirectory.test(folder) ? folder : null;
+    }
+
     /** The Java this process runs on. On Windows the launcher without a console: the server has no terminal, and none is to open for it. */
     private static String launcher() {
         Path home = Path.of(System.getProperty("java.home"));

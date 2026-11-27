@@ -131,6 +131,11 @@ gh attestation verify tabgoblin-<version>-windows-x64.zip --repo LaughingManComm
 
 **Not signed.** The downloads are not code-signed for Windows or macOS: either system may warn
 before it runs what is in a download, and a machine that runs signed programs only refuses it.
+A virus scanner may also hold back `TabGoblin.exe`. One did so with a download that let JavaFX
+unpack its DLLs into the user's profile (`.openjfx`) and run them from there; a download now has
+them in its runtime. If a scanner still quarantines a file of a download, check the download
+against `SHA256SUMS.txt` and its attestation as above, and report it to the scanner's maker as a
+false detection.
 
 ## From source
 

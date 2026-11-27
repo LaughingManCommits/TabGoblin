@@ -3,6 +3,10 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `ccr-ed552230-wm7n6w` from `4534eda`: JavaFX's native files in the download
+
+On Linux with a JDK 25 (installed in the session) and Xvfb. `mvn package` under `xvfb-run`: 244 server tests, none skipped, `PanelTest` 20 of them. `release/bundle.sh` made the Linux download, with the ten `.so` files in `runtime/tabgoblin-javafx`. A probe (not in the repository) opened a JavaFX window through `Panel.onFxThread` with an empty home folder: on the system's Java with the jar alone, JavaFX wrote 8 files into `.openjfx`; on the download's runtime it wrote nothing there, named the download's folder in `javafx.cachedir`, and left no lock file in that folder. Links and the personal-information check passed. Not run: the Windows download, the scanner that quarantined it, macOS, the extension and end-to-end suites (neither part they test changed).
+
 ## 2026-11-27, branch `ccr-df3851d4-clmz1a` from `9c6aed1`: a last documentation pass
 
 Documentation only. The ten Mermaid blocks parse and render with Mermaid 11.4.1 in Chromium, default and dark theme; `build.mjs` writes the five SVG files unchanged; `SkillsTest` 9 of 9 and `ToolReferenceTest` 2 of 2 with a JDK 25; link check, 349 links; nothing personal. **Not run:** the full suites; the pages on GitHub itself.
