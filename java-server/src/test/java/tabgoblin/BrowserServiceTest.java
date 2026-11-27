@@ -531,18 +531,18 @@ class BrowserServiceTest {
         for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
             Thread.sleep(20);
         }
-        String elsewhere = "Another TabGoblin server runs on this machine, with first port 39821, and the browser is connected "
-                + "to that one, not to this one. ";
-        String same = elsewhere + "It runs under the same settings as this one. ";
+        String elsewhere = "Another TabGoblin server runs on this machine, and the browser is connected to that one, not to "
+                + "this one. ";
+        String same = elsewhere + "It runs under the settings this agent's setup names. ";
         String forMcp = same + "Tell the user: this agent goes to that server by itself when it is started again, and their "
                 + "agents' setups name different ports.";
-        String forCommands = same + "Run the command again: it goes to that server by itself. Tell the user that their "
-                + "agents' setups name different ports.";
-        String otherSettings = elsewhere + "It reads another settings file, or lets in another extension, than this one, so no "
-                + "agent of this one goes to it by itself. Tell the user: their agents' setups have to name the same settings, "
-                + "or the browser has to be paired with this server instead.";
+        String forCommands = same + "Run the command once more: it goes to that server by itself. If it comes back here, tell "
+                + "the user. Their agents' setups name different ports.";
+        String otherSettings = elsewhere + "It reads another settings file, or lets in another extension, than this agent's "
+                + "setup names, so this agent does not go to it by itself. Tell the user: the server's window shows the ports; "
+                + "their agents' setups have to name the same settings, or the browser has to be paired with this server instead.";
         String head = "Extension: not connected\nListening on: ws://127.0.0.1:" + bridge.getPort() + "\n";
-        BrowserService.Unpaired other = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(39821, true));
+        BrowserService.Unpaired other = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(true));
 
         // It is said in place of the pairing, which is not what is missing then.
         BrowserService mcp = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> other, null, false);
@@ -554,7 +554,7 @@ class BrowserServiceTest {
         assertEquals(head + forCommands, commands.call("browser_status", args()).text());
 
         // That server runs under other settings: nobody goes there by itself, and nobody is sent there.
-        BrowserService.Unpaired apart = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(39821, false));
+        BrowserService.Unpaired apart = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(false));
         for (boolean byCommands : new boolean[] {false, true}) {
             BrowserService either = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> apart, null, byCommands);
             assertEquals(head + otherSettings, either.call("browser_status", args()).text());
@@ -562,7 +562,7 @@ class BrowserServiceTest {
 
         // The browser is paired with this server by way of another agent: it is here, not at the other one.
         BrowserService pairedHere = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO,
-                () -> new BrowserService.Unpaired(true, false, false, new BrowserService.Elsewhere(39821, true)), null, false);
+                () -> new BrowserService.Unpaired(true, false, false, new BrowserService.Elsewhere(true)), null, false);
         assertTrue(pairedHere.call("browser_status", args()).text().endsWith("Try again then."));
     }
 

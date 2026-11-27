@@ -243,7 +243,8 @@ public final class McpMain {
             return;
         }
         Link link = new Link(System.in, mcpOut, System.err, tokens, serverPorts, options.panel(), options.quiet(),
-                () -> startServer(options, false), options.agent(), agentKeys).setupPort(options.portChosen() ? options.port() : 0);
+                () -> startServer(options, false), options.agent(), agentKeys)
+                .setup(options.portChosen() ? options.port() : 0, fit(options));
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
             return;
@@ -287,7 +288,7 @@ public final class McpMain {
                 .stream().map(Link::port).toList();
         return new Link(in, out, System.err, tokens, serverPorts, options.panel(), options.quiet(),
                 () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand()
-                .setupPort(options.portChosen() ? options.port() : 0);
+                .setup(options.portChosen() ? options.port() : 0, fit(options));
     }
 
     /** What a server started with these options is run under, of what a setup can ask for. */
@@ -315,7 +316,7 @@ public final class McpMain {
         RUNNING.add(() -> RunningServers.remove(options.tokenFile(), first));
         // And written again when the browser comes or goes, so that a process without a port goes to the server it is at.
         hub.onBrowser(browser -> RunningServers.write(options.tokenFile(), first, browser, fit(options)));
-        hub.others(() -> RunningServers.other(options.tokenFile(), first, fit(options)));
+        hub.others(mine -> RunningServers.other(options.tokenFile(), first, mine));
         hub.commandIdle(options.commandIdleMs());
         hub.whenEmpty(McpMain::end);
         java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
@@ -402,8 +403,7 @@ public final class McpMain {
                 window.run();
             }
             return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen(),
-                    own == null || own.bridge().lastCloseCode() != 0 ? null
-                            : RunningServers.other(options.tokenFile(), settings.port(), fit(options)));
+                    refused ? null : RunningServers.other(options.tokenFile(), settings.port(), fit(options)));
         }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();

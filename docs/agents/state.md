@@ -2,18 +2,40 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
-## The branch reviewed: two faults mended, 2026-11-27
+## The branch reviewed: six faults mended, 2026-11-27
 
 On branch `one-server-found-and-plain-answers`, after `c350f29`, on the owner's word ("review the
-current branch"). Found and mended: at an orderly stop the server's watcher thread could write
-its file again after the shutdown hook had taken it out, since the browser goes when the agents
-are closed (`Hub.close` and the watcher now hold one lock, and nothing is told once the server
-stops); and a process with `--port` took the file of its own port as proof that the browser is
-there without looking whether that server's process is alive (`RunningServers.firsts`). Also
-mended in the text: the status line of an agent served away from its setup's port now says that
-the browser *was* connected here when it came, not that it is; the link protocol's `setup_port`
-is in the protocol reference. An independent review of the whole diff was started; its findings,
-if any, follow in a further commit.
+current branch ... fix whatever you find"). Two found by the session (`f0642a5`) and four more
+by an independent review of the whole diff, all mended:
+
+- **The settings were compared on the wrong side.** The server compared another server's
+  settings with its own, where what decides whether an agent's next process goes there is the
+  process's own `--settings` and `--extension-origin`, which the server did not know. The link
+  now sends them in its `attach` (`settings`, `origin`), and the server compares against those
+  (`Hub.fitOf`, `unpaired(quiet, mine)`).
+- **A gate hid the hint when the browser had moved.** "Said only if no browser ever came here"
+  is gone: another server's `browser:true` is written again within a quarter second when the
+  browser goes, so it is fresh whatever happened here; only a browser that came here with
+  another token still takes precedence.
+- **Process ids are gone from the files.** A process id means nothing across the Linux
+  subsystem of Windows or a sandbox, and a wrong "dead" would have deleted a live server's
+  file. Whether a server is there is told by whether its port answers; a refused connection on
+  the loopback is instant, so nothing is lost.
+- **A failed rewrite is written again** at the watcher's next look (`write` says whether it
+  succeeded; on Windows the file cannot be replaced while another process reads it), and no
+  `.tmp` is left.
+- **No write after a stop** (`Hub.close` and the watcher share a lock), and **the own-port
+  check** no longer trusts a file whose server does not answer.
+- **The message names no port any more**: that would tell an agent about another agent's
+  setup, and the process finds the server by itself. It says "once more", and the skills say
+  not to run a third time. The status line of an agent served away from its setup's port says
+  the browser *was* here when it came.
+
+Left as judgement, said in the architecture page: a look costs one connection per listed
+server; `--panel --port X` by hand shows the window of the server with the browser where that
+one runs as X would. **Not tried:** a real browser (a fake extension was paired with real
+servers), and any agent with the skills. **Next:** the owner's look; the jar built in the tree
+once no agent runs from it; a task in a fresh Codex session with the skill installed anew.
 
 ## A named port joins the server with the browser where that one runs under the same settings, 2026-11-27
 

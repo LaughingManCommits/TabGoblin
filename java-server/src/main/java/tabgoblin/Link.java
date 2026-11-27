@@ -98,6 +98,8 @@ final class Link {
     private boolean command;
     /** The first port this process's setup names, or 0: said to the server, which tells the agent if it is another server's. */
     private int setupPort;
+    /** What this process would start its own server under: said to the server, which compares another server's with it. */
+    private RunningServers.Fit fit;
     /** Why the server would not have this process, if it said so. */
     private volatile String refusal;
 
@@ -157,9 +159,13 @@ final class Link {
         return this;
     }
 
-    /** @param first the first port the setup names, or 0 if it names none */
-    Link setupPort(int first) {
+    /**
+     * @param first the first port the setup names, or 0 if it names none
+     * @param mine  what this process would start its own server under
+     */
+    Link setup(int first, RunningServers.Fit mine) {
         setupPort = first;
+        fit = mine;
         return this;
     }
 
@@ -313,6 +319,10 @@ final class Link {
             }
             if (what.equals("attach") && setupPort > 0) {
                 ask.put("setup_port", setupPort);
+            }
+            if (what.equals("attach") && fit != null) {
+                ask.put("settings", fit.settings());
+                ask.put("origin", fit.origin());
             }
             if (what.equals("attach") && agent != null) {
                 // Who this agent is: the label of its key, and the proof that this process holds the

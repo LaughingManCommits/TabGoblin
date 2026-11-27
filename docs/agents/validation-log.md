@@ -3,14 +3,27 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
-## 2026-11-27, branch `one-server-found-and-plain-answers` after `c350f29`: the review's two mends
+## 2026-11-27, branch `one-server-found-and-plain-answers` after `c350f29`: the review's six mends
 
-In the same copy, runtime and compiler as below: `BrowserServiceTest` (37), `HubTest` (19, with
-the new case that nothing is told of the browser after the server begins to stop),
-`RunningServersTest` (10, with the case of a dead server's file on the process's own port),
-`ToolReferenceTest` and `SkillsTest`, 77 tests, none failed. Not run for this commit: the rest
-of the suite, `mvn verify`, end to end; they ran on the commit before, and the change is a
-lock, one predicate and text.
+In the same copy, runtime and compiler as below: `mvn verify`, 260 tests, none failed, 20
+skipped (`PanelTest`, no display), among them `RunningServersTest` (11: a failed write says so
+and leaves no `.tmp`; a file whose server does not answer is taken out by the next server that
+opens, one whose server answers stays; the own port's file does not hold a process where its
+server is gone; what another server's file says is compared with the asking process's own
+settings), `HubTest` (19: each agent's status is answered from what its own process said of its
+settings, not from the server's; nothing is told of the browser after the server begins to
+stop) and `BrowserServiceTest` (37); `McpConformanceIT` 8 of 8. With real processes of that
+jar, a token of their own and the test's fake extension paired by a small program: a stale
+file left in the folder was taken out when the first server opened; agent b with `--port 45821`
+and the same settings was served by the browser's server (41821) with the line that its setup
+names 45821; agent c with `--port 46821` and another `--settings` kept its own server, twice,
+and was told that the browser's server reads another settings file; agent d without a port
+joined the browser's server; stopped by a signal, every file was taken out. End to end with
+that jar: 110 passed, 0 failed. Links 318, nothing personal. One run of
+`aLinkWithoutAPortReachesTheServerOnAnotherAgentsPort` failed three times in a row, with a
+dropped server's port still answering a hello, and could not be made to fail again in six
+runs after; no stray server was found afterwards, and the cause is not known. Not tried: a
+real browser, and any agent with the skills.
 
 ## 2026-11-27, branch `one-server-found-and-plain-answers` after `7a79ba7`: a named port joins the server with the browser and the same settings
 

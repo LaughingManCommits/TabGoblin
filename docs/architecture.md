@@ -155,16 +155,21 @@ reads and which extension it lets in, and the process compares them with its own
 and `--extension-origin` (`RunningServers.Fit`). Then nothing its setup asked for is lost, and
 its port only decides where a server is started when none with the browser runs. Where they
 differ, it looks at its own port and no other, as a named port always meant, and starts its
-server there. The process tells the server which port its setup names, and an agent served
-elsewhere than there is told why in its status (`BrowserService.cameFrom`). An agent of a server
-that no browser has come to is told so: when a tool finds no browser, that server looks in the
-folder for another server that answers and says it has the browser, and names its first port in
-place of the pairing help (`Hub.unpaired`, `BrowserService.otherServer`), with whether it runs
-under the same settings: if so, the agent's next process goes there by itself; if not, only the
-user can settle it. Only the port is said, nothing of that server's agents, and nothing is said
-once a browser has come to this server. A process without a port of its own joins a server that
-runs whatever its settings, as before: there is one server for all agents, and its settings are
-those of the process that started it.
+server there. The same holds for a person who opens the window with `--panel --port`: the window
+of the server that has the browser comes, where that server runs as theirs would. The process
+tells the server which port its setup names and what it would start its own server under
+(`setup_port`, `settings` and `origin` in the link's `attach`), and an agent served elsewhere
+than at its setup's port is told why in its status (`BrowserService.cameFrom`). An agent of a
+server that has no browser is told when another has it: when a tool finds no browser, that
+server looks in the folder for another server that answers and says it has the browser
+(`Hub.unpaired`, `BrowserService.otherServer`), and says in place of the pairing help whether
+that one runs under the settings the agent's own process named: if so, the agent's next process
+goes there by itself; if not, only the user can settle it. What another server's file says is
+fresh, since it is written again when the browser goes, so it is said whatever happened at this
+server before; only a browser that came here with another token is not at another server.
+Nothing else is said of that server, not its port and nothing of its agents. A process without
+a port of its own joins a server that runs whatever its settings, as before: there is one server
+for all agents, and its settings are those of the process that started it.
 
 Both listen on `127.0.0.1` only. Agents share the process and nothing else: no tool tells one
 agent anything about another.

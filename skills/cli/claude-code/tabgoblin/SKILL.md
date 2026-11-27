@@ -37,8 +37,9 @@ browser and runs under the same settings: `status` then says so.
    itself: after some minutes without a command the extension has to find you again, within
    half a minute or when the user opens the popup. Try once more then, and not in a loop.
    **When it says that another TabGoblin server has the browser,** do what it says: run the
-   command again where it says that the command goes there by itself, and otherwise tell the
-   user. Do not give that server's port yourself: it may run under other settings than yours.
+   command once more where it says that the command goes there by itself, and otherwise tell
+   the user. Do not look for that server's port yourself, and do not run the command a third
+   time.
 3. **No session:** ask the user to open the site in Chrome, click the TabGoblin icon on that
    tab, choose an access level and press **Authorize**. Say which level the task needs:
    - **Read** looks at the page that is open.
@@ -224,7 +225,7 @@ retried for you, and a refusal is never an error to work around.
 
 | Code | What to do |
 |---|---|
-| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off. When it says that another server has the browser, do what it says, and do not give that server's port yourself |
+| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off. When it says that another server has the browser, do what it says, once, and do not look for that server's port yourself |
 | `NOT_AUTHORIZED`, `AUTHORIZATION_EXPIRED` | Ask the user to authorize the tab, as above |
 | `SESSION_REQUIRED` | Give `--session`; `status` lists the ids |
 | `SESSION_SUSPENDED`, `ORIGIN_MISMATCH` | The tab left its website. Ask the user to click the TabGoblin icon on that tab and resume |

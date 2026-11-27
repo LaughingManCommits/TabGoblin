@@ -184,9 +184,9 @@ final class Hub {
     /** Run when the last agent has gone and stayed gone, unless the user started this server. */
     private volatile Runnable whenEmpty = () -> { };
     /** Another server that runs on this machine and has the browser, or null: asked only when an agent finds no browser. */
-    private volatile java.util.function.Supplier<BrowserService.Elsewhere> others = () -> null;
+    private volatile java.util.function.Function<RunningServers.Fit, BrowserService.Elsewhere> others = mine -> null;
     /** Told when the browser comes or goes, and whether it was here at the last look; on the thread that watches. */
-    private volatile java.util.function.Consumer<Boolean> onBrowser = browser -> { };
+    private volatile java.util.function.Predicate<Boolean> onBrowser = browser -> true;
     private boolean hadBrowser;
     /** Held while the browser's coming or going is told, and while the server begins to stop: nothing is told after that. */
     private final Object browserLock = new Object();
@@ -254,8 +254,9 @@ final class Hub {
      * is on its way as a rule.
      *
      * @param quiet the agent's process was started with --no-panel: no window comes up for it
+     * @param mine  what the agent's process would start its own server under; null if it did not say
      */
-    BrowserService.Unpaired unpaired(boolean quiet) {
+    BrowserService.Unpaired unpaired(boolean quiet, RunningServers.Fit mine) {
         // Paired on the token as it is now: after a new token an agent's old pairing is still open for a moment.
         if (agents().stream().anyMatch(agent -> agent.bridge().pairedOnCurrentToken())) {
             cameUp.set(false);
@@ -266,13 +267,13 @@ final class Hub {
             Log.info("window asked for reason=browser_has_another_token");
             window.run();
         }
-        // A browser that came here, and left or was turned away, is not at another server: one is looked for only when none came.
-        boolean came = agents().stream().anyMatch(agent -> agent.bridge().lastCloseCode() != 0);
-        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean(), came ? null : others.get());
+        // A browser that came here with another token is not at another server. Otherwise another server's file that
+        // says it has the browser is fresh, whatever happened here before: that server writes it again when the browser goes.
+        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean(), refused ? null : others.apply(mine));
     }
 
-    /** @param other another server that answers on this machine and has the browser, or null */
-    void others(java.util.function.Supplier<BrowserService.Elsewhere> other) {
+    /** @param other whether another server on this machine has the browser, and whether it runs as the asking process would, or null */
+    void others(java.util.function.Function<RunningServers.Fit, BrowserService.Elsewhere> other) {
         this.others = other;
     }
 
@@ -281,9 +282,20 @@ final class Hub {
         return agents().stream().anyMatch(agent -> agent.bridge().isExtensionConnected());
     }
 
-    /** @param changed told when the browser has come to this server, or has gone from it */
-    void onBrowser(java.util.function.Consumer<Boolean> changed) {
+    /**
+     * @param changed told when the browser has come to this server, or has gone from it; says whether it could act on
+     *                it, and is told again at the next look if it could not
+     */
+    void onBrowser(java.util.function.Predicate<Boolean> changed) {
         this.onBrowser = changed;
+    }
+
+    /** What the process that attached said it would start its own server under, or null. */
+    private static RunningServers.Fit fitOf(JsonNode ask) {
+        if (!ask.path("settings").isString() || !ask.path("origin").isString()) {
+            return null;
+        }
+        return new RunningServers.Fit(ask.path("settings").asString(), ask.path("origin").asString());
     }
 
     /** Shows the server's window, or brings it up if it is there already. */
@@ -424,7 +436,7 @@ final class Hub {
             LineOut out = new LineOut(to);
             if (commandOf != null) {
                 // The key's agent is taken from here on by the list of those that come by commands.
-                serveCommand(identity, socket, out, ask.path("quiet").asBoolean(false), ask.path("setup_port").asInt(0));
+                serveCommand(identity, socket, out, ask.path("quiet").asBoolean(false), ask.path("setup_port").asInt(0), fitOf(ask));
                 kept = true;
                 return;
             }
@@ -436,10 +448,11 @@ final class Hub {
             members.add(member);
             emptySince = 0;
             boolean quiet = ask.path("quiet").asBoolean(false);
+            RunningServers.Fit mine = fitOf(ask);
             if (command) {
                 // A command of a name that has no agent to keep (the user revoked it): served once, by the
                 // command line's own conversation, on an agent that goes with it. Every tool says why.
-                member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity, true);
+                member.agent = Agent.open(settings, held, () -> unpaired(quiet, mine), identity, true);
                 noteSetup(member.agent, ask.path("setup_port").asInt(0));
                 member.agent.announce();
                 // One whose key could not be read or made has no label: it is not called "null".
@@ -449,7 +462,7 @@ final class Hub {
                 kept = true;
                 return;
             }
-            member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet), identity);
+            member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet, mine), identity);
             noteSetup(member.agent, ask.path("setup_port").asInt(0));
             member.agent.announce();
             kept = true;
@@ -550,7 +563,8 @@ final class Hub {
         agent.service().cameFrom(setupPort > 0 && setupPort != first ? setupPort : 0);
     }
 
-    private void serveCommand(AgentKeys.Identity identity, Socket socket, LineOut out, boolean quiet, int setupPort) throws IOException {
+    private void serveCommand(AgentKeys.Identity identity, Socket socket, LineOut out, boolean quiet, int setupPort,
+            RunningServers.Fit mine) throws IOException {
         Conn conn = new Conn(socket, out);
         Member member;
         synchronized (commanded) {
@@ -562,7 +576,7 @@ final class Hub {
                 member.byKey = identity.id();
                 members.add(member);
                 emptySince = 0;
-                member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity, true);
+                member.agent = Agent.open(settings, held, () -> unpaired(quiet, mine), identity, true);
                 member.agent.announce();
                 commanded.put(identity.id(), member);
             }
@@ -714,9 +728,9 @@ final class Hub {
                 // A server that stops closes its agents, and the browser goes with them: that is not told, so that
                 // what is written of this server is not written again after it was taken out.
                 boolean browser = !stopping && hasBrowser();
-                if (!stopping && browser != hadBrowser) {
+                if (!stopping && browser != hadBrowser && onBrowser.test(browser)) {
+                    // Where what was told could not be acted on, it is told again at the next look.
                     hadBrowser = browser;
-                    onBrowser.accept(browser);
                 }
             }
             long since = emptySince;

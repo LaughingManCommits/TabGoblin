@@ -87,13 +87,14 @@ public final class BrowserService {
     }
 
     /**
-     * Another server, that has the browser.
+     * Another server, that has the browser. Nothing of it is said to the agent but that it is there:
+     * not its port, and nothing of its agents.
      *
-     * @param first        its first port
-     * @param sameSettings it reads the same settings file and lets in the same extension as this one: an agent's
-     *                     process goes to it by itself, with a port of its setup or without
+     * @param sameSettings it reads the same settings file and lets in the same extension as the agent's own process
+     *                     would start a server with: the agent's next process goes to it by itself, with a port of
+     *                     its setup or without
      */
-    record Elsewhere(int first, boolean sameSettings) {
+    record Elsewhere(boolean sameSettings) {
     }
 
     /**
@@ -102,17 +103,17 @@ public final class BrowserService {
      * none goes there, since its setup asked for this one's settings, and only the user can settle it.
      */
     static String otherServer(Elsewhere other, boolean byCommands) {
-        String head = "Another TabGoblin server runs on this machine, with first port " + other.first()
-                + ", and the browser is connected to that one, not to this one. ";
+        String head = "Another TabGoblin server runs on this machine, and the browser is connected to that one, not to "
+                + "this one. ";
         if (!other.sameSettings()) {
-            return head + "It reads another settings file, or lets in another extension, than this one, so no agent of "
-                    + "this one goes to it by itself. Tell the user: their agents' setups have to name the same settings, or "
-                    + "the browser has to be paired with this server instead.";
+            return head + "It reads another settings file, or lets in another extension, than this agent's setup names, so "
+                    + "this agent does not go to it by itself. Tell the user: the server's window shows the ports; their "
+                    + "agents' setups have to name the same settings, or the browser has to be paired with this server instead.";
         }
-        return head + "It runs under the same settings as this one. "
+        return head + "It runs under the settings this agent's setup names. "
                 + (byCommands
-                        ? "Run the command again: it goes to that server by itself. Tell the user that their agents' setups "
-                                + "name different ports."
+                        ? "Run the command once more: it goes to that server by itself. If it comes back here, tell the "
+                                + "user. Their agents' setups name different ports."
                         : "Tell the user: this agent goes to that server by itself when it is started again, and their "
                                 + "agents' setups name different ports.");
     }

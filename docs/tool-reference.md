@@ -164,25 +164,25 @@ Listening on: ws://127.0.0.1:47821
 The browser holds a token that is not this server's. Ask the user to pair the browser with this server: in Chrome, with the TabGoblin extension loaded, open its popup and paste this server's pairing token. The TabGoblin server's window is open on the user's screen: Copy token, at its top, puts the token on the clipboard.
 ```
 
-- No browser has come, and another TabGoblin server runs on the machine and has the browser:
-  the result names that server's first port in place of the pairing help, and says whether it
-  runs under the same settings as this one (the same settings file, the same extension let in).
-  If it does, an agent's next process goes there by itself, with a port in its setup or
-  without; if it does not, none goes there, and only the user can settle it. Nothing of the
-  other server's agents is said.
+- Another TabGoblin server on the machine has the browser: the result says so in place of the
+  pairing help, and whether that server runs under the settings the agent's own setup names
+  (the same settings file, the same extension let in). If it does, the agent's next process goes
+  there by itself, with a port in its setup or without; if it does not, it does not go there,
+  and only the user can settle it. Nothing else of the other server is said: not its port, which
+  the server's window shows to the user, and nothing of its agents.
 
 ```text
 Extension: not connected
 Listening on: ws://127.0.0.1:47821
-Another TabGoblin server runs on this machine, with first port 39821, and the browser is connected to that one, not to this one. It runs under the same settings as this one. Run the command again: it goes to that server by itself. Tell the user that their agents' setups name different ports.
+Another TabGoblin server runs on this machine, and the browser is connected to that one, not to this one. It runs under the settings this agent's setup names. Run the command once more: it goes to that server by itself. If it comes back here, tell the user. Their agents' setups name different ports.
 ```
 
-  For an MCP agent the last two sentences read: `Tell the user: this agent goes to that server
-  by itself when it is started again, and their agents' setups name different ports.` Where
-  the settings differ, for either kind of agent: `It reads another settings file, or lets in
-  another extension, than this one, so no agent of this one goes to it by itself. Tell the
-  user: their agents' setups have to name the same settings, or the browser has to be paired
-  with this server instead.`
+  For an MCP agent the last three sentences read: `Tell the user: this agent goes to that
+  server by itself when it is started again, and their agents' setups name different ports.`
+  Where the settings differ, for either kind of agent: `It reads another settings file, or lets
+  in another extension, than this agent's setup names, so this agent does not go to it by
+  itself. Tell the user: the server's window shows the ports; their agents' setups have to name
+  the same settings, or the browser has to be paired with this server instead.`
 - The browser is paired with the server and has not found this agent yet: the result says that
   it takes up to about 30 seconds.
 - The user disconnected this agent in the popup, or the extension is of another version than
