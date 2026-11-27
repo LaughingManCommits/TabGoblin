@@ -2,6 +2,88 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## A server on another port is found; `--plain`; the instructions ask for few calls, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, made from `main` at `9c751a9`, not committed;
+it carries the skill edits of the entries below as well. Three changes, after the owner found
+Codex slow and without a browser:
+
+- **A process that names no port finds a server on a port of another agent's setup.** A server
+  writes its first port into `servers`, beside the pairing token, and takes it out when it
+  ends in order (`RunningServers.java`, called from `McpMain.serveAll`); a link or a command
+  without `--port` looks there before the list (`McpMain.main`, `commandLink`). A port from
+  the file is used only where something opens with the server's greeting, and the proofs
+  follow as before. A process that names a port still looks at that port alone. Owned by
+  [architecture.md](../architecture.md#processes-and-ports).
+- **`--plain` on the command line** prints the answer's text as it is, and an error as the one
+  line `Error [CODE]: message`; `screenshot` needs `--out` with it. In `Cli.java`, the guide
+  ([cli.md](../cli.md#the-answer-as-text)) and the three skills for the command line.
+- **The server's instructions** (`McpMain.java`) say to read with an extract, to read what an
+  action returns, and to take a new snapshot only for refs.
+
+**Not done:** the command line's start was to be made quicker, and cannot be from here: on the
+owner's machine `java -version` alone takes 1.15 s, and a command 1.28 s. **Not run:** the
+end-to-end suite and `mvn verify`; the extension was not changed. **Not covered:** two agents
+set up with two different ports still have two servers; a status does not say that another
+server has the browser. **Next:** the owner's look; end to end before a merge; then the jar
+built in the tree once no agent runs from it, and a task in a fresh Codex session.
+
+## Both Codex skills cut to few calls, 2026-11-27
+
+Working tree on `main` at `9c751a9`, not committed. This replaces the Codex sections that the
+four entries below describe: what they say of diagram captures, timing recipes and repository
+examples is no longer in the skills. The owner found Codex slow with TabGoblin. Seen in the
+running processes, not in Codex itself: a hook of another program (`gk.exe ai hook run --host
+codex --blocking`) ran for more than a minute before Codex's shell calls, and Codex's commands,
+which gave no `--port`, started a second server on 47821 while the browser was connected to the
+one on 39821 that another agent's registration had asked for. Neither is the skill's. In the
+skills, the Codex section of each now says: read with an extract, take a snapshot only for
+refs, read what a click or a navigation answers and take no snapshot to confirm it, and for
+the command line put commands that need no answer of each other into one shell call and write
+no script that searches a snapshot. The command-line skill has the description of the other
+two again. `SkillsTest` passed, 9 of 9. **Not tried:** either skill in Codex; whether Codex is
+quicker with them. An installed skill is not overwritten by `--install-skill`: the copy Codex
+has must be removed first. **Next:** the owner turns the hook off, puts every agent on one
+port, installs the skill anew and tries a task in a fresh Codex session.
+
+## Codex CLI workflow rewrite, 2026-11-27
+
+Working tree on `main` at `9c751a9`. The Codex CLI section starts with session and shell
+handling, then maps tasks to commands for reading, browsing, waiting, requesting access and
+writing. It preserves the diagram and timing recipes and starts smoke tests on the live
+tab when requested. The GitHub run exercised eleven CLI commands and restored the starting
+URL. All fourteen also worked against the local demo in a disposable Chrome profile,
+including the access grant and verified submission. The skill has not been loaded in a
+fresh Codex session.
+
+## Codex CLI diagram captures, 2026-11-27
+
+Working tree on `main` at `9c751a9`. The Codex CLI skill explains how to find a diagram,
+verify its position, save and inspect overlapping viewport captures, and handle a capture
+blocked by a frame from another origin. The live GitHub run captured the Components diagram
+in two images and the README overview in one. Each image was inspected. The command-flow
+capture was blocked. The revised wording has not been tried in a fresh Codex session.
+
+## Codex CLI smoke test and timing, 2026-11-27
+
+Working tree on `main` at `9c751a9`. The Codex CLI skill now groups a known smoke test in
+one shell launch, verifies each move before the next, and records CLI elapsed time and
+TabGoblin diagnostics separately. It also says to wait for a pending shell approval before
+starting another. The live rerun on the configured port passed navigation and restored the
+GitHub tab. The isolated package build passed. The long delay before shell launch is outside
+the skill's control.
+
+## Codex MCP skill examples, 2026-11-27
+
+Working tree on `main` at `9c751a9`, not committed. On the owner's request, the Codex MCP
+skill has a quick start, a tool chooser, examples for reading, repository browsing and build
+logs, a browsing smoke-test checklist, and guidance on timing diagnostics. The additions sit
+in the Codex section; the common text, other agents, CLI skills and `openai.yaml` are unchanged.
+`SkillsTest` passed, 9 of 9; `mvn package` passed in a copy, 244 tests with none skipped.
+The preceding smoke test used seven MCP tools on the repository
+in the owner's authorized GitHub tab; it did not test writing, submissions or automatic skill
+selection. **Next:** review the skill edit; the revised skill has not been tried in a fresh agent.
+
 ## The diagrams looked at again for alignment and wording, 2026-11-27
 
 On branch `ccr-7d9f8e27-k7i1f9`, made from `main` at `f6fe056`, documentation only. Every picture rendered and looked at. In the SVG pictures (`build.mjs`): the legends' gaps are even (each word's width is estimated, where a fixed width per letter left wide gaps after long words); in the components, the loopback label no longer touches the interfaces' box and the agent's labels have room; in the checks, the "yes" above the authorized tab no longer sits on the extension's box, the result's ENFORCED and BEST EFFORT stand on the lines they name, the note beside it is centred, and the session check reads "not paused or suspended"; in the security boundary the fork is coloured as in the overview, so no slate line leads to what is out of reach. In the Mermaid diagrams: notes that ran out of their box span two participants, the submission's long note is in three lines, the submission's states lead their non-submissions to one *Not submitted* state where six lines crossed the diagram to the end marker, and five messages are reworded. **Next:** the owner's look and commit; the pages on GitHub, whose Mermaid version was not tried here.

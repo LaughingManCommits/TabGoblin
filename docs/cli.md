@@ -98,6 +98,7 @@ The tool's own name is taken as well (`tabgoblin browser_click …`). One more c
 | Tool arguments | The tool's input, each by its name in the [tool reference](tool-reference.md): `--ref 12`, `--max-lines 40` (a dash may stand for an underscore), or `--links=none`. A boolean needs no value: `--diff`, and `--diff=false` to say no. An array or an object is given as JSON: `--refs '[3,8]'` |
 | `--args <json>` | All arguments as one JSON object. `--args -` reads it from standard input and `--args-file <path>` from a file: for text with quotes or line breaks, and where a shell's quoting is in the way (on Windows above all). Single arguments given beside it come on top |
 | `--out <path>` | With `screenshot`: the image is written to that file, and the answer names the file in place of the data |
+| `--plain` | The answer is printed as the text it is, in place of the JSON object: see [below](#the-answer-as-text) |
 | Server options | `--port`, `--token-file`, `--settings`, `--extension-origin`, `--panel` and `--no-panel`, as [for the server](developer-guide.md#settings). Only needed where the server was started with them: a command has to name the same port and token file to reach the same server |
 
 An argument the tool does not have, a value of another type, a value outside a fixed set and a
@@ -146,6 +147,31 @@ result. A command never asks anything in the terminal.
 | `image` | From `screenshot` | `mimeType` and `base64`; or under `--out`, `mimeType`, `file` and `bytes` |
 | `error` | When `ok` is false | `code`, one of the [error codes](tool-reference.md#errors), and `message` |
 | `outcome` | Only as `"unknown"` | The command was sent, and whether it took effect is not known |
+
+### The answer as text
+
+With `--plain` a command prints the tool's text as it is, with its lines as lines, the way an
+MCP client gets it. It is for an agent that reads the answer, where the JSON object is for a
+program that takes it apart: a page's text inside a JSON string has every line break and
+quotation mark escaped.
+
+```text
+$ tabgoblin extract --agent my-agent --find "installation" --plain
+Page: …
+Find: "installation" (literal, ignoring case): 3 of 168 lines match
+…
+$ tabgoblin fill --agent my-agent --ref 4 --text x --plain
+Error [WRITE_NOT_AUTHORIZED]: This needs Write access. …
+```
+
+- An answer is the `text` field and nothing else. For the tools that return an object, the
+  text is that object.
+- An error is the one line `Error [CODE]: message`, on standard output. A command line that
+  was not understood is answered so too (`Error [USAGE]: …`).
+- The exit code is the same as without the option, and it alone says that an outcome is
+  unknown (4).
+- `screenshot --plain` needs `--out`: the text then ends with a line `Image: <file> (<type>,
+  <n> bytes)`. Without `--out` it is refused before anything is sent.
 
 | Exit code | Meaning |
 |---|---|

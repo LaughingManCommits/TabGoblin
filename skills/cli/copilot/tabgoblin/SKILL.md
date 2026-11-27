@@ -61,6 +61,10 @@ reach another site from it, and you cannot widen it yourself.
   what to read; with `result`, an object, from the commands that act; and with `image` from
   `screenshot`. `"ok": false` comes with `error.code` and `error.message`. What a command
   writes beside the output is its log, not a result.
+- **The answer as text:** with `--plain` a command prints the text alone, with its lines as
+  lines, and an error as the one line `Error [CODE]: message`. Use it for what you read
+  yourself: it is shorter and easier to read than the object. The exit code is the same.
+  `screenshot` needs `--out <file>` with it.
 - **The exit code:** 0, it went through. 1, the command was refused or failed, as the code
   says. 2, the command line was wrong (`USAGE`) and nothing was sent: read the message and
   `--help`. 3, nothing was sent, because no server could be had (`NO_SERVER`), an agent of

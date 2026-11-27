@@ -3,6 +3,80 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `one-server-found-and-plain-answers` from `9c751a9`, not committed: a server on another port is found, `--plain`
+
+In a copy of the tree: `mvn -o package`, 250 tests, none failed or skipped, among them the new
+`RunningServersTest` (5) and one more in `CliTest` (16). In the tree: the extension's
+`npm test`, 219 passed; the link check, 312 links; the check for personal content, nothing
+found. With real processes and the copy's jar, in a folder of its own with its own token: a
+server started with `--port 41821` wrote `41821` into `servers`; `status` without `--port`
+answered from that server (`Listening on: ws://127.0.0.1:41821`), and nothing listened on
+47821 afterwards; `--plain` printed the text alone, and `Error [USAGE]: click needs --ref.`
+with exit code 2 for a wrong command line. The server was then ended by force, and its line
+stayed in the file, as it is meant to. Measured on this machine: `java -version` 1.15 s to
+1.17 s, a command's start 1.28 s, the same with `-XX:TieredStopAtLevel=1` and with a shared
+archive. Not run: end to end, `mvn verify`, anything in Codex, and a server ending in order
+(that its line is taken out is held by the unit test only).
+
+## 2026-11-27, working tree on `main` at `9c751a9`: both Codex skills cut to few calls
+
+`SkillsTest` passed, 9 of 9, run in the tree with `mvn -o test` (the jar was not rebuilt). A
+smoke test from Claude Code over MCP on the owner's GitHub tab in Explore, with the jar built
+at 18:16: status, snapshot, extract with find, screenshot (opened), scroll, hover, a link
+click, wait, collect and history back succeeded; a fill was refused with
+`WRITE_NOT_AUTHORIZED` and an address on another site with `NAVIGATION_BLOCKED`. Its
+diagnostics: the server 1 ms a call, the extension and page 16 ms in the median and 915 ms at
+most. A start of the jar for `status --help` took about 1.3 s, three times measured, once
+0.3 s. Not run: the other suites, `mvn package`, end to end, and anything in Codex.
+
+## 2026-11-27, working tree on `main` at `9c751a9`: Codex CLI workflow rewrite
+
+Live CLI run on the authorized GitHub tab in Explore. Status, navigation, link clicks,
+snapshots, extract outline, wait, screenshot, scrolling and bounded collection succeeded.
+Collection found 32 matching lines and reported its step limit. Hover and Escape were
+dispatched, with no visible change in the hover diff or confirmed key effect. The Components
+viewport capture was opened and inspected. The starting URL was restored. TabGoblin timed
+snapshots at 12–23 ms, the screenshot at 55 ms, and collection at 741 ms. Earlier live checks
+covered back, forward, reload, and a request from Read to Explore. No live typing or submission.
+
+Separately, the end-to-end suite in a copy used a disposable Chrome profile and local demo.
+It passed 117 steps including two temporary checks covering CLI navigation, keyboard, hover,
+scroll, collection, and access requests. Together the checks exercised all fourteen commands
+and included declined and approved submissions. The rewrite passed all 9 skill tests and
+244 package tests before the final clarification about live tests and dispatch evidence.
+Link, shared-text, whitespace, and personal-information checks passed on the final wording.
+No fresh-agent skill invocation was tested.
+
+## 2026-11-27, working tree on `main` at `9c751a9`: Codex CLI smoke test and timing
+
+On Windows, the CLI navigation smoke test passed in one shell launch using the running
+server and an authorized GitHub tab. Direct URL navigation, the docs link, history back
+and forward, and reload were confirmed with fresh snapshots. The original page was restored.
+TabGoblin recorded snapshots at 11–16 ms, history back and forward at 48–53 ms, and reload
+at 531 ms. End-to-end CLI timings include a new process per command and exclude the wait for
+the shell launch. An earlier launch request was dismissed when a second approval request
+superseded it. The revised skill calls for batching and one pending approval at a time.
+All 9 skill tests and 244 package tests passed in a copy. Link, whitespace and
+personal-information checks passed. The revised skill was not loaded in a fresh Codex
+session. The extension and end-to-end suites were not run.
+
+## 2026-11-27, working tree on `main` at `9c751a9`: Codex MCP skill examples
+
+Documentation only. `SkillsTest` passed, 9 of 9. `mvn package` passed in a copy with JDK 25,
+244 tests, no failures or skips; the running server's jar was not replaced. The examples were
+checked against `docs/tool-reference.md`; the shared MCP text is unchanged. Link check,
+311 links; personal-information and whitespace checks passed. The first sandboxed Maven
+attempt could not fetch a plugin; a second offline attempt could not access the dependency
+cache. Both checks passed with access to that cache. The skill-creator Python validator did
+not run because PyYAML is missing; the repository's skill structure tests passed.
+
+Before the edit, a manual smoke test used seven MCP tools on the authorized GitHub tab:
+status, snapshot, extract (outline and search), click, navigate (URL and history-back), scroll
+and screenshot (visually inspected). No tool errors; the longest recorded browser operation
+was 1.4 seconds. Delays before dispatch were recorded separately and their cause was not
+established. **Not run:** a fresh agent with the revised skill, automatic skill selection,
+writing or submissions, the extension suite, MCP conformance or end to end.
+
 ## 2026-11-27, branch `ccr-7d9f8e27-k7i1f9` from `f6fe056`: the diagrams' alignment and wording
 
 On Linux with Node 22 and this container's Chromium, no JDK run. Documentation only. `node docs/assets/diagrams/build.mjs` wrote the five pictures, each rendered in Chromium in light and dark and looked at, before and after. The ten Mermaid blocks parsed and rendered with Mermaid 11.4.1 in Chromium (default theme), and each render was looked at, before and after; the submission's state diagram was tried in three forms and the one with fewest crossings kept. Link check, 311 links; nothing personal (198 files). **Not run:** the suites (no product code changed); the dark theme for Mermaid; the pages on GitHub itself.

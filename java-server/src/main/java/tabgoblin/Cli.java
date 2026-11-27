@@ -68,7 +68,7 @@ final class Cli {
     static final Set<String> SERVER_VALUES = Set.of("--agent", "--port", "--token-file", "--extension-origin", "--settings");
     static final Set<String> SERVER_FLAGS = Set.of("--panel", "--no-panel");
     /** The options of the command line itself. */
-    static final Set<String> OWN = Set.of("--json", "--help", "-h", "--out", "--args", "--args-file");
+    static final Set<String> OWN = Set.of("--json", "--help", "-h", "--out", "--plain", "--args", "--args-file");
 
     private static final String PREFIX = "browser_";
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -79,7 +79,7 @@ final class Cli {
     }
 
     /** What a command line asks for. */
-    record Invocation(String tool, ObjectNode arguments, List<String> serverArgs, Path out, boolean help, boolean json) {
+    record Invocation(String tool, ObjectNode arguments, List<String> serverArgs, Path out, boolean help, boolean json, boolean plain) {
     }
 
     private final PrintStream out;
@@ -87,6 +87,8 @@ final class Cli {
     private final Links links;
     private final InputStream stdin;
     private long answerWithin = ANSWER_WITHIN_MS;
+    /** The command line asked for the answer as text, with --plain: said of an answer and of a failure alike. */
+    private volatile boolean plain;
 
     /** The command that is running: its tool and the way to the link, from when it was sent to when it was answered. */
     private volatile String running;
@@ -170,11 +172,13 @@ final class Cli {
                 + "from standard input. Single arguments given beside it come on top.");
         options.put("--args-file <path>", "The same, read from a file.");
         options.put("--out <path>", "With screenshot: write the image to this file, and say its path in place of the base64 data.");
+        options.put("--plain", "Print the answer as the text it is, as an MCP client gets it, in place of the JSON object: for an agent "
+                + "that reads it. An error is the one line Error [CODE]: message, and the exit code says the rest. With screenshot it needs --out.");
         options.put("--help", "After a command: its description and arguments as text.");
         ObjectNode output = all.putObject("output");
         output.put("stdout", "One JSON object. ok:true with text, and result (the object of a tool that returns one) or image "
                 + "(mimeType with base64, or with file under --out). ok:false with error.code and error.message, and "
-                + "outcome:\"unknown\" where it is not known whether the command took effect.");
+                + "outcome:\"unknown\" where it is not known whether the command took effect. Under --plain, the text alone.");
         output.put("stderr", "Diagnostics: the server's log lines for this agent. Never part of the result.");
         ObjectNode codes = all.putObject("exitCodes");
         codes.put("0", "The tool answered, and not with an error.");
@@ -214,6 +218,7 @@ final class Cli {
             said.append("      ").append(about.path("description").asString("")).append('\n');
         }
         said.append("\nAll arguments at once: --args '<json object>', --args - (standard input) or --args-file <path>.\n");
+        said.append("The answer as text in place of the JSON object: --plain.\n");
         return said.toString();
     }
 
@@ -249,6 +254,7 @@ final class Cli {
         Path file = null;
         boolean help = false;
         boolean json = false;
+        boolean plain = false;
         for (int i = 1; i < args.length; i++) {
             String arg = args[i];
             String inline = null;
@@ -268,6 +274,8 @@ final class Cli {
                 help = true;
             } else if (arg.equals("--json")) {
                 json = true;
+            } else if (arg.equals("--plain")) {
+                plain = true;
             } else if (arg.equals("--out")) {
                 file = Path.of(value(arg, next));
                 i += inline == null ? 1 : 0;
@@ -296,7 +304,7 @@ final class Cli {
             }
         }
         if (listing) {
-            return new Invocation(null, given, serverArgs, null, help, json);
+            return new Invocation(null, given, serverArgs, null, help, json, plain);
         }
         ObjectNode arguments = JSON.createObjectNode();
         if (whole != null) {
@@ -320,7 +328,10 @@ final class Cli {
         if (file != null && !tool.name().equals("browser_screenshot")) {
             throw new McpMain.UsageException("--out goes with screenshot: no other command returns an image.");
         }
-        return new Invocation(tool.name(), arguments, serverArgs, file, help, json);
+        if (plain && !help && file == null && tool.name().equals("browser_screenshot")) {
+            throw new McpMain.UsageException("screenshot --plain needs --out <path>: an image is not text.");
+        }
+        return new Invocation(tool.name(), arguments, serverArgs, file, help, json, plain);
     }
 
     private static String value(String option, String next) throws McpMain.UsageException {
@@ -411,6 +422,8 @@ final class Cli {
     int run(String[] args, UnaryOperator<String> environment) {
         Invocation asked;
         McpMain.Options options;
+        // Known before the command line is read as a whole: one that is not understood is answered the way it asked, too.
+        plain = java.util.Arrays.asList(args).contains("--plain");
         try {
             asked = parse(args);
             options = McpMain.Options.parse(asked.serverArgs().toArray(String[]::new), environment);
@@ -615,6 +628,18 @@ final class Cli {
             int exit = unknown ? EXIT_UNKNOWN : code.equals("INTERFACE_NOT_ALLOWED") ? EXIT_NO_SERVER : EXIT_FAILED;
             return fail(tool, code, message, unknown, exit);
         }
+        if (plain) {
+            // The text as an MCP client gets it. A picture is in its file: the command line was held to --out.
+            out.println(text);
+            JsonNode picture = answer.path("image");
+            if (picture.isObject() && asked.out() != null) {
+                byte[] bytes = java.util.Base64.getDecoder().decode(picture.path("base64").asString(""));
+                Files.write(asked.out(), bytes);
+                out.println("Image: " + asked.out().toAbsolutePath() + " (" + picture.path("mimeType").asString("") + ", "
+                        + bytes.length + " bytes)");
+            }
+            return EXIT_OK;
+        }
         ObjectNode said = JSON.createObjectNode();
         said.put("ok", true);
         said.put("tool", tool);
@@ -641,6 +666,12 @@ final class Cli {
 
     /** Prints an error as the one JSON object of this command: on the output for the agent, and in a line for a person. */
     private int fail(String tool, String code, String message, boolean unknown, int exit) {
+        if (plain) {
+            // One line, as a tool's error reads for an MCP client. Whether the outcome is unknown is the exit code's to say.
+            out.println("Error [" + code + "]: " + message);
+            out.flush();
+            return exit;
+        }
         ObjectNode said = JSON.createObjectNode();
         said.put("ok", false);
         if (tool != null) {

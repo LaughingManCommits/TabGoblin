@@ -24,6 +24,60 @@ how much you may do there.
 - A call to these tools may need the user's approval in Codex. That is beside what the user
   decides in TabGoblin's popup, and does not replace it.
 
+### Quick start
+
+Every call is a turn of yours, so a task is quick when it takes few calls and small results.
+To read:
+
+```text
+browser_status {}
+browser_extract {"main_only":true,"find":"installation","context_lines":3}
+```
+
+To act, get the refs once and act on them:
+
+```text
+browser_snapshot {"interactive_only":true,"max_lines":100}
+browser_click {"ref":12}
+```
+
+Ref 12 is an example: use a ref from your own snapshot. With one authorized tab leave
+`session` out; with several, pass the id that status gave to every tool.
+
+- **Read with `browser_extract`, not with a snapshot.** A snapshot is for refs.
+- **Read what an action answers.** `browser_click` and `browser_navigate` return the address
+  and title the tab is at afterwards. Take a new snapshot only when you need refs from the new
+  page; when the page stayed, ask for `diff: true`.
+- **Go straight.** If you know the address, `browser_navigate` there instead of clicking
+  through. For what loads on scrolling, one `browser_collect` instead of scrolling and reading
+  in turns.
+- **Do not ask twice.** Call `browser_status` once at the start, and again only after a
+  refusal. Do not repeat a call to confirm a result you already have.
+- **Stop when you have what the user asked for.** An example is no permission: click, enter
+  and submit only what the task calls for.
+
+### Choose a tool
+
+| What you need | Call |
+|---|---|
+| Connection, authorized tabs and access | `browser_status` |
+| Text already loaded on the page | `browser_extract` with `main_only: true` |
+| A phrase or a failure marker | `browser_extract` with `find` and `context_lines` |
+| A section of a long page | `browser_extract` with `outline: true`, then the same with `ref` from that outline |
+| More content loaded by scrolling or in pages | `browser_collect` with `max_steps` and `max_chars` |
+| Refs for the next action | `browser_snapshot` with `interactive_only: true`; narrow with `ref` |
+| A link or an expandable control | `browser_click` with a ref from your latest snapshot |
+| An address on the authorized website, or history | `browser_navigate` |
+| A page still loading or a status changing | `browser_wait_for` with a text or ref you saw, and a timeout |
+| Layout, an image or a chart | `browser_screenshot`; look at it before describing it |
+
+To read on, use the line a result gives (`offset` for an extract, `start_line` for a
+snapshot) and keep the same scope, such as `main_only` or `ref`.
+
+For a smoke test the user asks for, go through status, one snapshot, a link, an extract with
+`find`, a scroll, a screenshot and history back, as the access permits. Say what passed, what
+failed and what was not tried. Enter and submit nothing unless the user asked for exactly that.
+
 ## Start with the status
 
 1. Call `browser_status`. It says whether the extension is connected and lists your sessions:

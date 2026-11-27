@@ -133,6 +133,18 @@ before it starts one; the extension looks at every range while no server is conn
 only at the server's range while one is (`rangesToScan`). A first port the user set, with
 `--port` or in the popup, is the only one that is tried.
 
+**When one agent's setup names a port and another's does not.** A server on a port of the
+user's own is not on that list, and an agent set up without a port would start a second
+server beside it, which the browser never comes to. So a server writes its first port into
+the file `servers`, beside the pairing token, when it has opened, and takes it out when it
+ends in order (`RunningServers`). A link or a command without a port of its own looks there
+before it looks at the list, and goes to a server that answers on a port from it. The file
+decides nothing by itself: a port from it is used only where something opens with the
+server's greeting, and the two proofs of the pairing token follow on that connection as on any
+other. The line of a server that was ended by force is passed over, because nothing answers
+there. A link or a command that names a port still looks at that port and no other, so two
+agents set up with two different ports have two servers, and the browser is at one of them.
+
 Both listen on `127.0.0.1` only. Agents share the process and nothing else: no tool tells one
 agent anything about another.
 

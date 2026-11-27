@@ -207,7 +207,7 @@ class CliTest {
         }
         // No argument of a tool is taken for an option of the server or of the command line.
         for (String own : List.of("--agent", "--port", "--token-file", "--extension-origin", "--settings", "--panel", "--no-panel",
-                "--json", "--help", "--out", "--args", "--args-file")) {
+                "--json", "--help", "--out", "--plain", "--args", "--args-file")) {
             assertFalse(options.contains(own), own);
         }
         assertNull(Cli.toolOf("evaluate"));
@@ -348,6 +348,43 @@ class CliTest {
         assertEquals(file.toAbsolutePath().toString(), written.said().path("image").path("file").asString());
         assertEquals(3, written.said().path("image").path("bytes").asInt());
         assertFalse(written.said().path("image").has("base64"));
+    }
+
+    @Test
+    void underPlainTheAnswerIsItsTextAndAnErrorIsOneLine(@TempDir Path dir) throws Exception {
+        Hub hub = hub(dir);
+        FakeExtension ext = firstCommand(hub, "ide");
+        ext.responder = cmd -> FakeExtension.ok(cmd, JSON.createObjectNode().put("text", "First line\nSecond \"line\""));
+        Ran read = run("snapshot", "--agent", "ide", "--plain");
+        assertEquals(Cli.EXIT_OK, read.exit(), read.printed());
+        assertTrue(read.printed().contains("First line\nSecond \"line\""), "the text as it is, its lines as lines: " + read.printed());
+        assertFalse(read.printed().contains("\"ok\""), "and no object around it: " + read.printed());
+        // The same answer without the option, for what the option leaves out.
+        assertEquals(run("snapshot", "--agent", "ide").said().path("text").asString().strip(), read.printed());
+
+        // A refusal is the line an MCP client reads, and the exit code is what it is without the option.
+        ext.responder = cmd -> FakeExtension.fail(cmd, "WRITE_NOT_AUTHORIZED", "This session may not write.");
+        Ran refused = run("fill", "--agent", "ide", "--ref", "4", "--text", "x", "--plain");
+        assertEquals(Cli.EXIT_FAILED, refused.exit());
+        assertTrue(refused.printed().startsWith("Error [WRITE_NOT_AUTHORIZED]: "), refused.printed());
+        assertEquals(1, refused.printed().lines().count(), refused.printed());
+
+        // A command line that is not understood is answered the way it asked.
+        Ran wrong = run("click", "--agent", "ide", "--plain");
+        assertEquals(Cli.EXIT_USAGE, wrong.exit());
+        assertTrue(wrong.printed().startsWith("Error [USAGE]: "), wrong.printed());
+
+        // A picture is not text: it has to have a file, which the text then names.
+        Ran nowhere = run("screenshot", "--agent", "ide", "--plain");
+        assertEquals(Cli.EXIT_USAGE, nowhere.exit());
+        assertTrue(nowhere.printed().contains("--out"), nowhere.printed());
+        ext.responder = cmd -> FakeExtension.ok(cmd, JSON.createObjectNode().put("data", "QUJD").put("mimeType", "image/jpeg"));
+        Path file = dir.resolve("plain.jpg");
+        Ran shot = run("screenshot", "--agent", "ide", "--plain", "--out", file.toString());
+        assertEquals(Cli.EXIT_OK, shot.exit(), shot.printed());
+        assertEquals("ABC", Files.readString(file));
+        assertTrue(shot.printed().contains("Image: " + file.toAbsolutePath() + " (image/jpeg, 3 bytes)"), shot.printed());
+        assertFalse(shot.printed().contains("QUJD"), "and nothing of the picture is in the text");
     }
 
     @Test

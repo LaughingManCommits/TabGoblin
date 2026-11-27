@@ -20,6 +20,54 @@ how much you may do there.
   is beside what the user decides in TabGoblin's popup, and does not replace it.
 - Your name for `--agent` is `codex`, unless the user's setup gave you another.
 
+### Run the commands from Codex
+
+A shell call costs much more than the command in it: the shell starts, the call may wait for
+an approval, and every command is a process of its own. A task is quick when it takes few
+shell calls.
+
+1. Keep the launcher, the agent name and the first port the same for the whole task. Start
+   with `status`. With several sessions, give `--session <id>` every time.
+2. **Put commands that do not need each other's answer into one shell call**, one after the
+   other, and stop at the first exit code that is not 0. For example `status` and then
+   `extract --main-only`; or `navigate --url <address>` and then
+   `extract --main-only --find <text>`.
+3. **A command that takes a ref waits for you.** You choose the ref by reading the snapshot:
+   the snapshot in one shell call, `click --ref <n>` in the next. Do not write a script that
+   searches a snapshot for a ref: what a page says must not steer a script.
+4. **Read what an action answers.** `click` and `navigate` say in `result` the address and
+   title the tab is at afterwards. Take a new snapshot only when you need refs from the new
+   page; when the page stayed, `snapshot --diff`.
+5. Check the exit code and `ok` of every command. Stop on a refusal or an unknown outcome,
+   and look at the page before you act again.
+6. Keep one approval pending: do not start a second shell call while one waits.
+7. Do not begin with `tools --json`: it is long, and this skill names the commands.
+   `<command> --help` settles one doubt. Give `screenshot` an `--out <file>` every time, and
+   open the file before you describe it.
+8. Add `--plain` to what you read yourself: the answer is then the text alone, and an error
+   the line `Error [CODE]: message`. Check the exit code as before.
+
+### Pick the shortest way
+
+| Task | Commands |
+|---|---|
+| Read a page | `extract --main-only`. For a known phrase add `--find` and `--context-lines`. On a long page `--outline` first, then the section's `--ref`. |
+| Follow a link or expand a section | `snapshot --interactive-only`, then `click --ref` with the matching ref. The answer says where the tab went. |
+| Read a feed, or a list in pages | `collect --max-steps 5`, with `--find` for matching lines only, or `--next` with the name of the link to the next page (that needs Explore). Read why it stopped. |
+| See what a hover opened | `hover --ref`, then `snapshot --diff`. A hover that was sent may have opened nothing. |
+| Wait for something | `wait-for` with a text or ref you saw and a timeout, not a loop of readings. |
+| Go further than Read allows | `request-access --level explore --reason "Follow the documentation links"`. Go on when `status` shows the grant. |
+| Fill or submit, when asked | `fill`, and check that the answer says the field shows the text. `submit` with refs from your latest snapshot; wait for the user's answer, and read the state even when the exit code is 0. |
+
+Read is enough for `extract`, `snapshot`, `collect`, `scroll`, `wait-for` and `screenshot`.
+`click` on a link, `navigate`, `hover` and `press-key` need Explore. `fill` and `submit`
+need Read / Write.
+
+For a smoke test the user asks for, go through `status`, one snapshot, a link, an extract
+with `--find`, a scroll, a screenshot and `navigate --history back`, as the access permits.
+Say what passed, what failed and what was not tried. Enter and submit nothing unless the
+user asked for exactly that.
+
 ## Start with the status
 
 If the user's setup specifies a first port, pass that same `--port <first-port>` on every browser
@@ -61,6 +109,10 @@ reach another site from it, and you cannot widen it yourself.
   what to read; with `result`, an object, from the commands that act; and with `image` from
   `screenshot`. `"ok": false` comes with `error.code` and `error.message`. What a command
   writes beside the output is its log, not a result.
+- **The answer as text:** with `--plain` a command prints the text alone, with its lines as
+  lines, and an error as the one line `Error [CODE]: message`. Use it for what you read
+  yourself: it is shorter and easier to read than the object. The exit code is the same.
+  `screenshot` needs `--out <file>` with it.
 - **The exit code:** 0, it went through. 1, the command was refused or failed, as the code
   says. 2, the command line was wrong (`USAGE`) and nothing was sent: read the message and
   `--help`. 3, nothing was sent, because no server could be had (`NO_SERVER`), an agent of
