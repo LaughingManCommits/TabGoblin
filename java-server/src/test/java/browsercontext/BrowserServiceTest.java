@@ -940,4 +940,27 @@ class BrowserServiceTest {
         assertTrue(text.contains("Access requested, waiting for the user: write on session s1"), text);
         assertTrue(text.contains("Access requested, waiting for the user: read on https://ci.example"), text);
     }
+
+    @Test
+    void anAgentOfAnInterfaceTheSettingsTurnedOffIsToldByEveryToolAndNothingIsSent() throws Exception {
+        BlockedSites.Rule mcpOff = new BlockedSites.Rule(java.util.List.of(), null,
+                new BlockedSites.Limits(false, java.util.List.of(), true, BlockedSites.Access.WRITE, 0, 0, true, false));
+        bridge.blockedSites(() -> mcpOff);
+        // This service is an MCP agent's: the settings changed under it.
+        BrowserService.ToolResult told = service.call("browser_snapshot", args());
+        assertTrue(told.isError());
+        assertEquals("INTERFACE_NOT_ALLOWED", told.code());
+        assertTrue(told.text().contains("MCP is off") && told.text().contains("interfaces = cli") && told.text().contains("tell the user"), told.text());
+        assertTrue(ext.commands.isEmpty(), "nothing went to the browser");
+        // An agent of the command line is not touched by it.
+        BrowserService commands = new BrowserService(bridge, null, () -> BrowserService.Unpaired.NOTHING_KNOWN, null, true);
+        assertFalse(commands.call("browser_status", args()).isError());
+        BlockedSites.Rule cliOff = new BlockedSites.Rule(java.util.List.of(), null,
+                new BlockedSites.Limits(false, java.util.List.of(), true, BlockedSites.Access.WRITE, 0, 0, false, true));
+        bridge.blockedSites(() -> cliOff);
+        assertEquals("INTERFACE_NOT_ALLOWED", commands.call("browser_status", args()).code());
+        assertFalse(service.call("browser_status", args()).isError());
+        // The status says what holds.
+        assertTrue(service.call("browser_status", args()).text().contains("the command line is off"));
+    }
 }

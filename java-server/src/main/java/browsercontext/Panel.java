@@ -753,6 +753,52 @@ final class Panel {
     // ---------------------------------------------------------------- the view
 
     /**
+     * One interface in the header: {@code CLI} or {@code MCP}, as a pill. While agents may come that
+     * way it has the accent colours, as the port's pill has. Where the settings have it off it has
+     * the colours of a refusal and a sign in front of its name: a ring with a bar through it, drawn
+     * from shapes and not a character of a font, which looks different on each system or is missing.
+     * Under the mouse it says why, and where the settings file is.
+     */
+    static final class WayLabel extends Label {
+        private final Tooltip tip = new Tooltip();
+        private final StackPane sign = new StackPane();
+        private Boolean on;
+
+        WayLabel() {
+            getStyleClass().addAll("chip", "way");
+            setTooltip(tip);
+            setMinWidth(Region.USE_PREF_SIZE);
+            var ring = new javafx.scene.shape.Circle(4.5);
+            ring.getStyleClass().add("ring");
+            var bar = new javafx.scene.shape.Line(-3.2, 3.2, 3.2, -3.2);
+            bar.getStyleClass().add("bar");
+            sign.getStyleClass().add("no-entry");
+            sign.getChildren().addAll(ring, bar);
+            sign.setMinSize(11, 11);
+            sign.setPrefSize(11, 11);
+            sign.setMaxSize(11, 11);
+            setGraphicTextGap(4);
+        }
+
+        /** Shows the state of one interface, as the model has it. */
+        void show(PanelModel.Blocked blocked, boolean ofCli) {
+            boolean now = blocked.on(ofCli);
+            setText(blocked.pill(ofCli));
+            if (on == null || on != now) {
+                on = now;
+                getStyleClass().removeAll("on", "off");
+                getStyleClass().add(now ? "on" : "off");
+                setGraphic(now ? null : sign);
+                setAccessibleText(blocked.pill(ofCli) + (now ? ": on" : ": off, no agent is let in this way"));
+            }
+            String words = blocked.interfaceExplained(ofCli);
+            if (!words.equals(tip.getText())) {
+                tip.setText(words);
+            }
+        }
+    }
+
+    /**
      * Everything the window shows, as one tree of nodes, so that it can also be drawn without a
      * window: for a picture. It is made and used on JavaFX's thread.
      */
@@ -769,6 +815,9 @@ final class Panel {
                 + "under Connection. Click to copy " + port + ".");
         /** The port of the one agent a server has: where the extension reaches that agent, in the line about that. A click copies it. */
         private final PortLabel agentPort = new PortLabel("chip");
+        /** The two interfaces, in the header: each a pill, green while agents may come that way, red with a sign where it is off. */
+        private final WayLabel cliWay = new WayLabel();
+        private final WayLabel mcpWay = new WayLabel();
         private final Region dot = new Region();
         private final Label connection = label("");
         private final Label problem = label("", "problem");
@@ -840,7 +889,13 @@ final class Panel {
             close.setAccessibleText("Close. Hides the window; the server keeps running.");
             close.setVisible(false);
             close.setManaged(false);
-            header.getChildren().addAll(mascot.node(), new VBox(label("TabGoblin server", "title"), new HBox(6, agent, firstPort)), grow(), minimize, close);
+            // The two interfaces stand beside the title, where there is room: the line below keeps the agent's name whole.
+            var title = label("TabGoblin server", "title");
+            // The title and the pills are never cut: the line below gives way, as it did before the pills.
+            title.setMinWidth(Region.USE_PREF_SIZE);
+            var titleRow = new HBox(8, title, cliWay, mcpWay);
+            titleRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            header.getChildren().addAll(mascot.node(), new VBox(titleRow, new HBox(6, agent, firstPort)), grow(), minimize, close);
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
@@ -1131,6 +1186,8 @@ final class Panel {
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */
         void show(PanelModel model) {
             firstPort.showing("Port " + model.firstPort(), model.firstPort());
+            cliWay.show(model.blocked(), true);
+            mcpWay.show(model.blocked(), false);
             agent.setText(model.identity());
             // One agent: its port ends the line about its connection. Several have theirs in their rows.
             // Only where it is another than the port in the header: the same number twice says nothing.
@@ -1365,8 +1422,13 @@ final class Panel {
             var id = label(member.id(), "chip");
             id.setStyle("-fx-font-family: '" + monospace() + "';");
             id.setMinWidth(Region.USE_PREF_SIZE);
+            // Which way the agent comes: by commands of the command line, or by MCP.
+            var way = label(member.way(), "chip", "way", "on");
+            way.setMinWidth(Region.USE_PREF_SIZE);
+            way.setTooltip(new Tooltip(member.byCommands() ? "This agent runs the tools as commands of the command line."
+                    : "This agent is an MCP client."));
             var name = label(member.name(), "agent-name");
-            var row = new HBox(name, grow(), id);
+            var row = new HBox(4, name, grow(), way, id);
             if (!member.connected()) {
                 var state = label("not connected", "chip", "state");
                 state.setMinWidth(Region.USE_PREF_SIZE);

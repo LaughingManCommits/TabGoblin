@@ -177,6 +177,13 @@ final class PanelPictures {
                         new BlockedSites.Limits(true, List.of("ci.example.org"), false, BlockedSites.Access.EXPLORE, 240, 20))), false),
                 new State("19-policy-alone", blocked(sessions, times, log, new BlockedSites.Rule(List.of(), null,
                         new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0))), false),
+                // MCP off by the settings: its pill in the header is red with the no-entry sign, the CLI's is
+                // green, the one agent is one of the command line, and the log says that an MCP start was turned away.
+                new State("21-cli-only", PanelModel.of(List.of(new PanelModel.Facts("ide (command line)", "c-7240df8e", 47821, null, true,
+                        NOW - 498_000, 0, sessions.subList(0, 1), times, java.util.Map.of(), null, true)),
+                        Link.port(47821), McpMain.version(), false, withTurnedAway(log), ZONE, new BlockedSites.Rule(List.of(), null,
+                                new BlockedSites.Limits(false, List.of(), true, BlockedSites.Access.WRITE, 0, 0, true, false)),
+                        "~/.browser-context-mcp/tabgoblin.properties", 1), false),
                 // Someone reads in the log, scrolled up to its first line, and seven lines have come since:
                 // it stands still, and its corner says so, with the way to the newest line.
                 connected.held("16-log-held", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, later(log))),
@@ -184,6 +191,13 @@ final class PanelPictures {
                 // says at its top what the user has to do, with the button that copies the token.
                 new State("17-another-token", model("claude-code", null, false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of(), none,
                         log.subList(0, 2)), false));
+    }
+
+    /** The same lines, and an MCP agent turned away. */
+    private static List<Log.Line> withTurnedAway(List<Log.Line> log) {
+        var more = new java.util.ArrayList<>(log);
+        more.add(line(-3, "warn", "MCP agent turned away reason=interface_off interfaces=cli"));
+        return more;
     }
 
     /** The same lines, and seven calls more. */

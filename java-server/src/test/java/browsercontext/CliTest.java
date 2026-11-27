@@ -198,7 +198,8 @@ class CliTest {
             for (String name : List.of(command, command.replace('-', '_'), tool.name())) {
                 assertEquals(tool.name(), Cli.toolOf(name).name(), name);
             }
-            String help = Cli.help(tool);
+            // The MCP tool and the command are the one definition: the same by name on both sides.
+            String help = Cli.help(ToolDefs.named(tool.name()));
             for (String property : ((Map<?, ?>) tool.inputSchema().get("properties")).keySet().toArray(String[]::new)) {
                 options.add("--" + property.replace('_', '-'));
                 assertTrue(help.contains("--" + property.replace('_', '-') + " <"), tool.name() + " " + property);
@@ -518,5 +519,22 @@ class CliTest {
         idle.cli.cancelled();
         assertEquals("", idle.out.toString(StandardCharsets.UTF_8));
         assertEquals(1, hub.agents().size(), "the agent stays for its next command");
+    }
+
+    @Test
+    void whereTheSettingsHaveTheCommandLineOffNothingIsSentAndTheCommandSaysWhy(@TempDir Path dir) throws Exception {
+        Hub hub = hub(dir);
+        firstCommand(hub, "ide");
+        Path settings = dir.resolve("settings.properties");
+        Files.writeString(settings, "interfaces = mcp\n", StandardCharsets.UTF_8);
+        Ran ran = run("status", "--agent", "ide", "--settings", settings.toString());
+        assertEquals(Cli.EXIT_NO_SERVER, ran.exit(), ran.printed());
+        assertEquals("INTERFACE_NOT_ALLOWED", ran.code());
+        assertTrue(ran.said().path("error").path("message").asString().contains("nothing was sent"), ran.printed());
+        assertFalse(ran.said().has("outcome"));
+        assertEquals(1, hub.agents().size(), "the agent that was there is left as it was");
+        // With MCP off a command is as it always was.
+        Files.writeString(settings, "interfaces = cli\n", StandardCharsets.UTF_8);
+        assertEquals(Cli.EXIT_OK, run("status", "--agent", "ide", "--settings", settings.toString()).exit());
     }
 }

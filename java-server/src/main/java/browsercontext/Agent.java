@@ -87,17 +87,20 @@ final class Agent {
      */
     static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
             Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity) {
-        Agent agent = open(settings, held, unpaired, identity);
+        Agent agent = open(settings, held, unpaired, identity, false);
         agent.mcp = agent.converse(in, out, onInputEnd);
         return agent;
     }
 
     /**
-     * An agent with its connection to the extension and its tools, and no conversation yet: for an
-     * agent that comes by commands ({@link Cli}). Each command is a conversation of its own
-     * ({@link #converse}), and the agent stays between them.
+     * An agent with its connection to the extension and its tools, and no conversation yet. For an
+     * agent that comes by commands ({@link Cli}) each command is a conversation of its own
+     * ({@link Commands}), and the agent stays between them.
+     *
+     * @param byCommands the agent comes by commands of the command line, and not by MCP
      */
-    static Agent open(Settings settings, boolean held, Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity) {
+    static Agent open(Settings settings, boolean held, Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity,
+            boolean byCommands) {
         WebSocketBridge bridge = null;
         String startupProblem = null;
         String startupLogged = null;
@@ -121,7 +124,7 @@ final class Agent {
             bridge.setHeld(true);
         }
         bridge.blockedSites(settings.blocked());
-        BrowserService service = new BrowserService(bridge, startupProblem, unpaired, identity);
+        BrowserService service = new BrowserService(bridge, startupProblem, unpaired, identity, byCommands);
         return new Agent(bridge, startupProblem, startupLogged, listening, service, null);
     }
 

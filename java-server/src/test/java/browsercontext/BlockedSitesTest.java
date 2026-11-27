@@ -216,4 +216,28 @@ class BlockedSitesTest {
         assertNull(rule.outside(java.util.Arrays.asList("", null)));
         assertNull(BlockedSites.Rule.NONE.outside(List.of("https://anything.example")));
     }
+
+    @Test
+    void theInterfacesAreReadFromTheFileAndNamingNoneTakesNothingAway(@TempDir Path dir) throws Exception {
+        assertTrue(BlockedSites.Limits.NONE.cli() && BlockedSites.Limits.NONE.mcp());
+        assertEquals("cli, mcp", BlockedSites.Limits.NONE.interfaces());
+        BlockedSites.Limits cliOnly = policy(dir, "interfaces = CLI\n").limits();
+        assertTrue(cliOnly.cli());
+        assertFalse(cliOnly.mcp());
+        assertTrue(cliOnly.allows(true) && !cliOnly.allows(false));
+        assertEquals("CLI only", cliOnly.inShort());
+        assertEquals("agents come by the command line only (MCP is off)", cliOnly.summary());
+        BlockedSites.Limits mcpOnly = policy(dir, "interfaces = mcp\n").limits();
+        assertFalse(mcpOnly.cli());
+        assertTrue(mcpOnly.mcp());
+        assertEquals("MCP only", mcpOnly.inShort());
+        assertTrue(mcpOnly.summary().contains("the command line is off"), mcpOnly.summary());
+        // Both named, or none: nothing is taken away, and the rule is no rule.
+        assertEquals(BlockedSites.Limits.NONE, policy(dir, "interfaces = cli, mcp\n").limits());
+        assertEquals(BlockedSites.Rule.NONE, policy(dir, "interfaces =\n"));
+        // A word that is neither is not taken for either: everything is refused until it is mended.
+        BlockedSites.Rule slip = policy(dir, "interfaces = http\n");
+        assertTrue(slip.everything());
+        assertTrue(slip.unreadable().contains("interfaces"), slip.unreadable());
+    }
 }

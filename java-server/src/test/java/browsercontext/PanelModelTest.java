@@ -290,9 +290,9 @@ class PanelModelTest {
         assertEquals("2 agents", shown.agent());
         assertEquals("2 agents", shown.identity());
         assertEquals(List.of(
-                new PanelModel.Member("c-11111111", "claude-code", 47821, true, "Connected to the browser since 12:00:00", 2),
+                new PanelModel.Member("c-11111111", "claude-code", 47821, true, "Connected to the browser since 12:00:00", 2, false),
                 new PanelModel.Member("c-22222222", "Agent c-22222222", 47822, false,
-                        "Not connected: disconnected in the extension's popup", 0)), shown.agents());
+                        "Not connected: disconnected in the extension's popup", 0, false)), shown.agents());
         // The dot is green only when every agent is connected, and the line says how many are.
         assertFalse(shown.connected());
         assertEquals("1 of 2 agents is connected to the browser", shown.connection());
@@ -528,5 +528,51 @@ class PanelModelTest {
                 new BlockedSites.Rule(List.of(), "\"admin\" in access.max is none of read, explore, write", limits), file).blocked();
         assertEquals("Blocked sites", broken.heading());
         assertFalse(broken.restricts());
+    }
+
+    @Test
+    void theWindowShowsEachInterfaceAsAPillAndMarksEachAgentByTheWayItComes() {
+        var facts = List.of(
+                new PanelModel.Facts("claude-code", "a-0123456789ab", 47821, null, true, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), Map.of(), null, false),
+                new PanelModel.Facts("ide (command line)", "a-ba9876543210", 47822, null, true, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), Map.of(), null, true));
+        String file = "/somewhere/tabgoblin.properties";
+        // Without a word in the settings both are on, and each agent is marked by the way it comes.
+        PanelModel both = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        assertTrue(both.blocked().on(true) && both.blocked().on(false));
+        assertEquals("CLI", both.blocked().pill(true));
+        assertEquals("MCP", both.blocked().pill(false));
+        assertEquals(List.of("MCP", "CLI"), both.agents().stream().map(PanelModel.Member::way).toList());
+        assertTrue(both.blocked().interfaceExplained(false).contains("Agents may come by MCP"), both.blocked().interfaceExplained(false));
+
+        // MCP off: its pill is off and says why, where the file is, and how many starts were turned away; the CLI's is on.
+        var cliOnly = new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), true, BlockedSites.Access.WRITE, 0, 0, true, false));
+        PanelModel.Blocked off = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, cliOnly, file, 2).blocked();
+        assertTrue(off.on(true));
+        assertFalse(off.on(false));
+        assertEquals(2, off.turnedAway());
+        String under = off.interfaceExplained(false);
+        for (String part : List.of("MCP is off by the settings file", "interfaces = cli", "No MCP agent is let in", "2 MCP starts were turned away", file)) {
+            assertTrue(under.contains(part), part + " in: " + under);
+        }
+        assertEquals("Policy: CLI only", off.policyLine());
+        assertTrue(off.explained().contains("agents come by the command line only (MCP is off)"));
+        // One start reads as one.
+        assertTrue(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, cliOnly, file, 1).blocked().interfaceExplained(false).contains("1 MCP start was"));
+        assertFalse(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, cliOnly, file).blocked().interfaceExplained(false).contains("turned away"));
+
+        // The command line off: the other way round, and no count, which is of MCP starts.
+        var mcpOnly = new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), true, BlockedSites.Access.WRITE, 0, 0, false, true));
+        PanelModel.Blocked cliOff = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, mcpOnly, file).blocked();
+        assertFalse(cliOff.on(true));
+        assertTrue(cliOff.on(false));
+        assertTrue(cliOff.interfaceExplained(true).contains("The command line is off by the settings file (interfaces = mcp)"), cliOff.interfaceExplained(true));
+        assertEquals("Policy: MCP only", cliOff.policyLine());
+
+        // A file that cannot be read: both are off, and each says that every agent is turned away until it is mended.
+        PanelModel.Blocked mistaken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
+                new BlockedSites.Rule(List.of(), "\"http\" in interfaces is neither cli nor mcp"), file).blocked();
+        assertFalse(mistaken.on(true) || mistaken.on(false));
+        assertTrue(mistaken.interfaceExplained(true).contains("Every agent is turned away until the settings file is mended"));
+        assertEquals(mistaken.interfaceExplained(true), mistaken.interfaceExplained(false));
     }
 }

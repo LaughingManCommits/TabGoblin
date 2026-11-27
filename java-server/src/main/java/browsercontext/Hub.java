@@ -24,8 +24,9 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The one server: every agent on this machine is connected to it. It listens on the loopback
  * address for the processes that agents' programs start ({@link Link}), has each prove that it
- * knows the pairing token and proves the same in return, and then serves that agent: its MCP
- * conversation, its tools, and its own connection to the extension ({@link Agent}).
+ * knows the pairing token and proves the same in return, and then serves that agent: its
+ * conversation, by MCP or by the command line's own messages, its tools, and its own connection to
+ * the extension ({@link Agent}).
  *
  * <p>The agents share the process and nothing else. Each has its own port to the extension, its
  * own sessions and its own times; no tool tells one agent anything of another. What is one for
@@ -35,6 +36,11 @@ import tools.jackson.databind.node.ObjectNode;
  * started stays until it is stopped.
  */
 final class Hub {
+
+    /** The reason a process is given when the user's settings have its interface off. */
+    static final String INTERFACE_NOT_ALLOWED = "interface_not_allowed";
+    /** How many MCP starts were turned away since this server started, because MCP is off: for the window. */
+    private final java.util.concurrent.atomic.AtomicInteger turnedAway = new java.util.concurrent.atomic.AtomicInteger();
 
     /** Longest line a process may send before it has proven itself. */
     private static final int MAX_HANDSHAKE_BYTES = 4096;
@@ -58,7 +64,7 @@ final class Hub {
         private final LineOut out;
         private final AtomicBoolean gone = new AtomicBoolean();
         /** The conversation of one command; null for the one connection of an agent that stays connected. */
-        private volatile io.modelcontextprotocol.server.McpSyncServer talk;
+        private volatile Commands talk;
 
         private Conn(Socket socket, LineOut out) {
             this.socket = socket;
@@ -211,6 +217,11 @@ final class Hub {
         return standing;
     }
 
+    /** How many MCP starts this server turned away because MCP is off by the settings. */
+    int turnedAway() {
+        return turnedAway.get();
+    }
+
     boolean held() {
         return held;
     }
@@ -313,7 +324,7 @@ final class Hub {
             String type = ask.path("type").asString("");
             String linkNonce = ask.path("nonce").asString("");
             String current = settings.token().get();
-            boolean proven = (type.equals("attach") || type.equals("show"))
+            boolean proven = (type.equals("attach") || type.equals("show") || type.equals("turned_away"))
                     && linkNonce.length() >= 16 && linkNonce.length() <= 128
                     && Pairing.constantTimeEquals(ask.path("proof").asString(""), Pairing.linkProof(current, nonce, linkNonce));
             if (!proven) {
@@ -341,8 +352,31 @@ final class Hub {
                 line(to, answer);
                 return;
             }
-            // Who the agent is, before anything is said to it: a key that is not proven is no agent of this server.
             boolean command = ask.path("cli").asBoolean(false);
+            BlockedSites.Rule policy = settings.blocked().get();
+            boolean off = !policy.everything() && !policy.limits().allows(command);
+            if (type.equals("turned_away")) {
+                // An MCP start that found MCP off before it reached this server: counted, so that the window
+                // can say that something tried. Not counted where the settings say otherwise by now.
+                if (off) {
+                    turnedAway.incrementAndGet();
+                    Log.warn("MCP agent turned away reason=interface_off interfaces=" + policy.limits().interfaces().replace(", ", ","));
+                }
+                answer.put("type", "counted");
+                line(to, answer);
+                return;
+            }
+            if (off) {
+                // The user's settings have this interface off: no agent comes this way. Said in the log, for the window.
+                if (!command) {
+                    turnedAway.incrementAndGet();
+                }
+                Log.warn((command ? "command" : "MCP agent") + " turned away reason=interface_off interfaces="
+                        + policy.limits().interfaces().replace(", ", ","));
+                refuse(to, INTERFACE_NOT_ALLOWED);
+                return;
+            }
+            // Who the agent is, before anything is said to it: a key that is not proven is no agent of this server.
             AgentKeys.Identity identity = identify(ask, nonce, linkNonce, command);
             if (identity == null) {
                 noteFailedProof();
@@ -378,6 +412,16 @@ final class Hub {
             members.add(member);
             emptySince = 0;
             boolean quiet = ask.path("quiet").asBoolean(false);
+            if (command) {
+                // A command of a name that has no agent to keep (the user revoked it): served once, by the
+                // command line's own conversation, on an agent that goes with it. Every tool says why.
+                member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity, true);
+                member.agent.announce();
+                member.links.get(0).talk = Commands.serve(member.agent.service(), socket.getInputStream(), out,
+                        identity.label() + " (command line)", () -> left(member));
+                kept = true;
+                return;
+            }
             member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet), identity);
             member.agent.announce();
             kept = true;
@@ -466,8 +510,8 @@ final class Hub {
 
     /**
      * One command of an agent that comes by commands. The agent is made at its first command and
-     * stays between them, with its connection to the extension; a command is one MCP conversation
-     * with it, and ends with its process.
+     * stays between them, with its connection to the extension; a command is one conversation of
+     * the command line's own with it ({@link Commands}), and ends with its process.
      */
     private void serveCommand(AgentKeys.Identity identity, Socket socket, LineOut out, boolean quiet) throws IOException {
         Conn conn = new Conn(socket, out);
@@ -481,7 +525,7 @@ final class Hub {
                 member.byKey = identity.id();
                 members.add(member);
                 emptySince = 0;
-                member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity);
+                member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity, true);
                 member.agent.announce();
                 commanded.put(identity.id(), member);
             }
@@ -490,7 +534,8 @@ final class Hub {
         }
         Member its = member;
         try {
-            conn.talk = member.agent.converse(socket.getInputStream(), out, () -> commandLeft(its, conn));
+            conn.talk = Commands.serve(member.agent.service(), socket.getInputStream(), out, identity.label() + " (command line)",
+                    () -> commandLeft(its, conn));
         } catch (IOException | RuntimeException e) {
             commandLeft(its, conn);
             throw e;
@@ -520,13 +565,9 @@ final class Hub {
     }
 
     private static void closeTalk(Conn conn) {
-        io.modelcontextprotocol.server.McpSyncServer talk = conn.talk;
+        Commands talk = conn.talk;
         if (talk != null) {
-            try {
-                talk.closeGracefully();
-            } catch (RuntimeException e) {
-                // ending anyway
-            }
+            talk.close();
         }
     }
 

@@ -116,15 +116,58 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
     /**
      * @param policy      what else the settings restrict, in full, for under the mouse; empty for nothing
      * @param policyShort the same in one short line, for the window itself
+     * @param cli         whether agents may come by the command line: the settings say so, and the file can be read
+     * @param mcp         the same for MCP
+     * @param turnedAway  how many MCP starts the server turned away since it started, because MCP is off
      */
-    record Blocked(List<String> sites, String unreadable, String file, String policy, String policyShort) {
+    record Blocked(List<String> sites, String unreadable, String file, String policy, String policyShort, boolean cli, boolean mcp,
+            int turnedAway) {
 
         /** Blocked sites alone, where the settings restrict nothing else. */
         Blocked(List<String> sites, String unreadable, String file) {
             this(sites, unreadable, file, "", "");
         }
 
+        /** With both interfaces on, where the file can be read. */
+        Blocked(List<String> sites, String unreadable, String file, String policy, String policyShort) {
+            this(sites, unreadable, file, policy, policyShort, unreadable == null, unreadable == null, 0);
+        }
+
         static final Blocked NONE = new Blocked(List.of(), null, "");
+
+        /** The pill of one interface in the header: its name, with the sign of what is off in front where it is off. */
+        String pill(boolean ofCli) {
+            return ofCli ? "CLI" : "MCP";
+        }
+
+        /** Whether that interface lets agents in now. Neither does while the file cannot be read. */
+        boolean on(boolean ofCli) {
+            return ofCli ? cli : mcp;
+        }
+
+        /** What rests under the mouse on that interface's pill: what the pill says, why, and what to do about it. */
+        String interfaceExplained(boolean ofCli) {
+            String name = ofCli ? "the command line" : "MCP";
+            String agents = ofCli ? "command of the command line" : "MCP agent";
+            if (unreadable != null) {
+                return "Every agent is turned away until the settings file is mended: " + unreadable + ".\n\n"
+                        + "Edit opens the settings file. A change is in force as soon as the file is saved.";
+            }
+            if (on(ofCli)) {
+                return "Agents may come by " + name + ". The settings file can turn it off: interfaces = " + (ofCli ? "mcp" : "cli") + ".";
+            }
+            StringBuilder text = new StringBuilder(Character.toUpperCase(name.charAt(0)) + name.substring(1) + " is off by the settings file "
+                    + "(interfaces = " + (ofCli ? "mcp" : "cli") + ").\nNo " + agents + " is let in; one that tries is told why.");
+            if (!ofCli && turnedAway > 0) {
+                text.append("\n\n").append(turnedAway == 1 ? "1 MCP start was" : turnedAway + " MCP starts were")
+                        .append(" turned away since this server started.");
+            }
+            text.append("\n\nEdit opens the settings file. A change is in force as soon as the file is saved.");
+            if (!file.isEmpty()) {
+                text.append("\n\n").append(file);
+            }
+            return text.toString();
+        }
 
         /** What stands over the two lines: the heading says so when the settings restrict more than sites. */
         String heading() {
@@ -183,23 +226,39 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
         }
     }
 
-    /** One agent as the server holds it: what the model is made from. */
+    /**
+     * One agent as the server holds it: what the model is made from.
+     *
+     * @param byCommands the agent comes by commands of the command line, and not by MCP
+     */
     record Facts(String name, String id, int port, String problem, boolean connected, long connectedSince,
             int lastCloseCode, List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf,
-            String running) {
+            String running, boolean byCommands) {
 
         /** An agent with no tool call running now. */
         Facts(String name, String id, int port, String problem, boolean connected, long connectedSince, int lastCloseCode,
                 List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf) {
-            this(name, id, port, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, null);
+            this(name, id, port, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, null, false);
+        }
+
+        /** An agent of MCP. */
+        Facts(String name, String id, int port, String problem, boolean connected, long connectedSince, int lastCloseCode,
+                List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf, String running) {
+            this(name, id, port, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, running, false);
         }
     }
 
     /**
      * One agent in the panel: its name, or how it goes without one; its id and its port; whether
-     * the extension is connected to it, and the sentence that says so; and how many tabs it has.
+     * the extension is connected to it, and the sentence that says so; how many tabs it has; and
+     * which way it comes, as its mark says it: CLI or MCP.
      */
-    record Member(String id, String name, int port, boolean connected, String connection, int tabs) {
+    record Member(String id, String name, int port, boolean connected, String connection, int tabs, boolean byCommands) {
+
+        /** The mark of the way it comes, as the window shows it. */
+        String way() {
+            return byCommands ? "CLI" : "MCP";
+        }
     }
 
     /**
@@ -256,12 +315,17 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
 
     /** What the server holds of one agent, read from that agent's own objects. */
     static Facts facts(WebSocketBridge bridge, String startupProblem) {
+        return facts(bridge, startupProblem, false);
+    }
+
+    /** @param byCommands the agent comes by commands of the command line */
+    static Facts facts(WebSocketBridge bridge, String startupProblem, boolean byCommands) {
         // Asked once, so that the picture agrees with itself. And no tabs without a connection: for a
         // moment after a connection has closed the server still holds what it reported.
         boolean connected = bridge.isExtensionConnected();
         return new Facts(bridge.clientName(), bridge.clientId(), bridge.getPort(), startupProblem, connected,
                 bridge.connectedSince(), bridge.lastCloseCode(), connected ? bridge.sessions() : List.of(),
-                bridge.timings().shares(), bridge.timings().sharesBySession(), bridge.running());
+                bridge.timings().shares(), bridge.timings().sharesBySession(), bridge.running(), byCommands);
     }
 
     /** Reads everything from a running server that has one agent: a process that serves its agent alone. */
@@ -292,7 +356,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
             boolean switchedOff, long connectedSince, int lastCloseCode, List<Protocol.Session> sessions,
             Timings.Shares time, Map<String, Timings.Shares> timeOf, List<Log.Line> log, ZoneId zone) {
         return of(List.of(new Facts(agent, clientId, port, problem, connected, connectedSince, lastCloseCode, sessions, time,
-                timeOf)), port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "", port);
+                timeOf)), port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "", port, 0);
     }
 
     /**
@@ -316,11 +380,17 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
      */
     static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
             BlockedSites.Rule rule, String settingsFile) {
-        return of(agents, linkPort, version, switchedOff, log, zone, rule, settingsFile, linkPort - McpMain.PORT_RANGE);
+        return of(agents, linkPort, version, switchedOff, log, zone, rule, settingsFile, 0);
+    }
+
+    /** @param turnedAway how many MCP starts the server turned away since it started, because MCP is off */
+    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
+            BlockedSites.Rule rule, String settingsFile, int turnedAway) {
+        return of(agents, linkPort, version, switchedOff, log, zone, rule, settingsFile, linkPort - McpMain.PORT_RANGE, turnedAway);
     }
 
     private static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log,
-            ZoneId zone, BlockedSites.Rule rule, String settingsFile, int firstPort) {
+            ZoneId zone, BlockedSites.Rule rule, String settingsFile, int firstPort, int turnedAway) {
         List<Member> members = new ArrayList<>();
         List<Row> rows = new ArrayList<>();
         Map<String, Metrics> metricsOf = new LinkedHashMap<>();
@@ -337,7 +407,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
                     // Without a port no browser can come: that, and not a browser that is waited for.
                     facts.problem() != null && !facts.connected() && !switchedOff ? NO_PORT
                             : connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
-                    facts.sessions().size()));
+                    facts.sessions().size(), facts.byCommands()));
             for (Protocol.Session session : facts.sessions()) {
                 // A tab on a blocked site is that before it is anything else: nothing an agent does in it goes through.
                 List<String> its = new ArrayList<>(session.origins());
@@ -360,8 +430,9 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
         }
         List<String> sites = new ArrayList<>(inTheWay);
         rule.domains().stream().filter(site -> !inTheWay.contains(site)).forEach(sites::add);
+        boolean readable = rule.unreadable() == null;
         Blocked blocked = new Blocked(List.copyOf(sites), rule.unreadable(), settingsFile, rule.limits().summary(),
-                rule.limits().inShort());
+                rule.limits().inShort(), readable && rule.limits().cli(), readable && rule.limits().mcp(), turnedAway);
         if (problem == null && rule.everything()) {
             problem = blocked.mistake();
         }

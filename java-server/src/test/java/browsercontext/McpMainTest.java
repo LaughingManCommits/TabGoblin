@@ -319,4 +319,15 @@ class McpMainTest {
         assertEquals(unix, McpMain.launcher(unix, Path.of("jdk"), unix::equals));
         assertEquals(Path.of("jdk", "bin", "java"), McpMain.launcher(Path.of("app", "bin", "TabGoblin"), Path.of("jdk"), unix::equals));
     }
+
+    @Test
+    void whatIsSaidWhenAnInterfaceIsOffNamesTheFileAndTheEntry() {
+        Path file = Path.of("somewhere", "tabgoblin.properties");
+        String off = McpMain.mcpOff(file);
+        assertTrue(off.contains("MCP is off") && off.contains(file.toAbsolutePath().toString()) && off.contains("interfaces = cli"), off);
+        assertTrue(off.contains("Only the user can change that"), off);
+        String setup = McpMain.interfaceOffForSetup(false, file);
+        assertTrue(setup.contains("MCP is off") && setup.contains("--mode cli"), setup);
+        assertTrue(McpMain.interfaceOffForSetup(true, file).contains("--mode mcp"));
+    }
 }

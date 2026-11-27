@@ -7,7 +7,11 @@ authorized.
 
 The CLI and [MCP](installation.md#mcp) give an agent the same fourteen tools. A CLI command is
 one tool call: it goes to the same local TabGoblin server, is checked by the same rules in the
-server and in the browser extension, and returns what the tool returns. Nothing is allowed to
+server and in the browser extension, and returns what the tool returns. It does not go through
+MCP: a command speaks three small messages of its own to the server, and the server runs the
+tool for it directly. Where MCP is forbidden, the CLI is a way in that uses none of it
+([the security model](security-model.md#cli-and-mcp-one-set-of-controls) says what that covers
+and where it stops). Nothing is allowed to
 a command that is not allowed to the MCP tool, and the user decides in the extension's popup
 either way. What the two share and where they differ is in the
 [architecture](architecture.md#integration-interfaces-cli-and-mcp).
@@ -148,7 +152,7 @@ result. A command never asks anything in the terminal.
 | 0 | The tool answered, and not with an error. A submission that ended `FAILED` or `UNCERTAIN` is such an answer: its state is in `result` |
 | 1 | The tool answered with an error; `error.code` says which |
 | 2 | The command line was not understood (`USAGE`). Nothing was sent |
-| 3 | Nothing was sent: no server could be reached or started (`NO_SERVER`), or the name is that of an agent connected through MCP (`AGENT_IN_USE`) |
+| 3 | Nothing was sent: no server could be reached or started (`NO_SERVER`), the name is that of an agent connected through MCP (`AGENT_IN_USE`), or the settings file has the command line turned off (`INTERFACE_NOT_ALLOWED`, `interfaces = mcp`) |
 | 4 | The outcome is unknown, and the answer has `"outcome": "unknown"`: the command was sent and no answer came (`TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED`), or the command's process was ended while it ran (`CANCELLED`) |
 
 **Nothing is retried.** A command is sent once. After exit code 4, look at the page before

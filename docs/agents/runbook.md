@@ -206,14 +206,18 @@ java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browse
 ```
 
 On Linux and macOS the separator in the class path is `:`. On a machine without a display, put
-`xvfb-run -a` in front of the `java` command, and of `mvn` for the window's tests. Success: twenty pictures at
+`xvfb-run -a` in front of the `java` command, and of `mvn` for the window's tests (with a headless
+JDK the window's tests are skipped and the pictures fail for want of `libawt_xawt`: the full JDK
+package has it; and the forked test JVM wants `-DargLine=-Djava.awt.headless=false`). Success: twenty-one pictures at
 double size, in `java-server/target/panel-pictures` (not in git): connected with three sessions,
 waiting for the extension, switched off, without a port, Stop armed, the panel as it fills a
 window with the system's frame, an agent with nine tabs, the most there is to show on a low
 screen, the server without an agent, with two agents, the first and the second tab clicked, an
 agent clicked, sites blocked with a tab on one of them, and a settings file with a mistake in
 it, the log held, a browser that came with another token, and a security policy with a blocked
-site and without one. The twentieth is the first again in the light colours, as on a system that is set to light. In the two of the policy the Control card's heading reads *Blocked sites
+site and without one, and the server with MCP off by the settings (`21-cli-only`: in the
+header the **MCP** pill is red with the no-entry sign and **CLI** green, the one agent is one of the
+command line, and the log says an MCP agent was turned away). The twentieth is the first again in the light colours, as on a system that is set to light. In every picture the header has the two pills **CLI** and **MCP** beside the title, green but where the settings have one off, and both red where the file cannot be read. In the two of the policy the Control card's heading reads *Blocked sites
 and security policy*, and a line *Policy: …* under the blocked sites says in short what it
 restricts, whole, on two lines at most. In the two of the blocked sites the Control card names what is blocked, or says that every site is refused,
 and the tab says *blocked*; with the mistake an amber box under the status names it. In the last, a green box under the status says *Pair the browser with this server* and has the

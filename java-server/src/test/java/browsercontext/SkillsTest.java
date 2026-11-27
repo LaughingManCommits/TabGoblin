@@ -259,7 +259,7 @@ class SkillsTest {
         options.addAll(Set.of("--agent", "--port"));
         for (var tool : Cli.tools()) {
             commands.add(Cli.commandOf(tool.name()));
-            ((Map<?, ?>) tool.inputSchema().get("properties")).keySet().forEach(name -> options.add("--" + name.toString().replace('_', '-')));
+            tool.schema().path("properties").propertyNames().forEach(name -> options.add("--" + name.replace('_', '-')));
         }
         assertEquals(14, commands.size());
         Set<String> known = found(Pattern.compile("`([A-Z][A-Z_]{2,})`"), read(Path.of("..", "docs", "tool-reference.md")));

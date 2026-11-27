@@ -526,11 +526,12 @@ the session the command named.
 
 Between the process an agent starts and the one server there is a second, smaller protocol, on
 the port after the agents' eight (`Link.java`, `Hub.java`): one line of JSON each way to prove
-the pairing token, then the agent's MCP messages as they are. Its version is 1.
+the pairing token, then the agent's messages: MCP as it is for an MCP client's process, or the
+command line's own three messages for a command. Its version is 2 (1 had MCP for both).
 
 ```json
-{ "type": "hello", "nonce": "…", "link": 1 }
-{ "type": "attach", "nonce": "…", "proof": "…", "link": 1, "panel": false, "quiet": false, "agent": "claude-code", "agentProof": "…" }
+{ "type": "hello", "nonce": "…", "link": 2 }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 2, "panel": false, "quiet": false, "agent": "claude-code", "agentProof": "…" }
 { "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
 
 { "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
@@ -546,8 +547,25 @@ A process that runs one command of the [command line](cli.md) adds
 `"cli": true` to its `attach`. The server then serves the agent of that key without ending it
 when the connection closes, and takes further such connections of the same key as the same
 agent; `refused` with the reason `agent_in_use` says that the key's agent is connected in the
-other way. What follows the `attached` is MCP as for any link: `initialize`, one `tools/call`,
-and `notifications/cancelled` if the process is ended first.
+other way. What follows the `attached` is the command line's own (`Commands.java`), one call
+for each connection, and nothing of MCP:
+
+```json
+{ "type": "call", "tool": "browser_snapshot", "arguments": { "session": "s1" } }
+{ "type": "cancel" }
+{ "type": "result", "tool": "browser_snapshot", "isError": false, "code": null, "text": "…", "structured": null, "image": null }
+{ "type": "error", "message": "One call for each connection: this connection has had its call." }
+```
+
+`cancel` is sent when the command's process is ended while its call runs: the call is
+interrupted, which stops the command in the browser at its next safe point, and gets no
+`result`. A connection that ends under a call does the same. `code` is the error's code, as
+the tool reference lists it, where `isError` is true; `structured` is the object of a tool
+that returns one; `image` has `mimeType` and `base64`.
+`refused` with the reason `interface_not_allowed` says that the settings file has this
+interface off (`interfaces`). A `turned_away` in the place of `attach`, with the same proof,
+tells a running server that an MCP start found MCP off before it came; it is answered with
+`counted`, and the server's window counts it.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
 two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
 agent: a line of the agent's log, and the word that the user stopped the server, without which

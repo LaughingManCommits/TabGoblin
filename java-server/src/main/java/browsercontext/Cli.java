@@ -1,7 +1,5 @@
 package browsercontext;
 
-import io.modelcontextprotocol.json.McpJsonDefaults;
-import io.modelcontextprotocol.spec.McpSchema;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,8 +19,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -37,11 +33,12 @@ import tools.jackson.databind.node.ObjectNode;
  *   tabgoblin click --agent claude-code --session s1 --ref 12
  * </pre>
  *
- * <p>It is an adapter and nothing else. The commands and their arguments are the MCP tools'
- * definitions ({@link McpMain#toolSpecs}), read here instead of written again. A command is one
- * MCP tool call, sent through the same link an MCP client's process is ({@link Link}), with the
- * same proofs, to the same server, which runs it as it runs any call. What a command may do is
- * decided where it is decided for MCP, and nowhere here.
+ * <p>It is an adapter and nothing else, beside the one for MCP and not on top of it. The commands
+ * and their arguments are the tools' one definition ({@link ToolDefs}), read here instead of
+ * written again. A command is one tool call, sent through the same link an MCP client's process is
+ * ({@link Link}), with the same proofs, to the same server, which runs it as it runs any call
+ * ({@link Commands}); nothing of MCP is spoken or run for it. What a command may do is decided
+ * where it is decided for MCP, in the server and the extension, and nowhere here.
  *
  * <p>Each command is a process of its own. The agent is the same at every one by its key
  * ({@link AgentKeys}), which is why a command names its agent, and the server keeps that agent's
@@ -74,7 +71,6 @@ final class Cli {
     static final Set<String> OWN = Set.of("--json", "--help", "-h", "--out", "--args", "--args-file");
 
     private static final String PREFIX = "browser_";
-    private static final Pattern ERROR = Pattern.compile("(?s)Error \\[([A-Z_]+)]: (.*)");
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** Makes the link of one command, to the one server. */
@@ -121,9 +117,9 @@ final class Cli {
 
     // ---- The commands: the tools' definitions, and nothing beside them
 
-    /** The tools as the server defines them for MCP. */
-    static List<McpSchema.Tool> tools() {
-        return McpMain.toolSpecs(null, McpJsonDefaults.getMapper()).stream().map(spec -> spec.tool()).toList();
+    /** The tools as the server defines them, for both interfaces. */
+    static List<ToolDefs.Tool> tools() {
+        return ToolDefs.ALL;
     }
 
     /** A tool's name as a command: browser_press_key is press-key. */
@@ -132,14 +128,14 @@ final class Cli {
     }
 
     /** The tool a command names: by its command name, with dashes or underscores, or by the tool's own name. Null if none. */
-    static McpSchema.Tool toolOf(String command) {
+    static ToolDefs.Tool toolOf(String command) {
         String wanted = command.toLowerCase(Locale.ROOT).replace('-', '_');
         String name = wanted.startsWith(PREFIX) ? wanted : PREFIX + wanted;
         return tools().stream().filter(tool -> tool.name().equals(name)).findFirst().orElse(null);
     }
 
-    private static JsonNode schemaOf(McpSchema.Tool tool) {
-        return JSON.valueToTree(tool.inputSchema());
+    private static JsonNode schemaOf(ToolDefs.Tool tool) {
+        return tool.schema();
     }
 
     private static String optionOf(String property) {
@@ -155,14 +151,14 @@ final class Cli {
         all.put("usage", "tabgoblin <command> --agent <name> [--<argument> <value> ...] [--args <json object>]");
         all.put("instructions", McpMain.INSTRUCTIONS);
         ArrayNode list = all.putArray("tools");
-        for (McpSchema.Tool tool : tools()) {
+        for (ToolDefs.Tool tool : tools()) {
             ObjectNode one = list.addObject();
             one.put("command", commandOf(tool.name()));
             one.put("tool", tool.name());
-            one.put("title", McpMain.TITLES.get(tool.name()));
+            one.put("title", tool.title());
             one.put("description", tool.description());
-            one.put("readOnly", tool.annotations() != null && Boolean.TRUE.equals(tool.annotations().readOnlyHint()));
-            one.put("structuredResult", McpMain.STRUCTURED.contains(tool.name()));
+            one.put("readOnly", tool.readOnly());
+            one.put("structuredResult", tool.structured());
             one.set("inputSchema", schemaOf(tool));
         }
         ObjectNode options = all.putObject("options");
@@ -191,9 +187,9 @@ final class Cli {
 
     /** The same for a person: one line for each command. */
     static String list() {
-        StringBuilder said = new StringBuilder("TabGoblin commands (each is the MCP tool of the same name, with the same rules):\n\n");
-        for (McpSchema.Tool tool : tools()) {
-            said.append(String.format("  %-16s%s%n", commandOf(tool.name()), McpMain.TITLES.get(tool.name())));
+        StringBuilder said = new StringBuilder("TabGoblin commands (each is the tool of the same name, with the same rules):\n\n");
+        for (ToolDefs.Tool tool : tools()) {
+            said.append(String.format("  %-16s%s%n", commandOf(tool.name()), tool.title()));
         }
         said.append("\n  tabgoblin tools --json            every command with its description and argument schema, as JSON\n");
         said.append("  tabgoblin <command> --help        one command's description and arguments\n");
@@ -202,12 +198,12 @@ final class Cli {
     }
 
     /** One command's description and arguments, as text. */
-    static String help(McpSchema.Tool tool) {
+    static String help(ToolDefs.Tool tool) {
         JsonNode schema = schemaOf(tool);
         Set<String> required = required(schema);
         StringBuilder said = new StringBuilder("tabgoblin " + commandOf(tool.name()) + " --agent <name>");
         required.forEach(name -> said.append(' ').append(optionOf(name)).append(" <").append(typeOf(schema.path("properties").path(name))).append('>'));
-        said.append("\n\n").append(tool.description()).append("\n\nArguments (the MCP tool ").append(tool.name()).append("):\n");
+        said.append("\n\n").append(tool.description()).append("\n\nArguments (the tool ").append(tool.name()).append("):\n");
         for (var property : schema.path("properties").properties()) {
             JsonNode about = property.getValue();
             said.append("  ").append(optionOf(property.getKey())).append(" <").append(typeOf(about)).append('>')
@@ -242,7 +238,7 @@ final class Cli {
     Invocation parse(String[] args) throws McpMain.UsageException {
         String command = args[0];
         boolean listing = command.equals("tools");
-        McpSchema.Tool tool = listing ? null : toolOf(command);
+        ToolDefs.Tool tool = listing ? null : toolOf(command);
         if (!listing && tool == null) {
             throw new McpMain.UsageException("Unknown command: " + command + ". \"tabgoblin tools\" lists the commands.");
         }
@@ -454,6 +450,10 @@ final class Cli {
 
     private int call(Invocation asked, McpMain.Options options) {
         String tool = asked.tool();
+        BlockedSites.Rule policy = BlockedSites.source(options.settings()).get();
+        if (!policy.everything() && !policy.limits().cli()) {
+            return fail(tool, "INTERFACE_NOT_ALLOWED", BrowserService.interfaceOff(true, policy.limits()), false, EXIT_NO_SERVER);
+        }
         Lines answers = new Lines();
         PipedOutputStream to = new PipedOutputStream();
         Link link;
@@ -463,6 +463,11 @@ final class Cli {
             return fail(tool, "ERROR", "The command could not be set up.", false, EXIT_NO_SERVER);
         }
         if (!link.connect()) {
+            if (Hub.INTERFACE_NOT_ALLOWED.equals(link.refusal())) {
+                return fail(tool, "INTERFACE_NOT_ALLOWED", "The command line is off by the TabGoblin server's settings file "
+                        + "(interfaces = mcp): no agent comes this way, and nothing was sent. Only the user can change that. "
+                        + "Do not switch to MCP by yourself; tell the user.", false, EXIT_NO_SERVER);
+            }
             if ("agent_in_use".equals(link.refusal())) {
                 return fail(tool, "AGENT_IN_USE", "An agent with the identity \"" + options.agent() + "\" is connected to the "
                         + "TabGoblin server through MCP, and a key has one agent at a time. Nothing was sent. Use that "
@@ -478,24 +483,13 @@ final class Cli {
         passing.setDaemon(true);
         passing.start();
         try {
-            ObjectNode opening = request(0, "initialize");
-            ObjectNode params = opening.putObject("params");
-            params.put("protocolVersion", "2025-06-18");
-            params.putObject("capabilities");
-            params.putObject("clientInfo").put("name", options.agent() + " (command line)").put("version", McpMain.version());
-            send(to, opening);
-            JsonNode opened = answer(answers, 0, ended, 30_000);
-            if (opened == null || opened.has("error")) {
-                return fail(tool, "NO_SERVER", "The TabGoblin server did not take up the conversation. Nothing was sent. "
-                        + "Tell the user.", false, EXIT_NO_SERVER);
-            }
-            send(to, JSON.createObjectNode().put("jsonrpc", "2.0").put("method", "notifications/initialized"));
-            ObjectNode call = request(1, "tools/call");
-            call.putObject("params").put("name", tool).set("arguments", asked.arguments());
+            // The one message of this command, in the command line's own words: no MCP is spoken for it.
+            ObjectNode call = JSON.createObjectNode().put("type", Commands.CALL).put("tool", tool);
+            call.set("arguments", asked.arguments());
             toLink = to;
             running = tool;
             send(to, call);
-            JsonNode answer = answer(answers, 1, ended, answerWithin);
+            JsonNode answer = answer(answers, ended, answerWithin);
             boolean ours;
             synchronized (this) {
                 // Either this thread reports the command, or the one that cancels it: never both.
@@ -562,17 +556,12 @@ final class Cli {
     }
 
     private void cancel(OutputStream to) {
-        ObjectNode cancel = JSON.createObjectNode().put("jsonrpc", "2.0").put("method", "notifications/cancelled");
-        cancel.putObject("params").put("requestId", 1).put("reason", "the command's process is ending");
+        ObjectNode cancel = JSON.createObjectNode().put("type", Commands.CANCEL).put("reason", "the command's process is ending");
         try {
             send(to, cancel);
         } catch (IOException e) {
             // The way to the server is gone as well: there is nobody to tell.
         }
-    }
-
-    private static ObjectNode request(int id, String method) {
-        return JSON.createObjectNode().put("jsonrpc", "2.0").put("id", id).put("method", method);
     }
 
     private static void send(OutputStream to, JsonNode message) throws IOException {
@@ -582,8 +571,8 @@ final class Cli {
         }
     }
 
-    /** The answer to the request of that id, or null: the link ended without one, or none came in time. */
-    private JsonNode answer(Lines from, int id, CompletableFuture<Link.End> ended, long within) throws InterruptedException {
+    /** The server's answer to the call, or null: the link ended without one, or none came in time. */
+    private JsonNode answer(Lines from, CompletableFuture<Link.End> ended, long within) throws InterruptedException {
         long until = System.currentTimeMillis() + within;
         boolean last = false;
         while (true) {
@@ -591,7 +580,8 @@ final class Cli {
             if (line != null) {
                 try {
                     JsonNode message = JSON.readTree(line);
-                    if (!message.has("method") && message.path("id").isNumber() && message.path("id").asInt() == id) {
+                    String type = message.path("type").asString("");
+                    if (type.equals(Commands.RESULT) || type.equals(Commands.ERROR)) {
                         return message;
                     }
                 } catch (RuntimeException e) {
@@ -599,7 +589,7 @@ final class Cli {
                 }
                 continue;
             }
-            if (last || System.currentTimeMillis() > until || (id == 1 && running == null)) {
+            if (last || System.currentTimeMillis() > until || running == null) {
                 // Also when the command was cancelled meanwhile: a cancelled call gets no answer.
                 return null;
             }
@@ -611,42 +601,36 @@ final class Cli {
     /** Prints a tool's answer as the one JSON object of this command, and says the exit code. */
     private int report(Invocation asked, JsonNode answer) throws IOException {
         String tool = asked.tool();
-        if (answer.has("error")) {
-            return fail(tool, "ERROR", answer.path("error").path("message").asString("The server refused the call."), false, EXIT_FAILED);
+        if (answer.path("type").asString("").equals(Commands.ERROR)) {
+            return fail(tool, "ERROR", answer.path("message").asString("The server refused the call."), false, EXIT_FAILED);
         }
-        JsonNode result = answer.path("result");
-        StringBuilder text = new StringBuilder();
-        JsonNode image = null;
-        for (JsonNode part : result.path("content")) {
-            if (part.path("type").asString("").equals("text")) {
-                text.append(text.length() == 0 ? "" : "\n").append(part.path("text").asString(""));
-            } else if (part.path("type").asString("").equals("image")) {
-                image = part;
-            }
-        }
-        if (result.path("isError").asBoolean(false)) {
-            Matcher coded = ERROR.matcher(text);
-            String code = coded.matches() ? coded.group(1) : "ERROR";
+        String text = answer.path("text").asString("");
+        if (answer.path("isError").asBoolean(false)) {
+            // The code is a field of the result; the text repeats it in front, for an agent that reads text.
+            String code = answer.path("code").isString() ? answer.path("code").asString() : "ERROR";
+            String prefix = "Error [" + code + "]: ";
+            String message = text.startsWith(prefix) ? text.substring(prefix.length()) : text;
             boolean unknown = UNKNOWN_OUTCOME.contains(code);
-            return fail(tool, code, coded.matches() ? coded.group(2) : text.toString(), unknown, unknown ? EXIT_UNKNOWN : EXIT_FAILED);
+            return fail(tool, code, message, unknown, unknown ? EXIT_UNKNOWN : EXIT_FAILED);
         }
         ObjectNode said = JSON.createObjectNode();
         said.put("ok", true);
         said.put("tool", tool);
-        said.put("text", text.toString());
-        if (result.hasNonNull("structuredContent")) {
-            said.set("result", result.get("structuredContent"));
+        said.put("text", text);
+        if (answer.hasNonNull("structured")) {
+            said.set("result", answer.get("structured"));
         }
-        if (image != null) {
+        JsonNode image = answer.path("image");
+        if (image.isObject()) {
             ObjectNode picture = said.putObject("image");
             picture.put("mimeType", image.path("mimeType").asString(""));
             if (asked.out() != null) {
-                byte[] bytes = java.util.Base64.getDecoder().decode(image.path("data").asString(""));
+                byte[] bytes = java.util.Base64.getDecoder().decode(image.path("base64").asString(""));
                 Files.write(asked.out(), bytes);
                 picture.put("file", asked.out().toAbsolutePath().toString());
                 picture.put("bytes", bytes.length);
             } else {
-                picture.put("base64", image.path("data").asString(""));
+                picture.put("base64", image.path("base64").asString(""));
             }
         }
         out.println(JSON.writeValueAsString(said));

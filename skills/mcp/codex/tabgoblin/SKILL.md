@@ -138,6 +138,7 @@ retried for you, and a refusal is never an error to work around.
 | `SITE_BLOCKED` | The user has blocked that site for every agent. There is no other way to it; tell the user |
 | `SITE_NOT_ALLOWED`, `ACCESS_RESTRICTED`, `SCREENSHOTS_DISABLED` | The user's security policy rules it out: the site, the access level, or a screenshot. There is no other way; tell the user. `browser_status` says what the policy restricts |
 | `AGENT_REVOKED` | The user revoked this agent. No tool works; tell the user and stop |
+| `INTERFACE_NOT_ALLOWED` | The user's settings have MCP turned off. Nothing was sent, and no tool works; tell the user and stop. Do not switch to the command line by yourself |
 | `APPROVAL_STALE` | What would be submitted changed after the user was asked. Nothing was sent. Take a new snapshot, check the content, and submit again |
 | `SCREENSHOT_BLOCKED` | A frame from another site is in view. Scroll it out of view, or read the page as text |
 | `SETTINGS_UNREADABLE` | Tell the user: the server's window says what is wrong with its settings file |

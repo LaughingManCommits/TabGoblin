@@ -36,7 +36,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class Link {
 
     /** The version of what a link and the server say to each other before the agent's messages pass. */
-    static final int VERSION = 1;
+    static final int VERSION = 2;
 
     /** How the link's time with the server ended. */
     enum End {
@@ -229,6 +229,20 @@ final class Link {
     boolean show() throws IOException, Refused {
         try {
             attach("show").socket().close();
+            return true;
+        } catch (ConnectException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Tells the server that is running that an MCP start was turned away, because the settings have
+     * MCP off: the server counts it for its window. Says false if no server is running. Nothing of
+     * the agent's is sent, and no server is started for it.
+     */
+    boolean turnedAway() throws IOException, Refused {
+        try {
+            attach("turned_away").socket().close();
             return true;
         } catch (ConnectException e) {
             return false;

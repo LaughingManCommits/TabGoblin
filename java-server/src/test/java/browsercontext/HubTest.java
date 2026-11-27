@@ -720,4 +720,41 @@ class HubTest {
         assertFalse(hub.agents().stream().anyMatch(a -> a.bridge().clientId().equals(id)));
         assertEquals(2, hub.agents().stream().filter(a -> a.bridge().clientId().matches("a-[0-9a-f]{12}")).count());
     }
+
+    @Test
+    void anAgentOfAnInterfaceTheSettingsTurnedOffIsTurnedAwayAndCountedForTheWindow(@org.junit.jupiter.api.io.TempDir java.nio.file.Path keys)
+            throws Exception {
+        int port = freePorts();
+        java.util.concurrent.atomic.AtomicReference<BlockedSites.Rule> rule = new java.util.concurrent.atomic.AtomicReference<>(
+                new BlockedSites.Rule(java.util.List.of(), null, new BlockedSites.Limits(false, java.util.List.of(), true,
+                        BlockedSites.Access.WRITE, 0, 0, true, false)));
+        Hub hub = Hub.open(new Agent.Settings(port, () -> TOKEN, FakeExtension.ORIGIN, rule::get, keys), true);
+        hubs.add(hub);
+        Thread serving = new Thread(hub::serve, "test-hub");
+        serving.setDaemon(true);
+        serving.start();
+
+        // MCP is off: an MCP agent's process is refused with the reason, and counted; a command is let in.
+        assertEquals("interface_not_allowed", attachBy(port, (ask, x) -> { }).path("reason").asString());
+        assertEquals(1, hub.turnedAway());
+        assertEquals(0, hub.agents().size());
+        AgentKeys.loadOrCreate(keys, "cli");
+        assertEquals("attached", attachBy(port, (ask, x) -> ask.put("cli", true).put("agent", "cli")
+                .put("agentProof", AgentKeys.proof(AgentKeys.read(keys, "cli"), x.split(":")[1], x.split(":")[2]))).path("type").asString());
+        // An MCP start that found MCP off before it came here says so, and is counted too.
+        assertEquals("counted", attachBy(port, (ask, x) -> ask.put("type", "turned_away")).path("type").asString());
+        assertEquals(2, hub.turnedAway());
+
+        // The command line is off: a command is refused, an MCP agent is let in, and nothing more is counted.
+        rule.set(new BlockedSites.Rule(java.util.List.of(), null, new BlockedSites.Limits(false, java.util.List.of(), true,
+                BlockedSites.Access.WRITE, 0, 0, false, true)));
+        assertEquals("interface_not_allowed", attachBy(port, (ask, x) -> ask.put("cli", true).put("agent", "cli")
+                .put("agentProof", AgentKeys.proof(AgentKeys.read(keys, "cli"), x.split(":")[1], x.split(":")[2]))).path("reason").asString());
+        assertEquals("attached", attachBy(port, (ask, x) -> { }).path("type").asString());
+        assertEquals("counted", attachBy(port, (ask, x) -> ask.put("type", "turned_away")).path("type").asString());
+        assertEquals(2, hub.turnedAway());
+        // A file that cannot be read turns nobody away here: every tool says so instead.
+        rule.set(new BlockedSites.Rule(java.util.List.of(), "it cannot be read"));
+        assertEquals("attached", attachBy(port, (ask, x) -> { }).path("type").asString());
+    }
 }

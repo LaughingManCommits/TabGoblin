@@ -26,7 +26,14 @@ Two different things can be restricted, and they should not be mistaken for each
 
 - **The CLI removes the technical dependency on MCP.** An agent that can run a local program
   can use TabGoblin without an MCP client. A control that only blocks MCP servers does not
-  prevent this.
+  prevent this. The CLI does not use MCP internally either: a command runs through classes
+  that import nothing of the MCP library, which a test holds
+  ([security model](security-model.md#cli-and-mcp-one-set-of-controls)).
+- **MCP can be turned off.** `interfaces = cli` in the settings file turns the MCP interface
+  off in the server: an MCP start ends with the reason before any MCP message is exchanged,
+  and the server refuses MCP connections. The server's window shows the state of both
+  interfaces. The switch is enforced by the server only, is as protected as the file (below),
+  and leaves the MCP library in the jar and the legacy names (`browser-context-mcp`) in place.
 - **The CLI does not override a policy.** It grants nothing that MCP does not, and every
   control in this document applies to it unchanged. Where browser interaction by agents is
   not permitted, using the CLI instead of MCP is a violation of that rule, not a way to comply
@@ -179,8 +186,10 @@ agent on the workstation:
 | `session.max.minutes`, `session.idle.minutes` | Maximum lifetime and idle limit of an authorization |
 | `security.profile = strict` | Approval for every submission and for every click that is not plain navigation; no tab for *Any agent*; no screenshots and time limits by default |
 | `audit.log = on` | A record on disk (below) |
+| `interfaces = cli` or `mcp` | Agents come by that interface only; the other is turned off in the server |
 
-Both the server and the extension enforce these. A file that cannot be read, or a value that
+Both the server and the extension enforce these, except `interfaces`, which the server alone
+enforces. A file that cannot be read, or a value that
 cannot be understood, blocks every site rather than none.
 
 **What an organisation must provide itself.** The file is read from the user's home folder and

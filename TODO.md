@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nineteen packages are listed. The newest is WP-31, the CLI and MCP as two adapters side by side over one core, and a switch in the settings file that turns MCP off, asked for on 2026-11-27: a design, not started. Before it, WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before that, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Nineteen packages are listed. The newest is WP-31, the CLI and MCP as two adapters side by side over one core, and a switch in the settings file that turns MCP off, asked for and built on 2026-11-27 by its own proposals; its decisions wait for the owner. Before it, WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before that, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -1883,9 +1883,12 @@ by side, a green "TabGoblin bridge" with what it checks, the browser extension, 
 
 Asked for by the owner on 2026-11-27: the CLI and MCP are to be two layers at the same level,
 neither built on the other, because a company may forbid MCP. A user then has to be able to
-show that the CLI does not use MCP, and an organisation has to be able to turn MCP off. A
-design, not started; the points under "Decisions for the owner" are open. What the window
-shows of the mode was asked for the same day and is in its own section.
+show that the CLI does not use MCP, and an organisation has to be able to turn MCP off. Built
+the same day on the branch `cli-mcp-side-by-side`, on the owner's word ("start new branch from
+current and building it"), by the proposals; the owner then took the decisions below as
+proposed. What was built, and where it differs from the proposal, is
+under "What was built". What the window shows of the mode was asked for the same day and is in
+its own section.
 
 What it is not: a way around a rule against agents in the browser. Where that is forbidden,
 the CLI is forbidden too, as the
@@ -2032,6 +2035,11 @@ and that MCP being off is marked by a sign that says no MCP agent is let in.
 
 ### Decisions for the owner
 
+Decided by the owner on 2026-11-27, after it was built, from the options below with a
+recommendation: 1, 2 and 3 as proposed and built; 6 as proposed (the count in the window); 7 as
+proposed (the popup is not changed), and neither a build without the MCP library nor new names
+now. 4 and 5 were overtaken by the building.
+
 1. **The key.** `interfaces = cli` (proposal), which reads the same way for either side. Or
    `mcp = off`, which names only the case that was asked about.
 2. **What an MCP start does when MCP is off.** It ends before any MCP message, with the reason
@@ -2052,6 +2060,41 @@ and that MCP being off is marked by a sign that says no MCP agent is let in.
    the agent's program says it, and the window shows nothing of a start it did not see.
 7. **Whether the popup marks the mode too.** The extension is told the policy already. Proposal:
    not now; the popup marks an agent of the command line, and what is off is the server's.
+
+### What was built
+
+On 2026-11-27, on the branch `cli-mcp-side-by-side`, in a session that ran in the cloud. The
+proposals stand, with these differences:
+
+- **`ToolDefs.java`** holds the fourteen tools (name, read-only, description, schema; the titles
+  and which return an object). `McpMain.toolSpecs` builds the MCP specifications from it and
+  stays in `McpMain`, which is the MCP entry point: no class `McpAdapter` was made. `Cli` reads
+  its commands from `ToolDefs` and imports nothing of MCP.
+- **`ToolResult.code`** is set where the text `Error [CODE]: …` is made (`ToolResult.error(code,
+  message)`); the text is as it was.
+- **The wire**: `call`, `cancel`, `result` and `error`, in `Commands.java` on the server's side,
+  and `Link.VERSION` 2. `Agent.command` was not added: `Commands` stands beside `Agent.converse`,
+  so that `Agent.java` keeps the MCP conversation and the command's way has a file of its own.
+  A command of a name the user revoked, which has no agent to keep, is served once by the same
+  conversation on an agent that goes with it; before, it got an MCP conversation.
+- **`SeparationTest`** holds `Cli`, `Link`, `Hub`, `Commands`, `ToolDefs`, `BrowserService`,
+  `WebSocketBridge`, `BlockedSites`, `AgentKeys`, `Pairing`, `Timings` and `Ports` to importing
+  nothing of `io.modelcontextprotocol`, and that only `Agent`, `McpMain` and `Progress` do.
+- **`interfaces`** in the settings file, as proposed. Enforced in `McpMain.main` (an MCP start
+  ends with exit code 2 and the reason on standard error, and tells a running server with
+  `turned_away`, which that server counts), `Hub.welcome` (`refused: interface_not_allowed`; an
+  MCP link's process then ends instead of serving alone), `BrowserService.run`
+  (`INTERFACE_NOT_ALLOWED`) and `Cli.call`. `--setup` adds a note when the mode it sets up is off.
+  A file that cannot be read turns nobody away at the link: every tool says
+  `SETTINGS_UNREADABLE`, as before.
+- **The window** as its section says: `Panel.WayLabel` for the two pills, beside the title and
+  not beside the port, so that the agent's line keeps its room; `PanelModel.Member.way()` for
+  each agent's mark; the count of turned-away starts in the MCP pill's tooltip; a log line for a
+  refused link. Decision 6 was taken as proposed (the start tells the server), decision 7 as
+  proposed (the popup is not changed).
+- **Not done:** a build without the MCP SDK; new names. The extension is not changed. The
+  end-to-end suite and the extension's check were not run in the session that built it; the
+  validation log says what was.
 
 ### Tasks and acceptance
 

@@ -355,6 +355,33 @@
     -fx-background-color: -tg-warn-line, -tg-warn-soft;
     -fx-text-fill: -tg-warn;
 }
+/*
+ * The two interfaces, CLI and MCP: in the header, and as the mark of the way each agent comes. One
+ * that is on has the accent colours; one the settings have off has a refusal's, and the no-entry
+ * sign (a ring with a bar) in front of its name, drawn from shapes.
+ */
+.chip.way {
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+.chip.way.on {
+    -fx-background-color: -tg-accent-soft;
+    -fx-text-fill: -tg-accent;
+}
+.chip.way.off {
+    -fx-background-color: -tg-bad, -tg-bad-soft;
+    -fx-text-fill: -tg-bad;
+}
+.no-entry .ring {
+    -fx-fill: transparent;
+    -fx-stroke: -tg-bad;
+    -fx-stroke-width: 1.6;
+}
+.no-entry .bar {
+    -fx-stroke: -tg-bad;
+    -fx-stroke-width: 1.6;
+    -fx-stroke-line-cap: round;
+}
 
 /* ---------- where the time went: a bar for each heap ---------- */
 .times {

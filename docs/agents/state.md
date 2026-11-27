@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
-## The CLI and MCP side by side, a design, 2026-11-27
+## The CLI and MCP side by side, 2026-11-27
 
-Asked for by the owner: the CLI and MCP as two adapters at the same level, and a switch in the settings file that turns MCP off, for an organisation that forbids MCP. Written as [WP-31](../../TODO.md#wp-31-the-cli-and-mcp-side-by-side-and-mcp-that-can-be-turned-off), on this branch; nothing is built. Its seven decisions are the owner's. It also says what the window shows of the mode: a pill for each interface in the header, with a drawn sign on the one that is off. Found while reading: an MCP agent's process that the server refuses serves its agent alone (`McpMain.serveAlone`), so a switch has to be checked there as well as in the server.
+On branch `cli-mcp-side-by-side`, made from `ccr-dae1119b-klvwgh` (the Windows program and the review's mends, not merged); built on the owner's word by the proposals of [WP-31](../../TODO.md#wp-31-the-cli-and-mcp-side-by-side-and-mcp-that-can-be-turned-off), whose decisions the owner took as proposed after it was built. The tools are defined once (`ToolDefs`), a command speaks its own three messages to the server (`Commands`, link version 2) and nothing of MCP (`SeparationTest`), the error's code is a field of a result, and `interfaces = cli` or `mcp` in the settings file turns the other interface off: an MCP start ends with the reason, the server refuses the link, a connected agent is told `INTERFACE_NOT_ALLOWED`. The window has a pill for each interface beside the title, red with a drawn no-entry sign where one is off, marks each agent `CLI` or `MCP`, and counts MCP starts turned away. The pictures of the window were drawn here under Xvfb and looked at. **Not run here:** the end-to-end suite and the extension's check (the extension is not changed); a Windows download. **Next:** end to end on a machine with Chrome, if the run here did not pass; then the owner's merge.
 
 ## A program with the goblin's icon in the Windows download, 2026-11-26
 

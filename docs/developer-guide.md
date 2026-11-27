@@ -346,6 +346,7 @@ access.max = explore
 session.max.minutes = 240
 session.idle.minutes = 20
 audit.log = on
+interfaces = cli
 ```
 
 | Line | What it does |
@@ -357,6 +358,7 @@ audit.log = on
 | `session.max.minutes` | An authorization ends this many minutes after you gave it |
 | `session.idle.minutes` | An authorization ends when no command came for this many minutes. `0` switches a limit off |
 | `audit.log` | `on`: one line of JSON per command in `audit.jsonl` beside the file, with ids, actions, durations and outcomes, and nothing of a page |
+| `interfaces` | `cli`, `mcp`, or both (the default): how agents may reach the tools. With `cli` alone no MCP agent is let in: an agent's program that starts the server as its MCP server is told so and does not start, and the server's window shows **MCP** crossed out. With `mcp` alone the same for commands of the command line. The window, the status tool and `--setup` say what holds |
 
 The popup shows what is in force in a line above the sessions, and each session shows when it
 ends. An agent is told what holds when it asks for its status. A value that cannot be read
@@ -398,9 +400,10 @@ focus a heading with Tab and toggle it with Space.
 | Part | What it shows or does |
 |---|---|
 | The goblin | What the server is at. Asleep while the connection is switched off; puzzled by a problem, or by a call that failed; waiting while the browser is not connected; while a call runs, and for three seconds after, reading a page, walking (a navigation) or at work; behind its shield for a moment when the rules refused a call; and otherwise at rest, still but for a blink. It moves only while the window is on the screen |
+| The title line | Beside the title, a pill for each interface: **CLI** and **MCP**. Green while agents may come that way; red with a no-entry sign where the settings file has it off (`interfaces`), and then its tooltip says so, how many MCP starts were turned away since the server started, and where the file is. Both are red while the file cannot be read |
 | The line under the title | Click **Port** beside the agent information to copy the number for the extension popup, where it is set as *First port* under *Connection…*. It is available before an agent or browser connects |
 | The line with the dot | Whether the extension is connected, and if not, why. While it waits for the extension, a line below says what to do: open the popup, and pair it if it says so. With one agent whose port is another than the one under the title, the line ends with it (*agent port …*), as that agent's status names it; a click copies it |
-| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id and its port, and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
+| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id, its port and the way it comes (**CLI** or **MCP**), and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
 | Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers. *share* is the part of all that time; *typical* is what the middle one of the calls spent there, so waiting for you can have a share and 0 ms |
 | Log | The server's last 300 lines: connections, and one line per tool call in short, as `s1 navigate  31 ms  NAVIGATION_BLOCKED`: its tab, action, duration, and `ok` or the error code, with `outside scope` after a call refused for leaving its session's sites. Nothing of a page |
 | Connection to the browser | A switch. Off, the server closes its connection to the extension until you switch it on. The agent's tabs stay authorized |

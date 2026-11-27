@@ -100,7 +100,14 @@ The path is the same for a CLI command and an MCP call from the first box on.
 ## CLI and MCP: one set of controls
 
 An agent reaches TabGoblin by running CLI commands or by calling MCP tools. The two are
-interfaces to the same server, and no control depends on which one is used.
+interfaces to the same server, and no control depends on which one is used. They stand side by
+side over one core and neither is built on the other: the tools are defined once, in no
+protocol's terms (`ToolDefs`), and a command goes from the terminal to the server and through it
+to the browser without any MCP being spoken or run (`Cli`, `Link`, `Hub`, `Commands`,
+`BrowserService`). A test holds those classes to importing nothing of the MCP library
+(`SeparationTest`), which is what a user shows to an organisation that forbids the protocol.
+Such an organisation turns MCP off in the settings file (`interfaces = cli`, [the security
+policy](#the-security-policy)); the limits of that switch are stated there.
 
 **Shared.** Every row of the table above. A CLI command and an MCP tool call are validated by
 the same code in the server, are refused by the same blocked sites and policy, and reach the
@@ -545,10 +552,12 @@ click.
 | `session.max.minutes = N` | A session ends N minutes after it was authorized |
 | `session.idle.minutes = N` | A session ends when no command passed its checks for N minutes |
 | `audit.log = on` | See [audit logging](#audit-logging) |
+| `interfaces = cli` or `mcp` | Agents come by that interface only. With `cli`, no MCP agent is let in: an MCP start ends with the reason before any MCP message, the server refuses an MCP link (`interface_not_allowed`), and an MCP agent that is connected when the file changes is answered `INTERFACE_NOT_ALLOWED` by every tool from then on. With `mcp` the same for commands. Both named, or the entry absent, is both |
 
 - **Enforced twice,** as blocked sites are: by the server before anything is sent, and by the
   extension at the moment of a command. The extension offers no authorization the policy rules
-  out.
+  out. The one exception is `interfaces`, which the server alone enforces: the extension cannot
+  tell by which interface a command came, and would have to take the server's word for it.
 - **Fail closed.** A value the server does not understand refuses every site
   (`SETTINGS_UNREADABLE`).
 - **Disclosure.** An agent is told what restrictions hold (`browser_status`) and the one site
@@ -568,6 +577,10 @@ click.
   [permission levels](#permission-levels-and-capability-enforcement)). `access.max = read`
   rules both out.
 - It restricts TabGoblin's tools, not other tools an agent has.
+- `interfaces = cli` turns MCP off in this server; it does not take the MCP library out of the
+  jar, and the jar, its folder and its variables keep their names (`browser-context-mcp`,
+  `BCMCP_*`). An inventory that looks for the library or the names finds them. A build without
+  the library is not made.
 
 ## Workspaces and requests for access
 

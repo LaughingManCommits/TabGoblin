@@ -167,12 +167,30 @@ final class BlockedSites {
      * @param maxAccess          the highest access level a session may have
      * @param sessionMaxMinutes  how long an authorization lasts at most; 0 for no limit
      * @param sessionIdleMinutes after how long without a command an authorization ends; 0 for never
+     * @param cli                whether agents may come by commands of the command line
+     * @param mcp                whether agents may come by MCP. An organisation that forbids the protocol turns it off
      */
     record Limits(boolean strict, List<String> allowed, boolean screenshots, Access maxAccess, int sessionMaxMinutes,
-            int sessionIdleMinutes) {
+            int sessionIdleMinutes, boolean cli, boolean mcp) {
+
+        /** With both interfaces. */
+        Limits(boolean strict, List<String> allowed, boolean screenshots, Access maxAccess, int sessionMaxMinutes,
+                int sessionIdleMinutes) {
+            this(strict, allowed, screenshots, maxAccess, sessionMaxMinutes, sessionIdleMinutes, true, true);
+        }
 
         /** No restriction: what holds without a settings file. */
         static final Limits NONE = new Limits(false, List.of(), true, Access.WRITE, 0, 0);
+
+        /** Whether an agent that comes this way is let in. */
+        boolean allows(boolean byCommands) {
+            return byCommands ? cli : mcp;
+        }
+
+        /** The interfaces in force, as the settings file names them: "cli, mcp", "cli" or "mcp". */
+        String interfaces() {
+            return cli && mcp ? "cli, mcp" : cli ? "cli" : "mcp";
+        }
 
         /** Whether an action that needs this access level is within the highest level allowed. */
         boolean allows(Access needed) {
@@ -200,6 +218,11 @@ final class BlockedSites {
             if (sessionMaxMinutes > 0 || sessionIdleMinutes > 0) {
                 parts.add("ends by itself");
             }
+            if (!mcp) {
+                parts.add("CLI only");
+            } else if (!cli) {
+                parts.add("MCP only");
+            }
             return String.join(", ", parts);
         }
 
@@ -224,6 +247,11 @@ final class BlockedSites {
             if (sessionIdleMinutes > 0) {
                 parts.add("and ends after " + sessionIdleMinutes + " min without a command");
             }
+            if (!mcp) {
+                parts.add("agents come by the command line only (MCP is off)");
+            } else if (!cli) {
+                parts.add("agents come by MCP only (the command line is off)");
+            }
             return String.join("; ", parts);
         }
     }
@@ -235,6 +263,7 @@ final class BlockedSites {
     static final String MAX_ACCESS = "access.max";
     static final String SESSION_MAX = "session.max.minutes";
     static final String SESSION_IDLE = "session.idle.minutes";
+    static final String INTERFACES = "interfaces";
     /** What the strict profile sets where the file says nothing else. */
     static final int STRICT_SESSION_MAX = 480;
     static final int STRICT_SESSION_IDLE = 30;
@@ -274,9 +303,25 @@ final class BlockedSites {
         if (access == null) {
             throw new Slip("\"" + level + "\" in " + MAX_ACCESS + " is none of read, explore, write");
         }
+        boolean cli = false;
+        boolean mcp = false;
+        String interfaces = properties.getProperty(INTERFACES, "").trim().toLowerCase(Locale.ROOT);
+        for (String entry : interfaces.split("[,\\s]+")) {
+            switch (entry) {
+                case "" -> { }
+                case "cli" -> cli = true;
+                case "mcp" -> mcp = true;
+                default -> throw new Slip("\"" + entry + "\" in " + INTERFACES + " is neither cli nor mcp");
+            }
+        }
+        if (!cli && !mcp) {
+            // Nothing named is nothing taken away: an entry only ever takes something away.
+            cli = true;
+            mcp = true;
+        }
         return new Limits(strict, List.copyOf(allowed), pictures.equals("on"), access,
                 minutes(properties, SESSION_MAX, strict ? STRICT_SESSION_MAX : 0),
-                minutes(properties, SESSION_IDLE, strict ? STRICT_SESSION_IDLE : 0));
+                minutes(properties, SESSION_IDLE, strict ? STRICT_SESSION_IDLE : 0), cli, mcp);
     }
 
     private static int minutes(Properties properties, String key, int fallback) throws Slip {
@@ -316,6 +361,8 @@ final class BlockedSites {
             # access.max = explore            no session has more than this: read, explore or write
             # session.max.minutes = 240       an authorization lasts this long at most
             # session.idle.minutes = 20       and ends when no command came for this long
+            # interfaces = cli                how agents may reach the tools: cli, mcp, or both (the default).
+            #                                 With cli alone no MCP agent is let in; with mcp alone no command
             #
             # A record of what agents did, on this machine only: one line of JSON for each tool call, in
             # audit.jsonl beside this file. It has ids, actions, times and outcomes, and nothing of a page.
@@ -530,7 +577,8 @@ final class BlockedSites {
                                     + " screenshots=" + (read.limits().screenshots() ? "on" : "off")
                                     + " access_max=" + read.limits().maxAccess().wire()
                                     + " session_max_min=" + read.limits().sessionMaxMinutes()
-                                    + " session_idle_min=" + read.limits().sessionIdleMinutes());
+                                    + " session_idle_min=" + read.limits().sessionIdleMinutes()
+                                    + " interfaces=" + read.limits().interfaces().replace(", ", ","));
                         }
                     }
                 }

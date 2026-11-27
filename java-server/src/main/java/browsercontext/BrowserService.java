@@ -25,13 +25,22 @@ public final class BrowserService {
      * @param structured the result as an object, when it is one: the text is then that object
      *     written out, and a client may take either
      */
-    public record ToolResult(String text, String imageBase64, String imageMimeType, boolean isError, JsonNode structured) {
+    /**
+     * @param code the error's code, as the tool reference lists it, where the result is an error; null otherwise.
+     *             The text begins with the same code, for an agent that reads text: "Error [CODE]: ..."
+     */
+    public record ToolResult(String text, String imageBase64, String imageMimeType, boolean isError, JsonNode structured, String code) {
+        ToolResult(String text, String imageBase64, String imageMimeType, boolean isError, JsonNode structured) {
+            this(text, imageBase64, imageMimeType, isError, structured, null);
+        }
+
         static ToolResult ok(String text) {
             return new ToolResult(text, null, null, false, null);
         }
 
-        static ToolResult error(String text) {
-            return new ToolResult(text, null, null, true, null);
+        /** An error with its code: in the text, as agents read it, and as a field, as the command line reads it. */
+        static ToolResult error(String code, String message) {
+            return new ToolResult("Error [" + code + "]: " + message, null, null, true, null, code);
         }
     }
 
@@ -92,6 +101,8 @@ public final class BrowserService {
     private final java.util.function.Supplier<Unpaired> unpaired;
     /** Who this agent is: by a key of its own, or for this start only. */
     private final AgentKeys.Identity identity;
+    /** Which way the agent comes: by commands of the command line, or by MCP. The policy can turn one of them off. */
+    private final boolean byCommands;
 
     public BrowserService(WebSocketBridge bridge, String startupProblem) {
         this(bridge, startupProblem, () -> Unpaired.NOTHING_KNOWN);
@@ -103,7 +114,13 @@ public final class BrowserService {
 
     BrowserService(WebSocketBridge bridge, String startupProblem, java.util.function.Supplier<Unpaired> unpaired,
             AgentKeys.Identity identity) {
-        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired, identity);
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired, identity, false);
+    }
+
+    /** @param byCommands the agent comes by commands of the command line, and not by MCP */
+    BrowserService(WebSocketBridge bridge, String startupProblem, java.util.function.Supplier<Unpaired> unpaired,
+            AgentKeys.Identity identity, boolean byCommands) {
+        this(bridge, startupProblem, Duration.ofSeconds(30), Duration.ofSeconds(10), unpaired, identity, byCommands);
     }
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout) {
@@ -121,9 +138,15 @@ public final class BrowserService {
 
     BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace,
             java.util.function.Supplier<Unpaired> unpaired, AgentKeys.Identity identity) {
+        this(bridge, startupProblem, defaultTimeout, connectGrace, unpaired, identity, false);
+    }
+
+    BrowserService(WebSocketBridge bridge, String startupProblem, Duration defaultTimeout, Duration connectGrace,
+            java.util.function.Supplier<Unpaired> unpaired, AgentKeys.Identity identity, boolean byCommands) {
         // Without a word on who the agent is, it is the bridge's id for this start.
         this.identity = identity != null ? identity
                 : new AgentKeys.Identity(bridge.clientId(), null, false, () -> false);
+        this.byCommands = byCommands;
         this.unpaired = unpaired;
         this.bridge = bridge;
         this.json = bridge.json();
@@ -205,7 +228,17 @@ public final class BrowserService {
                 + "adding --agent <name> to the command that starts this server)";
     }
 
-    /** Records who the MCP client is, for the extension's activity panel. */
+    /** Whether this agent comes by commands of the command line, and not by MCP. */
+    boolean byCommands() {
+        return byCommands;
+    }
+
+    /** The id of this agent, as the extension and the log know it. */
+    String clientId() {
+        return bridge.clientId();
+    }
+
+    /** Records what the agent is called, for the extension's activity panel: an MCP client's own name, or the command line's. */
     public void noteClient(String name) {
         bridge.setClientName(name);
     }
@@ -228,7 +261,13 @@ public final class BrowserService {
         // An agent the user revoked is told so by every tool, before anything is looked at or sent.
         if (identity.revoked().getAsBoolean()) {
             bridge.refused(null, tool, "AGENT_REVOKED");
-            return ToolResult.error("Error [AGENT_REVOKED]: " + revokedMessage());
+            return ToolResult.error("AGENT_REVOKED", revokedMessage());
+        }
+        // An agent of an interface the user's policy turned off is told so by every tool, and nothing is sent for it.
+        BlockedSites.Rule policy = bridge.blocked();
+        if (!policy.everything() && !policy.limits().allows(byCommands)) {
+            bridge.refused(null, tool, "INTERFACE_NOT_ALLOWED");
+            return ToolResult.error("INTERFACE_NOT_ALLOWED", interfaceOff(byCommands, policy.limits()));
         }
         long asked = System.nanoTime();
         awaitExtension();
@@ -258,7 +297,7 @@ public final class BrowserService {
             if (e.code().equals("NOT_CONNECTED") && pairingIsMissing()) {
                 hint += " " + pairingHelp(bridge.lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED);
             }
-            return ToolResult.error("Error [" + e.code() + "]: " + e.getMessage() + hint);
+            return ToolResult.error(e.code(), e.getMessage() + hint);
         }
     }
 
@@ -274,6 +313,13 @@ public final class BrowserService {
         String session = session(a);
         refuseIfBlocked(checkedAs, session, null);
         return bridge.send(action, session, params, timeout);
+    }
+
+    /** What an agent is told when the user's settings have turned its interface off. Only the user can change it. */
+    static String interfaceOff(boolean byCommands, BlockedSites.Limits limits) {
+        return (byCommands ? "The command line is off" : "MCP is off") + " by the TabGoblin server's settings file (interfaces = "
+                + limits.interfaces() + "): no agent comes this way, and nothing was sent. Only the user can change that, in the "
+                + "settings of the TabGoblin server. Do not switch to the other interface by yourself; tell the user.";
     }
 
     /** What an agent is told of a site on the user's list. It names the one site it tried, and never the list. */
@@ -522,7 +568,7 @@ public final class BrowserService {
     /** The user's restrictions as an agent is told them: what holds, and not which sites are allowed. */
     private static String policyLine(BlockedSites.Limits limits) {
         BlockedSites.Limits shown = new BlockedSites.Limits(limits.strict(), List.of(), limits.screenshots(), limits.maxAccess(),
-                limits.sessionMaxMinutes(), limits.sessionIdleMinutes());
+                limits.sessionMaxMinutes(), limits.sessionIdleMinutes(), limits.cli(), limits.mcp());
         String said = shown.summary();
         if (!limits.allowed().isEmpty()) {
             said = (said.isEmpty() ? "" : said + "; ") + "agents work only on the sites the user allows";
