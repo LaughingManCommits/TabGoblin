@@ -94,6 +94,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
 | Nothing personal | `node --test docs/agents/check-personal.test.mjs`; `node docs/agents/check-personal.mjs` |
+| One version | `node --test release/version.test.mjs`; `node release/version.mjs` |
 | Dependencies | `npm audit --audit-level=high` in `chrome-extension` and in `e2e`; the same in `e2e/editors`, whose result does not fail the job. The review of a pull request runs on GitHub only |
 
 CI runs on pushes to `main`, on pull requests, and by hand. A push to another branch without a
@@ -261,43 +262,64 @@ no window comes, and the answer names `--show-token`.
 
 ## Change the version
 
-The version is written in seven places. Change all of them in one commit:
+A release sets its version itself (the next section); this is for changing it by hand. The
+version is written in ten files. A script changes all of them, from any folder:
 
-```text
-pom.xml
-java-server/pom.xml
-chrome-extension/manifest.json
-chrome-extension/package.json                              then npm install, for the lock file
-e2e/package.json
-e2e/editors/package.json                                   then npm install, for the lock file
-e2e/mcp-client.mjs                                         clientInfo
+```bash
+node release/version.mjs                    # prints the version; exits 1 if the files disagree
+node release/version.mjs 0.3.0 --dry-run    # says which files it would change, writes nothing
+node release/version.mjs 0.3.0              # changes them
+node release/version.mjs 0.3.0-beta.1       # a beta: the manifest gets 0.3.0.1 and a version_name
+node release/version.mjs --plan 0.3.0 --branch main   # the version a release from that branch gets
 ```
 
-Check: `git grep -n "0\.2\.0" -- ":!*package-lock.json"` (with the old version) prints nothing, and
-all four suites pass. The server reads its version from the build (`java-server/pom.xml`), and the
-conformance check compares the two. There is no changelog; a version is a number in the tree
-and a merge to `main` by the owner, and a release of it is a tag: see the next section.
+The files are the two POMs, the extension's manifest, the three `package.json` files of
+`chrome-extension`, `e2e` and `e2e/editors` with their lock files (the root package's version
+only, as `npm install` would write it), and `clientInfo` in `e2e/mcp-client.mjs`; the list is
+`PLACES` in the script. A version is three numbers, or a beta of them with `-beta.` and a
+number from 1; no other suffix, and no leading zeros, as Chrome takes it. `--plan` reads the
+tags of the clone: fetch them first (`git fetch --tags`). If a place is not found exactly once, the script writes nothing and
+names the file; then the file's layout changed, and `PLACES` with it.
+
+After a change it lists the other lines of the tree that still name the old version
+(`TODO.md` and the two records in `docs/agents/` are left out: they are history). Most speak of
+the published release (the README, `docs/installation.md`) and stay until that release is
+replaced; change them when the new one is published. The script runs no build, commits nothing
+and tags nothing.
+
+Then: all four suites, and one commit with the ten files. The server reads its version from the
+build (`java-server/pom.xml`), and the conformance check compares the two; `release/bundle.sh`
+reads the manifest's. The CI job "One version" runs the script without a version, and fails if
+the files disagree. There is no changelog; git history and the tags are the record.
 
 ## Make a release
 
-A release is the owner's: it is made by pushing a tag. The workflow
-(`.github/workflows/release.yml`, described in
-[development.md](../development.md#releases)) does the rest.
+A release is the owner's: it is made by starting the workflow *Release* by hand, which sets the
+version, runs the suites, makes the downloads, and only then commits, tags and publishes. The
+workflow is `.github/workflows/release.yml`, described in
+[development.md](../development.md#releases).
 
-1. The version in the tree is the one to release (the section above), and it is merged to
-   `main`.
-2. Try it first, without publishing: start the workflow *Release* by hand, on GitHub under
-   *Actions*. It runs the suites and makes the three downloads, which are kept with the run.
+1. What is to be released is on the branch: `main` for a release, any other branch for a beta.
+2. Try it first: on GitHub under *Actions*, *Release*, *Run workflow*, choose the branch, type
+   the version (three numbers, as `0.3.0`; from a branch other than `main` its next beta is
+   made), and leave *publish* off. The run's summary names the version it would make. It runs
+   the suites and makes the three downloads, which are kept with the run; nothing is written.
    Download one and use it as the [installation guide](../installation.md#from-a-download)
    says.
-3. Tag and push: `git tag v0.2.0`, `git push origin v0.2.0`, with the version of step 1. A tag
-   that is not `v` and that version makes no release: the workflow stops and says which tag it
-   wants.
-4. Success: a release of that name on GitHub, with three downloads and `SHA256SUMS.txt`.
-   `gh attestation verify <download> --repo <owner>/<repository>` says that it was built there.
+3. Run it again on the same branch with the same version and *publish* on. If the branch got a
+   commit after the run started, the push is refused and nothing is published: start it again.
+4. Success: a commit `TabGoblin <version>` on the branch, the tag `v<version>` on it, and a
+   release of that name on GitHub with three downloads and `SHA256SUMS.txt`; a beta is marked
+   as a pre-release. `gh attestation verify <download> --repo <owner>/<repository>` says that it
+   was built there.
+5. After a release from `main`: the README and `docs/installation.md` name the published
+   release in a few lines (the script lists them when the version changes); change them to the
+   new one, by a pull request.
 
-A release cannot be made again under the same tag. If one is wrong, delete it and its tag on
-GitHub, mend, and tag anew, or go on to the next version.
+A release cannot be made again under the same version: the workflow refuses a version whose
+tag is there. If one is wrong, delete the release and its tag on GitHub, mend, and release
+again, or go on to the next version. If the push went through and `gh` failed, the tag is there
+without a release: delete the tag and start again.
 
 To make the download for the system you are on, without GitHub:
 

@@ -5,8 +5,14 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
-  # The release runs these suites first, before it makes anything.
+  # The release runs these suites first, before it makes anything, on the tree with the version
+  # it is to release: each job that builds or tests sets it first.
   workflow_call:
+    inputs:
+      version:
+        description: The version the release sets in the files before the suites run.
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -25,6 +31,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: The release's version
+        if: inputs.version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node release/version.mjs "$VERSION"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -39,6 +51,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: The release's version
+        if: inputs.version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node release/version.mjs "$VERSION"
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -66,6 +84,27 @@ jobs:
         run: node --test docs/agents/check-personal.test.mjs
       - name: Check the files
         run: node docs/agents/check-personal.mjs
+
+  # The files that carry the version name the same one. The script's own tests run first.
+  version:
+    name: One version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: The release's version
+        if: inputs.version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node release/version.mjs "$VERSION"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Test the script
+        run: node --test release/version.test.mjs
+      - name: Check the files
+        run: node release/version.mjs
 
   # Known vulnerabilities in what the parts are built from and with. The npm packages are asked
   # of the registry; a pull request is also held against GitHub's advisories, which covers the
@@ -104,6 +143,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - name: The release's version
+        if: inputs.version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node release/version.mjs "$VERSION"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -137,6 +182,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+      - name: The release's version
+        if: inputs.version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: node release/version.mjs "$VERSION"
       - uses: actions/setup-java@v6
         with:
           distribution: temurin

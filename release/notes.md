@@ -10,7 +10,7 @@ Unpack it where it can stay, and in its folder run setup for your agent (`claude
 
 To update, unpack the new download over the old folder, press the reload arrow on TabGoblin's card at `chrome://extensions`, and start your agent anew.
 
-**Checking a download.** `SHA256SUMS.txt` has the SHA-256 of each file. GitHub attests that each was built by this repository's release workflow from this tag:
+**Checking a download.** `SHA256SUMS.txt` has the SHA-256 of each file. GitHub attests that each was built by this repository's release workflow. The run it names was started on the commit before this tag's, which differs from the tagged one in the version only:
 
 ```sh
 gh attestation verify tabgoblin-VERSION-windows-x64.zip --repo REPOSITORY

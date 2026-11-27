@@ -7,8 +7,8 @@
 #
 # It needs a JDK 25 or newer on the path, for jdeps, jlink and jar; on Windows also for jpackage,
 # and Node, which writes the icon of the program it makes. The download is written to
-# release/out. In a run for a version tag, where GitHub sets GITHUB_REF_TYPE and
-# GITHUB_REF_NAME, the tag has to be the version with a v in front, or nothing is made.
+# release/out. If TABGOBLIN_RELEASE_VERSION is set, as the release workflow sets it, the version
+# in the files has to be that one, or nothing is made.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -17,10 +17,14 @@ extension="$root/chrome-extension/dist"
 [ -f "$jar" ] || { echo "No server to pack. Build it first: mvn -f java-server/pom.xml package" >&2; exit 1; }
 [ -f "$extension/manifest.json" ] || { echo "No extension to pack. Build it first: npm --prefix chrome-extension run build" >&2; exit 1; }
 
-version=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$extension/manifest.json" | head -n 1)
-[ -n "$version" ] || { echo "The extension's manifest names no version." >&2; exit 1; }
-if [ "${GITHUB_REF_TYPE:-}" = "tag" ] && [ "${GITHUB_REF_NAME:-}" != "v$version" ]; then
-  echo "The tag is ${GITHUB_REF_NAME:-}, and the version in the files is $version: the tag of this release is v$version." >&2
+# The manifest's "version" is numbers only, as Chrome wants it; a beta's full name, as
+# 0.3.0-beta.1, is its "version_name". The download is named after the full one.
+numbers=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$extension/manifest.json" | head -n 1)
+[ -n "$numbers" ] || { echo "The extension's manifest names no version." >&2; exit 1; }
+version=$(sed -n 's/.*"version_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$extension/manifest.json" | head -n 1)
+version=${version:-$numbers}
+if [ -n "${TABGOBLIN_RELEASE_VERSION:-}" ] && [ "$TABGOBLIN_RELEASE_VERSION" != "$version" ]; then
+  echo "The release is $TABGOBLIN_RELEASE_VERSION, and the version in the files is $version." >&2
   exit 1
 fi
 
@@ -76,7 +80,8 @@ if [ "$system" = windows ]; then
   mkdir -p "$made/in"
   cp "$jar" "$made/in/tabgoblin.jar"
   node "$root/art/mascot.ts" --windows-icon "$made/tabgoblin.ico" > /dev/null
-  jpackage --type app-image --name TabGoblin --app-version "$version" --input "$made/in" \
+  # The program's version is three numbers: a beta's fourth is left out.
+  jpackage --type app-image --name TabGoblin --app-version "$(echo "$numbers" | cut -d. -f1-3)" --input "$made/in" \
     --main-jar tabgoblin.jar --runtime-image "$stage/tabgoblin/runtime" \
     --icon "$made/tabgoblin.ico" --arguments --panel --dest "$made/out"
   settings="$made/out/TabGoblin/app/TabGoblin.cfg"

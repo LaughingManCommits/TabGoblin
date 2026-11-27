@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## The version script and a release workflow that sets it, 2026-11-27
+
+On branch `ccr-9855a613-wqwjrk`, made from `main` at `02eef57`, on the owner's word, in two commits. `node release/version.mjs <version>` changes the version in the ten files that carry it (the runbook had said seven; it had left out the lock files). It takes a beta as well, `0.3.0-beta.1`, which the manifest holds as `"version": "0.3.0.1"` and `"version_name"`. The release workflow is now started by hand with a version and a switch *publish*: from `main` a release, from any other branch the next beta, as a pre-release; it sets the version, runs the suites on that tree (`ci.yml` takes the version as an input), makes the downloads, and only then commits the version, tags and publishes, in one push that is refused if the branch moved on. A tag pushed by hand makes no release any more. The CI job "One version" fails if the files disagree. **Not known:** whether `main` has a rule that refuses the workflow's push; the workflow has not run on GitHub, and actionlint was not run. **Next:** the owner's merge; then a run with *publish* off on a branch and on `main`.
+
 ## A review of WP-31 and WP-32, 2026-11-27
 
 On branch `ccr-2317e25f-tftdvd` (the same commits as `cli-mcp-side-by-side`): a review found four faults in the command line's conversation with the server and six smaller ones, mended (see the validation log). **Left open:** the window says every agent is turned away while the settings file cannot be read, where agents are let in and only sites refused (`PanelModel.Blocked`); every command's process logs the blocked sites and the policy on its standard error (`Cli.java` reads the file through `BlockedSites.source`); the validation log is not folded to about ten entries; `release/bundle.sh` does not look at an `app.classpath` line of `TabGoblin.cfg`; the download's documentation links to pages it does not hold (`docs/agents/`, `TODO.md`, `art/`). Pushed to `cli-mcp-side-by-side`, the branch of pull request 6, after every CI job passed here. **Next:** the owner's merge.
