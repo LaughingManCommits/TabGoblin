@@ -229,7 +229,7 @@ final class RunningServers {
         List<Integer> list = Ports.firsts(port, chosen);
         if (chosen) {
             // The browser is at its own port's server, or no other server would run it as its setup asks: its port alone.
-            if (written.stream().anyMatch(entry -> entry.first() == port && entry.browser())) {
+            if (written.stream().anyMatch(entry -> entry.first() == port && entry.browser() && alive.test(entry.pid()))) {
                 return list;
             }
             Set<Integer> firsts = new LinkedHashSet<>();

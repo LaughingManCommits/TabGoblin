@@ -3,6 +3,15 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `one-server-found-and-plain-answers` after `c350f29`: the review's two mends
+
+In the same copy, runtime and compiler as below: `BrowserServiceTest` (37), `HubTest` (19, with
+the new case that nothing is told of the browser after the server begins to stop),
+`RunningServersTest` (10, with the case of a dead server's file on the process's own port),
+`ToolReferenceTest` and `SkillsTest`, 77 tests, none failed. Not run for this commit: the rest
+of the suite, `mvn verify`, end to end; they ran on the commit before, and the change is a
+lock, one predicate and text.
+
 ## 2026-11-27, branch `one-server-found-and-plain-answers` after `7a79ba7`: a named port joins the server with the browser and the same settings
 
 In the same copy, runtime and compiler as below: `mvn verify`, 259 tests, none failed, 20

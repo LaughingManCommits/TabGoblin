@@ -188,6 +188,8 @@ final class Hub {
     /** Told when the browser comes or goes, and whether it was here at the last look; on the thread that watches. */
     private volatile java.util.function.Consumer<Boolean> onBrowser = browser -> { };
     private boolean hadBrowser;
+    /** Held while the browser's coming or going is told, and while the server begins to stop: nothing is told after that. */
+    private final Object browserLock = new Object();
 
     private Hub(Agent.Settings settings, ServerSocket listening, boolean standing) {
         this.settings = settings;
@@ -708,10 +710,14 @@ final class Hub {
                 return;
             }
             letIdleGo();
-            boolean browser = hasBrowser();
-            if (browser != hadBrowser) {
-                hadBrowser = browser;
-                onBrowser.accept(browser);
+            synchronized (browserLock) {
+                // A server that stops closes its agents, and the browser goes with them: that is not told, so that
+                // what is written of this server is not written again after it was taken out.
+                boolean browser = !stopping && hasBrowser();
+                if (!stopping && browser != hadBrowser) {
+                    hadBrowser = browser;
+                    onBrowser.accept(browser);
+                }
             }
             long since = emptySince;
             if (!standing && !stopping && members.isEmpty() && since > 0 && System.currentTimeMillis() - since >= emptyFor) {
@@ -737,7 +743,9 @@ final class Hub {
      * them starts the server anew; then each agent's part is ended, and the port is given up.
      */
     void close() {
-        stopping = true;
+        synchronized (browserLock) {
+            stopping = true;
+        }
         Log.unwritten(logTo);
         for (Member member : members) {
             member.links.forEach(conn -> conn.out.control("stopping", null, json));
@@ -786,7 +794,9 @@ final class Hub {
      * their connections gone, and the extension its sockets.
      */
     void drop() {
-        stopping = true;
+        synchronized (browserLock) {
+            stopping = true;
+        }
         Log.unwritten(logTo);
         try {
             listening.close();

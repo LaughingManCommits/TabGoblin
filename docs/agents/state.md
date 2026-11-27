@@ -2,6 +2,19 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## The branch reviewed: two faults mended, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `c350f29`, on the owner's word ("review the
+current branch"). Found and mended: at an orderly stop the server's watcher thread could write
+its file again after the shutdown hook had taken it out, since the browser goes when the agents
+are closed (`Hub.close` and the watcher now hold one lock, and nothing is told once the server
+stops); and a process with `--port` took the file of its own port as proof that the browser is
+there without looking whether that server's process is alive (`RunningServers.firsts`). Also
+mended in the text: the status line of an agent served away from its setup's port now says that
+the browser *was* connected here when it came, not that it is; the link protocol's `setup_port`
+is in the protocol reference. An independent review of the whole diff was started; its findings,
+if any, follow in a further commit.
+
 ## A named port joins the server with the browser where that one runs under the same settings, 2026-11-27
 
 On branch `one-server-found-and-plain-answers`, after `7a79ba7`, on the owner's word ("build the

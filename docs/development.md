@@ -567,7 +567,7 @@ command line's own three messages for a command. Its version is 2 (1 had MCP for
 
 ```json
 { "type": "hello", "nonce": "…", "link": 2 }
-{ "type": "attach", "nonce": "…", "proof": "…", "link": 2, "panel": false, "quiet": false, "agent": "claude-code", "agentProof": "…" }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 2, "panel": false, "quiet": false, "setup_port": 47821, "agent": "claude-code", "agentProof": "…" }
 { "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
 
 { "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
@@ -576,7 +576,10 @@ command line's own three messages for a command. Its version is 2 (1 had MCP for
 
 `panel` asks for the server's window at once; `quiet` says that the window is not to come up
 by itself for this agent when the browser has to be paired (`--no-panel`). Both are optional.
-`agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
+`setup_port` is the first port the process's setup names (`--port`), sent only where it names
+one: a server on another port that serves the agent, because it has the browser and runs under
+the same settings ([architecture](architecture.md#processes-and-ports)), says so in the agent's
+status. `agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
 the proof that it holds that name's key (`AgentKeys.proof`). Without them, or with a proof that
 does not hold, the agent gets an id for this start only.
 A process that runs one command of the [command line](cli.md) adds

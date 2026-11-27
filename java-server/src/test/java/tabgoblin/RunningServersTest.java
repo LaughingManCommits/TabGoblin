@@ -172,6 +172,8 @@ class RunningServersTest {
         List<RunningServers.Entry> ownHasIt = List.of(new RunningServers.Entry(45000, 5, true, FIT), written.get(1));
         assertEquals(List.of(45000), RunningServers.firsts(45000, true, ownHasIt, port -> true, pid -> true, FIT),
                 "the browser is at its own port's server: that one alone");
+        assertEquals(List.of(41000, 45000), RunningServers.firsts(45000, true, ownHasIt, port -> true, pid -> pid != 5, FIT),
+                "the file of its own port is of a server that is gone: it is not what keeps the process from the other");
         List<RunningServers.Entry> noFit = List.of(new RunningServers.Entry(41000, 2, true, new RunningServers.Fit("", "")));
         assertEquals(List.of(45000), RunningServers.firsts(45000, true, noFit, port -> true, pid -> true, FIT),
                 "a file that does not say what its server runs under is not taken to be the same");

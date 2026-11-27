@@ -553,6 +553,14 @@ class HubTest {
         await(() -> changes.equals(List.of(true, false)), "the browser to be told as gone");
         Thread.sleep(600);
         assertEquals(List.of(true, false), changes, "and nothing more while nothing changes");
+
+        // The browser is back, and the server stops: its agents are closed and the browser goes with them,
+        // which is not told, so that what is written of the server is not written again after it is taken out.
+        FakeExtension.paired(port, TOKEN);
+        await(() -> changes.equals(List.of(true, false, true)), "the browser to be told as come again");
+        hub.close();
+        Thread.sleep(600);
+        assertEquals(List.of(true, false, true), changes, "nothing is told after the server began to stop");
     }
 
     @Test

@@ -281,9 +281,9 @@ public final class BrowserService {
 
     /** What the status says of an agent that came here from the port its setup names. */
     static String cameFromLine(int setupPort) {
-        return "This agent's setup names first port " + setupPort + ". The browser is at this server, which runs under the "
-                + "same settings, so this agent is served here; that port is used only to start a server when none with "
-                + "the browser runs.";
+        return "This agent's setup names first port " + setupPort + ". It is served by this server because the browser was "
+                + "connected here, under the same settings, and not at that port; a setup's port only says where to start a "
+                + "server when none has the browser.";
     }
 
     /** Whether this agent comes by commands of the command line, and not by MCP. */

@@ -569,9 +569,9 @@ class BrowserServiceTest {
     @Test
     void anAgentThatCameHereFromThePortOfItsSetupIsToldWhyInItsStatus() throws Exception {
         ext.responder = cmd -> FakeExtension.ok(cmd, args().put("confirmSubmissions", true).set("sessions", args().arrayNode()));
-        String line = "This agent's setup names first port 47821. The browser is at this server, which runs under the same "
-                + "settings, so this agent is served here; that port is used only to start a server when none with the "
-                + "browser runs.";
+        String line = "This agent's setup names first port 47821. It is served by this server because the browser was connected "
+                + "here, under the same settings, and not at that port; a setup's port only says where to start a server "
+                + "when none has the browser.";
         assertFalse(service.call("browser_status", args()).text().contains("setup names"));
         service.cameFrom(47821);
         assertTrue(service.call("browser_status", args()).text().contains("\n" + line + "\n"));
