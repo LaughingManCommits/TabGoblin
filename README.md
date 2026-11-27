@@ -190,7 +190,7 @@ the server in its settings:
   "mcpServers": {
     "tabgoblin": {
       "command": "<folder>/tabgoblin/runtime/bin/java",
-      "args": ["-jar", "<folder>/tabgoblin/browser-context-mcp.jar", "--agent", "my-ide"]
+      "args": ["-jar", "<folder>/tabgoblin/tabgoblin.jar", "--agent", "my-ide"]
     }
   }
 }
@@ -256,7 +256,7 @@ More, with tips, are in the [developer guide](docs/developer-guide.md#example-pr
 - Hovering sends the events a page's script listens for. What a page shows through a hover
   style alone does not appear.
 
-Some technical names, such as `browser-context-mcp` and `BCMCP_*`, predate the product name and
+Some technical names, such as `tabgoblin` and `TABGOBLIN_*`, predate the product name and
 are kept for compatibility: [which, and why](docs/development.md#names).
 
 ## Licence

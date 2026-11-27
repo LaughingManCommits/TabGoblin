@@ -230,7 +230,7 @@ length is still the *longest*. Where there was such a pause, a last line says ho
 
 An extension that gives no times has the round trip counted whole under the extension and the
 page, and a note says for how many calls. Nothing but tool names and durations is kept. With
-`BCMCP_LOG=debug` the server also writes one line for each tool call:
+`TABGOBLIN_LOG=debug` the server also writes one line for each tool call:
 `call tool=browser_click ms=412 gap=2140 waited=0 trip=380 ran=352 queued=3 asked=0 outcome=ok`.
 
 ### browser_request_access

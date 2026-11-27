@@ -35,7 +35,7 @@ if (PROMPTS) mkdirSync(PROMPTS, { recursive: true });
 // Fixed ports so the addresses in the pictures are stable between runs.
 const demo = await startDemo(8931, 8932, 8933);
 const port = await new Promise((done) => { const s = createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => done(p)); }); });
-const args = ['-jar', resolve(HERE, '../java-server/target/browser-context-mcp.jar'), '--port', String(port), '--token-file', join(work, 'token')];
+const args = ['-jar', resolve(HERE, '../java-server/target/tabgoblin.jar'), '--port', String(port), '--token-file', join(work, 'token')];
 const token = /Pairing token:\s*(\S+)/.exec(execFileSync('java', [...args, '--show-token'], { encoding: 'utf8' }))[1];
 const one = new McpClient('java', args, 'IntelliJ IDEA');
 const two = new McpClient('java', args, 'claude-code');
@@ -43,7 +43,7 @@ await one.initialize();
 await two.initialize();
 
 const browser = await puppeteer.launch({
-  ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),
+  ...(process.env.TABGOBLIN_CHROME ? { executablePath: process.env.TABGOBLIN_CHROME } : { channel: 'chrome' }),
   headless: !process.env.HEADED, pipe: true, enableExtensions: true, userDataDir: join(work, 'profile'),
   defaultViewport: null, args: ['--no-first-run', '--window-size=1100,720'],
 });
@@ -336,12 +336,12 @@ try {
   // 5. The notice in the page: two commands have just ended, and a third runs.
   await a.bringToFront();
   // What the steps before left in it goes first, so that the picture is the same every time.
-  await a.waitForFunction(() => !document.querySelector('bcmcp-indicator'), { timeout: 10000 });
+  await a.waitForFunction(() => !document.querySelector('tabgoblin-notice'), { timeout: 10000 });
   await one.tool('browser_snapshot');
   await one.tool('browser_extract');
   const waiting = one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 3000 });
   // Wait until it is really there, and frame the picture around where it actually is.
-  const pill = await a.waitForSelector('bcmcp-indicator', { timeout: 5000 });
+  const pill = await a.waitForSelector('tabgoblin-notice', { timeout: 5000 });
   await sleep(500);
   // At double size, in the window as it is: the box is small, and the documentation shows it large.
   const [width, height, scrollX, scrollY] = await a.evaluate(() => [innerWidth, innerHeight, scrollX, scrollY]);

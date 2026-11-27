@@ -8,7 +8,7 @@
 //
 //   node run.mjs            headless
 //   HEADED=1 node run.mjs   watch it run
-//   BCMCP_CHROME=<path>     use a specific Chrome/Chromium binary
+//   TABGOBLIN_CHROME=<path>     use a specific Chrome/Chromium binary
 
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ import { McpClient } from './mcp-client.mjs';
 import { RawAgent } from './raw-agent.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const JAR = resolve(HERE, '../java-server/target/browser-context-mcp.jar');
+const JAR = resolve(HERE, '../java-server/target/tabgoblin.jar');
 const EXTENSION = resolve(HERE, '../chrome-extension/dist');
 const EXTENSION_ID = 'hipkpjlbggddmiognhmjnfihcgimjfop';
 const ENTERED_TEXT = 'Reproduced on build 512 - e2e-unique-comment';
@@ -119,7 +119,7 @@ async function freeRange() {
   throw new Error('no nine free ports in a row were found');
 }
 
-const work = mkdtempSync(join(tmpdir(), 'bcmcp-e2e-'));
+const work = mkdtempSync(join(tmpdir(), 'tabgoblin-e2e-'));
 const tokenFile = join(work, 'pairing-token');
 // The server's settings are beside its pairing token: the sites no agent may work on are named there.
 const settingsFile = join(work, 'tabgoblin.properties');
@@ -131,7 +131,7 @@ const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', token
 
 // An agent of the command line is kept by the server between its commands: here for seconds, so that
 // the server still ends by itself at the end of the suite. The server reads it where it is started.
-process.env.BCMCP_COMMAND_IDLE_SECONDS = '12';
+process.env.TABGOBLIN_COMMAND_IDLE_SECONDS = '12';
 const shown = execFileSync('java', [...serverArgs, '--show-token'], { encoding: 'utf8' });
 const token = /Pairing token:\s*(\S+)/.exec(shown)?.[1];
 // Each agent is named to the server, as the setup command has it: by that it has a key of its own.
@@ -184,7 +184,7 @@ try {
   await step('server starts and answers initialize over stdio', async () => {
     assert(token && token.length >= 32, '--show-token printed no token');
     const init = await one.initialize();
-    assert(init.serverInfo.name === 'browser-context-mcp', `unexpected serverInfo ${JSON.stringify(init.serverInfo)}`);
+    assert(init.serverInfo.name === 'tabgoblin', `unexpected serverInfo ${JSON.stringify(init.serverInfo)}`);
     has(init.instructions, 'untrusted data');
   });
   await step('lists exactly the generic tools, each bindable to a session', async () => {
@@ -210,7 +210,7 @@ try {
 
   console.log('\nChrome + extension');
   browser = await puppeteer.launch({
-    ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),
+    ...(process.env.TABGOBLIN_CHROME ? { executablePath: process.env.TABGOBLIN_CHROME } : { channel: 'chrome' }),
     headless: !process.env.HEADED,
     pipe: true,
     enableExtensions: true,
@@ -391,7 +391,7 @@ try {
       };
       const classes = (node) => (attribute(node, 'class') ?? '').split(' ');
       const text = (node) => (node.nodeType === 3 ? node.nodeValue : kids(node).map(text).join(''));
-      const host = find(root, (node) => node.localName === 'bcmcp-indicator');
+      const host = find(root, (node) => node.localName === 'tabgoblin-notice');
       if (!host) return null;
       const box = find(host, (node) => classes(node).includes('box'));
       const part = (name) => find(box, (node) => classes(node).includes(name));
@@ -1143,7 +1143,7 @@ try {
       assert(!JSON.stringify(waiting).includes('Mathematician') && !JSON.stringify(waiting).includes('agent-one'), JSON.stringify(waiting));
       // A click that the page makes up opens nothing, and no tool sees the notice or can click it.
       await page.evaluate(() => {
-        const host = document.querySelector('bcmcp-indicator');
+        const host = document.querySelector('tabgoblin-notice');
         host.click();
         host.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }));
       });
@@ -1269,7 +1269,7 @@ try {
     await page.bringToFront();
     const pending = one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 1500 });
     await sleep(500);
-    assert(await page.$('bcmcp-indicator'), 'indicator should be shown during an operation');
+    assert(await page.$('tabgoblin-notice'), 'indicator should be shown during an operation');
     assert(await badge() === 'RUN', `badge during an operation was ${await badge()}`);
     const running = await noticeOf(page);
     assert(running.status === 'Agent: Waiting for content' && running.pause, JSON.stringify(running));
@@ -1281,18 +1281,18 @@ try {
     lacks(during, 'Waiting for content');
     const popup = await openPopup();
     await popup.click('#indicator');
-    await until(async () => !(await page.$('bcmcp-indicator')), 'the indicator to disappear');
+    await until(async () => !(await page.$('tabgoblin-notice')), 'the indicator to disappear');
     ok(await one.tool('browser_snapshot'));
-    assert(!(await page.$('bcmcp-indicator')), 'indicator should stay off');
+    assert(!(await page.$('tabgoblin-notice')), 'indicator should stay off');
     await popup.click('#indicator');
   });
   await step('a page script cannot use the indicator to pause; only a real click on it does', async () => {
     await page.bringToFront();
     const pending = one.tool('browser_wait_for', { text: 'never-there', timeout_ms: 3000 });
-    await until(async () => page.$('bcmcp-indicator'), 'the indicator');
+    await until(async () => page.$('tabgoblin-notice'), 'the indicator');
     // What a hostile page could do: synthetic clicks on the host, and a look inside.
     const reachable = await page.evaluate(() => {
-      const host = document.querySelector('bcmcp-indicator');
+      const host = document.querySelector('tabgoblin-notice');
       host.click();
       host.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       // Nor a look at what it says: the row, and the lines of what ended.
@@ -1302,7 +1302,7 @@ try {
     await sleep(300);
     has((await one.tool('browser_status')).text, 'Paused: no');
     // The user's real click on its Pause button, which is in the bottom row of the box.
-    const box = await (await page.$('bcmcp-indicator')).boundingBox();
+    const box = await (await page.$('tabgoblin-notice')).boundingBox();
     await page.mouse.click(box.x + box.width - 28, box.y + box.height - 18);
     fails(await pending, 'CANCELLED');
     await until(async () => (await one.tool('browser_status')).text.includes('Paused: yes'), 'the session to pause');
@@ -1317,7 +1317,7 @@ try {
   });
   await step('what ended stays in the page for a few seconds, the newest last, then fades; no picture has it', async () => {
     await page.bringToFront();
-    await until(async () => !(await page.$('bcmcp-indicator')), 'the notice of the steps before to go', 12000);
+    await until(async () => !(await page.$('tabgoblin-notice')), 'the notice of the steps before to go', 12000);
     /** Waits until the notice has exactly these lines, and says what it has if it does not come to that. */
     const lines = async (wanted, what) => {
       await until(async () => (await noticeOf(page))?.lines.join('|') === wanted, what, 3000).catch(async (e) => {
@@ -1353,7 +1353,7 @@ try {
     await lines('✓Captured screenshot', 'the line of the screenshot alone');
     // Nothing runs, so the box fades with its last line and then is out of the page.
     await until(async () => (await noticeOf(page))?.box.includes('fading'), 'the notice to fade', 6000);
-    await until(async () => !(await page.$('bcmcp-indicator')), 'the notice to go', 4000);
+    await until(async () => !(await page.$('tabgoblin-notice')), 'the notice to go', 4000);
     const without = await page.screenshot({ type: 'jpeg', quality: 70, encoding: 'base64', captureBeyondViewport: false });
     // Measured in the page that is open anyway: another tab would take the popup away from the steps that follow.
     const dark = [await darkCorner(page, withNotice), await darkCorner(page, shot.image.data), await darkCorner(page, without)];

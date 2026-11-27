@@ -22,7 +22,7 @@ mvn -B -f java-server/pom.xml package
 cd chrome-extension && npm install && npm run check
 ```
 
-Success: Maven ends with `BUILD SUCCESS` and `java-server/target/browser-context-mcp.jar` exists;
+Success: Maven ends with `BUILD SUCCESS` and `java-server/target/tabgoblin.jar` exists;
 `npm run check` ends with `ℹ fail 0` and three lines listing `dist\content.js`,
 `dist\background.js`, `dist\popup.js`.
 
@@ -50,7 +50,7 @@ pass with a type error in it, because Node strips types without checking them.
 
 ## Run the end-to-end suite
 
-Needs both parts built (the suite uses `java-server/target/browser-context-mcp.jar` and
+Needs both parts built (the suite uses `java-server/target/tabgoblin.jar` and
 `chrome-extension/dist`), and Chrome.
 
 ```sh
@@ -58,7 +58,7 @@ cd e2e && npm install && npm test
 ```
 
 Success: each step prints `ok`, the last line is `N passed, 0 failed`, and the process exits 0. It
-takes about eight minutes. The browser opens no window. **On Windows the server's own window comes up twice, at the top right, near the end of the run:** the section "The server's window" reads and presses the real window through the accessibility interface of Windows (`e2e/panel-window.ps1`, which captures nothing of the screen), on the suite's own server and on a second one that it ends with Kill and Stop. Leave the windows alone while it runs. On another system that section prints one line that begins with `skip` and counts no step. Options: `HEADED=1` shows the browser, `BCMCP_CHROME=<path>` picks another Chrome,
+takes about eight minutes. The browser opens no window. **On Windows the server's own window comes up twice, at the top right, near the end of the run:** the section "The server's window" reads and presses the real window through the accessibility interface of Windows (`e2e/panel-window.ps1`, which captures nothing of the screen), on the suite's own server and on a second one that it ends with Kill and Stop. Leave the windows alone while it runs. On another system that section prints one line that begins with `skip` and counts no step. Options: `HEADED=1` shows the browser, `TABGOBLIN_CHROME=<path>` picks another Chrome,
 `SHOW_STDERR=1` prints the servers' logs at the end, `SHOW_TIMES=1` the report of where the time
 of one agent's tool calls went.
 
@@ -126,15 +126,15 @@ Pairing and authorizing a tab are in the [installation guide](../installation.md
 ## Run a tool as a command
 
 ```sh
-java -jar java-server/target/browser-context-mcp.jar tools
-java -jar java-server/target/browser-context-mcp.jar status --agent try-it --no-panel
+java -jar java-server/target/tabgoblin.jar tools
+java -jar java-server/target/tabgoblin.jar status --agent try-it --no-panel
 ```
 
 Success: the first prints fourteen commands, without a server. The second prints one JSON
 object with `"ok":true` and the status in `text`, and exit code 0; the first command of a name
 takes up to ten seconds while no extension is connected. It starts the one server if none
 runs, and that server keeps the agent `try-it` for ten minutes: stop it as below, or start it
-with `BCMCP_COMMAND_IDLE_SECONDS=5` in the environment. `--token-file` and `--port` keep a try
+with `TABGOBLIN_COMMAND_IDLE_SECONDS=5` in the environment. `--token-file` and `--port` keep a try
 away from the server your own agents use. Tests: `mvn -q test -Dtest=CliTest`; end to end it
 is the section "The command line".
 
@@ -202,7 +202,7 @@ After a change to the panel, picture its states and look at them:
 ```sh
 mvn -q -f java-server/pom.xml test-compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 cd java-server
-java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" browsercontext.PanelPictures target/panel-pictures
+java -cp "target/classes;target/test-classes;$(cat target/classpath.txt)" tabgoblin.PanelPictures target/panel-pictures
 ```
 
 On Linux and macOS the separator in the class path is `:`. On a machine without a display, put
@@ -239,7 +239,7 @@ on ports of its own, so that it is a server beside the one your agents use and y
 extension does not pair with it:
 
 ```sh
-java -jar java-server/target/browser-context-mcp.jar --panel --port 47840
+java -jar java-server/target/tabgoblin.jar --panel --port 47840
 ```
 
 The command starts the server, says so and returns; the window says that no agent is connected.
@@ -352,7 +352,7 @@ build their planted values while they run, so the test file passes the check.
 |---|---|---|
 | The editor lab cannot find `puppeteer-core` | `npm install` was run only in `e2e/editors` | `cd e2e && npm install` |
 | End-to-end or lab fails at start with a missing jar or `dist` | A part is not built | Build both parts |
-| A build is to replace `java-server/target/browser-context-mcp.jar` while a server runs from it | An agent whose MCP settings name the tree's jar has its process running from that file, and so has the one server (`javaw` with `--hub`), which that process started; your own session may be that agent | Do not build under it: copy the tree without `.git`, `node_modules`, `target` and `dist`, build and run the suites there, and build in the tree once that agent is closed. `mvn test` in the tree writes classes only and is safe |
+| A build is to replace `java-server/target/tabgoblin.jar` while a server runs from it | An agent whose MCP settings name the tree's jar has its process running from that file, and so has the one server (`javaw` with `--hub`), which that process started; your own session may be that agent | Do not build under it: copy the tree without `.git`, `node_modules`, `target` and `dist`, build and run the suites there, and build in the tree once that agent is closed. `mvn test` in the tree writes classes only and is safe |
 | A change to the extension has no effect in Chrome | The extension was not reloaded | Reload it in `chrome://extensions` |
 | `agnostic.test.ts` fails | A library name or a library's class name got into `chrome-extension/src`, also in a comment | Describe the DOM fact instead |
 | A Bash here-document with backslashes or quotes fails on Windows | Git Bash quoting | Write the script to a file and run the file |

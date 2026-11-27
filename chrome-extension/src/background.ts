@@ -346,7 +346,7 @@ function refreshBadge(): void {
  */
 function setNotice(session: SessionRecord, update: NoticeUpdate): Promise<void> {
   if (update.state !== 'off' && !config.indicator) return Promise.resolve();
-  return chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'indicator', origins: session.origins, ...update }, { frameId: 0 })
+  return chrome.tabs.sendMessage(session.tabId, { tabgoblin: 1, op: 'indicator', origins: session.origins, ...update }, { frameId: 0 })
     .then(() => undefined, () => undefined);
 }
 
@@ -449,7 +449,7 @@ function cancelOperations(match: (op: Operation) => boolean, reason: string): vo
     op.finishConfirm?.('cancelled');
     const session = sessionById(op.sessionId);
     if (op.waitingInPage && session) {
-      void chrome.tabs.sendMessage(session.tabId, { bcmcp: 1, op: 'cancel', origins: session.origins, opId: op.key }, { frameId: 0 })
+      void chrome.tabs.sendMessage(session.tabId, { tabgoblin: 1, op: 'cancel', origins: session.origins, opId: op.key }, { frameId: 0 })
         .catch(() => undefined);
     }
   }
@@ -562,7 +562,7 @@ function noteDocument(session: SessionRecord, reply: PageReply | undefined): voi
 
 /** Makes sure our content script is present in the tab's current document. Safe to repeat. */
 async function ensureContentScript(session: SessionRecord): Promise<void> {
-  const ping = { bcmcp: 1, op: 'ping', origins: session.origins, refBase: session.refHigh };
+  const ping = { tabgoblin: 1, op: 'ping', origins: session.origins, refBase: session.refHigh };
   let reply: PageReply | undefined;
   try {
     reply = await sendToPage(session.tabId, ping, 3000);
@@ -614,7 +614,7 @@ async function page<T>(
   let reply: PageReply;
   try {
     reply = await sendToPage(session.tabId,
-      { bcmcp: 1, op: name, origins: session.origins, refBase: session.refHigh, opId: op.key, ...params }, timeoutMs);
+      { tabgoblin: 1, op: name, origins: session.origins, refBase: session.refHigh, opId: op.key, ...params }, timeoutMs);
   } catch (e) {
     if (e instanceof CommandError) throw e;
     throw new CommandError('PAGE_NAVIGATED',
@@ -943,7 +943,7 @@ async function settle(
     if (navigation === 'same-document') {
       // The address changed without a new document: the site is still swapping its content in.
       // Reading now would return the old page under the new address, so wait for it to finish.
-      const quiet = await sendToPage(session.tabId, { bcmcp: 1, op: 'quiet', origins: session.origins, maxMs: 3000 }, 6000)
+      const quiet = await sendToPage(session.tabId, { tabgoblin: 1, op: 'quiet', origins: session.origins, maxMs: 3000 }, 6000)
         .catch(() => undefined);
       const settled = quiet?.result as { title?: string } | undefined;
       title = (await getTab(session.tabId))?.title ?? settled?.title ?? title;
@@ -1075,7 +1075,7 @@ async function collect(op: Operation, session: SessionRecord, params: Record<str
         }
         if (fresh.length > 0) {
           // It has begun to change: read it once it has come to rest, and not a half of it.
-          await sendToPage(session.tabId, { bcmcp: 1, op: 'quiet', origins: session.origins, maxMs: 3000 }, 6000).catch(() => undefined);
+          await sendToPage(session.tabId, { tabgoblin: 1, op: 'quiet', origins: session.origins, maxMs: 3000 }, 6000).catch(() => undefined);
           read = await reading();
           fresh = afterPage(shown, read.lines);
         }
@@ -1231,7 +1231,7 @@ async function navigate(op: Operation, session: SessionRecord, tab: chrome.tabs.
   await ensureContentScript(session);
   const before = { url: tab.url, docId: session.documentId };
   // Text typed into the page and not sent is lost when the tab moves on: the agent is told.
-  const unsaved = await sendToPage(session.tabId, { bcmcp: 1, op: 'unsaved', origins: session.origins }, 3000)
+  const unsaved = await sendToPage(session.tabId, { tabgoblin: 1, op: 'unsaved', origins: session.origins }, 3000)
     .then((reply) => Number((reply?.result as { fields?: number } | undefined)?.fields) || 0, () => 0);
   const strip = (u: string | undefined): string => (u ?? '').split('#')[0];
   // Another address, or the same one again, is a new document; only a move to a place in the
@@ -2168,11 +2168,11 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
   }
 }
 
-chrome.runtime.onMessage.addListener((msg: PopupMessage & { bcmcp?: unknown }, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg: PopupMessage & { tabgoblin?: unknown }, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return false;
   // The in-page indicator may only pause, and only the session of the tab it sits in. A content
   // script is never trusted with anything that widens access.
-  if (msg?.bcmcp === 'indicator-pause' && sender.tab?.id !== undefined) {
+  if (msg?.tabgoblin === 'indicator-pause' && sender.tab?.id !== undefined) {
     const tabId = sender.tab.id;
     void ready.then(() => {
       const session = persisted.sessions.find((s) => s.tabId === tabId);
@@ -2190,7 +2190,7 @@ chrome.runtime.onMessage.addListener((msg: PopupMessage & { bcmcp?: unknown }, s
   // The notice's other button: the user wants to see the question. The popup is brought up, and
   // only where a question really waits for that tab's session. Nothing is answered by it: a
   // content script lives inside a page, and is never trusted with anything that grants.
-  if (msg?.bcmcp === 'indicator-show' && sender.tab?.id !== undefined) {
+  if (msg?.tabgoblin === 'indicator-show' && sender.tab?.id !== undefined) {
     const tabId = sender.tab.id;
     void ready.then(() => {
       const session = persisted.sessions.find((s) => s.tabId === tabId);

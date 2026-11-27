@@ -85,7 +85,7 @@ const STATES = [
 const NARROW = ['05-longest-line', '06-asking', '12-show-under-pointer'];
 
 const browser = await puppeteer.launch({
-  ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),
+  ...(process.env.TABGOBLIN_CHROME ? { executablePath: process.env.TABGOBLIN_CHROME } : { channel: 'chrome' }),
   headless: true, pipe: true, args: ['--no-first-run'],
 });
 
@@ -95,7 +95,7 @@ async function picture(tab, state, file, clip) {
     const T0 = 1_000_000;
     const n = globalThis.__notice;
     if (list) {
-      document.querySelector('bcmcp-indicator')?.remove();
+      document.querySelector('tabgoblin-notice')?.remove();
       let notice = null;
       for (const [t, update] of list) notice = n.applyUpdate(notice, update, T0 + t);
       globalThis.__held = { notice, mount: n.mountNotice(document, () => undefined) };
@@ -103,7 +103,7 @@ async function picture(tab, state, file, clip) {
     n.paintNotice(globalThis.__held.mount, n.noticeView(globalThis.__held.notice, T0 + moment));
   }, steps, at);
   await draw(state.steps, state.at);
-  const box = await (await tab.$('bcmcp-indicator')).boundingBox();
+  const box = await (await tab.$('tabgoblin-notice')).boundingBox();
   if (state.frames) {
     // The first moments, one picture after the other as fast as they can be taken: what arrives, and how.
     for (let i = 0; i < state.frames; i++) {

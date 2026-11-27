@@ -497,7 +497,7 @@ of the server's process. What a user does with it is in the
 ## Where things are
 
 ```text
-java-server/src/main/java/browsercontext/
+java-server/src/main/java/tabgoblin/
   McpMain.java             entry point, command line, tool definitions
   Link.java                the process an agent starts: passes messages to the one server
   Cli.java                 the tools as commands of a terminal: one tool call through a link

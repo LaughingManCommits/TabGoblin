@@ -486,7 +486,7 @@ or impersonates the server to the extension.
 | Replay | A command id is accepted once per connection |
 | No retries | A command is sent once; a timed-out command is cancelled so that it cannot run later |
 
-The token is stored in `~/.browser-context-mcp/pairing-token` and in the extension's storage,
+The token is stored in `~/.tabgoblin/pairing-token` and in the extension's storage,
 which content scripts cannot read. It is not logged.
 
 **Enforced in.** `WebSocketBridge.java`, `Pairing.java`, `Hub.java`, `Link.java`,
@@ -578,8 +578,8 @@ click.
   rules both out.
 - It restricts TabGoblin's tools, not other tools an agent has.
 - `interfaces = cli` turns MCP off in this server; it does not take the MCP library out of the
-  jar, and the jar, its folder and its variables keep their names (`browser-context-mcp`,
-  `BCMCP_*`). An inventory that looks for the library or the names finds them. A build without
+  jar, and the jar, its folder and its variables keep their names (`tabgoblin`,
+  `TABGOBLIN_*`). An inventory that looks for the library or the names finds them. A build without
   the library is not made.
 
 ## Workspaces and requests for access

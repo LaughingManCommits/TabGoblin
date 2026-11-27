@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## One name, and the documentation in the download, 2026-11-27
+
+On branch `cli-mcp-side-by-side`, after WP-31, on the owner's word ("no users yet", "do it"): every technical name is `tabgoblin` now ([WP-32](../../TODO.md#wp-32-one-name-and-the-documentation-in-the-download)): the jar, the package and group, `~/.tabgoblin`, `TABGOBLIN_*`, the threads, the notice's element `tabgoblin-notice`. One substitution over the tree; `TODO.md` and the validation log keep the old names as history. The download now holds the documentation (`docs/`, with pictures and diagrams, and the root pages it links to). **A setup from before has to be run again**, and a token from before is not found: `~/.tabgoblin` is new. Every suite passed after it (see the validation log); the Windows and macOS downloads were not made.
+
 ## The CLI and MCP side by side, 2026-11-27
 
 On branch `cli-mcp-side-by-side`, made from `ccr-dae1119b-klvwgh` (the Windows program and the review's mends, not merged); built on the owner's word by the proposals of [WP-31](../../TODO.md#wp-31-the-cli-and-mcp-side-by-side-and-mcp-that-can-be-turned-off), whose decisions the owner took as proposed after it was built. The tools are defined once (`ToolDefs`), a command speaks its own three messages to the server (`Commands`, link version 2) and nothing of MCP (`SeparationTest`), the error's code is a field of a result, and `interfaces = cli` or `mcp` in the settings file turns the other interface off: an MCP start ends with the reason, the server refuses the link, a connected agent is told `INTERFACE_NOT_ALLOWED`. The window has a pill for each interface beside the title, red with a drawn no-entry sign where one is off, marks each agent `CLI` or `MCP`, and counts MCP starts turned away. The pictures of the window were drawn here under Xvfb and looked at. **Not run here:** the end-to-end suite and the extension's check (the extension is not changed); a Windows download. **Next:** end to end on a machine with Chrome, if the run here did not pass; then the owner's merge.
@@ -284,7 +288,7 @@ Looked at with two programs that drive the window's own code (in the session's s
   is built not to send such an extension the list while it checks the pairing, which it would
   take for a failed pairing; that is covered by a test of the server alone.
 - **The settings file is beside the token that is in use.** A setup with `--token-file` has its
-  own list there, and the owner's own list is `tabgoblin.properties` in `.browser-context-mcp`
+  own list there, and the owner's own list is `tabgoblin.properties` in `.tabgoblin`
   of the home folder. None exists until **Edit** is pressed or the file is written by hand.
 - **The server's window is 824 pixels high,** 64 more than before the row of blocked sites and
   the line over the metrics' numbers. On a screen lower than that it is as high as fits, as
@@ -385,7 +389,7 @@ Looked at with two programs that drive the window's own code (in the session's s
   limits (0.05 and 0.02) whose measured values were not written down. One pass does not show
   that it always will.
 - **One thing has three names.** The popup's setting reads "Indicator in the page", the
-  documentation says notice, and the code says indicator (`bcmcp-indicator`, `indicator.png`,
+  documentation says notice, and the code says indicator (`tabgoblin-notice`, `indicator.png`,
   the `indicator` setting). The setting's line in the popup, "Shows the agent at work. Has a
   pause button.", is still true and says less than the notice does. Not changed: it is wording
   for the owner, and a change to it changes two of the popup's pictures.

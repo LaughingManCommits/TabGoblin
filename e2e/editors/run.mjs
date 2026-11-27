@@ -22,7 +22,7 @@ import { McpClient } from '../mcp-client.mjs';
 import { FIXTURES, startLab } from './lab.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const JAR = resolve(HERE, '../../java-server/target/browser-context-mcp.jar');
+const JAR = resolve(HERE, '../../java-server/target/tabgoblin.jar');
 const EXTENSION = resolve(HERE, '../../chrome-extension/dist');
 for (const path of [JAR, join(EXTENSION, 'manifest.json')]) {
   if (!existsSync(path)) {
@@ -86,7 +86,7 @@ const onlyChecks = process.env.CHECKS ? new Set(process.env.CHECKS.split(',')) :
 const fixtures = FIXTURES.filter((f) => !only || only.has(f.id));
 const checks = CHECKS.filter((c) => !onlyChecks || onlyChecks.has(c.id));
 
-const work = mkdtempSync(join(tmpdir(), 'bcmcp-editors-'));
+const work = mkdtempSync(join(tmpdir(), 'tabgoblin-editors-'));
 const lab = await startLab(0);
 const wsPort = await freePort();
 const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', join(work, 'pairing-token')];
@@ -99,7 +99,7 @@ let exitCode = 0;
 try {
   await agent.initialize();
   browser = await puppeteer.launch({
-    ...(process.env.BCMCP_CHROME ? { executablePath: process.env.BCMCP_CHROME } : { channel: 'chrome' }),
+    ...(process.env.TABGOBLIN_CHROME ? { executablePath: process.env.TABGOBLIN_CHROME } : { channel: 'chrome' }),
     headless: !process.env.HEADED,
     pipe: true,
     enableExtensions: true,

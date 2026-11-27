@@ -68,7 +68,7 @@ function pageAnswer(tabId: number, msg: any): Promise<object> | object {
   if (msg.op !== 'ping' && msg.op !== 'indicator') pageLog.push(`${tabId}:${msg.op}`);
   if (msg.op === 'indicator') {
     // Everything that came with it, so that a test sees if more than the notice's own fields went out.
-    const { bcmcp: _, op: __, origins: ___, ...told } = msg;
+    const { tabgoblin: _, op: __, origins: ___, ...told } = msg;
     notices.push({ tab: tabId, ...told });
     if (msg.state === 'off' && drawsAfterMs > 0) {
       return new Promise((resolve) => setTimeout(() => {
@@ -1042,8 +1042,8 @@ test('the page is told what runs and how it ended, in the list\'s fixed words an
   }
 
   // Pause in the page itself: the click is answered there. Only the page of the session's tab can.
-  await popup({ bcmcp: 'indicator-pause' }, { id: EXTENSION_ID, url: 'https://docs.example/guide', tab: { id: 2 } });
-  await popup({ bcmcp: 'indicator-pause' }, { id: EXTENSION_ID, url: 'https://app.example/issues', tab: { id: 1 } });
+  await popup({ tabgoblin: 'indicator-pause' }, { id: EXTENSION_ID, url: 'https://docs.example/guide', tab: { id: 2 } });
+  await popup({ tabgoblin: 'indicator-pause' }, { id: EXTENSION_ID, url: 'https://app.example/issues', tab: { id: 1 } });
   assert.deepEqual(await next(1, 'the pause to be said'), [{ state: 'paused', ended: { text: 'Paused by you', mark: 'info' } }]);
   assert.equal((await state()).sessions.at(-1).paused, true);
   // A paused session runs nothing, and the page is not told that it does.
@@ -2093,7 +2093,7 @@ test('the notice\'s button for a question brings the popup up, only where a ques
   const quiet = (await popup({ type: 'authorize', tabId: 92, mode: 'read', clientId: 'c-one' })).state.sessions.at(-1).id;
   /** The button in the page of a tab, pressed by the user: what its content script then sends. */
   const showMe = async (tabId: number, sender: object = { id: EXTENSION_ID, url: tabs.get(tabId)?.url, tab: { id: tabId } }): Promise<void> => {
-    await popup({ bcmcp: 'indicator-show' }, sender);
+    await popup({ tabgoblin: 'indicator-show' }, sender);
     await sleep(20);
   };
   const told = (tabId: number): unknown[] => notices.filter((n) => n.tab === tabId).map((n) => n.state);
@@ -2138,7 +2138,7 @@ test('the notice\'s button for a question brings the popup up, only where a ques
   await showMe(91, { id: EXTENSION_ID, url: 'https://forms.example/new' });
   assert.equal(popupsOpened, opened + 1);
   // A page cannot answer through it, whatever it sends along: the message has one meaning.
-  await popup({ bcmcp: 'indicator-show', type: 'confirm', id: question.id, allow: true }, { id: EXTENSION_ID, url: 'https://forms.example/new', tab: { id: 91 } });
+  await popup({ tabgoblin: 'indicator-show', type: 'confirm', id: question.id, allow: true }, { id: EXTENSION_ID, url: 'https://forms.example/new', tab: { id: 91 } });
   await sleep(30);
   assert.ok((await state()).pendingConfirm, 'the question still waits');
   // It is taken for what it is, a wish to see the question, and the popup comes up once more.

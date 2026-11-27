@@ -12,7 +12,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-jar="$root/java-server/target/browser-context-mcp.jar"
+jar="$root/java-server/target/tabgoblin.jar"
 extension="$root/chrome-extension/dist"
 [ -f "$jar" ] || { echo "No server to pack. Build it first: mvn -f java-server/pom.xml package" >&2; exit 1; }
 [ -f "$extension/manifest.json" ] || { echo "No extension to pack. Build it first: npm --prefix chrome-extension run build" >&2; exit 1; }
@@ -48,10 +48,19 @@ echo "Java modules: $modules"
 jlink --add-modules "$modules" --strip-debug --no-header-files --no-man-pages --compress zip-6 \
   --output "$stage/tabgoblin/runtime"
 
-cp "$jar" "$stage/tabgoblin/browser-context-mcp.jar"
+cp "$jar" "$stage/tabgoblin/tabgoblin.jar"
 cp -R "$extension" "$stage/tabgoblin/extension"
 cp "$root/LICENSE" "$stage/tabgoblin/LICENSE"
 cp "$root/release/README.txt" "$stage/tabgoblin/README.txt"
+# The documentation as it is for this version, to read offline: the pages, their pictures and
+# diagrams, and the few files at the root they link to. Not the pages for agents' sessions.
+mkdir -p "$stage/tabgoblin/docs" "$stage/tabgoblin/skills"
+cp "$root"/docs/*.md "$stage/tabgoblin/docs/"
+cp -R "$root/docs/images" "$root/docs/assets" "$stage/tabgoblin/docs/"
+cp "$root/README.md" "$root/CONTRIBUTING.md" "$root/SECURITY.md" "$stage/tabgoblin/"
+cp "$root/skills/README.md" "$stage/tabgoblin/skills/README.md"
+[ -f "$stage/tabgoblin/docs/installation.md" ] && [ -d "$stage/tabgoblin/docs/images" ] \
+  || { echo "The documentation did not get into the download." >&2; exit 1; }
 if [ "$system" = windows ]; then
   # The command, and a file to double-click that is that command with --show-token.
   for file in tabgoblin.cmd tabgoblin-token.cmd; do
@@ -65,13 +74,13 @@ if [ "$system" = windows ]; then
   made="$out/launcher"
   rm -rf "$made"
   mkdir -p "$made/in"
-  cp "$jar" "$made/in/browser-context-mcp.jar"
+  cp "$jar" "$made/in/tabgoblin.jar"
   node "$root/art/mascot.ts" --windows-icon "$made/tabgoblin.ico" > /dev/null
   jpackage --type app-image --name TabGoblin --app-version "$version" --input "$made/in" \
-    --main-jar browser-context-mcp.jar --runtime-image "$stage/tabgoblin/runtime" \
+    --main-jar tabgoblin.jar --runtime-image "$stage/tabgoblin/runtime" \
     --icon "$made/tabgoblin.ico" --arguments --panel --dest "$made/out"
   settings="$made/out/TabGoblin/app/TabGoblin.cfg"
-  grep -q '^app\.mainjar=\$APPDIR.browser-context-mcp\.jar' "$settings" \
+  grep -q '^app\.mainjar=\$APPDIR.tabgoblin\.jar' "$settings" \
     || { echo "The packaging tool's settings do not name the jar as expected: $settings" >&2; exit 1; }
   mkdir "$stage/tabgoblin/app"
   sed 's/^app\.mainjar=\$APPDIR/app.mainjar=$ROOTDIR/' "$settings" > "$stage/tabgoblin/app/TabGoblin.cfg"
@@ -84,7 +93,7 @@ else
 fi
 
 # It has to start on its own runtime, or it is no download.
-"$java" -jar "$stage/tabgoblin/browser-context-mcp.jar" --help | grep -q "TabGoblin MCP server" \
+"$java" -jar "$stage/tabgoblin/tabgoblin.jar" --help | grep -q "TabGoblin MCP server" \
   || { echo "The server does not start on the runtime that was made for it." >&2; exit 1; }
 
 rm -f "$out/$name.zip" "$out/$name.tar.gz"

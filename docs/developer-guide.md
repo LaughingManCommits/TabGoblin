@@ -41,7 +41,7 @@ arguments:
   "mcpServers": {
     "tabgoblin": {
       "command": "<folder>/tabgoblin/runtime/bin/java",
-      "args": ["-jar", "<folder>/tabgoblin/browser-context-mcp.jar", "--agent", "my-ide"]
+      "args": ["-jar", "<folder>/tabgoblin/tabgoblin.jar", "--agent", "my-ide"]
     }
   }
 }
@@ -315,7 +315,7 @@ messages and says so. Press Ctrl+C.
 ## Restricting what agents may do
 
 The server's settings file, `tabgoblin.properties`, lies beside the pairing token (by default
-in `.browser-context-mcp` in your home folder). **Edit** in the
+in `.tabgoblin` in your home folder). **Edit** in the
 [server's window](#the-servers-panel) opens it, and creates it if it is not there. A change is
 in force as soon as the file is saved. Every line takes something away; none gives an agent
 anything.
@@ -415,7 +415,7 @@ focus a heading with Tab and toggle it with Space.
 One case brings the window up by itself: the browser came with a token that is not the
 server's, because it was mistyped or replaced with `--rotate-token`. The window then says
 *Pair the browser with this server*, with **Copy token**. `--no-panel` in an agent's
-registration, or `BCMCP_PANEL=0`, prevents that for that agent.
+registration, or `TABGOBLIN_PANEL=0`, prevents that for that agent.
 
 | The line with the dot says | What to do |
 |---|---|
@@ -482,14 +482,14 @@ variable is set in the environment the server is started in; the option wins.
 
 | Option | Variable | Default | What it sets |
 |---|---|---|---|
-| `--agent <name>` | `BCMCP_AGENT` | none | The name of the agent that starts the server ([agents](#agents)) |
-| `--port` | `BCMCP_PORT` | `47821`, else `37821`, else `27821` | The first of the eight agents' ports. Without it the server takes the first of the three whose range the system gives out, and the extension finds it. With it, only that port is tried, and the popup's *First port* has to say the same |
-| `--token-file` | `BCMCP_TOKEN_FILE` | `~/.browser-context-mcp/pairing-token` | Where the pairing token is kept |
-| `--settings` | `BCMCP_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is |
-| `--panel`, `--no-panel` | `BCMCP_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
-| `--extension-origin` | `BCMCP_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
-| none | `BCMCP_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
-| none | `BCMCP_COMMAND_IDLE_SECONDS` | `600` | How long the server keeps an agent of the [command line](cli.md) after its last command. Read by the server when it starts |
+| `--agent <name>` | `TABGOBLIN_AGENT` | none | The name of the agent that starts the server ([agents](#agents)) |
+| `--port` | `TABGOBLIN_PORT` | `47821`, else `37821`, else `27821` | The first of the eight agents' ports. Without it the server takes the first of the three whose range the system gives out, and the extension finds it. With it, only that port is tried, and the popup's *First port* has to say the same |
+| `--token-file` | `TABGOBLIN_TOKEN_FILE` | `~/.tabgoblin/pairing-token` | Where the pairing token is kept |
+| `--settings` | `TABGOBLIN_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is |
+| `--panel`, `--no-panel` | `TABGOBLIN_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
+| `--extension-origin` | `TABGOBLIN_EXTENSION_ORIGIN` | this extension's id | Which extension may connect; `any` if you changed the id |
+| none | `TABGOBLIN_LOG` | `info` | How much the server logs: `debug`, `info`, `warn` or `off` |
+| none | `TABGOBLIN_COMMAND_IDLE_SECONDS` | `600` | How long the server keeps an agent of the [command line](cli.md) after its last command. Read by the server when it starts |
 
 Commands you run yourself, each of which does its part and returns:
 
@@ -503,7 +503,7 @@ Commands you run yourself, each of which does its part and returns:
 | `tabgoblin --list-agents`, `--revoke-agent <name>`, `--allow-agent <name>` | [Agents](#agents) |
 | `tabgoblin --help` | Lists the options |
 
-In a build from source, `java -jar java-server/target/browser-context-mcp.jar` stands for
+In a build from source, `java -jar java-server/target/tabgoblin.jar` stands for
 `tabgoblin`.
 
 Commands an agent runs through the CLI: `tabgoblin tools --json`,
@@ -522,7 +522,7 @@ Commands an agent runs through the CLI: `tabgoblin tools --json`,
 | Agent has no tabs after a restart | An MCP agent registered without `--agent` is a new agent each time (a command of the CLI always has a name) | Add `--agent <name>` to its registration |
 | A command answers `AGENT_IN_USE` | An agent of that name is connected through MCP. A name has one agent at a time | Use that agent's MCP tools, or set the command line up under another name. It is then another agent, and needs its tabs authorized |
 | A command answers `NO_SERVER` | The server could not be reached or started: another program holds its port, or the command has another `--port` or `--token-file` than the server | Run `tabgoblin --panel`; give the commands the options the server has |
-| A command says "not connected" after a pause | The agent had no command for ten minutes and was let go; the extension has to find it again | Run the command again in half a minute, or open the popup. `BCMCP_COMMAND_IDLE_SECONDS` sets a longer time |
+| A command says "not connected" after a pause | The agent had no command for ten minutes and was let go; the extension has to find it again | Run the command again in half a minute, or open the popup. `TABGOBLIN_COMMAND_IDLE_SECONDS` sets a longer time |
 | An agent of the command line stays listed in the popup after its work | The server keeps it for ten minutes after its last command | Nothing; **Disconnect** ends it at once |
 | Agent says a ref is stale | The page changed since its snapshot | Nothing; the agent takes a new snapshot |
 | Agent says the session is suspended | The tab left its website | Click the TabGoblin icon on that tab and resume |

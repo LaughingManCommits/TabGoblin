@@ -33,7 +33,7 @@ Two different things can be restricted, and they should not be mistaken for each
   off in the server: an MCP start ends with the reason before any MCP message is exchanged,
   and the server refuses MCP connections. The server's window shows the state of both
   interfaces. The switch is enforced by the server only, is as protected as the file (below),
-  and leaves the MCP library in the jar and the legacy names (`browser-context-mcp`) in place.
+  and leaves the MCP library in the jar and the legacy names (`tabgoblin`) in place.
 - **The CLI does not override a policy.** It grants nothing that MCP does not, and every
   control in this document applies to it unchanged. Where browser interaction by agents is
   not permitted, using the CLI instead of MCP is a violation of that rule, not a way to comply
@@ -139,8 +139,8 @@ Detail: [agent identity](security-model.md#agent-identity-and-authentication),
   figures, and a secret that the page shows in plain text. Text that looks like a credential
   is taken out by shape, which is best effort and incomplete
   ([detail](security-model.md#sensitive-information-handling)).
-- **TabGoblin's own secrets** are the pairing token (`~/.browser-context-mcp/pairing-token`,
-  and in the extension's storage) and the agents' keys (`~/.browser-context-mcp/agents/`).
+- **TabGoblin's own secrets** are the pairing token (`~/.tabgoblin/pairing-token`,
+  and in the extension's storage) and the agents' keys (`~/.tabgoblin/agents/`).
   They are files with owner-only permissions where the system supports that. They are not
   encrypted and not held in a system keychain.
 - The server's window can copy the pairing token to the clipboard; it removes it after a
@@ -198,7 +198,7 @@ managed policy, no integration with browser enterprise policy, and no lock that 
 or a program running as the user (including an agent with a shell) from editing the file. To
 hold a policy against the user, the organisation has to deploy and protect the file with its
 own device management, and can point the server at another location with `--settings` or
-`BCMCP_SETTINGS`, which the user's agent configuration can in turn omit. Treat the policy as a
+`TABGOBLIN_SETTINGS`, which the user's agent configuration can in turn omit. Treat the policy as a
 guard-rail for cooperative users, not as a boundary against them.
 
 ## Audit capabilities

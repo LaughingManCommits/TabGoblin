@@ -179,8 +179,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export function outputs(): Map<string, Picture | string> {
   const files = new Map<string, Picture | string>();
   for (const size of [16, 32, 48, 128]) files.set(`chrome-extension/icons/icon${size}.png`, icon(size));
-  files.set('java-server/src/main/resources/browsercontext/mascot.png', sheet());
-  files.set('java-server/src/main/resources/browsercontext/mascot.properties', sheetIndex());
+  files.set('java-server/src/main/resources/tabgoblin/mascot.png', sheet());
+  files.set('java-server/src/main/resources/tabgoblin/mascot.properties', sheetIndex());
   files.set('docs/images/mascot.png', preview());
   files.set('docs/images/logo.png', logo());
   return files;

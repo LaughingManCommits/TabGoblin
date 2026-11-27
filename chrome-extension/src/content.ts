@@ -16,7 +16,7 @@ import {
 } from './submit.ts';
 
 interface Request {
-  bcmcp: 1;
+  tabgoblin: 1;
   op: string;
   /** The origins the user authorized for the session; this document must be on one of them. */
   origins: string[];
@@ -118,8 +118,8 @@ function showNotice(): void {
     // restrict. The other button asks the worker to bring the popup up, and can do no more:
     // nothing is answered from inside a page.
     noticeMount = mountNotice(document,
-      byTheUser(() => void chrome.runtime.sendMessage({ bcmcp: 'indicator-pause' })),
-      byTheUser(() => void chrome.runtime.sendMessage({ bcmcp: 'indicator-show' })));
+      byTheUser(() => void chrome.runtime.sendMessage({ tabgoblin: 'indicator-pause' })),
+      byTheUser(() => void chrome.runtime.sendMessage({ tabgoblin: 'indicator-show' })));
   }
   paintNotice(noticeMount, view);
   // A little late rather than early: a timer that fires before the moment would find nothing changed.
@@ -343,7 +343,7 @@ if (!scope[LOADED]) {
   scope[LOADED] = true;
   const state = new PageState();
   chrome.runtime.onMessage.addListener((msg: Request, sender, sendResponse) => {
-    if (!msg || msg.bcmcp !== 1 || sender.id !== chrome.runtime.id) return false;
+    if (!msg || msg.tabgoblin !== 1 || sender.id !== chrome.runtime.id) return false;
     const reply = (body: object): void => sendResponse({
       ...body, highestRef: state.registry.highest, docId: state.docId, generation: state.generation, url: location.href,
     });

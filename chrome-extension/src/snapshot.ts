@@ -17,7 +17,7 @@ const SKIP_TAGS = new Set([
   'object', 'embed', 'canvas', 'svg', 'math', 'audio', 'video',
   'source', 'track', 'datalist', 'option', 'optgroup',
   // This extension's own in-page indicator is not page content.
-  'bcmcp-indicator',
+  'tabgoblin-notice',
 ]);
 
 const ARIA_ROLES: Record<string, string> = {

@@ -14,7 +14,7 @@ function handled(promise) {
 
 export class McpClient {
   /** @param name how this client introduces itself to the server (shown as the agent's name) */
-  constructor(command, args, name = 'bcmcp-e2e') {
+  constructor(command, args, name = 'tabgoblin-e2e') {
     this.name = name;
     this.proc = spawn(command, args, { stdio: ['pipe', 'pipe', 'pipe'] });
     this.stderr = '';

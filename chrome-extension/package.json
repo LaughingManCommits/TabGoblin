@@ -1,5 +1,5 @@
 {
-  "name": "browser-context-mcp-extension",
+  "name": "tabgoblin-extension",
   "version": "0.2.1",
   "private": true,
   "type": "module",

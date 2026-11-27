@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nineteen packages are listed. The newest is WP-31, the CLI and MCP as two adapters side by side over one core, and a switch in the settings file that turns MCP off, asked for and built on 2026-11-27 by its own proposals; its decisions wait for the owner. Before it, WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before that, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
+Twenty packages are listed. The newest is WP-32, one name for everything (the jar, the package, the folder, the variables and the notice's element are `tabgoblin`) and the documentation inside the download, asked for and built on 2026-11-27. Before it, WP-31, the CLI and MCP as two adapters side by side over one core, and a switch in the settings file that turns MCP off, asked for and built on 2026-11-27 by its own proposals; its decisions wait for the owner. Before it, WP-30, the documentation gone over for the CLI and MCP as two interfaces of one browser bridge, asked for and built on 2026-11-25. Before that, WP-29, the tools as commands of a terminal for an agent without MCP, asked for and built on 2026-11-25. Four were asked for by the owner on 2026-11-21: WP-12, a goblin that
 acts out what the agent does; WP-13, a panel for the server; WP-14, nothing personal in the
 repository, which the owner called important; and WP-15, an easy install. Two on 2026-11-22:
 WP-16, a page that shows how TabGoblin differs from other tools; and WP-17, a new token at every
@@ -35,7 +35,7 @@ fourteen points, in three priorities; its entry has the gap analysis, the backlo
 built and what was left. WP-28, filed on 2026-11-24, is the ports that Windows can keep back, so
 that no server has one; what it says is mended, and the way around it was built on
 2026-11-24 with the entry's own proposals taken for its decisions: it has not run on a machine
-whose ports are kept back. New work gets the next number, WP-32.
+whose ports are kept back. New work gets the next number, WP-33.
 
 Done and not listed: WP-1 (the server follows the MCP standard; see
 [docs/mcp-conformance.md](docs/mcp-conformance.md)), WP-2 (text with line breaks, typed key by
@@ -2123,3 +2123,28 @@ proposals stand, with these differences:
    `docs/architecture.md` and `docs/development.md` (protocol reference); `docs/cli.md`; the
    row of the CLI in the task map of `AGENTS.md` and its rule, reworded; the six skills if
    what an agent should do changes (a command refused because the CLI is off).
+
+## WP-32: One name, and the documentation in the download
+
+Asked for by the owner on 2026-11-27, in two parts, and built the same day on the branch
+`cli-mcp-side-by-side`, on top of WP-31.
+
+**One name.** The jar, the MCP server's name, the Maven artifact and group, the Java package,
+the folder of the token and keys, the environment variables, the log's prefix, the threads'
+names and the notice's element in the page were named from before the product had its name:
+`browser-context-mcp`, `browsercontext`, `~/.browser-context-mcp`, `BCMCP_*`, `bcmcp-*`,
+`bcmcp-indicator`. The constraint that kept them ("for existing setups") had no reason left:
+there are no users yet, and the one published release, 0.2.0, is far behind `main`. They are
+now `tabgoblin.jar`, `tabgoblin`, `~/.tabgoblin`, `TABGOBLIN_*`, `tabgoblin-*` and
+`tabgoblin-notice`, in one commit by one substitution over the tree (the records in this file
+and in the validation log keep the old names, as history). A setup from before it has to be
+run again: the registration names the jar, and the token and keys are looked for in the new
+folder. The renaming was not put to the owner as a design first: the owner said "no users yet"
+and "do it". **Not done:** a note in the release notes (WP-25, not started).
+
+**The documentation in the download.** `release/bundle.sh` copies `docs/*.md`, `docs/images`,
+`docs/assets`, the README, CONTRIBUTING, SECURITY and `skills/README.md` into the download, at
+the places the pages' relative links expect, so that they read offline in a Markdown viewer as
+they were for that version. The pages for agents' sessions (`docs/agents`) and the examples are
+not in it. `release/README.txt` names the folder. Tried: see the validation log.
+

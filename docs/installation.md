@@ -46,7 +46,8 @@ a download has: [From source](#from-source), then
 [a folder like a download](#a-folder-like-a-download).
 
 1. **Download** the file for your system from the [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest),
-   and unpack it where it can stay: your agent is told its place. It is one folder, `tabgoblin`.
+   and unpack it where it can stay: your agent is told its place. It is one folder, `tabgoblin`,
+   with this documentation inside it as it was for that version (`docs/`), to read offline.
 
    | System | File |
    |---|---|
@@ -119,7 +120,7 @@ with the agent. Run it. It is the agent's own command for adding a server, and l
 for Claude Code:
 
 ```text
-claude mcp add --scope user tabgoblin -- "<folder>\tabgoblin\runtime\bin\java.exe" -jar "<folder>\tabgoblin\browser-context-mcp.jar" --agent claude-code
+claude mcp add --scope user tabgoblin -- "<folder>\tabgoblin\runtime\bin\java.exe" -jar "<folder>\tabgoblin\tabgoblin.jar" --agent claude-code
 ```
 
 An agent that setup does not know takes the same command in its MCP settings:
@@ -128,7 +129,7 @@ An agent that setup does not know takes the same command in its MCP settings:
 Setting an agent up again the other way puts the other skill in the first one's place; the
 two take each other's place, so an agent has the one for the interface it uses.
 
-Where another page names `java -jar java-server/target/browser-context-mcp.jar`, a download
+Where another page names `java -jar java-server/target/tabgoblin.jar`, a download
 has `tabgoblin` in its place: `tabgoblin --panel`, `tabgoblin --show-token`, `tabgoblin --help`.
 
 **To update,** unpack a newer download over the same folder, press the reload arrow on
@@ -192,7 +193,7 @@ downloads libraries and takes a minute or two. It is done when you see:
 [INFO] BUILD SUCCESS
 ```
 
-The result is **`java-server/target/browser-context-mcp.jar`**. To skip the tests, add
+The result is **`java-server/target/tabgoblin.jar`**. To skip the tests, add
 `-DskipTests`.
 
 ## 3. Build the extension
@@ -247,7 +248,7 @@ the jar, with forward slashes, also on Windows. Most MCP clients take this JSON:
   "mcpServers": {
     "tabgoblin": {
       "command": "java",
-      "args": ["-jar", "<folder>/TabGoblin/java-server/target/browser-context-mcp.jar", "--agent", "my-ide"]
+      "args": ["-jar", "<folder>/TabGoblin/java-server/target/tabgoblin.jar", "--agent", "my-ide"]
     }
   }
 }
@@ -256,7 +257,7 @@ the jar, with forward slashes, also on Windows. Most MCP clients take this JSON:
 | Agent | Where it goes |
 |---|---|
 | IntelliJ IDEA, AI Assistant | *Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add*, paste the JSON. The menu names vary a little between versions. |
-| Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --agent claude-code` |
+| Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent claude-code` |
 | Anything else that speaks MCP over stdio | Command `java`, arguments `-jar`, the path, `--agent` and a name |
 
 Restart the agent, or reload its MCP servers, so it picks the server up.
@@ -266,8 +267,8 @@ Restart the agent, or reload its MCP servers, so it picks the server up.
 Nothing is registered. The agent runs the jar with a command's name behind it:
 
 ```sh
-java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar tools
-java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar status --agent my-agent
+java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar tools
+java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar status --agent my-agent
 ```
 
 A build from source has no `tabgoblin` command of its own. Tell the agent that line once, make
@@ -294,8 +295,8 @@ page, what to ask you for, what to do when a tool refuses. One command puts it i
 `claude-code`, `codex` or `copilot`; add `--mode cli` for the skill that speaks of commands:
 
 ```sh
-java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --install-skill claude-code
-java -jar <folder>/TabGoblin/java-server/target/browser-context-mcp.jar --install-skill claude-code --mode cli
+java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --install-skill claude-code
+java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --install-skill claude-code --mode cli
 ```
 
 What the skills say, and where each agent keeps them, is in [skills](../skills/README.md).
@@ -309,7 +310,7 @@ sessions, its log and a button to stop it: see
 The extension only talks to servers that know a secret token. Print it:
 
 ```sh
-java -jar java-server/target/browser-context-mcp.jar --show-token
+java -jar java-server/target/tabgoblin.jar --show-token
 ```
 
 ```text
@@ -325,7 +326,7 @@ A server that shows [its panel](developer-guide.md#the-servers-panel) saves you 
 
 <img src="images/popup-pairing.png" width="354" alt="The popup before pairing">
 
-The token is created on first use and kept in `.browser-context-mcp/pairing-token` in your home
+The token is created on first use and kept in `.tabgoblin/pairing-token` in your home
 folder. You pair once; it stays valid until you rotate it.
 
 ## 7. Check that it works
@@ -405,7 +406,7 @@ do not, the popup says *Server and extension versions differ*. The pairing survi
 1. At `chrome://extensions`, press **Remove** on TabGoblin's card.
 2. Remove the `tabgoblin` entry from your agent's MCP settings, if it has one, and the folder
    `tabgoblin` from where your agent keeps its skills ([where](../skills/README.md)).
-3. Delete the folder `.browser-context-mcp` in your home folder (it holds the token and your settings).
+3. Delete the folder `.tabgoblin` in your home folder (it holds the token and your settings).
 4. Delete the project folder.
 
 ## Problems
