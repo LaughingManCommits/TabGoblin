@@ -90,6 +90,17 @@ class CommandsTest {
     }
 
     @Test
+    void aToolThatReturnsAnObjectHasOneWhenItsResultIsTextAlone() {
+        // As over MCP: an answer such as "Submission x was already handled" still has its object.
+        JsonNode said = commands.result("browser_submit", BrowserService.ToolResult.ok("already handled"));
+        assertEquals("already handled", said.path("structured").path("text").asString());
+        assertTrue(commands.result("browser_snapshot", BrowserService.ToolResult.ok("a page")).path("structured").isNull(),
+                "a tool that returns text has no object");
+        assertTrue(commands.result("browser_submit", BrowserService.ToolResult.error("TIMEOUT", "late")).path("structured").isNull(),
+                "an error has no object");
+    }
+
+    @Test
     void anErrorOfTheToolHasItsCodeAsAField() throws Exception {
         send("{\"type\":\"call\",\"tool\":\"browser_no_such\",\"arguments\":{}}");
         await(() -> said().size() == 1, "the result");
@@ -122,6 +133,20 @@ class CommandsTest {
         assertEquals(1, ended.get(), "told once");
         commands.close();
         assertEquals(1, ended.get(), "and not again when the server closes it");
+    }
+
+    @Test
+    void theServerClosesAConversationWhoseProcessStillWaitsWithoutWaitingForIt() throws Exception {
+        ext.responder = cmd -> null;
+        send("{\"type\":\"call\",\"tool\":\"browser_click\",\"arguments\":{\"ref\":1}}");
+        await(() -> ext.commands.size() == 1, "the command to be in the browser");
+        // The process sends nothing more while it waits for its answer: a stop of the server must not wait for it.
+        Thread closing = new Thread(commands::close);
+        closing.setDaemon(true);
+        closing.start();
+        closing.join(2000);
+        assertFalse(closing.isAlive(), "close returned while the read was waiting");
+        assertEquals(1, ended.get(), "the end is told once");
     }
 
     @Test

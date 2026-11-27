@@ -417,8 +417,10 @@ final class Hub {
                 // command line's own conversation, on an agent that goes with it. Every tool says why.
                 member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity, true);
                 member.agent.announce();
+                // One whose key could not be read or made has no label: it is not called "null".
+                String called = identity.label() == null ? "command line" : identity.label() + " (command line)";
                 member.links.get(0).talk = Commands.serve(member.agent.service(), socket.getInputStream(), out,
-                        identity.label() + " (command line)", () -> left(member));
+                        called, () -> left(member));
                 kept = true;
                 return;
             }

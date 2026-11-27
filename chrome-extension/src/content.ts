@@ -26,7 +26,7 @@ interface Request {
   [key: string]: unknown;
 }
 
-const LOADED = '__browserContextMcpLoaded';
+const LOADED = '__tabgoblinLoaded';
 const scope = globalThis as unknown as Record<string, unknown>;
 
 /** Operations that can be told to stop waiting. */

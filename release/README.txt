@@ -10,7 +10,7 @@ What is in this folder
                              and runs one tool as a command, for an agent that has a terminal and no MCP
   TabGoblin.exe              Windows, to double-click: opens the server's window, and starts the server if none runs
   tabgoblin-token.cmd        Windows, to double-click: shows the pairing token for the extension's popup
-  tabgoblin.jar    the server
+  tabgoblin.jar              the server
   app                        Windows: the settings of TabGoblin.exe, which name the jar
   runtime                    the Java the server runs on; nothing has to be installed
   extension                  the Chrome extension, to be loaded unpacked

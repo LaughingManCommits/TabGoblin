@@ -363,6 +363,7 @@ final class BlockedSites {
             # session.idle.minutes = 20       and ends when no command came for this long
             # interfaces = cli                how agents may reach the tools: cli, mcp, or both (the default).
             #                                 With cli alone no MCP agent is let in; with mcp alone no command
+            #                                 of the command line is
             #
             # A record of what agents did, on this machine only: one line of JSON for each tool call, in
             # audit.jsonl beside this file. It has ids, actions, times and outcomes, and nothing of a page.

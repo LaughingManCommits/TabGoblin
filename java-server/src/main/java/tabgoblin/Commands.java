@@ -40,6 +40,8 @@ final class Commands {
     private final ObjectMapper json = new ObjectMapper();
     private final BrowserService service;
     private final BufferedReader in;
+    /** The connection's own stream under {@link #in}: closing it ends a read that waits, where closing the reader would wait for that read. */
+    private final InputStream raw;
     private final OutputStream out;
     private final Runnable onEnd;
     private final Log.Scope log;
@@ -50,6 +52,7 @@ final class Commands {
 
     private Commands(BrowserService service, InputStream in, OutputStream out, Runnable onEnd) {
         this.service = service;
+        this.raw = in;
         this.in = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
         this.out = out;
         this.onEnd = onEnd;
@@ -108,7 +111,23 @@ final class Commands {
         String tool = message.path("tool").asString("");
         JsonNode arguments = message.path("arguments");
         Thread worker = new Thread(() -> {
-            BrowserService.ToolResult result = service.call(tool, arguments.isMissingNode() ? null : arguments);
+            BrowserService.ToolResult result;
+            try {
+                result = service.call(tool, arguments.isMissingNode() ? null : arguments);
+            } catch (RuntimeException e) {
+                // A fault of the server's own: the command is told at once, and not left to wait for an
+                // answer that never comes. Whether the call reached the browser is not known.
+                log.warn("command failed tool=" + tool + " error=" + e);
+                synchronized (this) {
+                    Thread.interrupted();
+                    running = null;
+                }
+                if (!cancelled.get() && !ended.get()) {
+                    tell(error("The server failed while running " + tool + " (" + e.getClass().getSimpleName()
+                            + "): whether it reached the browser is not known."));
+                }
+                return;
+            }
             boolean wanted;
             synchronized (this) {
                 // Either the result is told or the call was given up: never both, and never after the connection ended.
@@ -159,7 +178,9 @@ final class Commands {
     void close() {
         end();
         try {
-            in.close();
+            // The stream, not the reader: the reader's close waits for the read that waits on the
+            // connection, and a command's process that waits for its answer sends nothing more.
+            raw.close();
         } catch (IOException e) {
             // closing anyway
         }
@@ -173,7 +194,13 @@ final class Commands {
         said.put("isError", result.isError());
         said.put("code", result.code());
         said.put("text", result.text() == null ? "" : result.text());
-        said.set("structured", result.structured());
+        ToolDefs.Tool defined = ToolDefs.named(tool);
+        if (result.structured() == null && !result.isError() && defined != null && defined.structured()) {
+            // A tool that returns an object returns one every time it is not an error, as over MCP (McpMain.toMcp).
+            said.putObject("structured").put("text", result.text() == null ? "" : result.text());
+        } else {
+            said.set("structured", result.structured());
+        }
         if (result.imageBase64() != null) {
             said.putObject("image").put("mimeType", result.imageMimeType()).put("base64", result.imageBase64());
         } else {

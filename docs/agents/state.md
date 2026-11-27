@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## A review of WP-31 and WP-32, 2026-11-27
+
+On branch `ccr-2317e25f-tftdvd` (the same commits as `cli-mcp-side-by-side`): a review found four faults in the command line's conversation with the server and six smaller ones, mended (see the validation log). **Left open:** the window says every agent is turned away while the settings file cannot be read, where agents are let in and only sites refused (`PanelModel.Blocked`); every command's process logs the blocked sites and the policy on its standard error (`Cli.java` reads the file through `BlockedSites.source`); the validation log is not folded to about ten entries; `release/bundle.sh` does not look at an `app.classpath` line of `TabGoblin.cfg`; the download's documentation links to pages it does not hold (`docs/agents/`, `TODO.md`, `art/`). Pushed to `cli-mcp-side-by-side`, the branch of pull request 6, after every CI job passed here. **Next:** the owner's merge.
+
 ## One name, and the documentation in the download, 2026-11-27
 
 On branch `cli-mcp-side-by-side`, after WP-31, on the owner's word ("no users yet", "do it"): every technical name is `tabgoblin` now ([WP-32](../../TODO.md#wp-32-one-name-and-the-documentation-in-the-download)): the jar, the package and group, `~/.tabgoblin`, `TABGOBLIN_*`, the threads, the notice's element `tabgoblin-notice`. One substitution over the tree; `TODO.md` and the validation log keep the old names as history. The download now holds the documentation (`docs/`, with pictures and diagrams, and the root pages it links to). **A setup from before has to be run again**, and a token from before is not found: `~/.tabgoblin` is new. Every suite passed after it (see the validation log); the Windows and macOS downloads were not made.

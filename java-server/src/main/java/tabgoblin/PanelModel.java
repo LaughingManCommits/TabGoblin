@@ -135,7 +135,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
 
         static final Blocked NONE = new Blocked(List.of(), null, "");
 
-        /** The pill of one interface in the header: its name, with the sign of what is off in front where it is off. */
+        /** The pill of one interface in the header: its name. The window puts the sign in front where it is off ({@link #on}). */
         String pill(boolean ofCli) {
             return ofCli ? "CLI" : "MCP";
         }

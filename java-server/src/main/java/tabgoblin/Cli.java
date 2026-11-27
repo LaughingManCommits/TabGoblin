@@ -611,7 +611,9 @@ final class Cli {
             String prefix = "Error [" + code + "]: ";
             String message = text.startsWith(prefix) ? text.substring(prefix.length()) : text;
             boolean unknown = UNKNOWN_OUTCOME.contains(code);
-            return fail(tool, code, message, unknown, unknown ? EXIT_UNKNOWN : EXIT_FAILED);
+            // The command line turned off after the server let this command in: nothing was sent, as when it refuses the link.
+            int exit = unknown ? EXIT_UNKNOWN : code.equals("INTERFACE_NOT_ALLOWED") ? EXIT_NO_SERVER : EXIT_FAILED;
+            return fail(tool, code, message, unknown, exit);
         }
         ObjectNode said = JSON.createObjectNode();
         said.put("ok", true);

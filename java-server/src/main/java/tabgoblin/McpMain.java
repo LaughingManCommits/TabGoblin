@@ -246,7 +246,10 @@ public final class McpMain {
         }
         if (Hub.INTERFACE_NOT_ALLOWED.equals(link.refusal())) {
             // The server that runs reads other settings than this process, and has MCP off: no server of its own stands in.
-            System.err.println(mcpOff(options.settings()));
+            // This process's own file allows MCP, so it is not named as the file that turned it off.
+            System.err.println("TabGoblin: MCP is off by the settings file of the TabGoblin server that is running "
+                    + "(interfaces = cli). That server takes commands of the command line only, and no MCP agent is let in. "
+                    + "Only the user can change that, in that server's settings.");
             System.exit(2);
             return;
         }
