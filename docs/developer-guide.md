@@ -13,45 +13,21 @@ than fits, the popup scrolls.
 
 ## Install and connect an agent
 
-The [installation guide](installation.md) has every step with what you should see. In short:
-
-1. Unpack the download.
-2. Connect your agent, by the interface that suits it ([which](installation.md#cli-or-mcp)):
-   - **CLI,** for an agent that runs commands in a terminal: `tabgoblin --setup claude-code
-     --mode cli` (or `codex`, or `copilot`). Nothing is registered; put the download's folder on
-     your `PATH`. The agent runs `tabgoblin status --agent claude-code` and the like
-     ([CLI guide](cli.md)).
-   - **MCP,** for an agent that is an MCP client: `tabgoblin --setup claude-code`, then run the
-     line that setup printed, which registers TabGoblin's server with the agent.
-3. Load the `extension` folder in Chrome at `chrome://extensions` (Developer mode, **Load
-   unpacked**).
-4. Pair once: `tabgoblin --panel`, **Copy** next to *Pairing token*, paste into the popup,
-   **Save and connect**.
+The [installation guide](installation.md) has every step: unpack the download, set up your
+agent for the [CLI or MCP](installation.md#cli-or-mcp) with `tabgoblin --setup <agent>`, load the
+extension, and pair once.
 
 Everything on this page holds for both interfaces: authorizing, access levels, sessions,
 approvals, pausing and the policy are the same whether the agent runs commands or calls MCP
 tools. Where this page names a tool, such as `browser_status`, a CLI agent runs the command of
 that name, `tabgoblin status`.
 
-**MCP in detail.** Any agent that starts an MCP server over stdio can be connected. It needs a command and
-arguments:
-
-```json
-{
-  "mcpServers": {
-    "tabgoblin": {
-      "command": "<folder>/tabgoblin/runtime/bin/java",
-      "args": ["-jar", "<folder>/tabgoblin/tabgoblin.jar", "--agent", "my-ide"]
-    }
-  }
-}
-```
-
 - **`--agent <name>`** gives the agent a key of its own, so it is the same agent at every
   start and its tabs are its own again after a restart. Use a different name for each agent.
   See [agents](#agents).
 - **One server serves all your agents,** up to eight at once. The first agent that needs it
-  starts it; it ends a few seconds after its last agent has gone.
+  starts it; it ends a few seconds after its last agent has gone. An agent of the CLI counts
+  as there for ten minutes after its last command.
 - **Skills.** The server tells every agent in a few lines how to use the tools. For Claude
   Code, Codex and GitHub Copilot there is a longer [skill](../skills/README.md), which setup
   installs.
@@ -120,7 +96,7 @@ controls.
 - **Revoke** ends the session.
 - Closing the tab ends its session. Closing the browser ends all of them.
 
-**Activity** shows what is happening now and the six most recent operations per session, with
+**Activity** shows what is happening now and the six most recent finished ones, across all sessions, with
 their outcome. It never shows page content or anything typed.
 
 **Agents** lists every connected agent with its number of tabs and its port. *Disconnect* cuts
@@ -327,7 +303,7 @@ blocked.sites = example.org, intranet.example
 ```
 
 - **An entry is a domain.** It blocks that domain with all its subdomains, on every port:
-  `example.org` also blocks `mail.example.org`. Entries are separated by commas.
+  `example.org` also blocks `mail.example.org`. Entries are separated by commas or spaces.
 - **On a blocked site** the popup offers no authorization. A tab you authorized before stays
   in the list, marked *blocked*: the agent's tools answer there that the site is blocked, and
   work again when you take it off the list.
@@ -356,13 +332,14 @@ interfaces = cli
 | `screenshots` | `off`: no agent takes a picture of a tab. `on` allows it under the strict profile |
 | `access.max` | `read` or `explore`: no session has more, whatever you give it |
 | `session.max.minutes` | An authorization ends this many minutes after you gave it |
-| `session.idle.minutes` | An authorization ends when no command came for this many minutes. `0` switches a limit off |
+| `session.idle.minutes` | An authorization ends when no command came for this many minutes. Whole minutes from 0 to 10080; `0` switches a limit off |
 | `audit.log` | `on`: one line of JSON per command in `audit.jsonl` beside the file, with ids, actions, durations and outcomes, and nothing of a page |
 | `interfaces` | `cli`, `mcp`, or both (the default): how agents may reach the tools. With `cli` alone no MCP agent is let in: an agent's program that starts the server as its MCP server is told so and does not start, and the server's window shows **MCP** crossed out. With `mcp` alone the same for commands of the command line. The window, the status tool and `--setup` say what holds |
 
 The popup shows what is in force in a line above the sessions, and each session shows when it
 ends. An agent is told what holds when it asks for its status. A value that cannot be read
-blocks every site, as a mistake in the list of blocked sites does.
+blocks every site, as a mistake in the list of blocked sites does; only `audit.log` is simply
+off unless it says `on`.
 
 What these settings hold back and what they do not, in particular that the file is only as
 protected as your home folder, is in the
@@ -395,7 +372,7 @@ Click the **Sessions**, **Metrics**, **Log** or **Control** heading to collapse 
 section. Each starts expanded and keeps its own state while the window is open. You can also
 focus a heading with Tab and toggle it with Space.
 
-<img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, that the browser is connected, three sessions, the metrics, the log, and the controls">
+<img src="images/server-panel.png" width="444" alt="The server's panel: whose server it is, which interfaces are on (CLI and MCP), that the browser is connected, three sessions, the metrics, the log, and the controls">
 
 | Part | What it shows or does |
 |---|---|
@@ -473,7 +450,7 @@ Tips:
 | Setting | Where | Default |
 |---|---|---|
 | When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
-| Notice in the page | Switch under *Settings* in the popup | on |
+| Indicator in the page | Switch under *Settings* in the popup | on |
 | First port | *Connection…* in the popup; `--port` on the server. Set both or neither | 47821, and by itself 37821 or 27821 where the system keeps the ports before back |
 | Blocked sites, security policy, audit record | The settings file: [restricting what agents may do](#restricting-what-agents-may-do) | none, no restriction, off |
 

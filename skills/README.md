@@ -1,7 +1,7 @@
 # Skills for agents that use TabGoblin
 
 A skill is a folder with a `SKILL.md` in it: instructions that an agent loads when a task calls
-for them. These three tell an agent how to work with TabGoblin's tools: how to get a tab
+for them. These six, three for MCP and three for the command line, tell an agent how to work with TabGoblin's tools: how to get a tab
 authorized, how to read a long page, how to act and to submit, and what to do when a tool
 refuses. TabGoblin itself tells every agent a few lines of this (an MCP client when it connects,
 a CLI agent in `tabgoblin tools --json`); a skill has room for the rest.
@@ -23,7 +23,7 @@ place of its own:
 
 ## Install one
 
-The server's jar carries the three skills and puts one in its place for you, in every project:
+The server's jar carries the six skills and puts one in its place for you, in every project:
 
 ```sh
 java -jar java-server/target/tabgoblin.jar --install-skill claude-code
@@ -47,7 +47,7 @@ cp -r skills/mcp/claude-code/tabgoblin <your project>/.claude/skills/
 
 Start the agent again if it does not show the skill. A skill for MCP does not add the server:
 the agent has to know TabGoblin's MCP server first
-([installation, step 5](../docs/installation.md#5-connect-your-agent)). A skill for the CLI
+([installation](../docs/installation.md#mcp)). A skill for the CLI
 needs nothing registered, only that the agent finds the `tabgoblin` command.
 
 ## The skills for the command line
@@ -66,8 +66,8 @@ java -jar java-server/target/tabgoblin.jar --install-skill claude-code --mode cl
 
 `--setup <agent> --mode cli` does the same as its first step. The two skills of an agent have
 one name and one place, so an agent has the one for the way it was set up, and not both:
-installing either takes the other's place, without `--replace`, since both are TabGoblin's
-own. A skill of that name that is neither is left as it is, as above. Each skill tells its
+installing either takes the other's place without `--replace` when the other is of the same
+version; one from an older version needs `--replace`. A skill of that name that is neither is left as it is, as above. Each skill tells its
 agent not to go over to the other way by itself.
 
 ## What is the same and what is not
@@ -90,16 +90,12 @@ or an MCP tool. What differs is each one's head:
 
 ## What was checked, and what was not
 
-The skills for the command line were written on 2026-11-25 and installed in a test only. None
-has been loaded in an agent.
-
-The places and the fields are from each agent's own documentation, read on 2026-11-22. The
-command was run with the built jar on Windows, against a home folder made for the purpose:
-each of the three skills went to its place, file for file. None of the three skills has been
-loaded in its agent yet. What an agent then does with it was not
-tried either. The lines `--setup` prints for adding the server to Codex and
-to Copilot follow their documentation as read on 2026-11-23 and were not run; the line for
-Claude Code was.
+`SkillsTest` holds the six skills to the server's tools, to the tool reference's error codes and
+to each other, and checks that `--install-skill` puts each one in its place. The places and the
+front-matter fields follow each agent's own documentation. The line `--setup` prints for adding
+the server to Claude Code has been run; the lines for Codex and GitHub Copilot follow their
+documentation and have not been run. No agent has yet been observed working with a skill for
+the command line.
 
 The skills say what the tools do in fewer words than the [tool reference](../docs/tool-reference.md),
 which stays the place where each tool's text is written down. Where the two differ, the tool

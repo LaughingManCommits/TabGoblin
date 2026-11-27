@@ -36,8 +36,8 @@ tabgoblin tools                           # the fourteen commands; no server nee
 tabgoblin status --agent my-agent
 ```
 
-`--agent` is who the agent is. The name is yours to choose; the same name at every command is
-the same agent, with the same tabs. This first command starts TabGoblin's server if none runs
+`--agent` is who the agent is. The name is yours to choose (up to 40 lower-case letters, digits, `.`, `-` and `_`, starting
+with a letter or a digit); the same name at every command is the same agent, with the same tabs. This first command starts TabGoblin's server if none runs
 and makes the agent known. It may take up to ten seconds, and answers:
 
 ```json
@@ -152,8 +152,8 @@ result. A command never asks anything in the terminal.
 | 0 | The tool answered, and not with an error. A submission that ended `FAILED` or `UNCERTAIN` is such an answer: its state is in `result` |
 | 1 | The tool answered with an error; `error.code` says which |
 | 2 | The command line was not understood (`USAGE`). Nothing was sent |
-| 3 | Nothing was sent: no server could be reached or started (`NO_SERVER`), the name is that of an agent connected through MCP (`AGENT_IN_USE`), or the settings file has the command line turned off (`INTERFACE_NOT_ALLOWED`, `interfaces = mcp`) |
-| 4 | The outcome is unknown, and the answer has `"outcome": "unknown"`: the command was sent and no answer came (`TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED`), or the command's process was ended while it ran (`CANCELLED`) |
+| 3 | Nothing was sent: no server could be reached or started (`NO_SERVER`), the name is that of an agent connected through MCP (`AGENT_IN_USE`), the settings file has the command line turned off (`INTERFACE_NOT_ALLOWED`, `interfaces = mcp`), or the connection failed before anything was sent |
+| 4 | The outcome is unknown, and the answer has `"outcome": "unknown"`: the command was sent and either no answer came (`TIMEOUT`, `CONNECTION_LOST`) or the answer says the outcome is unknown (`PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED`), or the command's process was ended while it ran (`CANCELLED`). A `CANCELLED` from the browser, after a pause or a revoke, is an error with exit code 1 |
 
 **Nothing is retried.** A command is sent once. After exit code 4, look at the page before
 doing anything again.
@@ -203,8 +203,8 @@ sequenceDiagram
   Note over S: ten idle minutes: the agent is let go
 ```
 
-1. **`--agent <name>` selects a key.** The key is a file in your home folder, made at the
-   name's first use. The command proves the key to the server, and the server derives the
+1. **`--agent <name>` selects a key.** The key is a file in the `agents` folder beside the pairing token
+   (`~/.tabgoblin/agents`), made at the name's first use. The command proves the key to the server, and the server derives the
    agent's id from it. The key is never an argument and never printed.
 2. **The first command makes the agent.** The server gives it a connection of its own to the
    browser extension. That first command waits up to 10 seconds for the extension to find it;
@@ -217,8 +217,8 @@ sequenceDiagram
    if no other agent is there. The next command makes the agent again, with the same id, and
    its sessions are its own again once the extension has found it: within about 30 seconds, or
    at once when you open the popup. A command before that answers `NOT_CONNECTED`.
-   `TABGOBLIN_COMMAND_IDLE_SECONDS`, set in the environment the server starts in, changes the ten
-   minutes.
+   `TABGOBLIN_COMMAND_IDLE_SECONDS` (1 to 86400), set in the environment the server starts in,
+   changes the ten minutes.
 
 A session ends as it does for any agent: you revoke it, its time is up, the tab is closed or
 the browser is closed. Pause, a lower access level and **Disconnect** in the popup act on the
@@ -311,5 +311,6 @@ apply to a command exactly as to an MCP tool call, and where an organisation has
 agents acting in the browser, that holds for the CLI as well
 ([corporate assessment](corporate-assessment.md#restrictions-on-mcp-and-the-cli)).
 
-What is known of it: the CLI was built and tested on Linux. It has not been run on Windows or
-macOS, and no real agent has yet been driven through it with a skill.
+What is known of it: the CLI is covered by the end-to-end suite in a real Chrome, which CI runs
+on Windows. It has not been run on macOS, and no agent has yet been driven through it with its
+skill loaded.

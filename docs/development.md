@@ -236,7 +236,7 @@ page that owns it:
 
 | Page | Owns |
 |---|---|
-| [README](../README.md) | What TabGoblin is and why, example workflows, the quick start, the list of pages. It sums up and links |
+| [README](../README.md) | What TabGoblin is and why, how it works, the controls in one table, the quick start, the list of pages. It sums up and links; no comparisons or workflows |
 | [Installation](installation.md) | Setting it up from a download or from source, verifying a download, and what goes wrong while doing that |
 | [Developer guide](developer-guide.md) | What the user sees and does: authorizing, access levels, sessions, workspaces, submissions, stopping, the settings file, the server's panel, options and commands, troubleshooting |
 | [CLI guide](cli.md) | The CLI: commands and arguments, discovery, what a command prints, exit codes, how many commands are one agent, instructions for an agent without a skill |

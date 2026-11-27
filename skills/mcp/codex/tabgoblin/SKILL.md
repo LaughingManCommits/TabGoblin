@@ -19,7 +19,7 @@ how much you may do there.
   name, with `$tabgoblin`, or pick it from `/skills`.
 - The tools come from an MCP server on the user's machine that Codex starts. If
   `browser_status` is not among your tools, the server is not set up in the user's Codex, or
-  did not start: say so, and point the user to step 5 of TabGoblin's installation guide. Do
+  did not start: say so, and point the user to the installation guide, *Connect your agent*. Do
   not reach for another way into the browser.
 - A call to these tools may need the user's approval in Codex. That is beside what the user
   decides in TabGoblin's popup, and does not replace it.

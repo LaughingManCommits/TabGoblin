@@ -18,7 +18,7 @@ how much you may do there.
 
 - The tools come from an MCP server on the user's machine that Copilot starts. If
   `browser_status` is not among your tools, the server is not added, or its tools are switched
-  off for this chat: say so, and point the user to step 5 of TabGoblin's installation guide
+  off for this chat: say so, and point the user to the installation guide, *Connect your agent*
   and to the list of MCP servers in their editor. Do not reach for another way into the
   browser.
 - Copilot may ask the user to allow a call to these tools. That is beside what the user

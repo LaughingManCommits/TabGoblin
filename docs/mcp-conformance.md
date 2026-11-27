@@ -37,7 +37,7 @@ it and the server only has to use it as intended.
 | Declare the `tools` capability, and whether the list changes | Met | Declared, with `listChanged` false |
 | A tool has a name, a description and an input schema that is a JSON Schema object | Met | `McpMain.toolSpecs` |
 | A tool says whether it only reads and whether it can destroy (hints) | Met | `McpMain.tool` |
-| A tool has a title for display | Met | `McpMain.TITLES` |
+| A tool has a title for display | Met | `ToolDefs.TITLES` |
 | A tool that fails answers with a result marked `isError`, not with a protocol error | Met | `BrowserService.call` never throws |
 | An unknown tool, and an unknown method, are protocol errors | Met | SDK: `-32602` and `-32601` |
 | `ping` is answered | Met | SDK |
@@ -88,7 +88,7 @@ SDK serves both generations over stdio by itself.
 
 `McpConformanceIT` starts the built jar as an agent's program does and talks to it over its
 standard input and output. Since there is one server for all agents, that process is a pipe to
-the server, which it starts: what is measured is what an agent gets, through both.
+the server, which it starts: what is measured is what an agent gets, through both. It checks the
 handshake, negotiation of the revision, `ping`, the list of tools and what each must have, a tool
 that fails, an unknown tool, an unknown method, the probe of a newer client, the exit when the
 input is closed, and that every line on standard output is a protocol message. With a stand-in

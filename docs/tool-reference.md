@@ -16,18 +16,20 @@ raw HTML.
 - **Objects.** `browser_click`, `browser_hover`, `browser_fill`, `browser_press_key`,
   `browser_scroll`, `browser_navigate`, `browser_wait_for`, `browser_submit` and
   `browser_request_access` return an object. It is given twice: as the JSON text shown on this
-  page, and as an object (MCP: structured content; CLI: `result`). Both say the same. The other tools return text, and
+  page (where the text is pretty-printed JSON, shown here compacted), and as an object (MCP:
+  structured content; CLI: `result`). Both say the same. The other tools return text, and
   `browser_screenshot` an image with a note.
 - **Progress (MCP).** A client that sends a progress token with a call is told every three seconds
   that the call is still running.
 - **Cancellation.** A call an MCP client cancels is stopped in the browser and gets no answer.
-  A CLI command whose process is ended is stopped in the browser too, and says `CANCELLED`.
+  A CLI command whose process is ended is stopped in the browser too, and says `CANCELLED`
+  with `"outcome": "unknown"`: whether it took effect is not known.
 - **Two interfaces.** An MCP client calls `browser_extract` with arguments; an agent without
   MCP runs `tabgoblin extract` with the same arguments as options. The inputs, the text and the
   error codes below are the same for both. What is particular to the CLI (the JSON around the
   text, exit codes, `--agent`) is in the [CLI guide](cli.md).
 - **Nothing is retried.** A command is sent once. Where no answer came, the outcome is reported
-  as unknown (`TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`).
+  as unknown (`TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED`).
 - **Time.** The server waits 30 seconds for the browser's answer to a command, and longer where
   a tool's own limit says so. The first call after a start waits up to 10 seconds for the
   extension to connect. In the extension one operation in the page has 15 seconds.
@@ -125,7 +127,7 @@ A session's block has further lines where they apply:
 ```text
 Session s2
   Authorized origin: https://mail.example.org
-  Access: read
+  Access: read only
   Paused: no
   Blocked: mail.example.org is on the user's list of blocked sites: no agent may work there. Only the user can change that, in the settings of the TabGoblin server.
   Tab: Inbox
@@ -271,7 +273,7 @@ tab on another site), `level`, `origin`, `session` (for `raise`) and `note`.
 
 **Restrictions:** what could never be granted is not put to the user: a level above the user's
 security policy (`ACCESS_RESTRICTED`), a blocked site (`SITE_BLOCKED`), a site outside the
-allowed ones (`SITE_NOT_ALLOWED`). A level the session already has is `INVALID_ARGUMENT`.
+allowed ones (`SITE_NOT_ALLOWED`). A level the session already has, or a lower one, is `INVALID_ARGUMENT`.
 
 **Example call**
 
@@ -513,12 +515,14 @@ one section, or only the parts asked for. Title: *Read page text*.
 | `max_matches` | integer | 20 | Matching lines shown, 1–200 |
 | `kind` | string | – | Return only the regions of one kind: `tables`, `code` or `articles` |
 
-Combinations: `outline` goes with none of `find`, `kind` and `refs`. `refs` goes with none of
-`ref`, `offset` and `outline`. `find` works together with `ref`, `refs`, `main_only`, `kind`
-and `offset`. Anything else is `INVALID_ARGUMENT`.
+Combinations refused with `INVALID_ARGUMENT`: `outline` with `find`, `kind` or `refs`; `refs`
+with `ref` or with an `offset` above 0; `regex` without `find`. Any other combination is
+accepted; `find` works together with `ref`, `refs`, `main_only`, `kind` and `offset`.
 
-**Output:** text. A header that says what is shown (`Text:`, `Outline:`, `Section:`, `Find:` or
-`Regions:`) and how complete it is ([`Completeness:`](#completeness)), then the content. When
+**Output:** text. A header: `Page:` and `URL:`, what is shown (`Text:`, `Outline:`, `Section:`,
+`Find:` or `Regions:`), `Scroll:`, how complete it is ([`Completeness:`](#completeness)) and the
+line that marks page content as untrusted; then the content. The examples below show only the
+lines that differ, and leave the others out. When
 text is cut, the header says `continue with offset=N`; a later window also says under which
 headings it starts.
 
@@ -692,7 +696,7 @@ rows in view, or a list in pages. Title: *Collect over scrolling or pages*.
 | `max_ms` | integer | 15,000 | Longest time, 500–30,000 |
 | `max_chars` | integer | 12,000 | Most characters returned, 100–100,000 |
 | `ref` | integer | – | Scroll and read inside this scrollable element instead of the page. Not with `next` |
-| `next` | string | – | The exact name of the link or button to the next page, such as `Next`, 1–80 characters. It is looked for anew on every page |
+| `next` | string | – | The name of the link or button to the next page (case and extra blanks are ignored), such as `Next`, 1–80 characters. It is looked for anew on every page |
 | `find` | string | – | Return only the lines that contain this text (1–200 characters, case is ignored), with the lines around them and `---` where lines are left out |
 | `regex` | boolean | `false` | Take `find` as a regular expression, as [`browser_extract`](#parts-of-a-long-page) does. Needs `find` |
 | `context_lines` | integer | 2 | Lines shown before and after a matching line, 0–20. Needs `find` |
@@ -705,7 +709,8 @@ rows in view, or a list in pages. Title: *Collect over scrolling or pages*.
   beginning and the end that the page before had in the same places. A line that differs from
   page to page, such as a pager's, is kept.
 
-**Output:** text. `Collected:` (lines, readings, how, time), `Find:` with `find`, `Stopped:`
+**Output:** text. `Collected:` (lines, readings, how, time), `Find:` with `find`, `Shown:` where
+only the first lines are shown, a line where one reading had more than 5,000 lines, `Stopped:`
 with the reason, [`Completeness:`](#completeness), then the lines. `Completeness` is `COMPLETE`
 (the end was reached, or no further page), `TRUNCATED` (a limit: call again, it goes on from
 where the page is now), `PARTIAL` (the tab left the session's sites) or `UNKNOWN` (a page that
@@ -860,7 +865,9 @@ content (`summary`, an element with `aria-expanded`, a tab). Write for everythin
 
 **Output:** an object that reports what followed: `dispatched`, `navigated`, `navigation`
 (`none`, `same-document`, `new-document`, `left-origin`, or `unknown` when the page stopped
-answering), `url`, `title`, `openedNewTab` when the site opened a tab, and a `note` where there
+answering), `url`, `title`, `openedNewTab` when the site opened a tab, and a `note`. When the
+tab left the session's sites the object is `navigation: "left-origin"`, `leftAuthorizedOrigin:
+true` and a `note`, without `navigated`, `url` and `title`. A `note` also comes where there
 is something to say (for example that another element appears to cover this one). With
 `intent: "submit"` the result is that of [`browser_submit`](#browser_submit). No example of a
 click's result was captured for this page.
@@ -968,7 +975,7 @@ Keys that can submit follow the rules for submissions:
 |---|---|---|
 | Enter | A text box of any kind: a field of a form, a field outside one, a text area, an editor, a message box | A submission, because it may send what is written. Refused with `SUBMIT_INTENT_REQUIRED` unless `intent` is `submit`. Then it runs like `browser_submit`: the user is asked, it is sent once, the same content is refused within two minutes unless `repeat` is true, and the result carries a verdict |
 | Enter | A search box, a field of a form that only searches, or a text box that points to a list of options which is open | Pressed. It searches, or takes the highlighted option |
-| Enter, Space | A button, link, toggle, tab or menu item, or a control of the page's own making that takes the keyboard; Space also on a checkbox, radio button or switch | The rules of `browser_click` on that element. With `intent: "submit"` it runs as a submission of that control, which needs its `ref` |
+| Enter, Space | A button, link, toggle, tab or menu item, or a control of the page's own making that takes the keyboard; Space also on a checkbox, radio button or switch | Needs Read / Write, and then the rules of `browser_click` on that element. With `intent: "submit"` it runs as a submission of that control, which needs its `ref` |
 
 A search box is one the page marks as such: by its type, its role, or a search region around
 it. For a one-line field its name counts as well (search, find, filter); for a text area or an
@@ -1226,8 +1233,8 @@ Every failure is `Error [CODE]: message`. This table has every code.
 | `SENSITIVE_FIELD` | Password or credential field |
 | `ELEMENT_DISABLED`, `UNSUPPORTED_ELEMENT`, `OPTION_NOT_FOUND` | The control cannot take that |
 | `WAIT_TIMEOUT` | The condition did not occur in time |
-| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | No answer; the outcome is unknown and nothing was retried. `CONNECTION_LOST` is also what a call answers that was running when the server's process ended: the server is started anew by itself, and the next call goes to it |
-| `CANCELLED`, `INTERRUPTED` | Stopped: by the user (pause, a lower access level), because the session ended or the tab left its sites, or because the call was cancelled. A call the client itself cancels gets no answer at all |
+| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED` | No answer, or the call was interrupted while it ran; the outcome is unknown and nothing was retried. `CONNECTION_LOST` is also what a call answers that was running when the server's process ended: the server is started anew by itself, and the next call goes to it |
+| `CANCELLED` | Stopped at its next safe point: by the user (pause, a lower access level), because the session ended or the tab left its sites, or because the call was cancelled. A CLI command ended while it ran says `CANCELLED` with an unknown outcome. A call the client itself cancels gets no answer at all |
 | `TAB_NOT_VISIBLE`, `SCREENSHOT_FAILED` | The tab could not be captured |
 | `SCREENSHOT_BLOCKED` | A frame from another site is in view, and a picture would show what is in it. Scroll it out of view, or read the page as text |
 | `PAGE_UNAVAILABLE` | Browser pages, the Web Store and error pages are off limits |

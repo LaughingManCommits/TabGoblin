@@ -68,8 +68,9 @@ Every control is labelled with one of three classes:
 | A tab is reachable only after the user's click on it | Enforced | Chrome (`activeTab`); extension |
 | A session is bound to exact origins, one tab, one agent | Enforced | Extension, before every command and step |
 | Access levels Read, Explore, Read / Write | Enforced | Extension (`policy.ts`) |
-| Password and credential-like fields are neither read nor filled | Enforced | Content script |
-| A submission needs the agent's declaration and Write access | Enforced | Extension |
+| Password fields are neither read nor filled | Enforced | Content script |
+| Other credential fields (by their `autocomplete` value, or a name or id such as `token`, `otp` or `cvv`) are neither read nor filled | Best effort | Content script |
+| A recognised submission (a form's submit control, Enter in a form field or text box) needs the agent's declaration and Write access | Enforced | Extension |
 | A submission needs the user's approval | Configurable (default: every time; mandatory under the strict profile and for high-impact actions) | Extension, popup |
 | An approval is bound to the content the user was shown | Enforced | Extension, content script |
 | Nothing is retried; a submission id is used once | Enforced | Server, extension |
@@ -79,7 +80,7 @@ Every control is labelled with one of three classes:
 | Blocked sites, allowed sites, maximum level, no screenshots, time limits, strict profile | Configurable | Server and extension |
 | No screenshot while a frame of another site is in view | Enforced | Extension |
 | Redaction of credential-like text | Best effort | Content script, extension |
-| Recognition of submitting and high-impact controls outside forms | Best effort (English labels) | Content script, extension |
+| Recognition of submitting controls outside forms, and of high-impact controls anywhere | Best effort (English labels) | Content script, extension |
 | Marking of page content as untrusted | Best effort (advice to the model) | Server |
 | Audit record on disk | Configurable; a record, not tamper-proof | Server |
 
@@ -161,7 +162,7 @@ settings, sessions) and is no access to a website's storage.
 |---|---|
 | Cookies, HTTP headers, request and response bodies | No tool and no protocol action; no `cookies` or `webRequest` permission |
 | `localStorage`, `sessionStorage`, IndexedDB | The content script does not read them |
-| Passwords and tokens in fields | Password and credential-like fields are not read and cannot be filled or typed into |
+| Passwords and tokens in fields | Password fields, and fields recognised as credentials by their `autocomplete` value, name or id, are not read and cannot be filled or typed into. A credential field that none of these marks is an ordinary field |
 | JavaScript execution | No evaluate action exists; commands map to fixed operations |
 | Arbitrary HTTP requests | No such tool. A tab can be navigated within its session's origins |
 | The Chrome debugger | No `debugger` permission |
@@ -359,8 +360,8 @@ profile forces *ask every time*.
 
 **Limitations.**
 
-- **Recognition is best effort.** Outside forms, a control that submits or is high-impact is
-  recognised by its English label. A control that is not recognised is an ordinary click under
+- **Recognition is best effort.** Outside forms, a control that submits is recognised by its
+  English label, and a high-impact control is recognised by its English label everywhere. A control that is not recognised is an ordinary click under
   Read / Write, unless the strict profile is on.
 - **"Confirmed by reaction"** means the page behaved as if it accepted, not that the server
   stored anything.
@@ -428,7 +429,7 @@ is not redacted.
   filled (`SENSITIVE_FIELD`).
 - **Redaction by shape (best effort).** In the text of a snapshot or extract and in every
   address a tool reports, these are replaced by `[redacted]`: a block marked as a private key;
-  a token of three encoded parts (the form of a JWT); what follows `Bearer` or `Basic`; a
+  a token of three encoded parts (the form of a JWT); a credential of 16 or more characters after `Bearer` or `Basic`; a
   value of eight or more characters with letters and digits after a name such as `password`,
   `secret`, `token` or `api_key`; the value of an address parameter of such a name, also
   `code` and `key`; and a user and password in front of a host.
@@ -560,7 +561,8 @@ click.
   out. The one exception is `interfaces`, which the server alone enforces: the extension cannot
   tell by which interface a command came, and would have to take the server's word for it.
 - **Fail closed.** A value the server does not understand refuses every site
-  (`SETTINGS_UNREADABLE`).
+  (`SETTINGS_UNREADABLE`). The exception is `audit.log`: anything other than `on` leaves the
+  record off. Minutes are whole numbers from 0 to 10080.
 - **Disclosure.** An agent is told what restrictions hold (`browser_status`) and the one site
   it ran into, not which sites are allowed.
 - **Immediate.** A change is in force when the file is saved.
@@ -670,8 +672,6 @@ is the organisation's task. It does not record what the user did in the popup.
 - A checksum and an attestation say that a file is what the workflow built, in the run that
   made the tag. The commit they name is the one before the tag's, which differs from it in the
   version only. They say nothing about what the code does.
-- The release workflow has run on GitHub for the first release; the lists of components and
-  the dependency job were added after it and have run locally only.
 
 ## What is verified by tests
 
