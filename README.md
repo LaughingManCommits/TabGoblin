@@ -36,9 +36,9 @@ TabGoblin takes a narrower path:
 
 ## How it works
 
-![TabGoblin at a glance: an AI coding agent uses the CLI or MCP, side by side; both lead into the TabGoblin bridge, which checks identity, validates every request and applies the policy; the bridge leads to the browser extension, where execution is under your control; it reaches the tabs you authorized, and every other tab is denied.](docs/assets/diagrams/overview.svg)
+![TabGoblin at a glance: an AI coding agent uses the CLI or MCP, side by side; both lead to the TabGoblin server, which checks identity and validates every request (enforced) and applies your settings (configurable); the server sends the command to the TabGoblin extension, which checks the session, origin and access level again (enforced) and asks you before a submission (configurable); it reaches the tabs you authorized, and no path leads to any other tab.](docs/assets/diagrams/overview.svg)
 
-The bridge is TabGoblin's local server: one process for all your agents. The browser
+The TabGoblin server runs locally: one process for all your agents. The browser
 extension is TabGoblin in your Chrome, where you authorize tabs, approve, pause and revoke.
 
 1. **You authorize a tab.** Click the TabGoblin icon on the tab, choose an agent and an access
@@ -59,7 +59,7 @@ The [architecture](docs/architecture.md) has the components, the flows and the t
 TabGoblin is built to give an agent less than browser automation does: only the tabs you
 chose, only through fixed operations, and with you able to see and stop it.
 
-![What an agent can reach: TabGoblin checks every command from the agent. What passes reaches only the tabs you authorized. A submission is shown to you first, by default. Other tabs, cookies, request headers, website storage, password fields, scripts, the debugger and network requests are out of reach.](docs/assets/diagrams/security-boundary.svg)
+![What an agent can reach: TabGoblin checks every command from the agent. What passes reaches only the tabs you authorized (enforced). A submission is shown to you first by default (configurable), and is not sent if you deny it or do not answer. Other tabs, cookies, request headers, website storage, password fields, scripts, the debugger and network requests are out of reach: there is no tool or permission for them (enforced).](docs/assets/diagrams/security-boundary.svg)
 
 Each control is one of three kinds. **Enforced** holds whatever an agent or a page does.
 **Configurable** is a setting you or your organisation choose. **Best effort** is a heuristic

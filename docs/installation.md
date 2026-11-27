@@ -344,19 +344,19 @@ What happens the first time, with either interface:
 
 ```mermaid
 sequenceDiagram
-  actor U as You
+  actor U as User
   participant A as Coding agent
-  participant T as TabGoblin server
+  participant S as TabGoblin server
   participant X as TabGoblin extension
-  A->>T: status, under its name (CLI: --agent, MCP: as registered)
-  T-->>A: connected, no tab authorized
+  A->>S: status, under its name (CLI: --agent, MCP: as registered)
+  S-->>A: connected, no tab authorized
   Note over X: now listed in the popup
   U->>X: click the icon on a tab, choose the agent and a level, Authorize
-  X-->>T: session s1 belongs to this agent
-  A->>T: snapshot
-  T->>X: snapshot of s1
-  X-->>T: the page as text
-  T-->>A: the page, with numbered elements
+  X->>S: event sessions: s1 belongs to this agent
+  A->>S: snapshot
+  S->>X: snapshot of s1
+  X-->>S: the page as text
+  S-->>A: the page, with numbered elements
 ```
 
 1. Make sure TabGoblin's server is up: through MCP, start your agent; through the CLI, run

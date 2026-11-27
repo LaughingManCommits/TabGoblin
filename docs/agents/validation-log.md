@@ -3,6 +3,10 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `ccr-df3851d4-clmz1a` from `e701c94`: the diagrams aligned with the code
+
+On Linux with Node 22 and this container's Chromium, no JDK run. Documentation only. `node docs/assets/diagrams/build.mjs` wrote the five pictures, each opened in Chromium with the system light and dark, and looked at. Every Mermaid block in the documentation (ten: eight in `architecture.md`, one each in `cli.md` and `installation.md`) parsed and rendered with Mermaid 11.4.1 in Chromium, in the default and the dark theme, and the renders were looked at; the first run failed on five blocks whose messages had a semicolon, which ends a statement in a sequence diagram. Link check, 356 links; nothing personal. **Not run:** the suites (no product code changed); the pages on GitHub itself, whose Mermaid version is not known here.
+
 ## 2026-11-27, branch `ccr-9855a613-wqwjrk` from `4e00e6a`: what changed in a release's notes, and documentation that names no published release
 
 On Linux with Node 22. `node --test release/version.test.mjs`: 12 of 12 (the order of versions with betas; the tag a list of changes starts from, for releases and betas). The publish step's script run with a stand-in `gh` that prints its arguments: a release passes the notes, `--generate-notes` and `--notes-start-tag` of the release before; a beta also `--prerelease`, with its line at the top of the notes; the first release passes no start tag. `gh release create --help` (the installed `gh`) says notes given with `--notes` come before the generated ones. `release.yml` parses; link check, 356 links; nothing personal. **Not run:** the workflow on GitHub, actionlint, the suites (no product code changed).

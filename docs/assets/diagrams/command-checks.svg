@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1066" width="800" height="1066" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1186" width="800" height="1186" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
 <title id="t">Where a command is checked</title>
-<desc id="d">A command from the CLI or from MCP passes two checks in the TabGoblin server and four in the TabGoblin extension before one fixed operation runs in the authorized tab. A check that fails refuses the command with an error code. Whether the user is asked about a submission is configurable; the other checks are enforced. Taking credential-like text out of the result is best effort.</desc>
+<desc id="d">A command from the CLI or from MCP passes three checks in the TabGoblin server and four in the TabGoblin extension before one fixed operation runs in the authorized tab. A check that fails refuses the command with an error code, and nothing after it runs. Who is asking, the arguments, the session, the access level and the check right before the page are enforced; the user's settings and whether the user is asked about a submission are configurable; only allowlisted text leaves the page (enforced), and credential-like text is taken out of it (best effort). A cancel, pause or revoke stops the command at the next check before the page.</desc>
 <style>
 svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; --amber-text: #B45309; }
 @media (prefers-color-scheme: dark) {
@@ -27,111 +27,129 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <marker id="head-green" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#16A34A"/></marker>
 <marker id="head-amber" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0.8 L7,4 L0,7.2 z" fill="#D97706"/></marker>
 </defs>
-<rect class="ground" fill="#FFFFFF" stroke="#D0D7DE" x="0.5" y="0.5" width="799" height="1065" rx="12" stroke-width="1"/>
-<rect fill="none" x="20" y="6" width="760" height="1004" rx="12" stroke="#64748B" stroke-width="1" stroke-dasharray="6 5"/>
+<rect class="ground" fill="#FFFFFF" stroke="#D0D7DE" x="0.5" y="0.5" width="799" height="1185" rx="12" stroke-width="1"/>
+<rect fill="none" x="20" y="6" width="760" height="1124" rx="12" stroke="#64748B" stroke-width="1" stroke-dasharray="6 5"/>
 <text class="sub" fill="#475569" x="34" y="26" font-size="11" font-weight="600" letter-spacing="0.6">ONE OPERATING-SYSTEM ACCOUNT · APPLICATION CHECKS, NOT ISOLATION BETWEEN PROGRAMS</text>
 <rect class="tint" fill-opacity="0.07" x="150" y="44" width="280" height="52" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="290" y="66.66666666666667" text-anchor="middle" font-size="14">Coding agent</text>
 <text class="sub" fill="#475569" x="290" y="82.66666666666667" text-anchor="middle" font-size="12">a CLI command or an MCP call</text>
-<rect class="half" fill-opacity="0.035" fill="#16A34A" x="36" y="134" width="728" height="222" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
+<rect class="half" fill-opacity="0.035" fill="#16A34A" x="36" y="134" width="728" height="318" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
 <text class="green-text" fill="#15803D" x="50" y="154" font-size="11" font-weight="600" letter-spacing="0.6">TABGOBLIN SERVER</text>
 <rect class="tint" fill-opacity="0.07" x="150" y="164" width="280" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="290" y="188.66666666666666" text-anchor="middle" font-size="14">Who is asking?</text>
 <text class="sub" fill="#475569" x="290" y="204.66666666666666" text-anchor="middle" font-size="12">pairing token and agent key proven</text>
 <text class="sub" fill="#475569" x="290" y="220.66666666666666" text-anchor="middle" font-size="12">agent not revoked</text>
 <text class="green-text" fill="#15803D" x="136" y="204" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
-<rect class="tint" fill-opacity="0.07" x="474" y="174" width="276" height="52" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
+<rect class="tint" fill-opacity="0.07" x="474" y="166" width="276" height="68" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="612" y="188.66666666666666" text-anchor="middle" font-size="14">Refused</text>
-<text class="sub" fill="#475569" x="612" y="204.66666666666666" text-anchor="middle" font-size="12">connection refused</text>
+<text class="sub" fill="#475569" x="612" y="204.66666666666666" text-anchor="middle" font-size="12">link refused, nothing passes</text>
 <text class="sub" fill="#475569" x="612" y="220.66666666666666" text-anchor="middle" font-size="12">AGENT_REVOKED</text>
 <polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,200 474,200" marker-end="url(#head-red)"/>
 <text class="red-text" fill="#B91C1C" x="436" y="193" text-anchor="start" font-size="11" font-weight="600">no</text>
-<rect class="tint" fill-opacity="0.07" x="150" y="268" width="280" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="290" y="292.6666666666667" text-anchor="middle" font-size="14">Is the request allowed here?</text>
-<text class="sub" fill="#475569" x="290" y="308.6666666666667" text-anchor="middle" font-size="12">arguments valid · site not blocked</text>
-<text class="sub" fill="#475569" x="290" y="324.6666666666667" text-anchor="middle" font-size="12">within the policy</text>
-<text class="green-text" fill="#15803D" x="136" y="308" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
-<rect class="tint" fill-opacity="0.07" x="474" y="278" width="276" height="52" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
+<rect class="tint" fill-opacity="0.07" x="150" y="268" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="292.6666666666667" text-anchor="middle" font-size="14">Are the arguments valid?</text>
+<text class="sub" fill="#475569" x="290" y="308.6666666666667" text-anchor="middle" font-size="12">every argument against its tool</text>
+<text class="green-text" fill="#15803D" x="136" y="300" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
+<rect class="tint" fill-opacity="0.07" x="474" y="270" width="276" height="52" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="612" y="292.6666666666667" text-anchor="middle" font-size="14">Refused</text>
-<text class="sub" fill="#475569" x="612" y="308.6666666666667" text-anchor="middle" font-size="12">INVALID_ARGUMENT · SITE_BLOCKED</text>
-<text class="sub" fill="#475569" x="612" y="324.6666666666667" text-anchor="middle" font-size="12">SITE_NOT_ALLOWED · ACCESS_RESTRICTED</text>
-<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,304 474,304" marker-end="url(#head-red)"/>
-<text class="red-text" fill="#B91C1C" x="436" y="297" text-anchor="start" font-size="11" font-weight="600">no</text>
+<text class="sub" fill="#475569" x="612" y="308.6666666666667" text-anchor="middle" font-size="12">INVALID_ARGUMENT</text>
+<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,296 474,296" marker-end="url(#head-red)"/>
+<text class="red-text" fill="#B91C1C" x="436" y="289" text-anchor="start" font-size="11" font-weight="600">no</text>
+<rect class="tint" fill-opacity="0.07" x="150" y="356" width="280" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="380.6666666666667" text-anchor="middle" font-size="14">Do your settings allow it?</text>
+<text class="sub" fill="#475569" x="290" y="396.6666666666667" text-anchor="middle" font-size="12">interface · blocked and allowed sites</text>
+<text class="sub" fill="#475569" x="290" y="412.6666666666667" text-anchor="middle" font-size="12">level · screenshots · in both parts</text>
+<text class="sub" fill="#475569" x="136" y="396" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">CONFIGURABLE</text>
+<rect class="tint" fill-opacity="0.07" x="474" y="350" width="276" height="84" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="612" y="372.6666666666667" text-anchor="middle" font-size="14">Refused</text>
+<text class="sub" fill="#475569" x="612" y="388.6666666666667" text-anchor="middle" font-size="12">INTERFACE_NOT_ALLOWED · SITE_BLOCKED</text>
+<text class="sub" fill="#475569" x="612" y="404.6666666666667" text-anchor="middle" font-size="12">SITE_NOT_ALLOWED · ACCESS_RESTRICTED</text>
+<text class="sub" fill="#475569" x="612" y="420.6666666666667" text-anchor="middle" font-size="12">SCREENSHOTS_DISABLED</text>
+<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,392 474,392" marker-end="url(#head-red)"/>
+<text class="red-text" fill="#B91C1C" x="436" y="385" text-anchor="start" font-size="11" font-weight="600">no</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,96 290,164" marker-end="url(#head)"/>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,236 290,268" marker-end="url(#head)"/>
 <text class="sub" fill="#475569" x="300" y="256" text-anchor="start" font-size="11">yes</text>
-<rect class="half" fill-opacity="0.035" fill="#16A34A" x="36" y="378" width="728" height="430" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
-<text class="green-text" fill="#15803D" x="50" y="398" font-size="11" font-weight="600" letter-spacing="0.6">TABGOBLIN EXTENSION · IN CHROME</text>
-<rect class="tint" fill-opacity="0.07" x="150" y="408" width="280" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="290" y="432.6666666666667" text-anchor="middle" font-size="14">Is the session valid?</text>
-<text class="sub" fill="#475569" x="290" y="448.6666666666667" text-anchor="middle" font-size="12">this agent's · not paused or expired</text>
-<text class="sub" fill="#475569" x="290" y="464.6666666666667" text-anchor="middle" font-size="12">tab on its authorized origins</text>
-<text class="green-text" fill="#15803D" x="136" y="448" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
-<rect class="tint" fill-opacity="0.07" x="474" y="418" width="276" height="52" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="612" y="432.6666666666667" text-anchor="middle" font-size="14">Refused</text>
-<text class="sub" fill="#475569" x="612" y="448.6666666666667" text-anchor="middle" font-size="12">NOT_AUTHORIZED · SESSION_NOT_OWNED</text>
-<text class="sub" fill="#475569" x="612" y="464.6666666666667" text-anchor="middle" font-size="12">PAUSED · SESSION_SUSPENDED</text>
-<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,444 474,444" marker-end="url(#head-red)"/>
-<text class="red-text" fill="#B91C1C" x="436" y="437" text-anchor="start" font-size="11" font-weight="600">no</text>
-<rect class="tint" fill-opacity="0.07" x="150" y="512" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="290" y="536.6666666666666" text-anchor="middle" font-size="14">Does the access level cover it?</text>
-<text class="sub" fill="#475569" x="290" y="552.6666666666666" text-anchor="middle" font-size="12">Read · Explore · Read / Write</text>
-<text class="green-text" fill="#15803D" x="136" y="544" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
-<rect class="tint" fill-opacity="0.07" x="474" y="514" width="276" height="52" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,324 290,356" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="300" y="344" text-anchor="start" font-size="11">yes</text>
+<rect class="half" fill-opacity="0.035" fill="#16A34A" x="36" y="474" width="728" height="446" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
+<text class="green-text" fill="#15803D" x="50" y="494" font-size="11" font-weight="600" letter-spacing="0.6">TABGOBLIN EXTENSION · IN CHROME</text>
+<rect class="tint" fill-opacity="0.07" x="150" y="504" width="280" height="88" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="528.6666666666666" text-anchor="middle" font-size="14">Is the session valid?</text>
+<text class="sub" fill="#475569" x="290" y="544.6666666666666" text-anchor="middle" font-size="12">this agent's · not expired,</text>
+<text class="sub" fill="#475569" x="290" y="560.6666666666666" text-anchor="middle" font-size="12">paused or suspended</text>
+<text class="sub" fill="#475569" x="290" y="576.6666666666666" text-anchor="middle" font-size="12">tab on its authorized origins</text>
+<text class="green-text" fill="#15803D" x="136" y="552" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
+<rect class="tint" fill-opacity="0.07" x="474" y="506" width="276" height="84" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="612" y="528.6666666666666" text-anchor="middle" font-size="14">Refused</text>
-<text class="sub" fill="#475569" x="612" y="544.6666666666666" text-anchor="middle" font-size="12">EXPLORE_NOT_AUTHORIZED</text>
-<text class="sub" fill="#475569" x="612" y="560.6666666666666" text-anchor="middle" font-size="12">WRITE_NOT_AUTHORIZED</text>
-<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,540 474,540" marker-end="url(#head-red)"/>
-<text class="red-text" fill="#B91C1C" x="436" y="533" text-anchor="start" font-size="11" font-weight="600">no</text>
-<rect class="tint" fill-opacity="0.07" x="150" y="600" width="280" height="72" rx="8" fill="#D97706" stroke="#D97706" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="290" y="624.6666666666666" text-anchor="middle" font-size="14">A submission: ask the user?</text>
-<text class="sub" fill="#475569" x="290" y="640.6666666666666" text-anchor="middle" font-size="12">the user's setting decides · always under</text>
-<text class="sub" fill="#475569" x="290" y="656.6666666666666" text-anchor="middle" font-size="12">the strict profile or for high impact</text>
-<text class="amber-text" fill="#B45309" x="136" y="640" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">CONFIGURABLE</text>
-<rect class="tint" fill-opacity="0.07" x="474" y="610" width="276" height="52" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="612" y="624.6666666666666" text-anchor="middle" font-size="14">Refused</text>
-<text class="sub" fill="#475569" x="612" y="640.6666666666666" text-anchor="middle" font-size="12">SUBMIT_DENIED</text>
-<text class="sub" fill="#475569" x="612" y="656.6666666666666" text-anchor="middle" font-size="12">SUBMIT_NOT_CONFIRMED</text>
-<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,636 474,636" marker-end="url(#head-red)"/>
-<text class="red-text" fill="#B91C1C" x="436" y="629" text-anchor="start" font-size="11" font-weight="600">deny</text>
-<rect class="tint" fill-opacity="0.07" x="150" y="704" width="280" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="290" y="728.6666666666666" text-anchor="middle" font-size="14">Still allowed?</text>
-<text class="sub" fill="#475569" x="290" y="744.6666666666666" text-anchor="middle" font-size="12">checked again right before</text>
-<text class="sub" fill="#475569" x="290" y="760.6666666666666" text-anchor="middle" font-size="12">the page is touched</text>
-<text class="green-text" fill="#15803D" x="136" y="744" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
-<rect class="tint" fill-opacity="0.07" x="474" y="714" width="276" height="52" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="612" y="728.6666666666666" text-anchor="middle" font-size="14">Refused</text>
-<text class="sub" fill="#475569" x="612" y="744.6666666666666" text-anchor="middle" font-size="12">CANCELLED · ORIGIN_MISMATCH</text>
-<text class="sub" fill="#475569" x="612" y="760.6666666666666" text-anchor="middle" font-size="12">APPROVAL_STALE</text>
-<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,740 474,740" marker-end="url(#head-red)"/>
-<text class="red-text" fill="#B91C1C" x="436" y="733" text-anchor="start" font-size="11" font-weight="600">no</text>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,340 290,408" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="300" y="378" text-anchor="start" font-size="11">yes</text>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,480 290,512" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="300" y="500" text-anchor="start" font-size="11">yes</text>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,568 290,600" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="300" y="588" text-anchor="start" font-size="11">yes</text>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,672 290,704" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="300" y="692" text-anchor="start" font-size="11">allowed, or not asked</text>
-<rect class="tint" fill-opacity="0.07" x="150" y="838" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="290" y="862.6666666666666" text-anchor="middle" font-size="14">Authorized tab</text>
-<text class="sub" fill="#475569" x="290" y="878.6666666666666" text-anchor="middle" font-size="12">one fixed operation</text>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,776 290,838" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="300" y="811" text-anchor="start" font-size="11">yes</text>
-<rect class="tint" fill-opacity="0.07" x="150" y="942" width="280" height="56" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="290" y="958.6666666666666" text-anchor="middle" font-size="14">Result to the agent</text>
-<text class="sub" fill="#475569" x="290" y="974.6666666666666" text-anchor="middle" font-size="12">only allowlisted text · enforced</text>
-<text class="sub" fill="#475569" x="290" y="990.6666666666666" text-anchor="middle" font-size="12">credentials taken out · best effort</text>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,894 290,942" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="474" y="967" text-anchor="start" font-size="11">Nothing is retried. A refusal ends</text>
-<text class="sub" fill="#475569" x="474" y="981" text-anchor="start" font-size="11">the command where it happens.</text>
-<line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="1022" x2="776" y2="1022" stroke-width="1"/>
-<circle cx="166.8" cy="1046" r="5" fill="#64748B"/>
-<text class="sub" fill="#475569" x="178.8" y="1050" font-size="12">Components</text>
-<circle cx="270.8" cy="1046" r="5" fill="#16A34A"/>
-<text class="sub" fill="#475569" x="282.8" y="1050" font-size="12">Enforced by TabGoblin</text>
-<circle cx="445.20000000000005" cy="1046" r="5" fill="#D97706"/>
-<text class="sub" fill="#475569" x="457.20000000000005" y="1050" font-size="12">Asks the user</text>
-<circle cx="568.4000000000001" cy="1046" r="5" fill="#DC2626"/>
-<text class="sub" fill="#475569" x="580.4000000000001" y="1050" font-size="12">Refused</text>
+<text class="sub" fill="#475569" x="612" y="544.6666666666666" text-anchor="middle" font-size="12">NOT_AUTHORIZED · SESSION_NOT_OWNED</text>
+<text class="sub" fill="#475569" x="612" y="560.6666666666666" text-anchor="middle" font-size="12">AUTHORIZATION_EXPIRED · PAUSED</text>
+<text class="sub" fill="#475569" x="612" y="576.6666666666666" text-anchor="middle" font-size="12">SESSION_SUSPENDED · ORIGIN_MISMATCH</text>
+<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,548 474,548" marker-end="url(#head-red)"/>
+<text class="red-text" fill="#B91C1C" x="436" y="541" text-anchor="start" font-size="11" font-weight="600">no</text>
+<rect class="tint" fill-opacity="0.07" x="150" y="624" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="648.6666666666666" text-anchor="middle" font-size="14">Does the access level cover it?</text>
+<text class="sub" fill="#475569" x="290" y="664.6666666666666" text-anchor="middle" font-size="12">Read · Explore · Read / Write</text>
+<text class="green-text" fill="#15803D" x="136" y="656" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
+<rect class="tint" fill-opacity="0.07" x="474" y="618" width="276" height="68" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="612" y="640.6666666666666" text-anchor="middle" font-size="14">Refused</text>
+<text class="sub" fill="#475569" x="612" y="656.6666666666666" text-anchor="middle" font-size="12">EXPLORE_NOT_AUTHORIZED</text>
+<text class="sub" fill="#475569" x="612" y="672.6666666666666" text-anchor="middle" font-size="12">WRITE_NOT_AUTHORIZED</text>
+<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,652 474,652" marker-end="url(#head-red)"/>
+<text class="red-text" fill="#B91C1C" x="436" y="645" text-anchor="start" font-size="11" font-weight="600">no</text>
+<rect class="tint" fill-opacity="0.07" x="150" y="712" width="280" height="72" rx="8" fill="#D97706" stroke="#D97706" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="736.6666666666666" text-anchor="middle" font-size="14">A submission: ask the user?</text>
+<text class="sub" fill="#475569" x="290" y="752.6666666666666" text-anchor="middle" font-size="12">the user's setting decides · always under</text>
+<text class="sub" fill="#475569" x="290" y="768.6666666666666" text-anchor="middle" font-size="12">the strict profile or for high impact</text>
+<text class="sub" fill="#475569" x="136" y="752" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">CONFIGURABLE</text>
+<rect class="tint" fill-opacity="0.07" x="474" y="714" width="276" height="68" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="612" y="736.6666666666666" text-anchor="middle" font-size="14">Refused</text>
+<text class="sub" fill="#475569" x="612" y="752.6666666666666" text-anchor="middle" font-size="12">SUBMIT_DENIED</text>
+<text class="sub" fill="#475569" x="612" y="768.6666666666666" text-anchor="middle" font-size="12">SUBMIT_NOT_CONFIRMED</text>
+<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,748 474,748" marker-end="url(#head-red)"/>
+<text class="red-text" fill="#B91C1C" x="436" y="741" text-anchor="start" font-size="11" font-weight="600">deny</text>
+<rect class="tint" fill-opacity="0.07" x="150" y="816" width="280" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="840.6666666666666" text-anchor="middle" font-size="14">Still allowed, still the same?</text>
+<text class="sub" fill="#475569" x="290" y="856.6666666666666" text-anchor="middle" font-size="12">checked again right before</text>
+<text class="sub" fill="#475569" x="290" y="872.6666666666666" text-anchor="middle" font-size="12">each step that touches the page</text>
+<text class="green-text" fill="#15803D" x="136" y="856" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
+<rect class="tint" fill-opacity="0.07" x="474" y="818" width="276" height="68" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="612" y="840.6666666666666" text-anchor="middle" font-size="14">Refused</text>
+<text class="sub" fill="#475569" x="612" y="856.6666666666666" text-anchor="middle" font-size="12">CANCELLED · the codes above, again</text>
+<text class="sub" fill="#475569" x="612" y="872.6666666666666" text-anchor="middle" font-size="12">APPROVAL_STALE</text>
+<polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="430,852 474,852" marker-end="url(#head-red)"/>
+<text class="red-text" fill="#B91C1C" x="436" y="845" text-anchor="start" font-size="11" font-weight="600">no</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,428 290,504" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="300" y="470" text-anchor="start" font-size="11">yes</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,592 290,624" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="300" y="612" text-anchor="start" font-size="11">yes</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,680 290,712" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="300" y="700" text-anchor="start" font-size="11">yes</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,784 290,816" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="300" y="804" text-anchor="start" font-size="11">allowed, or not asked</text>
+<rect class="tint" fill-opacity="0.07" x="150" y="950" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="974.6666666666666" text-anchor="middle" font-size="14">Authorized tab</text>
+<text class="sub" fill="#475569" x="290" y="990.6666666666666" text-anchor="middle" font-size="12">one fixed operation</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,888 290,950" marker-end="url(#head)"/>
+<text class="sub" fill="#475569" x="300" y="923" text-anchor="start" font-size="11">yes</text>
+<rect class="tint" fill-opacity="0.07" x="150" y="1054" width="280" height="56" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="name" fill="#0F172A" font-weight="600" x="290" y="1070.6666666666667" text-anchor="middle" font-size="14">Result to the agent</text>
+<text class="sub" fill="#475569" x="290" y="1086.6666666666667" text-anchor="middle" font-size="12">only allowlisted text</text>
+<text class="sub" fill="#475569" x="290" y="1102.6666666666667" text-anchor="middle" font-size="12">credential-like text taken out</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,1006 290,1054" marker-end="url(#head)"/>
+<text class="green-text" fill="#15803D" x="136" y="1091" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
+<text class="sub" fill="#475569" x="136" y="1107" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">BEST EFFORT</text>
+<text class="sub" fill="#475569" x="474" y="1058" text-anchor="start" font-size="11">Nothing is retried. A refusal ends</text>
+<text class="sub" fill="#475569" x="474" y="1072" text-anchor="start" font-size="11">the command where it happens.</text>
+<text class="sub" fill="#475569" x="474" y="1086" text-anchor="start" font-size="11">A cancel, pause or revoke stops it at</text>
+<text class="sub" fill="#475569" x="474" y="1100" text-anchor="start" font-size="11">the next check before the page.</text>
+<line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="1142" x2="776" y2="1142" stroke-width="1"/>
+<circle cx="170" cy="1166" r="5" fill="#64748B"/>
+<text class="sub" fill="#475569" x="182" y="1170" font-size="12">Components</text>
+<circle cx="274" cy="1166" r="5" fill="#16A34A"/>
+<text class="sub" fill="#475569" x="286" y="1170" font-size="12">Checked by TabGoblin</text>
+<circle cx="442" cy="1166" r="5" fill="#D97706"/>
+<text class="sub" fill="#475569" x="454" y="1170" font-size="12">Asks the user</text>
+<circle cx="565.2" cy="1166" r="5" fill="#DC2626"/>
+<text class="sub" fill="#475569" x="577.2" y="1170" font-size="12">Refused</text>
 </svg>

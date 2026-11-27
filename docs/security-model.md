@@ -85,11 +85,12 @@ Every control is labelled with one of three classes:
 
 ### Where a command is checked
 
-![Where a command is checked: two checks in the TabGoblin server and four in the TabGoblin extension, each with the error codes it refuses with, before one fixed operation runs in the authorized tab. Asking the user about a submission is configurable; the other checks are enforced; taking credentials out of the result is best effort.](assets/diagrams/command-checks.svg)
+![Where a command is checked: three checks in the TabGoblin server and four in the TabGoblin extension, each with the error codes it refuses with, before one fixed operation runs in the authorized tab. Your settings and asking about a submission are configurable; the other checks are enforced; only allowlisted text leaves the page (enforced), and credential-like text is taken out of it (best effort).](assets/diagrams/command-checks.svg)
 
 | Step in the picture | Class |
 |---|---|
-| The two checks in the server, and the session, origin and access-level checks in the extension | Enforced. The policy part of them holds once it is configured |
+| Who is asking and whether the arguments are valid, in the server; the session, origin and access-level checks in the extension | Enforced |
+| Whether your settings allow it: the interface, blocked and allowed sites, the highest level, screenshots | Configurable: nothing is restricted until it is set, and then it is enforced, in the server before anything is sent and in the extension at the moment of the command |
 | Whether the user is asked about a submission | Configurable: every time by default. Enforced under the strict profile, and for a control recognised as high-impact, which is itself best effort |
 | The check right before the page is touched | Enforced |
 | Only allowlisted text leaves the page | Enforced |

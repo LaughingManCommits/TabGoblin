@@ -14,7 +14,7 @@ rules themselves, with where each is enforced and where it stops, are in the
 
 ## Components
 
-![The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a loopback socket to one TabGoblin server with one set of tool definitions, a service and a WebSocket endpoint; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.](assets/diagrams/components.svg)
+![The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a loopback socket to the link endpoint of the one TabGoblin server, which checks the proofs and hands a command to the command adapter and an MCP call to the MCP adapter; both adapters are built from one set of tool definitions and lead into one service and one WebSocket endpoint; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.](assets/diagrams/components.svg)
 
 | Component | Responsibility | Does not |
 |---|---|---|
@@ -142,8 +142,9 @@ its port, the process an agent started serves that agent alone and says so in it
 **CLI.** An agent runs a tool as a command in its terminal ([CLI guide](cli.md)). Such a
 command is a link that lives for
 one call: it connects to the one server, or starts it, proves the token and its agent's key,
-sends one MCP tool call, prints the answer and ends. There is no second protocol, port or
-server for it, and what runs the call is what runs it for an MCP client. Because the extension
+sends one tool call as a `call` message of the command line's own (no MCP is spoken), prints
+the answer and ends. There is no second port or server for it, and from `BrowserService` on
+what runs the call is what runs it for an MCP client. Because the extension
 finds a new agent only by looking at the ports, which takes up to half a minute, the server
 does not let such an agent go with each command: it keeps the agent, with its port, its
 pairing and its submission ids, until no command has come for ten minutes. A command that
@@ -154,25 +155,51 @@ finds no server to be had ends with an error; it does not serve its agent alone.
 ```mermaid
 sequenceDiagram
   participant A as Coding agent
-  participant L as CLI or MCP link
+  participant L as CLI process or MCP link
   participant S as TabGoblin server
-  participant E as Extension worker
   A->>L: starts the process (--agent name)
-  L->>S: connects on 127.0.0.1
-  S->>L: hello { nonce }
-  L->>S: attach { nonce, proof of the pairing token, agent, agentProof }
-  S->>S: check both proofs, derive the agent's id from its key
-  alt a proof does not hold
-    S-->>L: refused, nothing passes
-  else both hold
-    S->>L: attached { proof of the pairing token }
+  L->>S: connects on 127.0.0.1, or starts the server if none runs
+  S->>L: hello { nonce, link version }
+  L->>S: attach { nonce, proof of the pairing token, agent, agentProof, cli }
+  break wrong token proof, another link version, server stopping, interface turned off, key not proven, or a command's key held by an MCP agent
+    S--xL: refused { reason }, and the socket is closed
+    L-->>A: nothing passes to this server
   end
-  Note over A,S: Tool calls now pass: a CLI command's one call (call / result), or an MCP client's calls (MCP)
-  E->>S: WebSocket handshake on the agent's port (Origin: the extension's id)
+  S->>S: derive the agent's id from its key
+  S->>L: attached { proof of the pairing token }
+  break the server's proof is wrong
+    L--xS: closes: not a TabGoblin server, nothing passes
+  end
+  Note over A,S: Tool calls now pass: a CLI command's one call (call, cancel, result), or an MCP client's calls (MCP)
+```
+
+The extension finds the agent's WebSocket port by trying the ports, and pairs with it:
+
+```mermaid
+sequenceDiagram
+  participant E as TabGoblin extension
+  participant S as TabGoblin server
+  E->>S: WebSocket handshake on the agent's port
+  break Origin is not the extension's, the port is locked after failed pairings, or switched off in the server's window
+    S--xE: handshake refused
+  end
   S->>E: challenge { nonce, versions: [3], clientId }
+  break the user disconnected this agent, or no common protocol version
+    E--xS: closes (4403 or 4406)
+  end
   E->>S: auth { nonce, proof of the pairing token, version: 3 }
+  break wrong proof or version
+    S--xE: closes (4401 or 4406)
+  end
   S->>E: auth_ok { proof of the pairing token, version: 3, clientId, clientName }
-  E->>S: the sessions that belong to this clientId
+  break the server's proof is wrong
+    E--xS: closes (4401)
+  end
+  E->>S: event sessions: those that belong to this clientId
+  S->>E: policy: blocked sites and the settings' limits
+  loop every 20 seconds
+    E->>S: ping, two left unanswered and the server counts as gone
+  end
 ```
 
 Two secrets are involved, both files in the user's home folder:
@@ -213,12 +240,11 @@ sequenceDiagram
   C->>B: activeTab grant for this tab and its current origin
   U->>P: chooses access level, duration and agent, presses Authorize
   P->>B: authorize
-  alt a browser page, a blocked site, or ruled out by the policy
-    B-->>P: refused, no session
-  else allowed
-    B->>B: create the session: tab, origin, level, owner, expiry
-    B->>S: the agent's sessions
+  break not a website, a blocked site, a level above the policy's, no named agent under the strict profile, or that agent gone
+    B-->>P: refused with the reason, no session
   end
+  B->>B: create the session: tab, origin, level, owner, expiry, it replaces one the tab had
+  B->>S: event sessions: the agent's sessions
   Note over S: The agent's status now lists the session
 ```
 
@@ -266,22 +292,31 @@ sequenceDiagram
   participant S as TabGoblin server
   participant B as Extension worker
   participant P as Content script
-  A->>S: click { ref: 12, session: "s1" }, as a CLI command or an MCP call
-  S->>S: agent revoked? arguments valid?
-  S->>S: site blocked? within the policy?
-  S->>B: { id, action: "click", session, params, deadline }, in the session's turn
+  A->>S: click { session: "s1", ref: 12 }, as a CLI command or an MCP call
+  S->>S: agent revoked? interface on? arguments valid? site blocked? within the policy?
+  break a check fails
+    S-->>A: its error code, nothing was sent
+  end
+  S->>B: command { id, action: "click", session, params, deadline }, in the session's turn
   B->>B: id seen before? rate limit? deadline passed?
-  B->>B: gate: owner, expiry, pause, suspension, tab origin, access level, policy
+  B->>B: gate: owner, expiry, pause, suspension, tab origin, access level, settings
+  break a check fails
+    B-->>S: its error code, nothing was done
+    S-->>A: the error code
+  end
   B->>P: describe ref 12
   P-->>B: link / expander / submits a form / label
   B->>B: checkClick: may this level click this?
-  B->>B: recheck the session
+  B->>B: cancelled? recheck the session
+  break a check fails
+    B-->>S: its error code, nothing was clicked
+    S-->>A: the error code
+  end
   B->>P: click ref 12
   P-->>B: dispatched
   B->>B: settle: new document? route change? left the site? new tab?
   B-->>S: { id, success, result, timing, session }
   S-->>A: result as text (CLI: inside one JSON object)
-  Note over S,P: A check that fails ends the command there with an error code. Nothing after it runs, and nothing is retried.
 ```
 
 The server sends one command per session at a time, and the extension queues per tab as well,
@@ -332,8 +367,8 @@ gesture, which is every page an agent opened, and can leave the site.
 
 Anything that sends or changes data is a submission. The agent must declare it; by default the
 user approves each one. The user can relax that per session (automatic, or do not ask); it is
-mandatory under the strict profile and for a control recognised as high-impact. The picture
-shows the case in which the user is asked.
+mandatory under the strict profile and for a control recognised as high-impact. In the
+pictures, each `break` is a refusal: the submission ends there, and nothing after it runs.
 
 ```mermaid
 sequenceDiagram
@@ -342,44 +377,73 @@ sequenceDiagram
   participant B as Extension worker
   participant P as Content script
   actor U as User (popup)
-  A->>S: submit { ref, fields, expect_text, submission_id }
-  S->>S: submission id used before? then answer from memory, send nothing
+  A->>S: submit { session, ref, fields, expect_text, submission_id }
+  S->>S: the checks of every command, submission id handled before?
+  break a check fails, or the id was handled before
+    S-->>A: the error code, or the recorded outcome, nothing is sent
+  end
   S->>B: submit
-  B->>B: gate (Write access)
+  Note over A,U: From here a refusal goes back to the agent as its error code, nothing after it runs, and the server forgets the id, so it may be used again. Every step that touches the page is preceded by the recheck, which ends it with CANCELLED or the session's code.
+  B->>B: gate, as for every command, with Write access
   B->>P: prepare: resolve refs, fingerprint control, form fields and content
+  break a ref does not resolve, the level does not cover this control, or the same content went out within two minutes
+    B-->>S: its error code (DUPLICATE_SUBMISSION unless repeat), nothing typed
+  end
   B->>B: ask the user? Their setting decides, always if strict or high-impact
   opt the user is asked
+    break another question is open, or this was declined a moment ago
+      B-->>S: CONFIRMATION_PENDING or SUBMIT_DENIED, the user is not asked
+    end
     B->>U: prompt: agent, control, website, beginning of the content
-    alt Deny, or no answer within a minute
-      U-->>B: no
-      B-->>S: SUBMIT_DENIED or SUBMIT_NOT_CONFIRMED, nothing typed
-    else Allow (not within the first 0.7 s)
-      U-->>B: yes
+    U-->>B: Allow (not within the first 0.7 s), Deny, or no answer within a minute
+    break Deny
+      B-->>S: SUBMIT_DENIED, nothing typed
+    end
+    break cancelled, paused, revoked or access lowered while the question was open
+      B-->>S: CANCELLED, PAUSED, NOT_AUTHORIZED or WRITE_NOT_AUTHORIZED, nothing typed
+    end
+    break no answer
+      B-->>S: SUBMIT_NOT_CONFIRMED, nothing typed
     end
   end
-  B->>B: recheck the session
   B->>P: fingerprint again: same document, same content?
-  alt changed
-    B-->>S: APPROVAL_STALE, nothing sent
-  else unchanged
-    B->>P: fill the fields, take a baseline, click or press Enter
-    B->>P: read the signals after the page settled
-    B-->>S: CONFIRMED, FAILED or UNCERTAIN, with evidence
+  break changed
+    B-->>S: APPROVAL_STALE, nothing typed
   end
-  S-->>A: verdict
+  B->>P: fill the fields
+  break a field did not keep its text
+    B-->>S: FILL_REJECTED, nothing submitted
+  end
+  B->>P: take a baseline, the form's own validation
+  break the form rejects it
+    B-->>S: FAILED, nothing dispatched
+  end
+  break cancelled at the last safe point
+    B-->>S: CANCELLED, nothing dispatched
+  end
+  B->>P: click or press Enter
+  B->>P: read the signals until the page settles
+  B-->>S: CONFIRMED, FAILED or UNCERTAIN, with evidence
+  S-->>A: verdict, a timeout or lost connection is recorded as UNCERTAIN and never resent
 ```
 
 ```mermaid
 stateDiagram-v2
-  [*] --> PREPARED: refs resolve, allowed, not a duplicate
-  PREPARED --> [*]: declined, unanswered, cancelled or stale, nothing typed
-  PREPARED --> FILLED: allowed by the user, or not asked under their setting
-  FILLED --> FAILED: form validation rejects, nothing sent
-  FILLED --> SUBMITTING: click or Enter dispatched
-  SUBMITTING --> VERIFYING
+  [*] --> PREPARED: refs resolve, the level covers the control, not a duplicate
+  PREPARED --> [*]: denied, unanswered, cancelled, access changed, stale, or a field refused its text, nothing sent
+  PREPARED --> FILLED: allowed by the user, or not asked under their setting, fields filled
+  FILLED --> FAILED: the form's own validation rejects, nothing sent
+  FILLED --> [*]: cancelled at the last safe point, nothing sent
+  FILLED --> SUBMITTING: past the last safe point
+  SUBMITTING --> [*]: control gone or disabled in the page, or Enter only started a new line, nothing submitted
+  SUBMITTING --> UNCERTAIN: the page stopped answering during the click
+  SUBMITTING --> VERIFYING: click or Enter dispatched
   VERIFYING --> CONFIRMED: text visible, or the page reacted as if it accepted
   VERIFYING --> FAILED: error alert or field marked invalid
-  VERIFYING --> UNCERTAIN: no conclusive signal
+  VERIFYING --> UNCERTAIN: no conclusive signal, cancelled, or the tab left its sites
+  CONFIRMED --> [*]
+  FAILED --> [*]
+  UNCERTAIN --> [*]
 ```
 
 - **Replay protection.** The server remembers every `submission_id` and never sends one twice.
@@ -400,8 +464,19 @@ stateDiagram-v2
 | User pauses, revokes or lowers access | Operations of that session stop at their next safe point |
 | User disconnects an agent | Its operations are cancelled, a question it put to the user is withdrawn, its sessions end |
 | MCP client sends `notifications/cancelled` | The tool call is interrupted; the server sends `cancel` to the extension and no answer for that call |
+| A CLI command's process is ended while it runs (Ctrl+C, a signal, a time limit) | The process sends `cancel` and prints `CANCELLED` with an unknown outcome; the server sends `cancel` to the extension and no answer for that call |
 | Server times out waiting | The server sends `cancel`, so the command cannot run later |
 | Tab closes or leaves its origins | The session ends or is suspended; its operations stop |
+
+Whatever the trigger, an operation ends the same way:
+
+```mermaid
+flowchart TD
+  T["A trigger in the table above"] --> M["The extension marks the operations of that session or agent cancelled"]
+  M --> Q{"Has the step been dispatched to the page?"}
+  Q -- "not yet" --> N["It stops at its next safe point: CANCELLED, nothing further is done"]
+  Q -- "already" --> D["That step is not undone, and nothing further is done in the page. A submission past its click is reported as UNCERTAIN"]
+```
 
 A call that waits for the user can take a minute and a half. A client that sent a progress
 token is told every three seconds that the call is still running.
@@ -410,16 +485,24 @@ token is told every three seconds that the call is still running.
 
 ```mermaid
 stateDiagram-v2
-  [*] --> Active: user authorizes the tab
-  Active --> Paused: Pause
-  Paused --> Active: Resume
-  Active --> Suspended: tab leaves its origins
-  Suspended --> Active: user resumes on that tab, or adds the site
-  Active --> [*]: revoked, agent disconnected, tab closed, expired, browser closed
-  Paused --> [*]: revoked, agent disconnected, tab closed, expired
-  Suspended --> [*]: revoked, agent disconnected, tab closed, expired, re-authorized
+  [*] --> Authorized: the user authorizes the tab in the popup
+  state Authorized {
+    [*] --> Active
+    Active --> Paused: Pause, in the popup or the notice in the page
+    Paused --> Active: Resume
+    --
+    state "On its sites" as OnItsSites
+    [*] --> OnItsSites
+    OnItsSites --> Suspended: the tab leaves its origins
+    Suspended --> OnItsSites: the user resumes on that tab, or adds the site
+  }
+  Authorized --> [*]: revoked, agent disconnected, tab closed, expired, re-authorized, browser closed
 ```
 
+- **Two states at once.** Pause and suspension are independent of each other: a paused tab that
+  leaves its sites is suspended as well, and resumed on that tab it is still paused. A command
+  runs only in a session that is active and on its sites; anything else refuses it, and an
+  operation that is running stops at its next safe point.
 - **Expiry.** The user chooses a duration at authorization. The policy can add a maximum
   lifetime and an idle limit; the extension applies both at the command that finds the session
   expired, and by a periodic check.

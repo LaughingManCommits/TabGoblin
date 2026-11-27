@@ -177,19 +177,29 @@ sequenceDiagram
   participant X as TabGoblin extension
   A->>C: tabgoblin status --agent my-agent
   C->>S: connect (start the server if none runs), prove token and agent key
+  break no server, the command line turned off, or the name held by an MCP agent
+    C-->>A: NO_SERVER, INTERFACE_NOT_ALLOWED or AGENT_IN_USE, exit code 3, nothing was sent
+  end
   S->>S: first command of this key: make the agent, open its port
   X->>S: finds the agent's port and pairs
-  C->>S: one tool call
+  C->>S: call { tool, arguments }
   S-->>C: result
   C-->>A: one JSON object and an exit code
   Note over C: the process ends
   Note over S,X: the agent, its port and its sessions stay
   A->>C: tabgoblin snapshot --agent my-agent (a new process)
   C->>S: prove token and agent key: same key, same agent
+  C->>S: call { tool, arguments }
   S->>X: snapshot
-  X-->>S: the page as text
-  S-->>C: result
-  C-->>A: one JSON object and an exit code
+  alt it runs to its end
+    X-->>S: the page as text
+    S-->>C: result
+    C-->>A: one JSON object and an exit code
+  else the process is ended while it runs (Ctrl+C, a signal, a time limit)
+    C->>S: cancel
+    S->>X: cancel: the command stops at its next safe point
+    C-->>A: CANCELLED, "outcome": "unknown"
+  end
   Note over S: ten idle minutes: the agent is let go
 ```
 
