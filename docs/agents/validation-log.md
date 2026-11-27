@@ -3,6 +3,10 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `ccr-7d9f8e27-k7i1f9` from `f6fe056`: the diagrams' alignment and wording
+
+On Linux with Node 22 and this container's Chromium, no JDK run. Documentation only. `node docs/assets/diagrams/build.mjs` wrote the five pictures, each rendered in Chromium in light and dark and looked at, before and after. The ten Mermaid blocks parsed and rendered with Mermaid 11.4.1 in Chromium (default theme), and each render was looked at, before and after; the submission's state diagram was tried in three forms and the one with fewest crossings kept. Link check, 311 links; nothing personal (198 files). **Not run:** the suites (no product code changed); the dark theme for Mermaid; the pages on GitHub itself.
+
 ## 2026-11-27, branch `ccr-f3dc7878-ztt85n` from `e47b696`: the backlog cleared
 
 Documentation only. `TODO.md` cut from 2150 lines to what is open; each kept fault checked against the source (`Ports.note` with `PORT_RANGE` 8, `McpMain` `--help`, `popup.ts`, `TABGOBLIN_COMMAND_IDLE_SECONDS`, `release.yml` `--generate-notes`); CI on `main` read on GitHub (runs #52 and #54 passed and #56 was running, so the billing fault is gone). The link check (311 links) and the personal-information check passed; `node release/version.mjs` prints one version. No suite run: no code changed.

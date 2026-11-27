@@ -200,7 +200,7 @@ sequenceDiagram
     S->>X: cancel: the command stops at its next safe point
     C-->>A: CANCELLED, "outcome": "unknown"
   end
-  Note over S: ten idle minutes: the agent is let go
+  Note over S,X: ten idle minutes: the agent is let go
 ```
 
 1. **`--agent <name>` selects a key.** The key is a file in the `agents` folder beside the pairing token

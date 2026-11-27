@@ -69,10 +69,10 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <polyline class="wire green" fill="none" stroke="#16A34A" stroke-width="1.25" points="380,580 200,580 200,604" marker-end="url(#head-green)"/>
 <polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="380,580 560,580 560,604" stroke-dasharray="4 4"/>
 <line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="692" x2="736" y2="692" stroke-width="1"/>
-<circle cx="208.39999999999998" cy="716" r="5" fill="#64748B"/>
-<text class="sub" fill="#475569" x="220.39999999999998" y="720" font-size="12">Your agent</text>
-<circle cx="312.4" cy="716" r="5" fill="#16A34A"/>
-<text class="sub" fill="#475569" x="324.4" y="720" font-size="12">TabGoblin · authorized</text>
-<circle cx="493.2" cy="716" r="5" fill="#DC2626"/>
-<text class="sub" fill="#475569" x="505.2" y="720" font-size="12">Denied</text>
+<circle cx="225.94400000000002" cy="716" r="5" fill="#64748B"/>
+<text class="sub" fill="#475569" x="237.94400000000002" y="720" font-size="12">Your agent</text>
+<circle cx="328.648" cy="716" r="5" fill="#16A34A"/>
+<text class="sub" fill="#475569" x="340.648" y="720" font-size="12">TabGoblin · authorized</text>
+<circle cx="494.04" cy="716" r="5" fill="#DC2626"/>
+<text class="sub" fill="#475569" x="506.04" y="720" font-size="12">Denied</text>
 </svg>

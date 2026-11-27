@@ -84,7 +84,12 @@ if it draws Mermaid. They keep the same names as the pictures (*Coding agent*, *
 script* where the inside of the extension matters, *Popup*, *User*). A refusal, a cancellation
 or an expiry is a `break` block, which ends the sequence there: nothing is drawn after it as if
 the operation went on. A closed connection is an arrow that ends in a cross (`--x`). Inside a
-Mermaid block a semicolon ends the statement, so a message's text uses commas. To check that
+Mermaid block a semicolon ends the statement, so a message's text uses commas. A note longer
+than a line is broken with `<br/>`, and a note over one participant is kept short or spans two
+(`Note over B,S`): Mermaid does not wrap a note, and a long one runs out of its box. Where
+several outcomes end the same way, they lead to one named state (*Not submitted*) and not to
+the end marker, whose lines otherwise cross the whole diagram. A legend in an SVG picture is
+spaced by an estimate of each word's width (`textWidth` in the script), so its gaps are even. To check that
 they parse, render each block with Mermaid in Chromium; the session that last did so used
 Mermaid 11.4.1.
 
