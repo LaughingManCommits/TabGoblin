@@ -194,7 +194,7 @@ public final class McpMain {
         }
         boolean byHand = startedByHand();
         boolean inTerminal = inTerminal();
-        if (byHand && options.panel()) {
+        if (byHand && wantsWindow(options.panel(), System.getProperty(DOWNLOADS_PROGRAM))) {
             // A person asked for the server's window. There is one server: its window is brought up,
             // and the server is started first if none runs. Nothing else is started here.
             if (inTerminal) {
@@ -394,7 +394,7 @@ public final class McpMain {
             long until = System.currentTimeMillis() + 20_000;
             while (System.currentTimeMillis() < until) {
                 Thread.sleep(200);
-                if (asker.show()) {
+                if (showWindowOnce(asker)) {
                     said.println("""
                             TabGoblin server started; its window is open.
                             It keeps running until you press Stop server in that window.
@@ -407,7 +407,8 @@ public final class McpMain {
             problems.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that is not this "
                     + "TabGoblin server (" + e.getMessage() + ").");
         } catch (java.net.SocketTimeoutException e) {
-            // Something took the connection and said nothing: another program, or a server that hangs.
+            // Only the first look gets here: something took the connection and said nothing, another
+            // program or a server that hangs. Later looks wait for the server this process started.
             problems.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that does not answer. "
                     + "If it is a TabGoblin server that hangs, end its process (javaw or java) and try again.");
         } catch (java.io.IOException e) {
@@ -416,6 +417,19 @@ public final class McpMain {
             Thread.currentThread().interrupt();
         }
         return false;
+    }
+
+    /**
+     * One more look for the server this process just started. It holds its port before it answers
+     * (its window opens first, and a first start of the window can take seconds), so a look that
+     * times out means it is not up yet, not that something hangs on the port.
+     */
+    private static boolean showWindowOnce(Link asker) throws java.io.IOException, Link.Refused {
+        try {
+            return asker.show();
+        } catch (java.net.SocketTimeoutException e) {
+            return false;
+        }
     }
 
     /**
@@ -684,6 +698,16 @@ public final class McpMain {
      */
     static boolean byHand(boolean terminal, String downloadsProgram) {
         return terminal || (downloadsProgram != null && !downloadsProgram.isBlank());
+    }
+
+    /**
+     * Whether the server's window is asked for: with {@code --panel}, or by the download's program,
+     * which is there for nothing else. The packaging tool gives that program {@code --panel} only as
+     * a default, which any argument of its own replaces: a shortcut with {@code --port} still means
+     * the window, and never an agent's link on a process without input.
+     */
+    static boolean wantsWindow(boolean panel, String downloadsProgram) {
+        return panel || (downloadsProgram != null && !downloadsProgram.isBlank());
     }
 
     /** What is running and has to be ended in order: the server with its agents, or the one agent of a process that serves alone. */

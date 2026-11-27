@@ -498,27 +498,33 @@ final class Panel {
     /**
      * Says something in a window of the system's kind and waits until it is closed: for a person
      * who started the download's program by a double-click and so has no console to read it in.
-     * Without a display nothing is said.
+     * Without a display, or if JavaFX cannot start here, nothing is said but a line in the log.
      */
     static void tell(String heading, String message) {
-        if (!possible()) {
+        var closed = new java.util.concurrent.CountDownLatch(1);
+        try {
+            if (!possible()) {
+                return;
+            }
+            onFxThread(() -> {
+                try {
+                    var alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
+                    alert.setTitle("TabGoblin");
+                    alert.setHeaderText(heading);
+                    alert.setContentText(message);
+                    ((Stage) alert.getDialogPane().getScene().getWindow()).getIcons().setAll(icons());
+                    alert.setOnHidden(event -> closed.countDown());
+                    alert.show();
+                } catch (RuntimeException | LinkageError e) {
+                    Log.warn("message not shown reason=" + e.getClass().getSimpleName());
+                    closed.countDown();
+                }
+            });
+        } catch (RuntimeException | LinkageError e) {
+            // JavaFX itself did not start: there is no window to say it in.
+            Log.warn("message not shown reason=" + e.getClass().getSimpleName());
             return;
         }
-        var closed = new java.util.concurrent.CountDownLatch(1);
-        onFxThread(() -> {
-            try {
-                var alert = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.ERROR);
-                alert.setTitle("TabGoblin");
-                alert.setHeaderText(heading);
-                alert.setContentText(message);
-                ((Stage) alert.getDialogPane().getScene().getWindow()).getIcons().setAll(icons());
-                alert.setOnHidden(event -> closed.countDown());
-                alert.show();
-            } catch (RuntimeException e) {
-                Log.warn("message not shown reason=" + e.getClass().getSimpleName());
-                closed.countDown();
-            }
-        });
         try {
             closed.await();
         } catch (InterruptedException e) {

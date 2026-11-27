@@ -296,6 +296,15 @@ class McpMainTest {
     }
 
     @Test
+    void theDownloadsProgramMeansTheWindowWhateverItsArguments() {
+        assertTrue(McpMain.wantsWindow(true, null));
+        // Its own arguments replace the default --panel: it still means the window.
+        assertTrue(McpMain.wantsWindow(false, "C:/somewhere/tabgoblin/TabGoblin.exe"));
+        assertFalse(McpMain.wantsWindow(false, null));
+        assertFalse(McpMain.wantsWindow(false, " "));
+    }
+
+    @Test
     void theOneServerIsStartedWithJavaEvenWhenThisProcessIsTheDownloadsProgram() {
         Path home = Path.of("download", "runtime");
         Path bin = home.resolve("bin");
