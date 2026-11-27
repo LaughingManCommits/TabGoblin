@@ -130,6 +130,19 @@ final class RunningServers {
     }
 
     /**
+     * Another server than the one with this first port, that is written down and answers: the first
+     * of them, or 0. Said to an agent that finds no browser, since the browser connects to one
+     * server only. Only a port is said, nothing of that server's agents.
+     */
+    static int other(Path tokenFile, int own) {
+        return other(read(tokenFile), own, RunningServers::answers);
+    }
+
+    static int other(List<Integer> written, int own, IntPredicate answers) {
+        return written.stream().mapToInt(Integer::intValue).filter(first -> first != own && answers.test(first)).findFirst().orElse(0);
+    }
+
+    /**
      * Whether something answers as the server does on the port for links of this first port: it
      * opens with its hello. Nothing is proven by that, and nothing is sent: the proofs follow on
      * the connection a link then makes.

@@ -109,6 +109,15 @@ class RunningServersTest {
     }
 
     @Test
+    void aServerThatHasNoBrowserNamesAnotherThatAnswersAndNeverItself() {
+        List<Integer> written = List.of(McpMain.DEFAULT_PORT, 41000, 39821);
+        assertEquals(39821, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> port != 41000),
+                "itself and one that does not answer are passed over");
+        assertEquals(0, RunningServers.other(List.of(McpMain.DEFAULT_PORT), McpMain.DEFAULT_PORT, port -> true), "only itself");
+        assertEquals(0, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> false), "nothing answers");
+    }
+
+    @Test
     void onlyWhatAnswersAsTheServerDoesCounts() throws Exception {
         int first = freeRange();
         assertFalse(RunningServers.answers(first), "nobody listens there");

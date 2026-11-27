@@ -526,6 +526,36 @@ class BrowserServiceTest {
     }
 
     @Test
+    void withoutABrowserAndWithAnotherServerRunningAToolSaysToUseThatServersPort() throws Exception {
+        ext.closeBlocking();
+        for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
+            Thread.sleep(20);
+        }
+        String elsewhere = "Another TabGoblin server runs on this machine, with first port 39821, and the browser is likely "
+                + "connected to that one: it connects to one server only. ";
+        String forMcp = elsewhere + "Tell the user: this agent's setup has to name the same port as the other agents' "
+                + "(--port 39821), or none, and this agent has to be started again.";
+        String forCommands = elsewhere + "Give --port 39821 to every command of this task, and tell the user, so that "
+                + "every agent's setup names the same port.";
+        String head = "Extension: not connected\nListening on: ws://127.0.0.1:" + bridge.getPort() + "\n";
+        BrowserService.Unpaired other = new BrowserService.Unpaired(false, false, false, 39821);
+
+        // It is said in place of the pairing, which is not what is missing then.
+        BrowserService mcp = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> other, null, false);
+        assertEquals(head + forMcp, mcp.call("browser_status", args()).text());
+        assertEquals("Error [NOT_CONNECTED]: The Chrome extension is not connected. " + forMcp,
+                mcp.call("browser_snapshot", args()).text());
+        // An agent of the command line gives the port itself.
+        BrowserService commands = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> other, null, true);
+        assertEquals(head + forCommands, commands.call("browser_status", args()).text());
+
+        // The browser is paired with this server by way of another agent: it is here, not at the other one.
+        BrowserService pairedHere = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO,
+                () -> new BrowserService.Unpaired(true, false, false, 39821), null, false);
+        assertTrue(pairedHere.call("browser_status", args()).text().endsWith("Try again then."));
+    }
+
+    @Test
     void switchedOffInTheServersWindowStatusAndToolsSaySoAndWhatToAskTheUser() throws Exception {
         bridge.setHeld(true);
         for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {

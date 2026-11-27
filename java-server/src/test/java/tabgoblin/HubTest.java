@@ -478,8 +478,12 @@ class HubTest {
         assertEquals(new BrowserService.Unpaired(false, false, false), hub.unpaired(false));
         assertEquals(0, shown.get());
         assertFalse(hub.standing());
+        // Another server runs: its first port is said, since the browser connects to one server only.
+        hub.others(() -> 39821);
+        assertEquals(new BrowserService.Unpaired(false, false, false, 39821), hub.unpaired(false));
 
         // A browser came with another token: now the user has to paste the server's, and the window comes up.
+        // That browser came here, so another server is not where it is: nothing is said of one, now or after it left.
         comeWithAnotherToken(hub.agents().get(0));
         assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
         assertEquals(1, shown.get());

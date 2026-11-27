@@ -144,6 +144,12 @@ server's greeting, and the two proofs of the pairing token follow on that connec
 other. The line of a server that was ended by force is passed over, because nothing answers
 there. A link or a command that names a port still looks at that port and no other, so two
 agents set up with two different ports have two servers, and the browser is at one of them.
+An agent of the server that no browser has come to is told so: when a tool finds no browser,
+that server looks in the same file for another server that answers, and names its first port
+in place of the pairing help (`Hub.unpaired`, `BrowserService.otherServer`). A command of the
+command line can then give that port itself; an MCP agent's port is in its setup, and the user
+changes it. Only the port is said, nothing of that server's agents, and nothing is said once a
+browser has come to this server, since it is then not at the other.
 
 Both listen on `127.0.0.1` only. Agents share the process and nothing else: no tool tells one
 agent anything about another.

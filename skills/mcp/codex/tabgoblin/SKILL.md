@@ -22,35 +22,41 @@ how much you may do there.
   did not start: say so, and point the user to the installation guide, *Connect your agent*. Do
   not reach for another way into the browser.
 - A call to these tools may need the user's approval in Codex. That is beside what the user
-  decides in TabGoblin's popup, and does not replace it.
+  decides in TabGoblin's popup, and does not replace it. Keep one approval pending: do not make
+  a second call while one waits.
 
-### Quick start
+## Start with the status
 
-Every call is a turn of yours, so a task is quick when it takes few calls and small results.
-To read:
+1. Call `browser_status`. It says whether the extension is connected and lists your sessions:
+   one for each tab the user has authorized, with its id (`s1`, `s2`, …), its website, its
+   access level and the page it is on.
+2. **Not connected:** the result says why and what to ask the user for. Tell the user that,
+   and go on when they have done it. No tool pairs the browser, and calling one again does not
+   help. When it says that another TabGoblin server runs, the browser is at that one: tell the
+   user that your setup has to name the port it names, and that you have to be started again.
+3. **No session:** ask the user to open the site in Chrome, click the TabGoblin icon on that
+   tab, choose an access level and press **Authorize**. Say which level the task needs:
+   - **Read** looks at the page that is open.
+   - **Explore** also navigates, follows links and expands sections.
+   - **Read / Write** also presses buttons, enters text and submits.
+4. **Several sessions:** pass `session` to every tool.
 
-```text
-browser_status {}
-browser_extract {"main_only":true,"find":"installation","context_lines":3}
-```
+Ask for the lowest level that does the job. A session is one tab and one website; you cannot
+reach another site from it, and you cannot widen it yourself.
 
-To act, get the refs once and act on them:
+## Use few calls
 
-```text
-browser_snapshot {"interactive_only":true,"max_lines":100}
-browser_click {"ref":12}
-```
-
-Ref 12 is an example: use a ref from your own snapshot. With one authorized tab leave
-`session` out; with several, pass the id that status gave to every tool.
+Every call is a turn of yours: a task is quick when it takes few calls and small results.
 
 - **Read with `browser_extract`, not with a snapshot.** A snapshot is for refs.
-- **Read what an action answers.** `browser_click` and `browser_navigate` return the address
+- **Get refs once, then act.** `browser_snapshot` with `interactive_only: true`, then
+  `browser_click` with a ref from it.
+- **Read what an action returns.** `browser_click` and `browser_navigate` return the address
   and title the tab is at afterwards. Take a new snapshot only when you need refs from the new
   page; when the page stayed, ask for `diff: true`.
 - **Go straight.** If you know the address, `browser_navigate` there instead of clicking
   through. For what loads on scrolling, one `browser_collect` instead of scrolling and reading
-  in turns.
+  in turns. To wait, one `browser_wait_for` with a timeout, not readings in a loop.
 - **Do not ask twice.** Call `browser_status` once at the start, and again only after a
   refusal. Do not repeat a call to confirm a result you already have.
 - **Stop when you have what the user asked for.** An example is no permission: click, enter
@@ -77,24 +83,6 @@ snapshot) and keep the same scope, such as `main_only` or `ref`.
 For a smoke test the user asks for, go through status, one snapshot, a link, an extract with
 `find`, a scroll, a screenshot and history back, as the access permits. Say what passed, what
 failed and what was not tried. Enter and submit nothing unless the user asked for exactly that.
-
-## Start with the status
-
-1. Call `browser_status`. It says whether the extension is connected and lists your sessions:
-   one for each tab the user has authorized, with its id (`s1`, `s2`, …), its website, its
-   access level and the page it is on.
-2. **Not connected:** the result says why and what to ask the user for. Tell the user that,
-   and go on when they have done it. No tool pairs the browser, and calling one again does not
-   help.
-3. **No session:** ask the user to open the site in Chrome, click the TabGoblin icon on that
-   tab, choose an access level and press **Authorize**. Say which level the task needs:
-   - **Read** looks at the page that is open.
-   - **Explore** also navigates, follows links and expands sections.
-   - **Read / Write** also presses buttons, enters text and submits.
-4. **Several sessions:** pass `session` to every tool.
-
-Ask for the lowest level that does the job. A session is one tab and one website; you cannot
-reach another site from it, and you cannot widen it yourself.
 
 ## Read
 
@@ -136,8 +124,9 @@ reach another site from it, and you cannot widen it yourself.
 
 ## Act
 
-Take a snapshot, act on its refs, then take a new snapshot to see what happened. A ref belongs
-to the page it came from: after a navigation or a change, `STALE_REF` asks for a new snapshot.
+Take a snapshot for refs, act on them, and read what the action returns. Take a new snapshot
+only for refs of the changed page, or with `diff: true` to see what changed. A ref belongs to
+the page it came from: after a navigation or a change, `STALE_REF` asks for a new snapshot.
 
 - `browser_navigate` opens an address on the session's website, or moves with
   `history: "back"`, `"forward"` or `"reload"`. Other websites are refused.
@@ -182,7 +171,7 @@ retried for you, and a refusal is never an error to work around.
 
 | Code | What to do |
 |---|---|
-| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off |
+| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off. When it names another server's port, your setup has to name that port |
 | `NOT_AUTHORIZED`, `AUTHORIZATION_EXPIRED` | Ask the user to authorize the tab, as above |
 | `SESSION_REQUIRED` | Pass `session`; `browser_status` lists the ids |
 | `SESSION_SUSPENDED`, `ORIGIN_MISMATCH` | The tab left its website. Ask the user to click the TabGoblin icon on that tab and resume |

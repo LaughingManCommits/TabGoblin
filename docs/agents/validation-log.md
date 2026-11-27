@@ -3,6 +3,18 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `one-server-found-and-plain-answers` after `69bdb81`: another server named to an agent without a browser; the six skills share the rules for few calls
+
+In a copy of the tree, on a Java 25 runtime from PyPI (`jdk4py` 25.0.5.1, which has no
+`javac`) with the build's compiler switched to ECJ 3.46.100 in the copy's `pom.xml` only:
+`mvn package`, 252 tests, none failed, 20 skipped (`PanelTest`, no display), among them the
+new tests in `BrowserServiceTest`, `HubTest` and `RunningServersTest`, and `SkillsTest` on the
+changed skills; `mvn verify`, `McpConformanceIT` 8 of 8. End to end with that jar, the
+extension built in the copy and the container's Chromium (without its sandbox): 110 passed, 0
+failed, the window's section skipped (Linux). In the tree: the link check, 315 links; the check
+for personal content, nothing found. Not run: the extension's own tests (it was not changed),
+the message with two real servers and a real browser, and any agent with the new skills.
+
 ## 2026-11-27, branch `one-server-found-and-plain-answers` from `9c751a9`, not committed: a server on another port is found, `--plain`
 
 In a copy of the tree: `mvn -o package`, 250 tests, none failed or skipped, among them the new

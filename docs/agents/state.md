@@ -2,6 +2,30 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## An agent without a browser is told of another server; the skills share the rules for few calls, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `69bdb81`, committed. On the owner's
+word ("help the codex actually use tabgoblin and then apply those improvements to other agent
+skills"):
+
+- **A server that no browser came to names another server's port.** When a tool finds no
+  browser, the server reads `servers` for another server that answers and says its first port
+  in place of the pairing help (`Hub.unpaired`, `BrowserService.otherServer`; in a process that
+  serves its agent alone too). A command of the command line is told to give that `--port`, an
+  MCP agent to have the user change its setup. Nothing is said once a browser has come to this
+  server. Owned by [architecture.md](../architecture.md#processes-and-ports); the text is in the
+  tool reference.
+- **The six skills share the rules for few calls,** where only the two for Codex had them: a
+  section "Use few commands" or "Use few calls" with the table of shortest ways and the smoke
+  test, from "Start with the status" on. The common part says to leave `--port` out unless the
+  setup names one, to read what an action answers instead of a new snapshot ("Act" said
+  otherwise before), and what to do when the status names another server. The Codex heads keep
+  only what is Codex's.
+
+**Not tried:** any agent with the new skills; the message with two real servers and a real
+browser. **Next:** the owner's look and commit; then a task in a fresh Codex session with the
+skill installed anew (the old copy removed first).
+
 ## A server on another port is found; `--plain`; the instructions ask for few calls, 2026-11-27
 
 On branch `one-server-found-and-plain-answers`, made from `main` at `9c751a9`, not committed;

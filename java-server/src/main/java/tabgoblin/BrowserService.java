@@ -75,9 +75,30 @@ public final class BrowserService {
      * @param pairedElsewhere the browser is paired with this server, by way of another agent: it has only not found this one yet
      * @param refused         a browser came with a token that is not this server's: the user has to paste the server's
      * @param window          the server's window is on the user's screen: the token is copied there
+     * @param otherServer     the first port of another TabGoblin server that answers on this machine, which the
+     *                        browser may be connected to; 0 if there is none
      */
-    record Unpaired(boolean pairedElsewhere, boolean refused, boolean window) {
+    record Unpaired(boolean pairedElsewhere, boolean refused, boolean window, int otherServer) {
         static final Unpaired NOTHING_KNOWN = new Unpaired(false, false, false);
+
+        Unpaired(boolean pairedElsewhere, boolean refused, boolean window) {
+            this(pairedElsewhere, refused, window, 0);
+        }
+    }
+
+    /**
+     * What an agent is told when no browser is here and another server runs: the browser connects
+     * to one server, so it is likely there. An agent of the command line can go there itself, with
+     * the port; an MCP agent's port is in its setup, which is the user's.
+     */
+    static String otherServer(int first, boolean byCommands) {
+        return "Another TabGoblin server runs on this machine, with first port " + first + ", and the browser is likely "
+                + "connected to that one: it connects to one server only. "
+                + (byCommands
+                        ? "Give --port " + first + " to every command of this task, and tell the user, so that every agent's "
+                                + "setup names the same port."
+                        : "Tell the user: this agent's setup has to name the same port as the other agents' (--port " + first
+                                + "), or none, and this agent has to be started again.");
     }
 
     /** What the user has to do when the browser holds another token. */
@@ -191,6 +212,10 @@ public final class BrowserService {
             return FOUND_SOON;
         }
         boolean refused = known.refused() || bridge.lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED;
+        if (!refused && known.otherServer() > 0) {
+            // No browser has come here at all, and another server runs: that is the likely cause, not the pairing.
+            return otherServer(known.otherServer(), byCommands);
+        }
         String where = !known.window() ? TOKEN_BY_COMMAND : refused ? TOKEN_AT_WINDOWS_TOP : TOKEN_IN_WINDOW;
         if (refused) {
             return (said ? "" : HOLDS_ANOTHER + " ") + PAIR + " " + where;

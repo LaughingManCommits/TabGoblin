@@ -183,6 +183,8 @@ final class Hub {
     private final AtomicBoolean cameUp = new AtomicBoolean();
     /** Run when the last agent has gone and stayed gone, unless the user started this server. */
     private volatile Runnable whenEmpty = () -> { };
+    /** Another server that runs on this machine, by its first port, or 0: asked only when an agent finds no browser. */
+    private volatile java.util.function.IntSupplier others = () -> 0;
 
     private Hub(Agent.Settings settings, ServerSocket listening, boolean standing) {
         this.settings = settings;
@@ -259,7 +261,14 @@ final class Hub {
             Log.info("window asked for reason=browser_has_another_token");
             window.run();
         }
-        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean());
+        // A browser that came here, and left or was turned away, is not at another server: one is looked for only when none came.
+        boolean came = agents().stream().anyMatch(agent -> agent.bridge().lastCloseCode() != 0);
+        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean(), came ? 0 : others.getAsInt());
+    }
+
+    /** @param other the first port of another server that answers on this machine, or 0 */
+    void others(java.util.function.IntSupplier other) {
+        this.others = other;
     }
 
     /** Shows the server's window, or brings it up if it is there already. */

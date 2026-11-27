@@ -305,6 +305,7 @@ public final class McpMain {
         int first = hub.port() - PORT_RANGE;
         RunningServers.add(options.tokenFile(), first);
         RUNNING.add(() -> RunningServers.remove(options.tokenFile(), first));
+        hub.others(() -> RunningServers.other(options.tokenFile(), first));
         hub.commandIdle(options.commandIdleMs());
         hub.whenEmpty(McpMain::end);
         java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
@@ -390,7 +391,8 @@ public final class McpMain {
             if (refused && !options.quiet() && cameUp.compareAndSet(false, true)) {
                 window.run();
             }
-            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen());
+            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen(),
+                    own == null || own.bridge().lastCloseCode() != 0 ? 0 : RunningServers.other(options.tokenFile(), settings.port()));
         }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();

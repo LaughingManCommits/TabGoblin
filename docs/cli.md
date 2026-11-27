@@ -99,7 +99,7 @@ The tool's own name is taken as well (`tabgoblin browser_click …`). One more c
 | `--args <json>` | All arguments as one JSON object. `--args -` reads it from standard input and `--args-file <path>` from a file: for text with quotes or line breaks, and where a shell's quoting is in the way (on Windows above all). Single arguments given beside it come on top |
 | `--out <path>` | With `screenshot`: the image is written to that file, and the answer names the file in place of the data |
 | `--plain` | The answer is printed as the text it is, in place of the JSON object: see [below](#the-answer-as-text) |
-| Server options | `--port`, `--token-file`, `--settings`, `--extension-origin`, `--panel` and `--no-panel`, as [for the server](developer-guide.md#settings). Only needed where the server was started with them: a command has to name the same port and token file to reach the same server |
+| Server options | `--port`, `--token-file`, `--settings`, `--extension-origin`, `--panel` and `--no-panel`, as [for the server](developer-guide.md#settings). Only needed where the server was started with them: a command has to name the same token file to reach the same server. A command without `--port` finds a server on a port of the user's own as well ([processes and ports](architecture.md#processes-and-ports)); one with `--port` looks there alone, and its `status` names the other server's port when the browser is not at its own |
 
 An argument the tool does not have, a value of another type, a value outside a fixed set and a
 missing required argument are refused before anything is sent (`USAGE`, exit code 2). Whatever
