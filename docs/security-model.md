@@ -341,8 +341,8 @@ is sent twice; the content changes between approval and sending.
 - **A refusal stands.** What the user declined is not asked again for five minutes, and a
   session whose last three requests were declined or unanswered may not ask at all for that
   long. One request waits at a time.
-- **The outcome is verified** against what the page does afterwards and reported as
-  `CONFIRMED`, `FAILED` or `UNCERTAIN`.
+- **The outcome is read from the page** afterwards and reported as `CONFIRMED`, `FAILED` or
+  `UNCERTAIN`: what the browser showed, not a confirmation from the site's backend.
 
 How often the user is asked is a setting, general and per session:
 

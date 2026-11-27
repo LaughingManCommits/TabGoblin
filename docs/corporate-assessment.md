@@ -164,7 +164,8 @@ No service is contacted at run time. Each release carries two CycloneDX lists of
   input, and submissions that the agent must declare).
 - A recognised submission (a form's submit control, Enter in a form field) has to be declared
   by the agent; outside forms, submitting controls are recognised by English labels (best
-  effort). A submission is sent once and is verified. By default it
+  effort). A submission is sent once, and its outcome is read from what the page shows
+  afterwards, not confirmed with the site's backend. By default it
   is shown to the user with its content for approval, and an approval is bound to that
   content. The user can relax this per session; the strict profile makes it mandatory.
 - Checks run in the server before a command is sent, in the extension when it arrives and

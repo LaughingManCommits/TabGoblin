@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## A last documentation pass on main, 2026-11-27
+
+On branch `ccr-df3851d4-clmz1a`, made again from `main` at `9c6aed1`, not committed. A submission's `CONFIRMED`, `FAILED` and `UNCERTAIN` are said everywhere as what the page showed, not what the site's backend stored (tool reference, security model, corporate assessment, the submission diagrams); `SECURITY.md` lists credential fields other than passwords among the best-effort controls. **Still open, in the code:** `Ports.note` says 47821-47829 and 37821-37829 where the ranges are eight ports; the tool reference quotes it. **Next:** the owner's look and commit.
+
 ## The documentation aligned with main, 2026-11-27
 
 On branch `ccr-df3851d4-clmz1a`, after the diagram commit, documentation only, not committed. The README is half as long: no release history, no comparison tables, no example workflows, one table of controls each marked enforced, configurable or best effort, and no false line that `tabgoblin` is a legacy name. The installation guide and `skills/README.md` name no release, date or test history. Security claims narrowed to what the code does: only `type=password` is certain, other credential fields are best effort; only a form's submit control and Enter in a form are always recognised as submissions, others by English label; high-impact is by English label everywhere; `audit.log` is off unless `on`. The tool reference, the CLI guide and the CLI skills list `INTERRUPTED` as an unknown outcome and a command's own `CANCELLED` as unknown. `server-panel.png` drawn again (`PanelPictures`), with the interface pills. **Found in the code, not changed:** `Ports.note` says the ranges are 47821-47829 and 37821-37829, where they are eight ports (to …28); the tool reference quotes that text. **Next:** the owner's look and commit.
