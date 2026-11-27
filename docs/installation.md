@@ -35,14 +35,15 @@ grants nothing that MCP does not, and a rule about agents in the browser covers 
 You need Google Chrome 120 or newer, and an agent that can run local commands or that speaks
 MCP. The Java TabGoblin runs on is in the download.
 
-**Which release has what.** This page describes `main`. The one published release,
+**Which release has what.** This page describes `main`. A release has what `main` had on the
+day it was made, and its notes list what changed since the one before. The first release,
 [0.2.0](https://github.com/LaughingManCommits/TabGoblin/releases/tag/v0.2.0), supports MCP only:
 it has eleven tools, no CLI (`--mode cli` and the commands), no agent names (`--agent`), no
 workspaces, no policy beyond blocked sites and no audit record, and its setup prints a
 registration line without `--agent`. Its own steps are in
-[its README](https://github.com/LaughingManCommits/TabGoblin/blob/v0.2.0/README.md). For
-everything on this page before the next release, build `main` and pack it into the same folder
-a download has: [From source](#from-source), then
+[its README](https://github.com/LaughingManCommits/TabGoblin/blob/v0.2.0/README.md). If
+the latest release is 0.2.0, build `main` and pack it into the same folder a download has, for
+everything on this page: [From source](#from-source), then
 [a folder like a download](#a-folder-like-a-download).
 
 1. **Download** the file for your system from the [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest),
@@ -160,8 +161,8 @@ setup, and the server as an agent starts it. Its window was not seen there, thou
 said it had shown it; and a server started with `tabgoblin --panel` ended when its terminal
 was closed, where the command says that it stays. The one for macOS was made on GitHub's
 machine, where the server started on the runtime that is inside; nobody has used it on a Mac.
-The first release, 0.2.0, is of 2026-11-23. Its downloads are as GitHub's machines made them,
-and none of the three has been used by a person yet. None is signed for Windows or macOS:
+A release's downloads are as GitHub's machines made them. Those of the first release, 0.2.0 of
+2026-11-23, had not been used by a person on 2026-11-27. None is signed for Windows or macOS:
 either system may warn before it runs what is in a download.
 
 ## From source

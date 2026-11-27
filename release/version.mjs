@@ -6,6 +6,8 @@
 //   node release/version.mjs --plan 0.3.0 --branch <name>
 //                                                  prints the version a release from that branch
 //                                                  gets, or refuses; reads the tags, writes nothing
+//   node release/version.mjs --previous 0.3.0      prints the tag a release's list of changes
+//                                                  starts from, or nothing for the first
 // From any folder: the files are found from this script's place in the tree.
 //
 // A version is three numbers, as 0.3.0, or a beta of one, as 0.3.0-beta.1. Chrome takes only
@@ -91,6 +93,12 @@ export function baseOf(version) {
 function compareBase(a, b) {
   const [x, y] = [parse(a), parse(b)];
   return x.major - y.major || x.minor - y.minor || x.patch - y.patch;
+}
+
+/** Orders versions: 0.3.0-beta.1 < 0.3.0-beta.2 < 0.3.0 < 0.3.1-beta.1. */
+export function compare(a, b) {
+  const beta = (version) => parse(version).beta ?? Infinity;
+  return compareBase(a, b) || Math.sign(beta(a) - beta(b));
 }
 
 function count(text, pattern) {
@@ -186,6 +194,23 @@ export function plan(base, { branch, tags, current }) {
   return `${base}-beta.${Math.max(0, ...betas) + 1}`;
 }
 
+/**
+ * The tag a release's list of what changed starts from, or null if there is none before it.
+ * For a release, the release before it: the betas between are steps toward it, not releases.
+ * For a beta, the beta of the same version before it, or else the release before it.
+ */
+export function previousTag(version, tags) {
+  const why = refusal(version);
+  if (why) throw new Error(why);
+  const candidates = tags
+    .filter((tag) => tag.startsWith('v') && refusal(tag.slice(1)) === null)
+    .map((tag) => tag.slice(1))
+    .filter((other) => compare(other, version) < 0)
+    .filter((other) => parse(other).beta === null || (parse(version).beta !== null && baseOf(other) === baseOf(version)));
+  if (candidates.length === 0) return null;
+  return `v${candidates.sort(compare).at(-1)}`;
+}
+
 /** The lines git tracks that name the version outside its places, the lock files and the records. */
 export function otherMentions(version, root = ROOT) {
   const escaped = version.replaceAll('.', '\\.');
@@ -200,7 +225,13 @@ export function otherMentions(version, root = ROOT) {
   }
 }
 
-const USE = 'Use: node release/version.mjs [<version>] [--dry-run]\n     node release/version.mjs --plan <version> --branch <name>';
+const USE = 'Use: node release/version.mjs [<version>] [--dry-run]\n'
+  + '     node release/version.mjs --plan <version> --branch <name>\n'
+  + '     node release/version.mjs --previous <version>';
+
+function tagsOfClone() {
+  return execFileSync('git', ['tag', '-l'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
+}
 
 function main(args) {
   if (args[0] === '--plan') {
@@ -208,8 +239,15 @@ function main(args) {
       console.error(USE);
       return 2;
     }
-    const tags = execFileSync('git', ['tag', '-l'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean);
-    console.log(plan(args[1], { branch: args[3], tags, current: currentVersion() }));
+    console.log(plan(args[1], { branch: args[3], tags: tagsOfClone(), current: currentVersion() }));
+    return 0;
+  }
+  if (args[0] === '--previous') {
+    if (args.length !== 2) {
+      console.error(USE);
+      return 2;
+    }
+    console.log(previousTag(args[1], tagsOfClone()) ?? '');
     return 0;
   }
   const dryRun = args.includes('--dry-run');
@@ -233,7 +271,7 @@ function main(args) {
   for (const file of changed) console.log(`  ${file}`);
   const mentions = before.filter((old) => old !== version && parse(old)).flatMap((old) => otherMentions(old));
   if (mentions.length > 0) {
-    console.log('\nThese lines still name the old version. Read them; most speak of a published release and stay until it is replaced:');
+    console.log('\nThese lines still name the old version. Read them; a line that says what an earlier release has stays:');
     for (const line of mentions) console.log(`  ${line}`);
   }
   if (!dryRun) {

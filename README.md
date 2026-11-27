@@ -107,21 +107,22 @@ assess it.
 
 ## Quick start
 
-> **Release status.** This README describes `main`. The published release,
+> **Releases.** This README describes `main`. A release has what `main` had on the day it was
+> made, and its notes list what changed since the one before. The first release,
 > [0.2.0](https://github.com/LaughingManCommits/TabGoblin/releases/tag/v0.2.0), supports MCP
 > only and has eleven tools. It has no CLI, no agent names (`--agent`), no `browser_collect`,
 > `browser_hover` or `browser_request_access`, no workspaces, no policy beyond blocked sites and
 > no audit record; its own instructions are in
-> [its README](https://github.com/LaughingManCommits/TabGoblin/blob/v0.2.0/README.md). Until
-> the next release, build `main` as below.
+> [its README](https://github.com/LaughingManCommits/TabGoblin/blob/v0.2.0/README.md). If the
+> [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest) is 0.2.0, build `main` as below.
 
 You need Google Chrome 120 or newer. Four steps:
 
-**1. Install TabGoblin and its extension.** Once a release includes what is described here, this
-step is a download from [Releases](https://github.com/LaughingManCommits/TabGoblin/releases).
-Until then, build `main` and pack it into the same folder a download has, with its own Java
-runtime. This needs a JDK 25, Maven, Node.js 24 and Git; on
-Windows, run the last line in Git Bash:
+**1. Install TabGoblin and its extension.** Download the file for your system from the
+[latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest); a release
+whose name ends in `-beta.` and a number is a beta, to try what comes next. Or build `main` and
+pack it into the same folder a download has, with its own Java runtime. This needs a JDK 25,
+Maven, Node.js 24 and Git; on Windows, run the last line in Git Bash:
 
 ```sh
 git clone https://github.com/LaughingManCommits/TabGoblin.git && cd TabGoblin
@@ -130,7 +131,7 @@ npm --prefix chrome-extension install && npm --prefix chrome-extension run build
 bash release/bundle.sh
 ```
 
-Unpack the file it makes in `release/out` where it can stay, and put that `tabgoblin` folder on
+Unpack the download, or the file the build makes in `release/out`, where it can stay, and put that `tabgoblin` folder on
 your `PATH` (on Linux and macOS the command is `./tabgoblin` inside it). Then load the
 extension: at `chrome://extensions`, switch on **Developer mode**, press **Load unpacked** and
 choose the folder's `extension` folder.
@@ -239,7 +240,8 @@ More, with tips, are in the [developer guide](docs/developer-guide.md#example-pr
 
 ## Status and limits
 
-- The published release is 0.2.0 ([above](#quick-start)); this README describes `main`.
+- This README describes `main`; a release has what `main` had on the day it was made
+  ([above](#quick-start)).
 - The extension is loaded unpacked, with Chrome's developer mode on. It is not in the Chrome
   Web Store, and the downloads are not code-signed.
 - Chrome is the only browser it has been run in.

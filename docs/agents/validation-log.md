@@ -3,6 +3,10 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `ccr-9855a613-wqwjrk` from `4e00e6a`: what changed in a release's notes, and documentation that names no published release
+
+On Linux with Node 22. `node --test release/version.test.mjs`: 12 of 12 (the order of versions with betas; the tag a list of changes starts from, for releases and betas). The publish step's script run with a stand-in `gh` that prints its arguments: a release passes the notes, `--generate-notes` and `--notes-start-tag` of the release before; a beta also `--prerelease`, with its line at the top of the notes; the first release passes no start tag. `gh release create --help` (the installed `gh`) says notes given with `--notes` come before the generated ones. `release.yml` parses; link check, 356 links; nothing personal. **Not run:** the workflow on GitHub, actionlint, the suites (no product code changed).
+
 ## 2026-11-27, branch `ccr-9855a613-wqwjrk` after `d97942c`: a release workflow that sets the version, and betas
 
 On Linux with Node 22 and a JDK 21 (the server needs 25, so nothing was built). `node --test release/version.test.mjs`: 10 of 10 (betas in the manifest and back to the file as it was, a `version_name` that does not fit, the plan from `main` and from another branch, its refusals). `--plan` in the clone, which has no tags: `0.3.0` from `main`, `0.3.0-beta.1` from another branch. `release/bundle.sh` in a copy with a stand-in jar: with the files at `0.3.0-beta.2` and at `0.3.0` it read the full version and refused another `TABGOBLIN_RELEASE_VERSION`; with the right one it went on to Java. The publish step's git commands against a bare repository: the version commit and the tag arrived in one push; a second run from the same commit after the branch had moved on was refused, the tag with it. Both workflows parse as YAML; link check, 356 links; nothing personal, and its tests. **Not run:** the workflows on GitHub, actionlint (installing it was refused here), a download (no JDK 25), the suites (no product code changed).
