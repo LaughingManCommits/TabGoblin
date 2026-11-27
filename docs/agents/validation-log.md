@@ -3,6 +3,21 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `one-server-found-and-plain-answers` after `7a79ba7`: a named port joins the server with the browser and the same settings
+
+In the same copy, runtime and compiler as below: `mvn verify`, 259 tests, none failed, 20
+skipped (`PanelTest`), among them the new cases in `RunningServersTest` (10), `HubTest` (an
+agent whose link names another port is told so in its status, one of the server's own port is
+not) and `BrowserServiceTest`; `McpConformanceIT` 8 of 8. With real processes of that jar, a
+token of their own, and the test's fake extension paired by a small program in the scratch
+folder: agent a with `--port 41821` started a server, whose file said `"browser":true` once the
+fake browser paired; agent b with `--port 47821` and the same settings was served by that
+server (`Listening on: ws://127.0.0.1:41822`) with the line that its setup names 47821, and no
+server was started on 47821; agent c with `--port 46821` and another `--settings` started its
+own server there and was told that the browser server reads another settings file; stopped by
+a signal, every file was taken out. End to end with that jar: 110 passed, 0 failed. Links 317,
+nothing personal. Not tried: a real browser, and any agent with the skills.
+
 ## 2026-11-27, branch `one-server-found-and-plain-answers` after `2a20b3b`: a file for each server, with its browser
 
 In the same copy and on the same Java 25 runtime with ECJ as the entry below: `mvn verify`, 255

@@ -2,9 +2,25 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## A named port joins the server with the browser where that one runs under the same settings, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `7a79ba7`, on the owner's word ("build the
+safer variant"), which settles the question the entry below left open. Each server's file also
+says which settings file it reads and which extension it lets in. A process whose setup names
+`--port` goes first to a server that has the browser and runs under the same two
+(`RunningServers.Fit`), and otherwise to its own port alone, where it starts its server as
+before. The process tells the server its setup's port, and an agent served elsewhere than there
+is told why in its status (`cameFrom`). The message to an agent without a browser says whether
+the other server runs under the same settings: if so, its next process goes there by itself; if
+not, it is to tell the user. The skills no longer have a command give the other server's port.
+A process without a port still joins any server that runs, whatever its settings, as before.
+**Not tried:** a real browser (a fake extension was paired with real servers), and an agent
+with the skills.
+
 ## Each server's own file says whether it has the browser, 2026-11-27
 
-On branch `one-server-found-and-plain-answers`, after `2a20b3b`. On the owner's word, with "only
+On branch `one-server-found-and-plain-answers`, after `2a20b3b`, committed as `7a79ba7`. The
+question it leaves open is settled above. On the owner's word, with "only
 if it adds value": the file `servers` is now a folder of that name with one file for each
 server that runs (`<first>.json`: first port, process id, and whether the browser is connected
 to it), which only that server writes. A process without `--port` goes to the server that has

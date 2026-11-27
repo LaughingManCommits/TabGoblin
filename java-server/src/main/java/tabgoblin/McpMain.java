@@ -195,7 +195,8 @@ public final class McpMain {
             return;
         }
         // Where this process looks for the server: a server that runs on a port of some agent's own first, if this one names none.
-        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile).stream().map(Link::port).toList();
+        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile, fit(options))
+                .stream().map(Link::port).toList();
         boolean byHand = startedByHand();
         boolean inTerminal = inTerminal();
         if (byHand && wantsWindow(options.panel(), System.getProperty(DOWNLOADS_PROGRAM))) {
@@ -242,7 +243,7 @@ public final class McpMain {
             return;
         }
         Link link = new Link(System.in, mcpOut, System.err, tokens, serverPorts, options.panel(), options.quiet(),
-                () -> startServer(options, false), options.agent(), agentKeys);
+                () -> startServer(options, false), options.agent(), agentKeys).setupPort(options.portChosen() ? options.port() : 0);
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
             return;
@@ -282,9 +283,16 @@ public final class McpMain {
     private static Link commandLink(java.io.InputStream in, java.io.OutputStream out, Options options) throws java.io.IOException {
         Path tokenFile = options.tokenFile();
         Supplier<String> tokens = Pairing.tokenSource(tokenFile, Pairing.loadOrCreateToken(tokenFile));
-        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile).stream().map(Link::port).toList();
+        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile, fit(options))
+                .stream().map(Link::port).toList();
         return new Link(in, out, System.err, tokens, serverPorts, options.panel(), options.quiet(),
-                () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand();
+                () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand()
+                .setupPort(options.portChosen() ? options.port() : 0);
+    }
+
+    /** What a server started with these options is run under, of what a setup can ask for. */
+    static RunningServers.Fit fit(Options options) {
+        return RunningServers.Fit.of(options.settings(), options.extensionOrigin());
     }
 
     /**
@@ -303,11 +311,11 @@ public final class McpMain {
         RUNNING.add(hub::close);
         // Written down for the processes that name no port, and taken out again when this server ends in order.
         int first = hub.port() - PORT_RANGE;
-        RunningServers.add(options.tokenFile(), first);
+        RunningServers.add(options.tokenFile(), first, fit(options));
         RUNNING.add(() -> RunningServers.remove(options.tokenFile(), first));
         // And written again when the browser comes or goes, so that a process without a port goes to the server it is at.
-        hub.onBrowser(browser -> RunningServers.write(options.tokenFile(), first, browser));
-        hub.others(() -> RunningServers.other(options.tokenFile(), first));
+        hub.onBrowser(browser -> RunningServers.write(options.tokenFile(), first, browser, fit(options)));
+        hub.others(() -> RunningServers.other(options.tokenFile(), first, fit(options)));
         hub.commandIdle(options.commandIdleMs());
         hub.whenEmpty(McpMain::end);
         java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
@@ -394,7 +402,8 @@ public final class McpMain {
                 window.run();
             }
             return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen(),
-                    own == null || own.bridge().lastCloseCode() != 0 ? 0 : RunningServers.other(options.tokenFile(), settings.port()));
+                    own == null || own.bridge().lastCloseCode() != 0 ? null
+                            : RunningServers.other(options.tokenFile(), settings.port(), fit(options)));
         }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();

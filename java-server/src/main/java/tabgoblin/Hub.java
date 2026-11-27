@@ -183,8 +183,8 @@ final class Hub {
     private final AtomicBoolean cameUp = new AtomicBoolean();
     /** Run when the last agent has gone and stayed gone, unless the user started this server. */
     private volatile Runnable whenEmpty = () -> { };
-    /** Another server that runs on this machine, by its first port, or 0: asked only when an agent finds no browser. */
-    private volatile java.util.function.IntSupplier others = () -> 0;
+    /** Another server that runs on this machine and has the browser, or null: asked only when an agent finds no browser. */
+    private volatile java.util.function.Supplier<BrowserService.Elsewhere> others = () -> null;
     /** Told when the browser comes or goes, and whether it was here at the last look; on the thread that watches. */
     private volatile java.util.function.Consumer<Boolean> onBrowser = browser -> { };
     private boolean hadBrowser;
@@ -266,11 +266,11 @@ final class Hub {
         }
         // A browser that came here, and left or was turned away, is not at another server: one is looked for only when none came.
         boolean came = agents().stream().anyMatch(agent -> agent.bridge().lastCloseCode() != 0);
-        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean(), came ? 0 : others.getAsInt());
+        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean(), came ? null : others.get());
     }
 
-    /** @param other the first port of another server that answers on this machine and has the browser, or 0 */
-    void others(java.util.function.IntSupplier other) {
+    /** @param other another server that answers on this machine and has the browser, or null */
+    void others(java.util.function.Supplier<BrowserService.Elsewhere> other) {
         this.others = other;
     }
 
@@ -422,7 +422,7 @@ final class Hub {
             LineOut out = new LineOut(to);
             if (commandOf != null) {
                 // The key's agent is taken from here on by the list of those that come by commands.
-                serveCommand(identity, socket, out, ask.path("quiet").asBoolean(false));
+                serveCommand(identity, socket, out, ask.path("quiet").asBoolean(false), ask.path("setup_port").asInt(0));
                 kept = true;
                 return;
             }
@@ -438,6 +438,7 @@ final class Hub {
                 // A command of a name that has no agent to keep (the user revoked it): served once, by the
                 // command line's own conversation, on an agent that goes with it. Every tool says why.
                 member.agent = Agent.open(settings, held, () -> unpaired(quiet), identity, true);
+                noteSetup(member.agent, ask.path("setup_port").asInt(0));
                 member.agent.announce();
                 // One whose key could not be read or made has no label: it is not called "null".
                 String called = identity.label() == null ? "command line" : identity.label() + " (command line)";
@@ -447,6 +448,7 @@ final class Hub {
                 return;
             }
             member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet), identity);
+            noteSetup(member.agent, ask.path("setup_port").asInt(0));
             member.agent.announce();
             kept = true;
         } catch (IOException | RuntimeException e) {
@@ -537,7 +539,16 @@ final class Hub {
      * stays between them, with its connection to the extension; a command is one conversation of
      * the command line's own with it ({@link Commands}), and ends with its process.
      */
-    private void serveCommand(AgentKeys.Identity identity, Socket socket, LineOut out, boolean quiet) throws IOException {
+    /**
+     * An agent whose setup names another first port than this server's came here, because this one
+     * has the browser and runs as its setup asks: its status says so. Its own port is said, and no other.
+     */
+    private void noteSetup(Agent agent, int setupPort) {
+        int first = listening.getLocalPort() - McpMain.PORT_RANGE;
+        agent.service().cameFrom(setupPort > 0 && setupPort != first ? setupPort : 0);
+    }
+
+    private void serveCommand(AgentKeys.Identity identity, Socket socket, LineOut out, boolean quiet, int setupPort) throws IOException {
         Conn conn = new Conn(socket, out);
         Member member;
         synchronized (commanded) {
@@ -553,6 +564,8 @@ final class Hub {
                 member.agent.announce();
                 commanded.put(identity.id(), member);
             }
+            // Each command says its setup's port: the last one's is what its status speaks of.
+            noteSetup(member.agent, setupPort);
             member.links.add(conn);
             member.idleSince = 0;
         }

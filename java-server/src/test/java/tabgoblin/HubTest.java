@@ -479,8 +479,8 @@ class HubTest {
         assertEquals(0, shown.get());
         assertFalse(hub.standing());
         // Another server runs: its first port is said, since the browser connects to one server only.
-        hub.others(() -> 39821);
-        assertEquals(new BrowserService.Unpaired(false, false, false, 39821), hub.unpaired(false));
+        hub.others(() -> new BrowserService.Elsewhere(39821, true));
+        assertEquals(new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(39821, true)), hub.unpaired(false));
 
         // A browser came with another token: now the user has to paste the server's, and the window comes up.
         // That browser came here, so another server is not where it is: nothing is said of one, now or after it left.
@@ -508,6 +508,30 @@ class HubTest {
         comeWithAnotherToken(hub.agents().get(0));
         assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
         assertEquals(2, shown.get());
+    }
+
+    @Test
+    void anAgentWhoseSetupNamesAnotherPortIsToldInItsStatusAndOneOfThisPortIsNot() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        Client elsewhere = new Client(port, TOKEN, () -> { });
+        elsewhere.link.setupPort(port + 1000);
+        assertTrue(elsewhere.connect());
+        elsewhere.open("claude-code");
+        Client here = new Client(port, TOKEN, () -> { });
+        here.link.setupPort(port);
+        assertTrue(here.connect());
+        here.open("codex");
+        await(() -> hub.agents().size() == 2, "the two agents");
+        FakeExtension.paired(hub.agents().get(0).bridge().getPort(), TOKEN);
+        FakeExtension.paired(hub.agents().get(1).bridge().getPort(), TOKEN);
+        String said = "This agent's setup names first port " + (port + 1000) + ".";
+        List<String> statuses = new ArrayList<>();
+        for (Agent agent : hub.agents()) {
+            statuses.add(agent.service().call("browser_status", JSON.createObjectNode()).text());
+        }
+        assertEquals(1, statuses.stream().filter(text -> text.contains(said)).count(), String.join("\n---\n", statuses));
+        assertEquals(1, statuses.stream().filter(text -> !text.contains("setup names")).count(), "the one of this server's port");
     }
 
     @Test

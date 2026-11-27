@@ -42,8 +42,11 @@ import tools.jackson.databind.node.ObjectNode;
  * any other ({@link Link}); what a file says of the browser only puts one server before another.
  * The file of a server that was ended by force stays behind: its process is gone, so it is passed
  * over without a connection, and the next server that opens takes it out. A process whose setup
- * names a port looks at that port and no other, as before. Each server writes its own file only,
- * so two servers never write over each other.
+ * names a port goes to the server that has the browser only where that server reads the same
+ * settings file and allows the same extension as the server it would start itself, so that
+ * nothing its setup asked for is lost; otherwise it looks at its own port and no other, and
+ * starts its server there. Each server writes its own file only, so two servers never write
+ * over each other.
  */
 final class RunningServers {
 
@@ -55,13 +58,37 @@ final class RunningServers {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /**
+     * What a server is run under, of what a setup can ask for: the settings file it reads, and the
+     * extension it lets in. A process that names a port joins another server only where these are
+     * the same as for the server it would start.
+     */
+    record Fit(String settings, String origin) {
+        static Fit of(Path settings, String origin) {
+            return new Fit(settings.toAbsolutePath().normalize().toString(), origin);
+        }
+
+        /** The same settings file, by the rules of the system's paths (on Windows letter case does not count), and the same extension. */
+        boolean sameAs(Fit other) {
+            if (other == null || settings.isEmpty() || !origin.equals(other.origin)) {
+                return false;
+            }
+            try {
+                return Path.of(settings).equals(Path.of(other.settings));
+            } catch (RuntimeException e) {
+                return false;
+            }
+        }
+    }
+
+    /**
      * What a server wrote of itself.
      *
      * @param first   its first port
      * @param pid     its process, or 0 if not known
      * @param browser the browser was connected to it when it last wrote
+     * @param fit     what it is run under; empty where a file does not say
      */
-    record Entry(int first, long pid, boolean browser) {
+    record Entry(int first, long pid, boolean browser, Fit fit) {
     }
 
     private RunningServers() {
@@ -124,7 +151,8 @@ final class RunningServers {
                     || !node.path("browser").isBoolean()) {
                 return null;
             }
-            return new Entry(first, pid, node.path("browser").asBoolean());
+            return new Entry(first, pid, node.path("browser").asBoolean(),
+                    new Fit(node.path("settings").asString(""), node.path("origin").asString("")));
         } catch (IOException | RuntimeException e) {
             return null;
         }
@@ -134,17 +162,17 @@ final class RunningServers {
      * A server has opened with this first port. Files of servers whose process is gone are taken
      * out first. A folder that cannot be written leaves things as they were before there was one.
      */
-    static void add(Path tokenFile, int first) {
+    static void add(Path tokenFile, int first, Fit fit) {
         for (Entry entry : read(tokenFile)) {
             if (!alive(entry.pid())) {
                 remove(tokenFile, entry.first());
             }
         }
-        write(tokenFile, first, false);
+        write(tokenFile, first, false, fit);
     }
 
     /** What this server says of itself: written again when the browser comes or goes. */
-    static void write(Path tokenFile, int first, boolean browser) {
+    static void write(Path tokenFile, int first, boolean browser, Fit fit) {
         Path folder = folder(tokenFile);
         try {
             if (Files.isRegularFile(folder)) {
@@ -156,6 +184,8 @@ final class RunningServers {
             node.put("first", first);
             node.put("pid", ProcessHandle.current().pid());
             node.put("browser", browser);
+            node.put("settings", fit.settings());
+            node.put("origin", fit.origin());
             Path next = folder.resolve(first + ".json.tmp");
             Files.writeString(next, JSON.writeValueAsString(node) + "\n", StandardCharsets.UTF_8);
             try {
@@ -183,18 +213,31 @@ final class RunningServers {
     }
 
     /**
-     * The first ports a process looks for the server on: the user's own and no other; or, without
-     * one, the servers that run, the one with the browser first, and then the list.
+     * The first ports a process looks for the server on. Without a port of its own: the servers that
+     * run, the one with the browser first, and then the list. With one: a server that has the
+     * browser and is run under the same settings and extension, then its own port and no other, on
+     * which it starts its server if none runs.
+     *
+     * @param mine what the server this process would start is run under
      */
-    static List<Integer> firsts(int port, boolean chosen, Path tokenFile) {
-        return firsts(port, chosen, read(tokenFile), RunningServers::answers, RunningServers::alive);
+    static List<Integer> firsts(int port, boolean chosen, Path tokenFile, Fit mine) {
+        return firsts(port, chosen, read(tokenFile), RunningServers::answers, RunningServers::alive, mine);
     }
 
     /** @param answers whether a server answers on the port for links that follows from a first port */
-    static List<Integer> firsts(int port, boolean chosen, List<Entry> written, IntPredicate answers, LongPredicate alive) {
+    static List<Integer> firsts(int port, boolean chosen, List<Entry> written, IntPredicate answers, LongPredicate alive, Fit mine) {
         List<Integer> list = Ports.firsts(port, chosen);
         if (chosen) {
-            return list;
+            // The browser is at its own port's server, or no other server would run it as its setup asks: its port alone.
+            if (written.stream().anyMatch(entry -> entry.first() == port && entry.browser())) {
+                return list;
+            }
+            Set<Integer> firsts = new LinkedHashSet<>();
+            written.stream()
+                    .filter(entry -> entry.browser() && entry.fit().sameAs(mine) && alive.test(entry.pid()) && answers.test(entry.first()))
+                    .findFirst().ifPresent(entry -> firsts.add(entry.first()));
+            firsts.addAll(list);
+            return List.copyOf(firsts);
         }
         Set<Integer> firsts = new LinkedHashSet<>();
         List<Entry> running = written.stream().filter(entry -> alive.test(entry.pid()) && answers.test(entry.first())).toList();
@@ -205,18 +248,18 @@ final class RunningServers {
     }
 
     /**
-     * Another server than the one with this first port, that has the browser and answers: its first
-     * port, or 0. Said to an agent that finds no browser. Only a port is said, nothing of that
+     * Another server than the one with this first port, that has the browser and answers, or null. Said to an agent that finds no browser. Only a port is said, nothing of that
      * server's agents.
      */
-    static int other(Path tokenFile, int own) {
-        return other(read(tokenFile), own, RunningServers::answers, RunningServers::alive);
+    static BrowserService.Elsewhere other(Path tokenFile, int own, Fit mine) {
+        return other(read(tokenFile), own, RunningServers::answers, RunningServers::alive, mine);
     }
 
-    static int other(List<Entry> written, int own, IntPredicate answers, LongPredicate alive) {
+    /** @param mine what the server that asks is run under: said of the other, whether it is the same */
+    static BrowserService.Elsewhere other(List<Entry> written, int own, IntPredicate answers, LongPredicate alive, Fit mine) {
         return written.stream()
                 .filter(entry -> entry.first() != own && entry.browser() && alive.test(entry.pid()) && answers.test(entry.first()))
-                .mapToInt(Entry::first).findFirst().orElse(0);
+                .findFirst().map(entry -> new BrowserService.Elsewhere(entry.first(), entry.fit().sameAs(mine))).orElse(null);
     }
 
     /**

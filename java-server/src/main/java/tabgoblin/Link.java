@@ -96,6 +96,8 @@ final class Link {
     private volatile boolean stopping;
     /** This process runs one command for its agent and ends ({@link Cli}): the server keeps the agent between such commands. */
     private boolean command;
+    /** The first port this process's setup names, or 0: said to the server, which tells the agent if it is another server's. */
+    private int setupPort;
     /** Why the server would not have this process, if it said so. */
     private volatile String refusal;
 
@@ -152,6 +154,12 @@ final class Link {
      */
     Link forCommand() {
         command = true;
+        return this;
+    }
+
+    /** @param first the first port the setup names, or 0 if it names none */
+    Link setupPort(int first) {
+        setupPort = first;
         return this;
     }
 
@@ -302,6 +310,9 @@ final class Link {
             ask.put("quiet", quiet);
             if (command && what.equals("attach")) {
                 ask.put("cli", true);
+            }
+            if (what.equals("attach") && setupPort > 0) {
+                ask.put("setup_port", setupPort);
             }
             if (what.equals("attach") && agent != null) {
                 // Who this agent is: the label of its key, and the proof that this process holds the

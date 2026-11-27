@@ -131,7 +131,8 @@ So the server, the links and the extension share a fixed list of first ports, fa
 takes the first whose range the system gives out; a link looks for the server on each in turn
 before it starts one; the extension looks at every range while no server is connected, and
 only at the server's range while one is (`rangesToScan`). A first port the user set, with
-`--port` or in the popup, is the only one that is tried.
+`--port` or in the popup, is the only one of the list that is tried; how a process with a port
+of its own still reaches a server with the browser is below.
 
 **When one agent's setup names a port and another's does not.** A server on a port of the
 user's own is not on that list, and an agent set up without a port would start a second
@@ -146,15 +147,24 @@ nothing by itself: a port from it is used only where something opens with the se
 greeting, the two proofs of the pairing token follow on that connection as on any other, and
 what a file says of the browser only puts one server before another. The file of a server that
 was ended by force is passed over without a connection, because its process is gone. Each
-server writes its own file only, so two servers never write over each other. A link or a
-command that names a port still looks at that port and no other, so two agents set up with two
-different ports have two servers, and the browser is at one of them. An agent of the server
+server writes its own file only, so two servers never write over each other.
+
+**A link or a command that names a port** goes to a server that has the browser only where that
+server runs as the one it would start would: each file also says which settings file its server
+reads and which extension it lets in, and the process compares them with its own `--settings`
+and `--extension-origin` (`RunningServers.Fit`). Then nothing its setup asked for is lost, and
+its port only decides where a server is started when none with the browser runs. Where they
+differ, it looks at its own port and no other, as a named port always meant, and starts its
+server there. The process tells the server which port its setup names, and an agent served
+elsewhere than there is told why in its status (`BrowserService.cameFrom`). An agent of a server
 that no browser has come to is told so: when a tool finds no browser, that server looks in the
 folder for another server that answers and says it has the browser, and names its first port in
-place of the pairing help (`Hub.unpaired`, `BrowserService.otherServer`). A command of the
-command line can then give that port itself; an MCP agent's port is in its setup, and the user
-changes it. Only the port is said, nothing of that server's agents, and nothing is said once a
-browser has come to this server.
+place of the pairing help (`Hub.unpaired`, `BrowserService.otherServer`), with whether it runs
+under the same settings: if so, the agent's next process goes there by itself; if not, only the
+user can settle it. Only the port is said, nothing of that server's agents, and nothing is said
+once a browser has come to this server. A process without a port of its own joins a server that
+runs whatever its settings, as before: there is one server for all agents, and its settings are
+those of the process that started it.
 
 Both listen on `127.0.0.1` only. Agents share the process and nothing else: no tool tells one
 agent anything about another.

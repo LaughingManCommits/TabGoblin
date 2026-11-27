@@ -31,8 +31,8 @@ how much you may do there.
    access level and the page it is on.
 2. **Not connected:** the result says why and what to ask the user for. Tell the user that,
    and go on when they have done it. No tool pairs the browser, and calling one again does not
-   help. When it says that another TabGoblin server runs, the browser is at that one: tell the
-   user that your setup has to name the port it names, and that you have to be started again.
+   help. When it says that another TabGoblin server has the browser, tell the user what it
+   says about that server.
 3. **No session:** ask the user to open the site in Chrome, click the TabGoblin icon on that
    tab, choose an access level and press **Authorize**. Say which level the task needs:
    - **Read** looks at the page that is open.
@@ -170,7 +170,7 @@ retried for you, and a refusal is never an error to work around.
 
 | Code | What to do |
 |---|---|
-| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off. When it names another server's port, your setup has to name that port |
+| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off. When it says that another server has the browser, tell the user what it says about that server |
 | `NOT_AUTHORIZED`, `AUTHORIZATION_EXPIRED` | Ask the user to authorize the tab, as above |
 | `SESSION_REQUIRED` | Pass `session`; `browser_status` lists the ids |
 | `SESSION_SUSPENDED`, `ORIGIN_MISMATCH` | The tab left its website. Ask the user to click the TabGoblin icon on that tab and resume |

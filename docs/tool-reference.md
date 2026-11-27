@@ -105,6 +105,7 @@ Session s1
 | Line | Meaning |
 |---|---|
 | `This agent` | The agent's id and port, and who it is: `identity "…": the same agent at every start` for an agent started with `--agent`; otherwise that it has an id for this start only and its tabs do not come back after a restart |
+| `This agent's setup names first port …` | Only where the agent's setup names a port and the agent was served by this server instead, because this one has the browser and runs under the same settings: `This agent's setup names first port 47821. The browser is at this server, which runs under the same settings, so this agent is served here; that port is used only to start a server when none with the browser runs.` Also said while the browser has not found this agent yet. Nothing for the agent to do |
 | `Ports: …` | Only where the system keeps the usual ports back and the server uses another range: `Ports: this machine's system keeps the usual ports 47821-47829 back, so this server uses 37821-37829. The extension looks there by itself: the user has nothing to set.` Nothing for the agent to do; it explains the port in the line above |
 | `Submissions need user confirmation` | The user's general setting: *yes*; *yes, the first time for each control; what the user allowed passes for a while*; or *no (only high-impact ones are put to the user)*. A submission is declared the same way under every setting |
 | `Security policy: …` | Only where the user's [security policy](developer-guide.md#the-security-policy) restricts something: the strict profile, no screenshots, the highest access level, how long an authorization lasts, and that agents work only on the sites the user allows. The sites are not listed |
@@ -164,19 +165,24 @@ The browser holds a token that is not this server's. Ask the user to pair the br
 ```
 
 - No browser has come, and another TabGoblin server runs on the machine and has the browser:
-  the result names that server's first port in place of the pairing help. An agent of the command line is told to give that port to its
-  commands; an MCP agent, whose port is in its setup, is told to ask the user. Nothing of the
+  the result names that server's first port in place of the pairing help, and says whether it
+  runs under the same settings as this one (the same settings file, the same extension let in).
+  If it does, an agent's next process goes there by itself, with a port in its setup or
+  without; if it does not, none goes there, and only the user can settle it. Nothing of the
   other server's agents is said.
 
 ```text
 Extension: not connected
 Listening on: ws://127.0.0.1:47821
-Another TabGoblin server runs on this machine, with first port 39821, and the browser is connected to that one, not to this one. Give --port 39821 to every command of this task, and tell the user, so that every agent's setup names the same port.
+Another TabGoblin server runs on this machine, with first port 39821, and the browser is connected to that one, not to this one. It runs under the same settings as this one. Run the command again: it goes to that server by itself. Tell the user that their agents' setups name different ports.
 ```
 
-  For an MCP agent the last sentence reads: `Tell the user: this agent's setup has to name the
-  same port as the other agents' (--port 39821), or none, and this agent has to be started
-  again.`
+  For an MCP agent the last two sentences read: `Tell the user: this agent goes to that server
+  by itself when it is started again, and their agents' setups name different ports.` Where
+  the settings differ, for either kind of agent: `It reads another settings file, or lets in
+  another extension, than this one, so no agent of this one goes to it by itself. Tell the
+  user: their agents' setups have to name the same settings, or the browser has to be paired
+  with this server instead.`
 - The browser is paired with the server and has not found this agent yet: the result says that
   it takes up to about 30 seconds.
 - The user disconnected this agent in the popup, or the extension is of another version than

@@ -68,25 +68,29 @@ class RunningServersTest {
     }
 
     private static final long ME = ProcessHandle.current().pid();
+    private static final RunningServers.Fit FIT = new RunningServers.Fit(Path.of("settings.properties").toAbsolutePath().toString(),
+            FakeExtension.ORIGIN);
+    private static final RunningServers.Fit OTHER = new RunningServers.Fit(Path.of("other.properties").toAbsolutePath().toString(),
+            FakeExtension.ORIGIN);
 
     @Test
     void aServerIsWrittenDownWhenItOpensWithItsBrowserAndTakenOutWhenItEnds(@TempDir Path folder) throws IOException {
         Path token = folder.resolve("pairing-token");
         assertEquals(List.of(), RunningServers.read(token), "no folder says none");
 
-        RunningServers.add(token, 39821);
-        assertEquals(List.of(new RunningServers.Entry(39821, ME, false)), RunningServers.read(token),
+        RunningServers.add(token, 39821, FIT);
+        assertEquals(List.of(new RunningServers.Entry(39821, ME, false, FIT)), RunningServers.read(token),
                 "its first port and its process, and no browser yet");
         assertEquals(folder.resolve("servers"), RunningServers.folder(token), "beside the pairing token");
         assertTrue(Files.isRegularFile(folder.resolve("servers").resolve("39821.json")), "a file of its own");
 
-        RunningServers.write(token, 39821, true);
-        assertEquals(List.of(new RunningServers.Entry(39821, ME, true)), RunningServers.read(token), "the browser came");
-        RunningServers.add(token, 41000);
+        RunningServers.write(token, 39821, true, FIT);
+        assertEquals(List.of(new RunningServers.Entry(39821, ME, true, FIT)), RunningServers.read(token), "the browser came");
+        RunningServers.add(token, 41000, FIT);
         assertEquals(2, RunningServers.read(token).size(), "a second server writes its own file and leaves the first alone");
 
         RunningServers.remove(token, 39821);
-        assertEquals(List.of(new RunningServers.Entry(41000, ME, false)), RunningServers.read(token));
+        assertEquals(List.of(new RunningServers.Entry(41000, ME, false, FIT)), RunningServers.read(token));
         RunningServers.remove(token, 41000);
         assertEquals(List.of(), RunningServers.read(token));
     }
@@ -96,8 +100,8 @@ class RunningServersTest {
         Path token = folder.resolve("pairing-token");
         Files.writeString(RunningServers.folder(token), "39821\n");
         assertEquals(List.of(), RunningServers.read(token), "a file there is not read");
-        RunningServers.add(token, 41000);
-        assertEquals(List.of(new RunningServers.Entry(41000, ME, false)), RunningServers.read(token));
+        RunningServers.add(token, 41000, FIT);
+        assertEquals(List.of(new RunningServers.Entry(41000, ME, false, FIT)), RunningServers.read(token));
     }
 
     @Test
@@ -110,7 +114,7 @@ class RunningServersTest {
         Files.writeString(servers.resolve("41000.json"), "{\"first\":41000,\"pid\":1,\"browser\":\"yes\"}");
         Files.writeString(servers.resolve("42000.json"), "not json");
         Files.writeString(servers.resolve("43000.txt"), "{\"first\":43000,\"pid\":1,\"browser\":true}");
-        assertEquals(List.of(new RunningServers.Entry(39821, 1, true)), RunningServers.read(token),
+        assertEquals(List.of(new RunningServers.Entry(39821, 1, true, new RunningServers.Fit("", ""))), RunningServers.read(token),
                 "a name and a first port that agree, a port nine ports can begin at, and a browser that is yes or no");
 
         for (int first = 30001; first <= 30010; first++) {
@@ -126,41 +130,78 @@ class RunningServersTest {
         long gone = Long.MAX_VALUE / 2;
         Files.writeString(servers.resolve("39821.json"), "{\"first\":39821,\"pid\":" + gone + ",\"browser\":true}");
         assertFalse(RunningServers.alive(gone));
-        RunningServers.add(token, 41000);
-        assertEquals(List.of(new RunningServers.Entry(41000, ME, false)), RunningServers.read(token));
+        RunningServers.add(token, 41000, FIT);
+        assertEquals(List.of(new RunningServers.Entry(41000, ME, false, FIT)), RunningServers.read(token));
     }
 
     @Test
     void aProcessWithoutAPortGoesToTheServerWithTheBrowserFirstAndOneWithAPortOnlyToItsOwn() {
         List<RunningServers.Entry> written = List.of(
-                new RunningServers.Entry(39821, 1, false),
-                new RunningServers.Entry(41000, 2, true),
-                new RunningServers.Entry(Ports.FIRST.get(0), 3, true),
-                new RunningServers.Entry(42000, 4, false));
+                new RunningServers.Entry(39821, 1, false, FIT),
+                new RunningServers.Entry(41000, 2, true, FIT),
+                new RunningServers.Entry(Ports.FIRST.get(0), 3, true, FIT),
+                new RunningServers.Entry(42000, 4, false, FIT));
         java.util.function.LongPredicate alive = pid -> pid != 2;
         List<Integer> expected = new ArrayList<>(List.of(Ports.FIRST.get(0), 39821));
         expected.addAll(Ports.FIRST.subList(1, Ports.FIRST.size()));
-        assertEquals(expected, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> port != 42000, alive),
+        assertEquals(expected, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> port != 42000, alive, FIT),
                 "the one with the browser first, even one of the list; then the others that run; a process that is gone "
                         + "and a port where nothing answers are passed over; then the list, nothing twice");
-        assertEquals(Ports.FIRST, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> false, alive),
+        assertEquals(Ports.FIRST, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> false, alive, FIT),
                 "nothing answers: the list, as before");
-        assertEquals(List.of(45000), RunningServers.firsts(45000, true, written, port -> true, alive),
-                "a setup that names a port means that port");
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, written, port -> true, alive, OTHER),
+                "a setup that names a port and other settings than every server with the browser: that port");
+    }
+
+    @Test
+    void aProcessWithAPortGoesToTheServerWithTheBrowserOnlyWhereThatRunsAsItsSetupAsks() {
+        List<RunningServers.Entry> written = List.of(
+                new RunningServers.Entry(39821, 1, false, FIT),
+                new RunningServers.Entry(41000, 2, true, FIT),
+                new RunningServers.Entry(42000, 3, true, OTHER));
+        assertEquals(List.of(41000, 45000), RunningServers.firsts(45000, true, written, port -> true, pid -> true, FIT),
+                "the server with the browser and the same settings first, then its own port, on which it starts one");
+        assertEquals(List.of(42000, 45000), RunningServers.firsts(45000, true, written, port -> true, pid -> true, OTHER),
+                "the same for the other settings");
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, written, port -> port != 41000, pid -> true, FIT),
+                "one that does not answer is passed over");
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, written, port -> true, pid -> pid != 2, FIT),
+                "and one whose process is gone");
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, written, port -> true, pid -> true,
+                new RunningServers.Fit(FIT.settings(), "chrome-extension://another")), "another extension is other settings");
+        List<RunningServers.Entry> ownHasIt = List.of(new RunningServers.Entry(45000, 5, true, FIT), written.get(1));
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, ownHasIt, port -> true, pid -> true, FIT),
+                "the browser is at its own port's server: that one alone");
+        List<RunningServers.Entry> noFit = List.of(new RunningServers.Entry(41000, 2, true, new RunningServers.Fit("", "")));
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, noFit, port -> true, pid -> true, FIT),
+                "a file that does not say what its server runs under is not taken to be the same");
+    }
+
+    @Test
+    void theSameSettingsAreTheSameFileAndTheSameExtension() {
+        String file = Path.of("a", "..", "settings.properties").toAbsolutePath().toString();
+        assertTrue(RunningServers.Fit.of(Path.of(file), FakeExtension.ORIGIN).sameAs(FIT), "a path is compared as the system reads it");
+        assertFalse(FIT.sameAs(OTHER));
+        assertFalse(FIT.sameAs(null));
+        assertFalse(new RunningServers.Fit("", FakeExtension.ORIGIN).sameAs(new RunningServers.Fit("", FakeExtension.ORIGIN)),
+                "nothing said is not the same");
     }
 
     @Test
     void aServerThatHasNoBrowserNamesAnotherThatHasItAndAnswersAndNeverItself() {
         List<RunningServers.Entry> written = List.of(
-                new RunningServers.Entry(McpMain.DEFAULT_PORT, 1, true),
-                new RunningServers.Entry(41000, 2, true),
-                new RunningServers.Entry(42000, 3, false),
-                new RunningServers.Entry(39821, 4, true));
-        assertEquals(39821, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> port != 41000, pid -> true),
-                "itself, one that does not answer and one without the browser are passed over");
-        assertEquals(0, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> true, pid -> pid == 1 || pid == 3),
+                new RunningServers.Entry(McpMain.DEFAULT_PORT, 1, true, FIT),
+                new RunningServers.Entry(41000, 2, true, FIT),
+                new RunningServers.Entry(42000, 3, false, FIT),
+                new RunningServers.Entry(39821, 4, true, OTHER));
+        assertEquals(new BrowserService.Elsewhere(39821, false),
+                RunningServers.other(written, McpMain.DEFAULT_PORT, port -> port != 41000, pid -> true, FIT),
+                "itself, one that does not answer and one without the browser are passed over; its settings are other");
+        assertEquals(new BrowserService.Elsewhere(41000, true),
+                RunningServers.other(written, McpMain.DEFAULT_PORT, port -> true, pid -> true, FIT), "the same settings");
+        assertEquals(null, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> true, pid -> pid == 1 || pid == 3, FIT),
                 "the processes of the others are gone");
-        assertEquals(0, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> false, pid -> true), "nothing answers");
+        assertEquals(null, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> false, pid -> true, FIT), "nothing answers");
     }
 
     @Test
@@ -183,9 +224,9 @@ class RunningServersTest {
         Path token = folder.resolve("pairing-token");
         int first = freeRange();
         Hub hub = server(first);
-        RunningServers.add(token, first);
+        RunningServers.add(token, first, FIT);
 
-        List<Integer> ports = RunningServers.firsts(McpMain.DEFAULT_PORT, false, token).stream().map(Link::port).toList();
+        List<Integer> ports = RunningServers.firsts(McpMain.DEFAULT_PORT, false, token, FIT).stream().map(Link::port).toList();
         assertEquals(hub.port(), ports.get(0), "the running server's port for links comes first");
         List<String> started = new ArrayList<>();
         Link link = new Link(InputStream.nullInputStream(), OutputStream.nullOutputStream(), new PrintStream(OutputStream.nullOutputStream()),
@@ -195,6 +236,6 @@ class RunningServersTest {
 
         // The server is gone, and its file is still there: nothing answers, and the list is what is left.
         hub.drop();
-        assertEquals(Ports.FIRST, RunningServers.firsts(McpMain.DEFAULT_PORT, false, token));
+        assertEquals(Ports.FIRST, RunningServers.firsts(McpMain.DEFAULT_PORT, false, token, FIT));
     }
 }

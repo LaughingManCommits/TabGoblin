@@ -526,33 +526,63 @@ class BrowserServiceTest {
     }
 
     @Test
-    void withoutABrowserAndWithAnotherServerRunningAToolSaysToUseThatServersPort() throws Exception {
+    void withoutABrowserAndWithAnotherServerThatHasItAToolSaysSoAndWhetherTheAgentGoesThereByItself() throws Exception {
         ext.closeBlocking();
         for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
             Thread.sleep(20);
         }
         String elsewhere = "Another TabGoblin server runs on this machine, with first port 39821, and the browser is connected "
                 + "to that one, not to this one. ";
-        String forMcp = elsewhere + "Tell the user: this agent's setup has to name the same port as the other agents' "
-                + "(--port 39821), or none, and this agent has to be started again.";
-        String forCommands = elsewhere + "Give --port 39821 to every command of this task, and tell the user, so that "
-                + "every agent's setup names the same port.";
+        String same = elsewhere + "It runs under the same settings as this one. ";
+        String forMcp = same + "Tell the user: this agent goes to that server by itself when it is started again, and their "
+                + "agents' setups name different ports.";
+        String forCommands = same + "Run the command again: it goes to that server by itself. Tell the user that their "
+                + "agents' setups name different ports.";
+        String otherSettings = elsewhere + "It reads another settings file, or lets in another extension, than this one, so no "
+                + "agent of this one goes to it by itself. Tell the user: their agents' setups have to name the same settings, "
+                + "or the browser has to be paired with this server instead.";
         String head = "Extension: not connected\nListening on: ws://127.0.0.1:" + bridge.getPort() + "\n";
-        BrowserService.Unpaired other = new BrowserService.Unpaired(false, false, false, 39821);
+        BrowserService.Unpaired other = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(39821, true));
 
         // It is said in place of the pairing, which is not what is missing then.
         BrowserService mcp = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> other, null, false);
         assertEquals(head + forMcp, mcp.call("browser_status", args()).text());
         assertEquals("Error [NOT_CONNECTED]: The Chrome extension is not connected. " + forMcp,
                 mcp.call("browser_snapshot", args()).text());
-        // An agent of the command line gives the port itself.
+        // The next command of the command line goes there by itself.
         BrowserService commands = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> other, null, true);
         assertEquals(head + forCommands, commands.call("browser_status", args()).text());
 
+        // That server runs under other settings: nobody goes there by itself, and nobody is sent there.
+        BrowserService.Unpaired apart = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(39821, false));
+        for (boolean byCommands : new boolean[] {false, true}) {
+            BrowserService either = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> apart, null, byCommands);
+            assertEquals(head + otherSettings, either.call("browser_status", args()).text());
+        }
+
         // The browser is paired with this server by way of another agent: it is here, not at the other one.
         BrowserService pairedHere = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO,
-                () -> new BrowserService.Unpaired(true, false, false, 39821), null, false);
+                () -> new BrowserService.Unpaired(true, false, false, new BrowserService.Elsewhere(39821, true)), null, false);
         assertTrue(pairedHere.call("browser_status", args()).text().endsWith("Try again then."));
+    }
+
+    @Test
+    void anAgentThatCameHereFromThePortOfItsSetupIsToldWhyInItsStatus() throws Exception {
+        ext.responder = cmd -> FakeExtension.ok(cmd, args().put("confirmSubmissions", true).set("sessions", args().arrayNode()));
+        String line = "This agent's setup names first port 47821. The browser is at this server, which runs under the same "
+                + "settings, so this agent is served here; that port is used only to start a server when none with the "
+                + "browser runs.";
+        assertFalse(service.call("browser_status", args()).text().contains("setup names"));
+        service.cameFrom(47821);
+        assertTrue(service.call("browser_status", args()).text().contains("\n" + line + "\n"));
+        // Before the browser has found it as well: it came here because the browser is at this server.
+        ext.closeBlocking();
+        for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
+            Thread.sleep(20);
+        }
+        assertTrue(service.call("browser_status", args()).text().contains("\n" + line + "\n"));
+        service.cameFrom(0);
+        assertFalse(service.call("browser_status", args()).text().contains("setup names"));
     }
 
     @Test
