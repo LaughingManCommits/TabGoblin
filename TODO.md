@@ -1884,7 +1884,8 @@ by side, a green "TabGoblin bridge" with what it checks, the browser extension, 
 Asked for by the owner on 2026-11-27: the CLI and MCP are to be two layers at the same level,
 neither built on the other, because a company may forbid MCP. A user then has to be able to
 show that the CLI does not use MCP, and an organisation has to be able to turn MCP off. A
-design, not started; the points under "Decisions for the owner" are open.
+design, not started; the points under "Decisions for the owner" are open. What the window
+shows of the mode was asked for the same day and is in its own section.
 
 What it is not: a way around a rule against agents in the browser. Where that is forbidden,
 the CLI is forbidden too, as the
@@ -1991,6 +1992,43 @@ Read from the source on 2026-11-27.
      (`INTERFACE_NOT_ALLOWED`), as a change to the file acts now;
    - `browser_status`, the server's window and `--setup --mode mcp` say that MCP is off by
      the settings file. `interfaces = mcp` does the same for commands.
+7. **Everything but an agent's MCP start still runs with MCP off.** The server's process is
+   not an MCP server: it is started with `--hub` and runs an MCP session only for an MCP agent,
+   which it refuses then. The check is in the one place where the jar would serve an agent
+   over stdio, not at the top of `main`:
+
+   | Start | With `interfaces = cli` |
+   |---|---|
+   | The window: `--panel`, or `TabGoblin.exe` | Starts as now; the window shows the mode (below) |
+   | A command when no server runs | Starts the server as now |
+   | `--show-token`, `--setup`, `--help`, the commands for agents' keys | As now |
+   | An agent's program, starting the jar as its MCP server | Ends with the reason, exit code 2; no server is started |
+
+### The mode in the window
+
+The owner asked on 2026-11-27 that the window show at a glance which mode the server is in,
+and that MCP being off is marked by a sign that says no MCP agent is let in.
+
+1. **A pill for each interface in the header,** beside the port's: `CLI` and `MCP`. One that
+   is on has the accent colours, as the port's pill. One that is off has the colours of a
+   refusal (`-tg-bad` on `-tg-bad-soft`) and a sign before its name: a circle with a stroke
+   through it. The sign is drawn from shapes in `panel.css`, as the window's own buttons draw
+   their dash and cross, and is no character of a font, which looks different on each system
+   or is missing. So with `interfaces = cli` the header reads `CLI` and `⊘ MCP`.
+2. **Under the mouse,** the pill that is off says why and where: "MCP is off by the settings
+   file (`interfaces = cli`). No MCP agent is let in; one that tries is told why. Edit opens
+   the file", with the file's path, as the blocked sites say theirs.
+3. **A file that cannot be read** shows both pills off, with the reason, since everything is
+   refused then.
+4. **Each agent's card is marked `CLI` or `MCP`,** whatever the setting: the server knows by
+   which way each came (`Hub`, the agents of commands apart from the others). Today the window
+   does not say it; only the popup does, with "(command line)".
+5. **A refused MCP agent is a line in the log:** "MCP agent turned away: MCP is off by the
+   settings file". The server sees only an attach from a jar that does not check (an older
+   one); a jar that checks ends before it reaches the server. Whether that start tells a
+   running server, so that the window counts it, is decision 6.
+6. **What does not change:** the status line and the goblin keep saying what they say now; a
+   mode is a setting, not a state. The popup is not changed by this.
 
 ### Decisions for the owner
 
@@ -2007,6 +2045,13 @@ Read from the source on 2026-11-27.
    switch first, which an organisation can use soonest, on today's wire.
 5. **Not now:** a build without the MCP SDK, and new names for the jar and its folder. Both
    can come later without changing this.
+6. **Whether an MCP start that is turned away tells the window.** If a server runs, the start
+   proves the token as a window request does and sends one message, `turned_away`, before it
+   ends; it starts no server for it. The window then counts them under the pill ("2 MCP starts
+   turned away since 14:02"), so that the user sees that something tried (proposal). Or not:
+   the agent's program says it, and the window shows nothing of a start it did not see.
+7. **Whether the popup marks the mode too.** The extension is told the policy already. Proposal:
+   not now; the popup marks an agent of the command line, and what is off is the server's.
 
 ### Tasks and acceptance
 
@@ -2022,10 +2067,16 @@ Read from the source on 2026-11-27.
    refused attach; `BrowserServiceTest` for a change while an MCP agent is connected; end to
    end, one step with `interfaces = cli` (an MCP agent is refused with the reason, a command
    works) and one with `interfaces = mcp`.
-4. **Documentation.** `docs/tool-reference.md` for `INTERFACE_NOT_ALLOWED`; the table of the
+4. **The window.** `PanelModelTest` for the pills and their words with each value of
+   `interfaces` and with a file that cannot be read, for each agent's mark, and for the log
+   line; `PanelTest` on a display for the drawn sign; `McpMainTest` for each start in the
+   table of point 7; the window's pictures made again with their script and looked at, in
+   both colour schemes (runbook: "Look at the server's panel").
+5. **Documentation.** `docs/tool-reference.md` for `INTERFACE_NOT_ALLOWED`; the table of the
    security policy and the section "CLI and MCP: one set of controls" in
    `docs/security-model.md`, with the limits above; the restrictions in
-   `docs/corporate-assessment.md`; the settings in `docs/developer-guide.md`; the wire in
+   `docs/corporate-assessment.md`; the settings and the server's panel in
+   `docs/developer-guide.md`; the wire in
    `docs/architecture.md` and `docs/development.md` (protocol reference); `docs/cli.md`; the
    row of the CLI in the task map of `AGENTS.md` and its rule, reworded; the six skills if
    what an agent should do changes (a command refused because the CLI is off).

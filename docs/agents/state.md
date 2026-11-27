@@ -4,7 +4,7 @@ Last updated: 2026-11-27. Claims here go stale; check the date, then `git status
 
 ## The CLI and MCP side by side, a design, 2026-11-27
 
-Asked for by the owner: the CLI and MCP as two adapters at the same level, and a switch in the settings file that turns MCP off, for an organisation that forbids MCP. Written as [WP-31](../../TODO.md#wp-31-the-cli-and-mcp-side-by-side-and-mcp-that-can-be-turned-off), on this branch; nothing is built. Its five decisions are the owner's. Found while reading: an MCP agent's process that the server refuses serves its agent alone (`McpMain.serveAlone`), so a switch has to be checked there as well as in the server.
+Asked for by the owner: the CLI and MCP as two adapters at the same level, and a switch in the settings file that turns MCP off, for an organisation that forbids MCP. Written as [WP-31](../../TODO.md#wp-31-the-cli-and-mcp-side-by-side-and-mcp-that-can-be-turned-off), on this branch; nothing is built. Its seven decisions are the owner's. It also says what the window shows of the mode: a pill for each interface in the header, with a drawn sign on the one that is off. Found while reading: an MCP agent's process that the server refuses serves its agent alone (`McpMain.serveAlone`), so a switch has to be checked there as well as in the server.
 
 ## A program with the goblin's icon in the Windows download, 2026-11-26
 
