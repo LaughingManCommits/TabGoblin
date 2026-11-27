@@ -531,8 +531,8 @@ class BrowserServiceTest {
         for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
             Thread.sleep(20);
         }
-        String elsewhere = "Another TabGoblin server runs on this machine, with first port 39821, and the browser is likely "
-                + "connected to that one: it connects to one server only. ";
+        String elsewhere = "Another TabGoblin server runs on this machine, with first port 39821, and the browser is connected "
+                + "to that one, not to this one. ";
         String forMcp = elsewhere + "Tell the user: this agent's setup has to name the same port as the other agents' "
                 + "(--port 39821), or none, and this agent has to be started again.";
         String forCommands = elsewhere + "Give --port 39821 to every command of this task, and tell the user, so that "

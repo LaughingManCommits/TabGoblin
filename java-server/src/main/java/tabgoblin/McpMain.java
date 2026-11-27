@@ -305,6 +305,8 @@ public final class McpMain {
         int first = hub.port() - PORT_RANGE;
         RunningServers.add(options.tokenFile(), first);
         RUNNING.add(() -> RunningServers.remove(options.tokenFile(), first));
+        // And written again when the browser comes or goes, so that a process without a port goes to the server it is at.
+        hub.onBrowser(browser -> RunningServers.write(options.tokenFile(), first, browser));
         hub.others(() -> RunningServers.other(options.tokenFile(), first));
         hub.commandIdle(options.commandIdleMs());
         hub.whenEmpty(McpMain::end);

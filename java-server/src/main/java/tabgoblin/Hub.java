@@ -185,6 +185,9 @@ final class Hub {
     private volatile Runnable whenEmpty = () -> { };
     /** Another server that runs on this machine, by its first port, or 0: asked only when an agent finds no browser. */
     private volatile java.util.function.IntSupplier others = () -> 0;
+    /** Told when the browser comes or goes, and whether it was here at the last look; on the thread that watches. */
+    private volatile java.util.function.Consumer<Boolean> onBrowser = browser -> { };
+    private boolean hadBrowser;
 
     private Hub(Agent.Settings settings, ServerSocket listening, boolean standing) {
         this.settings = settings;
@@ -266,9 +269,19 @@ final class Hub {
         return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean(), came ? 0 : others.getAsInt());
     }
 
-    /** @param other the first port of another server that answers on this machine, or 0 */
+    /** @param other the first port of another server that answers on this machine and has the browser, or 0 */
     void others(java.util.function.IntSupplier other) {
         this.others = other;
+    }
+
+    /** Whether the browser is connected to one of this server's agents. */
+    boolean hasBrowser() {
+        return agents().stream().anyMatch(agent -> agent.bridge().isExtensionConnected());
+    }
+
+    /** @param changed told when the browser has come to this server, or has gone from it */
+    void onBrowser(java.util.function.Consumer<Boolean> changed) {
+        this.onBrowser = changed;
     }
 
     /** Shows the server's window, or brings it up if it is there already. */
@@ -682,6 +695,11 @@ final class Hub {
                 return;
             }
             letIdleGo();
+            boolean browser = hasBrowser();
+            if (browser != hadBrowser) {
+                hadBrowser = browser;
+                onBrowser.accept(browser);
+            }
             long since = emptySince;
             if (!standing && !stopping && members.isEmpty() && since > 0 && System.currentTimeMillis() - since >= emptyFor) {
                 Log.info("server ending reason=no_agent_left");

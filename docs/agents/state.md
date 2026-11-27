@@ -2,9 +2,25 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## Each server's own file says whether it has the browser, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `2a20b3b`. On the owner's word, with "only
+if it adds value": the file `servers` is now a folder of that name with one file for each
+server that runs (`<first>.json`: first port, process id, and whether the browser is connected
+to it), which only that server writes. A process without `--port` goes to the server that has
+the browser first; the message to an agent without a browser names only a server that says it
+has it, and so says "is connected", where it said "likely". A file whose process is gone is
+passed over without a connection, and taken out by the next server that opens. Left out as
+redundant: the version and the start time, which nothing would read. Owned by
+[architecture.md](../architecture.md#processes-and-ports). **Not decided, the owner's:**
+whether a process that names `--port` should go to the server with the browser when its own has
+none; it does not, and is told the port instead. **Not tried:** the flag with a real browser
+(the hub's test pairs a fake extension over a real connection).
+
 ## An agent without a browser is told of another server; the skills share the rules for few calls, 2026-11-27
 
-On branch `one-server-found-and-plain-answers`, after `69bdb81`, committed. On the owner's
+On branch `one-server-found-and-plain-answers`, after `69bdb81`, committed as `2a20b3b`. The
+file `servers` it names is a folder since (above). On the owner's
 word ("help the codex actually use tabgoblin and then apply those improvements to other agent
 skills"):
 

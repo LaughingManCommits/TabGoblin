@@ -67,54 +67,100 @@ class RunningServersTest {
         return hub;
     }
 
+    private static final long ME = ProcessHandle.current().pid();
+
     @Test
-    void aServerIsWrittenDownWhenItOpensAndTakenOutWhenItEnds(@TempDir Path folder) {
+    void aServerIsWrittenDownWhenItOpensWithItsBrowserAndTakenOutWhenItEnds(@TempDir Path folder) throws IOException {
         Path token = folder.resolve("pairing-token");
-        assertEquals(List.of(), RunningServers.read(token), "no file says none");
+        assertEquals(List.of(), RunningServers.read(token), "no folder says none");
 
         RunningServers.add(token, 39821);
+        assertEquals(List.of(new RunningServers.Entry(39821, ME, false)), RunningServers.read(token),
+                "its first port and its process, and no browser yet");
+        assertEquals(folder.resolve("servers"), RunningServers.folder(token), "beside the pairing token");
+        assertTrue(Files.isRegularFile(folder.resolve("servers").resolve("39821.json")), "a file of its own");
+
+        RunningServers.write(token, 39821, true);
+        assertEquals(List.of(new RunningServers.Entry(39821, ME, true)), RunningServers.read(token), "the browser came");
         RunningServers.add(token, 41000);
-        RunningServers.add(token, 39821);
-        assertEquals(List.of(39821, 41000), RunningServers.read(token), "the last to open first, and none twice");
-        assertEquals(folder.resolve("servers"), RunningServers.file(token), "beside the pairing token");
+        assertEquals(2, RunningServers.read(token).size(), "a second server writes its own file and leaves the first alone");
 
         RunningServers.remove(token, 39821);
-        assertEquals(List.of(41000), RunningServers.read(token));
+        assertEquals(List.of(new RunningServers.Entry(41000, ME, false)), RunningServers.read(token));
         RunningServers.remove(token, 41000);
-        assertFalse(Files.exists(RunningServers.file(token)), "nothing is left of a file that says nothing");
+        assertEquals(List.of(), RunningServers.read(token));
     }
 
     @Test
-    void whatIsNotAPortIsNotRead(@TempDir Path folder) throws IOException {
+    void theOneFileOfAnEarlierBuildMakesWayForTheFolder(@TempDir Path folder) throws IOException {
         Path token = folder.resolve("pairing-token");
-        Files.writeString(RunningServers.file(token), "39821\nhttp://example.com:80\n80\n70000\n65535\n -1\n39821\n\n40000 \n");
-        assertEquals(List.of(39821, 40000), RunningServers.read(token),
-                "only numbers that nine ports can begin at, each once");
+        Files.writeString(RunningServers.folder(token), "39821\n");
+        assertEquals(List.of(), RunningServers.read(token), "a file there is not read");
+        RunningServers.add(token, 41000);
+        assertEquals(List.of(new RunningServers.Entry(41000, ME, false)), RunningServers.read(token));
+    }
 
-        Files.writeString(RunningServers.file(token), "1\n".repeat(3) + "30001\n30002\n30003\n30004\n30005\n30006\n30007\n30008\n30009\n30010\n");
+    @Test
+    void whatIsNotAServersFileIsNotRead(@TempDir Path folder) throws IOException {
+        Path token = folder.resolve("pairing-token");
+        Path servers = Files.createDirectories(RunningServers.folder(token));
+        Files.writeString(servers.resolve("39821.json"), "{\"first\":39821,\"pid\":1,\"browser\":true}");
+        Files.writeString(servers.resolve("40000.json"), "{\"first\":39821,\"pid\":1,\"browser\":true}");
+        Files.writeString(servers.resolve("80.json"), "{\"first\":80,\"pid\":1,\"browser\":true}");
+        Files.writeString(servers.resolve("41000.json"), "{\"first\":41000,\"pid\":1,\"browser\":\"yes\"}");
+        Files.writeString(servers.resolve("42000.json"), "not json");
+        Files.writeString(servers.resolve("43000.txt"), "{\"first\":43000,\"pid\":1,\"browser\":true}");
+        assertEquals(List.of(new RunningServers.Entry(39821, 1, true)), RunningServers.read(token),
+                "a name and a first port that agree, a port nine ports can begin at, and a browser that is yes or no");
+
+        for (int first = 30001; first <= 30010; first++) {
+            Files.writeString(servers.resolve(first + ".json"), "{\"first\":" + first + ",\"pid\":1,\"browser\":false}");
+        }
         assertEquals(8, RunningServers.read(token).size(), "and no more than a few");
     }
 
     @Test
-    void aProcessWithoutAPortLooksAtARunningServerFirstAndOneWithAPortOnlyAtItsOwn() {
-        List<Integer> written = List.of(39821, 41000, Ports.FIRST.get(1));
-        List<Integer> expected = new ArrayList<>(List.of(39821));
-        expected.addAll(Ports.FIRST);
-        assertEquals(expected, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> port == 39821),
-                "the one that answers, before the list; one that does not answer is passed over, and one of the list is not named twice");
-        assertEquals(Ports.FIRST, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> false),
+    void aServerThatOpensTakesOutTheFilesOfServersWhoseProcessIsGone(@TempDir Path folder) throws IOException {
+        Path token = folder.resolve("pairing-token");
+        Path servers = Files.createDirectories(RunningServers.folder(token));
+        long gone = Long.MAX_VALUE / 2;
+        Files.writeString(servers.resolve("39821.json"), "{\"first\":39821,\"pid\":" + gone + ",\"browser\":true}");
+        assertFalse(RunningServers.alive(gone));
+        RunningServers.add(token, 41000);
+        assertEquals(List.of(new RunningServers.Entry(41000, ME, false)), RunningServers.read(token));
+    }
+
+    @Test
+    void aProcessWithoutAPortGoesToTheServerWithTheBrowserFirstAndOneWithAPortOnlyToItsOwn() {
+        List<RunningServers.Entry> written = List.of(
+                new RunningServers.Entry(39821, 1, false),
+                new RunningServers.Entry(41000, 2, true),
+                new RunningServers.Entry(Ports.FIRST.get(0), 3, true),
+                new RunningServers.Entry(42000, 4, false));
+        java.util.function.LongPredicate alive = pid -> pid != 2;
+        List<Integer> expected = new ArrayList<>(List.of(Ports.FIRST.get(0), 39821));
+        expected.addAll(Ports.FIRST.subList(1, Ports.FIRST.size()));
+        assertEquals(expected, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> port != 42000, alive),
+                "the one with the browser first, even one of the list; then the others that run; a process that is gone "
+                        + "and a port where nothing answers are passed over; then the list, nothing twice");
+        assertEquals(Ports.FIRST, RunningServers.firsts(McpMain.DEFAULT_PORT, false, written, port -> false, alive),
                 "nothing answers: the list, as before");
-        assertEquals(List.of(45000), RunningServers.firsts(45000, true, written, port -> true),
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, written, port -> true, alive),
                 "a setup that names a port means that port");
     }
 
     @Test
-    void aServerThatHasNoBrowserNamesAnotherThatAnswersAndNeverItself() {
-        List<Integer> written = List.of(McpMain.DEFAULT_PORT, 41000, 39821);
-        assertEquals(39821, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> port != 41000),
-                "itself and one that does not answer are passed over");
-        assertEquals(0, RunningServers.other(List.of(McpMain.DEFAULT_PORT), McpMain.DEFAULT_PORT, port -> true), "only itself");
-        assertEquals(0, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> false), "nothing answers");
+    void aServerThatHasNoBrowserNamesAnotherThatHasItAndAnswersAndNeverItself() {
+        List<RunningServers.Entry> written = List.of(
+                new RunningServers.Entry(McpMain.DEFAULT_PORT, 1, true),
+                new RunningServers.Entry(41000, 2, true),
+                new RunningServers.Entry(42000, 3, false),
+                new RunningServers.Entry(39821, 4, true));
+        assertEquals(39821, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> port != 41000, pid -> true),
+                "itself, one that does not answer and one without the browser are passed over");
+        assertEquals(0, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> true, pid -> pid == 1 || pid == 3),
+                "the processes of the others are gone");
+        assertEquals(0, RunningServers.other(written, McpMain.DEFAULT_PORT, port -> false, pid -> true), "nothing answers");
     }
 
     @Test
@@ -147,7 +193,7 @@ class RunningServersTest {
         assertTrue(link.show(), "the two proofs pass on that connection as on any other");
         assertEquals(List.of(), started, "and no second server is started");
 
-        // The server is gone, and its line is still there: nothing answers, and the list is what is left.
+        // The server is gone, and its file is still there: nothing answers, and the list is what is left.
         hub.drop();
         assertEquals(Ports.FIRST, RunningServers.firsts(McpMain.DEFAULT_PORT, false, token));
     }

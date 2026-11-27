@@ -75,8 +75,8 @@ public final class BrowserService {
      * @param pairedElsewhere the browser is paired with this server, by way of another agent: it has only not found this one yet
      * @param refused         a browser came with a token that is not this server's: the user has to paste the server's
      * @param window          the server's window is on the user's screen: the token is copied there
-     * @param otherServer     the first port of another TabGoblin server that answers on this machine, which the
-     *                        browser may be connected to; 0 if there is none
+     * @param otherServer     the first port of another TabGoblin server that answers on this machine and says that
+     *                        the browser is connected to it; 0 if there is none
      */
     record Unpaired(boolean pairedElsewhere, boolean refused, boolean window, int otherServer) {
         static final Unpaired NOTHING_KNOWN = new Unpaired(false, false, false);
@@ -87,13 +87,13 @@ public final class BrowserService {
     }
 
     /**
-     * What an agent is told when no browser is here and another server runs: the browser connects
-     * to one server, so it is likely there. An agent of the command line can go there itself, with
-     * the port; an MCP agent's port is in its setup, which is the user's.
+     * What an agent is told when no browser is here and another server runs that has it. An agent of
+     * the command line can go there itself, with the port; an MCP agent's port is in its setup,
+     * which is the user's.
      */
     static String otherServer(int first, boolean byCommands) {
-        return "Another TabGoblin server runs on this machine, with first port " + first + ", and the browser is likely "
-                + "connected to that one: it connects to one server only. "
+        return "Another TabGoblin server runs on this machine, with first port " + first + ", and the browser is connected "
+                + "to that one, not to this one. "
                 + (byCommands
                         ? "Give --port " + first + " to every command of this task, and tell the user, so that every agent's "
                                 + "setup names the same port."

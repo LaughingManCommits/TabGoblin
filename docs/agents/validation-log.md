@@ -3,6 +3,18 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `one-server-found-and-plain-answers` after `2a20b3b`: a file for each server, with its browser
+
+In the same copy and on the same Java 25 runtime with ECJ as the entry below: `mvn verify`, 255
+tests, none failed, 20 skipped (`PanelTest`, no display), among them `RunningServersTest` (8)
+and a new test in `HubTest` (the server is told once when a fake extension pairs and once when
+it goes); `McpConformanceIT` 8 of 8. With real processes of that jar and a token of their own: a
+server started by a command with `--port 41821` wrote `41821.json` with its process id and
+`"browser":false`; ended with `kill -9`, its file stayed, and the next server (47821) took it
+out; with a second server on 42821 both had a file, and a command without `--port` went to
+42821; both ended by a signal took their files out. End to end with that jar: 110 passed, 0
+failed. Links 317, nothing personal. Not tried: the flag with a real browser.
+
 ## 2026-11-27, branch `one-server-found-and-plain-answers` after `69bdb81`: another server named to an agent without a browser; the six skills share the rules for few calls
 
 In a copy of the tree, on a Java 25 runtime from PyPI (`jdk4py` 25.0.5.1, which has no

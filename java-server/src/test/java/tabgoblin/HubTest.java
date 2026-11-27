@@ -511,6 +511,27 @@ class HubTest {
     }
 
     @Test
+    void theServerIsToldWhenTheBrowserComesAndGoesOnceEachTime() throws Exception {
+        int port = freePorts();
+        Hub hub = hub(port, false);
+        List<Boolean> changes = new java.util.concurrent.CopyOnWriteArrayList<>();
+        hub.onBrowser(changes::add);
+        Client agent = new Client(port, TOKEN, () -> { });
+        assertTrue(agent.connect());
+        agent.open("claude-code");
+        await(() -> hub.agents().size() == 1, "the agent");
+        assertFalse(hub.hasBrowser());
+
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        await(() -> changes.equals(List.of(true)), "the browser to be told as come");
+        assertTrue(hub.hasBrowser());
+        ext.closeBlocking();
+        await(() -> changes.equals(List.of(true, false)), "the browser to be told as gone");
+        Thread.sleep(600);
+        assertEquals(List.of(true, false), changes, "and nothing more while nothing changes");
+    }
+
+    @Test
     void noWindowComesUpByItselfForAnAgentThatWantsNoneNorWhileTheUserHasTheBrowserSwitchedOff() throws Exception {
         int port = freePorts();
         Hub hub = hub(port, false);

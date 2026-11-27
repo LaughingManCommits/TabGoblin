@@ -163,16 +163,15 @@ Listening on: ws://127.0.0.1:47821
 The browser holds a token that is not this server's. Ask the user to pair the browser with this server: in Chrome, with the TabGoblin extension loaded, open its popup and paste this server's pairing token. The TabGoblin server's window is open on the user's screen: Copy token, at its top, puts the token on the clipboard.
 ```
 
-- No browser has come, and another TabGoblin server runs on the machine: the browser connects
-  to one server only, so it is likely at that one. The result names that server's first port in
-  place of the pairing help. An agent of the command line is told to give that port to its
+- No browser has come, and another TabGoblin server runs on the machine and has the browser:
+  the result names that server's first port in place of the pairing help. An agent of the command line is told to give that port to its
   commands; an MCP agent, whose port is in its setup, is told to ask the user. Nothing of the
   other server's agents is said.
 
 ```text
 Extension: not connected
 Listening on: ws://127.0.0.1:47821
-Another TabGoblin server runs on this machine, with first port 39821, and the browser is likely connected to that one: it connects to one server only. Give --port 39821 to every command of this task, and tell the user, so that every agent's setup names the same port.
+Another TabGoblin server runs on this machine, with first port 39821, and the browser is connected to that one, not to this one. Give --port 39821 to every command of this task, and tell the user, so that every agent's setup names the same port.
 ```
 
   For an MCP agent the last sentence reads: `Tell the user: this agent's setup has to name the
