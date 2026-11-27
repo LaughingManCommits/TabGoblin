@@ -52,6 +52,21 @@ echo "Java modules: $modules"
 jlink --add-modules "$modules" --strip-debug --no-header-files --no-man-pages --compress zip-6 \
   --output "$stage/tabgoblin/runtime"
 
+# JavaFX's native files for this system, in the runtime, where the server tells JavaFX to take them
+# from (McpMain.nativeFilesFromDownload). Without them JavaFX unpacks its own from the jar into the
+# home folder and loads them from there, and a virus scanner on Windows took that for a program
+# that drops code into the user's profile and runs it.
+case "$system" in
+  windows) suffix=dll ;;
+  linux) suffix=so ;;
+  macos) suffix=dylib ;;
+esac
+natives=$(jar --list --file "$jar" | tr -d '\r' | grep -E "^[^/]+\.$suffix\$" || true)
+[ -n "$natives" ] || { echo "The jar holds no native files of JavaFX for $system." >&2; exit 1; }
+mkdir "$stage/tabgoblin/runtime/tabgoblin-javafx"
+# shellcheck disable=SC2086 # one name a word; the names have no spaces
+(cd "$stage/tabgoblin/runtime/tabgoblin-javafx" && jar --extract --file "$jar" $natives)
+
 cp "$jar" "$stage/tabgoblin/tabgoblin.jar"
 cp -R "$extension" "$stage/tabgoblin/extension"
 cp "$root/LICENSE" "$stage/tabgoblin/LICENSE"

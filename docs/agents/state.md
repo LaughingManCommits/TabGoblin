@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## A virus scanner quarantined `TabGoblin.exe`, 2026-11-27
+
+The owner's scanner on Windows (Avira) put the download's `TabGoblin.exe` in quarantine as `Drop.Win64.UserProfileSelfRun`. The likely cause, from the code and not from the scanner: when the window opened, JavaFX unpacked the 54 DLLs in the jar (among them `ucrtbase.dll` and `msvcp140.dll`) into `%USERPROFILE%\.openjfx\cache` and loaded them from there, which is what such a name describes. On branch `ccr-ed552230-wm7n6w`, made from `main` at `4534eda`, not committed: `release/bundle.sh` puts JavaFX's native files for its system into the runtime (`runtime/tabgoblin-javafx`), and before JavaFX starts the server names that folder in `javafx.cachedir` (`McpMain.nativeFilesFromDownload`, called from `Panel.onFxThread`); JavaFX then finds each file the same as its own and writes nothing. Seen on Linux with a download made here; **not tried on Windows, and not with the scanner.** The program itself is still not signed, and a scanner may hold it back for that alone. **Next:** the owner makes the Windows download, opens the window with `%USERPROFILE%\.openjfx` removed first, checks that it does not come back, and scans the folder.
+
 ## A last documentation pass on main, 2026-11-27
 
 On branch `ccr-df3851d4-clmz1a`, made again from `main` at `9c6aed1`, not committed. A submission's `CONFIRMED`, `FAILED` and `UNCERTAIN` are said everywhere as what the page showed, not what the site's backend stored (tool reference, security model, corporate assessment, the submission diagrams); `SECURITY.md` lists credential fields other than passwords among the best-effort controls. **Still open, in the code:** `Ports.note` says 47821-47829 and 37821-37829 where the ranges are eight ports; the tool reference quotes it. **Next:** the owner's look and commit.

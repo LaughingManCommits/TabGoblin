@@ -534,6 +534,8 @@ final class Panel {
 
     /** Runs on JavaFX's thread, starting JavaFX if this is the first use of it. */
     static void onFxThread(Runnable work) {
+        // Before JavaFX loads its native files: in a download they are there, and none is unpacked.
+        McpMain.nativeFilesFromDownload();
         try {
             Platform.startup(work);
         } catch (IllegalStateException alreadyStarted) {
