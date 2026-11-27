@@ -1129,7 +1129,7 @@ and what a click reports about navigation.
 
 | `state` | Meaning |
 |---|---|
-| `CONFIRMED` | `verified: "content"`: the expected or submitted text appeared on the page. `verified: "reaction"`: the page reacted as if it accepted (fields cleared, status message, new page), but the content was not seen |
+| `CONFIRMED` | `verified: "content"`: the expected or submitted text appeared on the page. `verified: "reaction"`: the page reacted as if it accepted (fields cleared, status message, new page), but the content was not seen. Either is what the page showed: it does not prove that the site stored anything |
 | `FAILED` | The form's validation rejected it (`dispatched: false`, nothing sent), or an error appeared after sending |
 | `UNCERTAIN` | Sent, but nothing conclusive showed. Inspect the page; do not repeat blindly |
 

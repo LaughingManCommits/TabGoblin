@@ -423,7 +423,7 @@ sequenceDiagram
   end
   B->>P: click or press Enter
   B->>P: read the signals until the page settles
-  B-->>S: CONFIRMED, FAILED or UNCERTAIN, with evidence
+  B-->>S: CONFIRMED, FAILED or UNCERTAIN, with the page's evidence
   S-->>A: verdict, a timeout or lost connection is recorded as UNCERTAIN and never resent
 ```
 
@@ -444,6 +444,9 @@ stateDiagram-v2
   CONFIRMED --> [*]
   FAILED --> [*]
   UNCERTAIN --> [*]
+  note right of CONFIRMED
+    What the page showed, not what the site's backend stored
+  end note
 ```
 
 - **Replay protection.** The server remembers every `submission_id` and never sends one twice.

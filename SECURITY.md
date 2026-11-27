@@ -39,7 +39,7 @@ Not vulnerabilities, because the security model states them as limits:
   key, or editing the settings file;
 - an agent being misled by page content within the access it was given;
 - a secret that a page displays as ordinary text reaching the agent;
-- gaps in the best-effort controls (redaction by shape, recognition of submitting controls by
-  English labels), though reports that improve them are welcome as ordinary issues.
+- gaps in the best-effort controls (redaction by shape, recognition of credential fields other
+  than passwords, recognition of submitting and high-impact controls by English labels), though reports that improve them are welcome as ordinary issues.
 
 The [residual risks](docs/security-model.md#residual-risks) list them in full.
