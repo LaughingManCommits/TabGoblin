@@ -137,8 +137,16 @@ TabGoblin's card at `chrome://extensions`, and start your agent anew. The paths 
 so nothing is set up again. The server and the extension have to be of the same release.
 
 **To check a download:** each release has a file `SHA256SUMS.txt` with the SHA-256 of every
-download, and GitHub attests that each was built by this repository's release workflow from the
-release's tag:
+download, and GitHub attests that each was built by this repository's release workflow. The
+commit that the attestation names is the one before the release's tag: the workflow sets the
+version, builds, and only then commits the version and tags it.
+
+A release whose name ends in `-beta.` and a number, as `0.3.0-beta.1`, is a beta: it is marked
+as a pre-release on GitHub, and is made from a branch to try what comes next. In
+`chrome://extensions` it shows its full name; its version there is `0.3.0.1`. Keep the latest
+release that is not a beta.
+
+To check one:
 
 ```sh
 gh attestation verify tabgoblin-<version>-windows-x64.zip --repo LaughingManCommits/TabGoblin

@@ -117,16 +117,26 @@ The end-to-end job runs on Windows because that is where the suite is developed.
 
 ### Releases
 
-`.github/workflows/release.yml` makes a release when a version tag is pushed, `v` and the
-version, and does nothing for any other push. Started by hand, it does all but the last job:
-the downloads are kept with the run, to be tried, and nothing is published.
+`.github/workflows/release.yml` makes a release. It is started by hand, on GitHub under
+*Actions*, on the branch the release is from, with a version of three numbers, as `0.3.0`, and
+a switch *publish*. From `main` the release is that version; from any other branch it is the
+next beta of it, `0.3.0-beta.1` and then `.2`, numbered from the tags there are, and marked as a
+pre-release. Without *publish* it does all but the last job: the downloads are kept with the
+run, to be tried, and nothing is written. Nothing else starts it; a tag pushed by hand makes no
+release. One release runs at a time.
+
+A beta's version is written in the manifest as Chrome takes it, four numbers: `0.3.0-beta.1` is
+`"version": "0.3.0.1"` and `"version_name": "0.3.0-beta.1"`, which is what `chrome://extensions`
+shows. By those numbers a beta is above its release (`0.3.0.1` over `0.3.0`); that decides
+nothing, because the extension is loaded unpacked and Chrome compares no versions for it.
 
 | Job | Runs on | Does |
 |---|---|---|
-| Suites | as in the table above | Every job of `ci.yml`, which the release calls as it is. Nothing is made if one fails. They run beside a CI run for the same branch, not in its place: the two are in groups of their own |
-| Download, three times | Windows, Linux, macOS | Builds both parts and runs `release/bundle.sh`: a Java runtime with only the modules the jar uses (`jdeps`, `jlink`), the jar, the extension, the documentation (`docs/` with its pictures and diagrams, the README, CONTRIBUTING, SECURITY and the skills' README, as they are at that commit) and a command to start it by (on Windows also two files to double-click: `TabGoblin.exe` for the window, which `jpackage` makes with an icon that `art/mascot.ts` writes, and of which only the program and its settings are kept, the settings naming the jar where it lies; and a command file for the token), in one folder, packed. A runtime is made by the JDK of the system it is for, which is why there are three. The script refuses a tag that is not the version in the files, and a server that does not start on the runtime made for it |
+| The version | Linux | `node release/version.mjs --plan`: the version this run makes, from the version asked for, the branch and the tags. It refuses a version below the one in the tree, one that is released already, and a beta of a released version |
+| Suites | as in the table above | Every job of `ci.yml`, which the release calls with the version: each job that builds or tests sets it in the files first. Nothing is made if one fails. They run beside a CI run for the same branch, not in its place: the two are in groups of their own |
+| Download, three times | Windows, Linux, macOS | Builds both parts and runs `release/bundle.sh`: a Java runtime with only the modules the jar uses (`jdeps`, `jlink`), the jar, the extension, the documentation (`docs/` with its pictures and diagrams, the README, CONTRIBUTING, SECURITY and the skills' README, as they are at that commit) and a command to start it by (on Windows also two files to double-click: `TabGoblin.exe` for the window, which `jpackage` makes with an icon that `art/mascot.ts` writes, and of which only the program and its settings are kept, the settings naming the jar where it lies; and a command file for the token), in one folder, packed. A runtime is made by the JDK of the system it is for, which is why there are three. The tree has the release's version set first. The script refuses a version in the files that is not the release's (`TABGOBLIN_RELEASE_VERSION`), and a server that does not start on the runtime made for it. A beta's download is named after its full version; the Windows program's own version is its first three numbers |
 | Lists of components | Linux | Two files in the CycloneDX format: the libraries in the server's jar (`cyclonedx-maven-plugin`), and the tools the extension is built with (`npm sbom`), none of which is in the extension |
-| Publish | Linux | Only for a tag. Writes `SHA256SUMS.txt` for the three downloads and the two lists, has GitHub attest where each was built, and makes the release with `gh`. It is the only job that may write to the repository; the others read |
+| Publish | Linux | Only with *publish*, after every other job passed. Writes `SHA256SUMS.txt` for the three downloads and the two lists and has GitHub attest where each was built; then commits the version onto the commit the run was started on, tags it `v` and the version, and pushes both in one push to the branch, which is refused if the branch moved on since the run started; then makes the release with `gh`, a beta as a pre-release. It is the only job that may write to the repository; the others read. If `main` has a rule that refuses pushes that are not from a pull request, the rule has to let this workflow through, or the push is refused |
 
 What a download holds and how a person uses it is in the
 [installation guide](installation.md#from-a-download); how a release is made is in the

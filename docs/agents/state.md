@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
-## A script for the version, 2026-11-27
+## The version script and a release workflow that sets it, 2026-11-27
 
-On branch `ccr-9855a613-wqwjrk`, made from `main` at `02eef57`, on the owner's word: `node release/version.mjs <version>` changes the version in the ten files that carry it (the runbook said seven; it had left out the lock files of `e2e`, and the two others were mended by `npm install`; the script writes their root version itself, as npm does). Without a version it prints it, and fails if the files disagree; a new CI job, "One version", runs it and its tests (`release/version.test.mjs`). The runbook's section "Change the version" and the task map say so. The version stays 0.2.1. Not committed. **Next:** the owner's commit and merge; the job runs on GitHub for the first time with the pull request.
+On branch `ccr-9855a613-wqwjrk`, made from `main` at `02eef57`, on the owner's word, in two commits. `node release/version.mjs <version>` changes the version in the ten files that carry it (the runbook had said seven; it had left out the lock files). It takes a beta as well, `0.3.0-beta.1`, which the manifest holds as `"version": "0.3.0.1"` and `"version_name"`. The release workflow is now started by hand with a version and a switch *publish*: from `main` a release, from any other branch the next beta, as a pre-release; it sets the version, runs the suites on that tree (`ci.yml` takes the version as an input), makes the downloads, and only then commits the version, tags and publishes, in one push that is refused if the branch moved on. A tag pushed by hand makes no release any more. The CI job "One version" fails if the files disagree. **Not known:** whether `main` has a rule that refuses the workflow's push; the workflow has not run on GitHub, and actionlint was not run. **Next:** the owner's merge; then a run with *publish* off on a branch and on `main`.
 
 ## A review of WP-31 and WP-32, 2026-11-27
 

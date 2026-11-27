@@ -224,8 +224,9 @@ approvals) are not in the audit file; a refused or declined command appears by i
   replayed commands, content changed after approval, access ended mid-command.
 - **Continuous integration** runs all suites on every pull request, with `npm audit` and
   GitHub's dependency review.
-- **Releases** are built by a GitHub Actions workflow from a version tag after all suites
-  passed. Each release has SHA-256 checksums and a GitHub build-provenance attestation per
+- **Releases** are built by a GitHub Actions workflow, started by hand with a version, after
+  all suites passed; it tags the release only then. Betas, from branches other than `main`,
+  are marked as pre-releases. Each release has SHA-256 checksums and a GitHub build-provenance attestation per
   file, verifiable with `gh attestation verify`.
 - **Not done:** no independent security audit or penetration test; no code signing for Windows
   or macOS; no Chrome Web Store review; no formal vulnerability-disclosure programme beyond

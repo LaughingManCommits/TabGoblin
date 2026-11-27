@@ -1,28 +1,76 @@
 name: Release
 
-# A version tag makes a release. The suites run; the download is made on each system it is for;
-# and the release is published with the three downloads, their checksums, and GitHub's word on
-# where each was built.
+# Started by hand, on GitHub under Actions, Release, Run workflow: on the branch it is for, with
+# the version to release, as 0.3.0. From main it makes that release; from any other branch the
+# next beta of it (0.3.0-beta.1, then .2), marked as a pre-release.
 #
-# Started by hand, it runs the suites and makes the downloads, and publishes nothing: they are
-# kept with the run, to be tried.
+# The version is set in the files (release/version.mjs), the suites run on that tree, and the
+# downloads are made from it. Only with "publish", and only when all of that has passed, the last
+# job commits the version to the branch, tags that commit, and publishes the release with the
+# three downloads, their checksums, and GitHub's word on where each was built. Without "publish"
+# nothing is written: the downloads are kept with the run, to be tried.
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, as 0.3.0. From a branch other than main, its next beta is made.'
+        required: true
+        type: string
+      publish:
+        description: 'Commit the version to the branch, tag it and publish. Off: make the downloads only.'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+# One release at a time: two at once could give two betas the same number.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
+  # Which version this run makes, from the branch, the version asked for and the tags there are.
+  plan:
+    name: The version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      beta: ${{ steps.plan.outputs.beta }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the tags, to number a beta and to refuse a version that is out
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: From the branch and the tags
+        id: plan
+        env:
+          ASKED: ${{ inputs.version }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          test "$GITHUB_REF_TYPE" = branch || { echo "Start the release on a branch, not on a tag." >&2; exit 1; }
+          current="$(node release/version.mjs)"
+          version="$(node release/version.mjs --plan "$ASKED" --branch "$BRANCH")"
+          case "$version" in *-beta.*) beta=true ;; *) beta=false ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "beta=$beta" >> "$GITHUB_OUTPUT"
+          echo "TabGoblin $version from $BRANCH, whose files say $current."
+          echo "### TabGoblin $version from \`$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
+
   suites:
     name: Suites
+    needs: plan
     uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.plan.outputs.version }}
 
   # A runtime is made by the JDK of the system it is for, so each download is made on its own.
   download:
     name: Download for ${{ matrix.name }}
-    needs: suites
+    needs: [plan, suites]
     strategy:
       matrix:
         include:
@@ -34,6 +82,8 @@ jobs:
             os: macos-latest
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    env:
+      TABGOBLIN_RELEASE_VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -46,6 +96,9 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: chrome-extension/package-lock.json
+      - name: The release's version
+        shell: bash
+        run: node release/version.mjs "$TABGOBLIN_RELEASE_VERSION"
       - name: Build the server
         run: mvn -B -f java-server/pom.xml package -DskipTests
       - name: Build the extension
@@ -53,8 +106,8 @@ jobs:
         run: |
           npm ci
           npm run build
-      # It refuses a tag that is not the version in the files, and a server that does not start
-      # on the runtime made for it.
+      # It refuses a version in the files that is not the release's, and a server that does not
+      # start on the runtime made for it.
       - name: Make the download
         shell: bash
         run: bash release/bundle.sh
@@ -71,9 +124,11 @@ jobs:
   # in what is shipped.
   sbom:
     name: Lists of components
-    needs: suites
+    needs: [plan, suites]
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v6
@@ -84,6 +139,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
+      - name: The release's version
+        run: node release/version.mjs "$VERSION"
       - name: The server's components
         run: mvn -B -f java-server/pom.xml org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeBom -DoutputFormat=json -DoutputName=sbom
       - name: The extension's components
@@ -93,30 +150,37 @@ jobs:
           npm sbom --sbom-format cyclonedx > sbom.json
       - name: Named after the version
         run: |
-          version="$(sed -n 's/^    <version>\(.*\)<\/version>$/\1/p' java-server/pom.xml | head -1)"
-          test -n "$version"
           mkdir out
-          cp java-server/target/sbom.json "out/tabgoblin-$version-server.cdx.json"
-          cp chrome-extension/sbom.json "out/tabgoblin-$version-extension.cdx.json"
+          cp java-server/target/sbom.json "out/tabgoblin-$VERSION-server.cdx.json"
+          cp chrome-extension/sbom.json "out/tabgoblin-$VERSION-extension.cdx.json"
       - uses: actions/upload-artifact@v7
         with:
           name: tabgoblin-sbom
           path: out/*.cdx.json
           if-no-files-found: error
 
-  # Only for a tag, and the only job that may write: it makes the release and nothing else.
+  # Only with "publish", and the only job that may write. It commits the version onto the commit
+  # the run was started on and pushes it with the tag, in one push: if the branch moved on since,
+  # the push is refused, and nothing is tagged or published.
   publish:
     name: Publish
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [download, sbom]
+    if: inputs.publish
+    needs: [plan, download, sbom]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
       id-token: write
       attestations: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      BETA: ${{ needs.plan.outputs.beta }}
+      BRANCH: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
       - uses: actions/download-artifact@v8
         with:
           path: downloads
@@ -132,10 +196,26 @@ jobs:
       - uses: actions/attest-build-provenance@v4
         with:
           subject-path: downloads/tabgoblin-*
+      - name: Commit the version and tag it
+        run: |
+          node release/version.mjs "$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --all --message "TabGoblin $VERSION"
+          git tag --annotate "v$VERSION" --message "TabGoblin $VERSION"
+          git push --atomic origin "HEAD:refs/heads/$BRANCH" "refs/tags/v$VERSION"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          sed -e "s|VERSION|$version|g" -e "s|REPOSITORY|$GITHUB_REPOSITORY|g" -e "s|TAG|$GITHUB_REF_NAME|g" release/notes.md > notes.md
-          gh release create "$GITHUB_REF_NAME" downloads/* --verify-tag --title "TabGoblin $version" --notes-file notes.md
+          tag="v$VERSION"
+          {
+            if [ "$BETA" = true ]; then
+              echo "A beta, from the branch \`$BRANCH\`: to try what comes next. The latest release that is not a beta is the one to keep."
+              echo
+            fi
+            sed -e "s|VERSION|$VERSION|g" -e "s|REPOSITORY|$GITHUB_REPOSITORY|g" -e "s|TAG|$tag|g" release/notes.md
+          } > notes.md
+          prerelease=()
+          [ "$BETA" = true ] && prerelease=(--prerelease)
+          gh release create "$tag" downloads/* --verify-tag --title "TabGoblin $VERSION" --notes-file notes.md "${prerelease[@]}"

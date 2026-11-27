@@ -655,7 +655,7 @@ is the organisation's task. It does not record what the user did in the popup.
 | Extension contents | TypeScript sources bundled with esbuild. No third-party library is in the extension; its build tools are development dependencies with a lockfile |
 | Server contents | One jar, which is also the CLI, with the MCP Java SDK, a WebSocket library, a logging binding, and JavaFX for the optional window. Versions are fixed in `pom.xml` |
 | Dependency checks in CI | `npm audit` for the extension and the test runner, failing on an advisory of high severity; GitHub's dependency review on pull requests, which covers the server's Maven libraries |
-| Release build | Built by a GitHub Actions workflow from a version tag, after every test suite passed. Only the publishing job can write to the repository |
+| Release build | Built by a GitHub Actions workflow that the owner starts by hand with a version, after every test suite passed on the tree with that version. Only the publishing job can write to the repository: it commits the version, tags that commit and publishes. A release from `main` is a release; one from another branch is a beta, marked as a pre-release |
 | Integrity of a download | `SHA256SUMS.txt` with each release; a GitHub build-provenance attestation for each file (`gh attestation verify`) |
 | Components | Two CycloneDX files with each release: the libraries in the server's jar, and the tools the extension is built with |
 | Extension identity | The extension's id is fixed by a key in the manifest, and the server accepts WebSocket connections only from that id |
@@ -666,8 +666,9 @@ is the organisation's task. It does not record what the user did in the popup.
 - The extension is **loaded unpacked** with developer mode on. It is not in the Chrome Web
   Store, is not reviewed by Google, and does not update itself.
 - Workflow actions are referenced by version tag, not by commit hash.
-- A checksum and an attestation say that a file is what the workflow built from a tag. They
-  say nothing about what the code does.
+- A checksum and an attestation say that a file is what the workflow built, in the run that
+  made the tag. The commit they name is the one before the tag's, which differs from it in the
+  version only. They say nothing about what the code does.
 - The release workflow has run on GitHub for the first release; the lists of components and
   the dependency job were added after it and have run locally only.
 
