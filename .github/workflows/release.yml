@@ -38,6 +38,7 @@ jobs:
     outputs:
       version: ${{ steps.plan.outputs.version }}
       beta: ${{ steps.plan.outputs.beta }}
+      previous: ${{ steps.plan.outputs.previous }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -54,10 +55,12 @@ jobs:
           test "$GITHUB_REF_TYPE" = branch || { echo "Start the release on a branch, not on a tag." >&2; exit 1; }
           current="$(node release/version.mjs)"
           version="$(node release/version.mjs --plan "$ASKED" --branch "$BRANCH")"
+          previous="$(node release/version.mjs --previous "$version")"
           case "$version" in *-beta.*) beta=true ;; *) beta=false ;; esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "beta=$beta" >> "$GITHUB_OUTPUT"
-          echo "TabGoblin $version from $BRANCH, whose files say $current."
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
+          echo "TabGoblin $version from $BRANCH, whose files say $current; its changes are counted from ${previous:-the beginning}."
           echo "### TabGoblin $version from \`$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
 
   suites:
@@ -175,6 +178,7 @@ jobs:
     env:
       VERSION: ${{ needs.plan.outputs.version }}
       BETA: ${{ needs.plan.outputs.beta }}
+      PREVIOUS: ${{ needs.plan.outputs.previous }}
       BRANCH: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v7
@@ -204,6 +208,8 @@ jobs:
           git commit --all --message "TabGoblin $VERSION"
           git tag --annotate "v$VERSION" --message "TabGoblin $VERSION"
           git push --atomic origin "HEAD:refs/heads/$BRANCH" "refs/tags/v$VERSION"
+      # The notes are the fixed text of release/notes.md, and after it the list GitHub makes of
+      # the pull requests merged since the release before (for a beta: the beta before).
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -216,6 +222,8 @@ jobs:
             fi
             sed -e "s|VERSION|$VERSION|g" -e "s|REPOSITORY|$GITHUB_REPOSITORY|g" -e "s|TAG|$tag|g" release/notes.md
           } > notes.md
-          prerelease=()
-          [ "$BETA" = true ] && prerelease=(--prerelease)
-          gh release create "$tag" downloads/* --verify-tag --title "TabGoblin $VERSION" --notes-file notes.md "${prerelease[@]}"
+          options=()
+          [ "$BETA" = true ] && options+=(--prerelease)
+          [ -n "$PREVIOUS" ] && options+=(--notes-start-tag "$PREVIOUS")
+          gh release create "$tag" downloads/* --verify-tag --title "TabGoblin $VERSION" \
+            --notes "$(cat notes.md)" --generate-notes "${options[@]}"

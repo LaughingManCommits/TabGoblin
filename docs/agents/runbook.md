@@ -271,21 +271,21 @@ node release/version.mjs 0.3.0 --dry-run    # says which files it would change, 
 node release/version.mjs 0.3.0              # changes them
 node release/version.mjs 0.3.0-beta.1       # a beta: the manifest gets 0.3.0.1 and a version_name
 node release/version.mjs --plan 0.3.0 --branch main   # the version a release from that branch gets
+node release/version.mjs --previous 0.3.0   # the tag its list of changes starts from
 ```
 
 The files are the two POMs, the extension's manifest, the three `package.json` files of
 `chrome-extension`, `e2e` and `e2e/editors` with their lock files (the root package's version
 only, as `npm install` would write it), and `clientInfo` in `e2e/mcp-client.mjs`; the list is
 `PLACES` in the script. A version is three numbers, or a beta of them with `-beta.` and a
-number from 1; no other suffix, and no leading zeros, as Chrome takes it. `--plan` reads the
-tags of the clone: fetch them first (`git fetch --tags`). If a place is not found exactly once, the script writes nothing and
+number from 1; no other suffix, and no leading zeros, as Chrome takes it. `--plan` and
+`--previous` read the tags of the clone: fetch them first (`git fetch --tags`). If a place is not found exactly once, the script writes nothing and
 names the file; then the file's layout changed, and `PLACES` with it.
 
 After a change it lists the other lines of the tree that still name the old version
-(`TODO.md` and the two records in `docs/agents/` are left out: they are history). Most speak of
-the published release (the README, `docs/installation.md`) and stay until that release is
-replaced; change them when the new one is published. The script runs no build, commits nothing
-and tags nothing.
+(`TODO.md` and the two records in `docs/agents/` are left out: they are history). Those that
+name the first release, 0.2.0 (the README, `docs/installation.md`), stay: they say what that
+release has. The script runs no build, commits nothing and tags nothing.
 
 Then: all four suites, and one commit with the ten files. The server reads its version from the
 build (`java-server/pom.xml`), and the conformance check compares the two; `release/bundle.sh`
@@ -312,9 +312,9 @@ workflow is `.github/workflows/release.yml`, described in
    release of that name on GitHub with three downloads and `SHA256SUMS.txt`; a beta is marked
    as a pre-release. `gh attestation verify <download> --repo <owner>/<repository>` says that it
    was built there.
-5. After a release from `main`: the README and `docs/installation.md` name the published
-   release in a few lines (the script lists them when the version changes); change them to the
-   new one, by a pull request.
+   Its notes are the fixed text of `release/notes.md`, then the pull requests merged since the
+   release before; for a beta, since the beta before. The documentation names no release but
+   the first, and links to the latest, so it needs no change for a release.
 
 A release cannot be made again under the same version: the workflow refuses a version whose
 tag is there. If one is wrong, delete the release and its tag on GitHub, mend, and release

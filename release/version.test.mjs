@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { PLACES, chromeVersion, currentVersion, plan, readVersions, refusal, setVersion } from './version.mjs';
+import { PLACES, chromeVersion, compare, currentVersion, plan, previousTag, readVersions, refusal, setVersion } from './version.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const FILES = [...new Set(PLACES.map((place) => place.file))];
@@ -131,6 +131,25 @@ test('a release is refused below the tree, when it is out already, and with a be
   assert.throws(() => plan('0.2.1', { branch: 'feature/x', tags, current: '0.2.1' }), /released already/);
   assert.throws(() => plan('0.3.0-beta.2', { branch: 'feature/x', tags, current: '0.2.1' }), /without "-beta"/);
   assert.throws(() => plan('0.3', { branch: 'main', tags, current: '0.2.1' }), /neither three numbers/);
+});
+
+test('versions are ordered with a beta below its release', () => {
+  const sorted = ['0.3.1-beta.1', '0.3.0', '0.2.1', '0.3.0-beta.10', '0.3.0-beta.2', '0.10.0', '0.3.0-beta.1'].sort(compare);
+  assert.deepEqual(sorted, ['0.2.1', '0.3.0-beta.1', '0.3.0-beta.2', '0.3.0-beta.10', '0.3.0', '0.3.1-beta.1', '0.10.0']);
+});
+
+test('the list of changes starts at the release before, or for a beta at the beta before', () => {
+  const tags = ['v0.2.0', 'v0.2.1', 'v0.3.0-beta.1', 'v0.3.0-beta.2', 'v0.3.1-beta.1', 'not-a-version', 'v0.9'];
+  // A release counts from the release before it, past its betas and past a beta of a later one.
+  assert.equal(previousTag('0.3.0', tags), 'v0.2.1');
+  assert.equal(previousTag('0.4.0', tags), 'v0.2.1');
+  // A beta counts from the beta before it, or from the release before it.
+  assert.equal(previousTag('0.3.0-beta.3', tags), 'v0.3.0-beta.2');
+  assert.equal(previousTag('0.4.0-beta.1', tags), 'v0.2.1');
+  assert.equal(previousTag('0.3.1-beta.2', tags), 'v0.3.1-beta.1');
+  // None before the first.
+  assert.equal(previousTag('0.1.0', tags), null);
+  assert.equal(previousTag('0.2.0', []), null);
 });
 
 function count(text, word) {
