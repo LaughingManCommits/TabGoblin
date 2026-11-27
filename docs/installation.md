@@ -322,7 +322,7 @@ sequenceDiagram
   participant X as TabGoblin extension
   A->>S: status, under its name (CLI: --agent, MCP: as registered)
   S-->>A: connected, no tab authorized
-  Note over X: now listed in the popup
+  Note over S,X: the agent is now listed in the popup
   U->>X: click the icon on a tab, choose the agent and a level, Authorize
   X->>S: event sessions: s1 belongs to this agent
   A->>S: snapshot

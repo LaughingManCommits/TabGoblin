@@ -72,12 +72,12 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <text class="sub" fill="#475569" x="300" y="256" text-anchor="start" font-size="11">yes</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,324 290,356" marker-end="url(#head)"/>
 <text class="sub" fill="#475569" x="300" y="344" text-anchor="start" font-size="11">yes</text>
-<rect class="half" fill-opacity="0.035" fill="#16A34A" x="36" y="474" width="728" height="446" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
+<rect class="half" fill-opacity="0.035" fill="#16A34A" x="36" y="474" width="728" height="432" rx="12" stroke="#16A34A" stroke-width="1" stroke-opacity="0.55"/>
 <text class="green-text" fill="#15803D" x="50" y="494" font-size="11" font-weight="600" letter-spacing="0.6">TABGOBLIN EXTENSION · IN CHROME</text>
 <rect class="tint" fill-opacity="0.07" x="150" y="504" width="280" height="88" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="290" y="528.6666666666666" text-anchor="middle" font-size="14">Is the session valid?</text>
-<text class="sub" fill="#475569" x="290" y="544.6666666666666" text-anchor="middle" font-size="12">this agent's · not expired,</text>
-<text class="sub" fill="#475569" x="290" y="560.6666666666666" text-anchor="middle" font-size="12">paused or suspended</text>
+<text class="sub" fill="#475569" x="290" y="544.6666666666666" text-anchor="middle" font-size="12">this agent's · not expired</text>
+<text class="sub" fill="#475569" x="290" y="560.6666666666666" text-anchor="middle" font-size="12">not paused or suspended</text>
 <text class="sub" fill="#475569" x="290" y="576.6666666666666" text-anchor="middle" font-size="12">tab on its authorized origins</text>
 <text class="green-text" fill="#15803D" x="136" y="552" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
 <rect class="tint" fill-opacity="0.07" x="474" y="506" width="276" height="84" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25"/>
@@ -131,25 +131,25 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <text class="name" fill="#0F172A" font-weight="600" x="290" y="974.6666666666666" text-anchor="middle" font-size="14">Authorized tab</text>
 <text class="sub" fill="#475569" x="290" y="990.6666666666666" text-anchor="middle" font-size="12">one fixed operation</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,888 290,950" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="300" y="923" text-anchor="start" font-size="11">yes</text>
+<text class="sub" fill="#475569" x="300" y="932" text-anchor="start" font-size="11">yes</text>
 <rect class="tint" fill-opacity="0.07" x="150" y="1054" width="280" height="56" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="290" y="1070.6666666666667" text-anchor="middle" font-size="14">Result to the agent</text>
 <text class="sub" fill="#475569" x="290" y="1086.6666666666667" text-anchor="middle" font-size="12">only allowlisted text</text>
 <text class="sub" fill="#475569" x="290" y="1102.6666666666667" text-anchor="middle" font-size="12">credential-like text taken out</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="290,1006 290,1054" marker-end="url(#head)"/>
-<text class="green-text" fill="#15803D" x="136" y="1091" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
-<text class="sub" fill="#475569" x="136" y="1107" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">BEST EFFORT</text>
-<text class="sub" fill="#475569" x="474" y="1058" text-anchor="start" font-size="11">Nothing is retried. A refusal ends</text>
-<text class="sub" fill="#475569" x="474" y="1072" text-anchor="start" font-size="11">the command where it happens.</text>
-<text class="sub" fill="#475569" x="474" y="1086" text-anchor="start" font-size="11">A cancel, pause or revoke stops it at</text>
-<text class="sub" fill="#475569" x="474" y="1100" text-anchor="start" font-size="11">the next check before the page.</text>
+<text class="green-text" fill="#15803D" x="136" y="1087" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">ENFORCED</text>
+<text class="sub" fill="#475569" x="136" y="1103" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.6">BEST EFFORT</text>
+<text class="sub" fill="#475569" x="474" y="1065" text-anchor="start" font-size="11">Nothing is retried. A refusal ends</text>
+<text class="sub" fill="#475569" x="474" y="1079" text-anchor="start" font-size="11">the command where it happens.</text>
+<text class="sub" fill="#475569" x="474" y="1093" text-anchor="start" font-size="11">A cancel, pause or revoke stops it at</text>
+<text class="sub" fill="#475569" x="474" y="1107" text-anchor="start" font-size="11">the next check before the page.</text>
 <line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="1142" x2="776" y2="1142" stroke-width="1"/>
-<circle cx="170" cy="1166" r="5" fill="#64748B"/>
-<text class="sub" fill="#475569" x="182" y="1170" font-size="12">Components</text>
-<circle cx="274" cy="1166" r="5" fill="#16A34A"/>
-<text class="sub" fill="#475569" x="286" y="1170" font-size="12">Checked by TabGoblin</text>
-<circle cx="442" cy="1166" r="5" fill="#D97706"/>
-<text class="sub" fill="#475569" x="454" y="1170" font-size="12">Asks the user</text>
-<circle cx="565.2" cy="1166" r="5" fill="#DC2626"/>
-<text class="sub" fill="#475569" x="577.2" y="1170" font-size="12">Refused</text>
+<circle cx="179.26799999999997" cy="1166" r="5" fill="#64748B"/>
+<text class="sub" fill="#475569" x="191.26799999999997" y="1170" font-size="12">Components</text>
+<circle cx="291.296" cy="1166" r="5" fill="#16A34A"/>
+<text class="sub" fill="#475569" x="303.296" y="1170" font-size="12">Checked by TabGoblin</text>
+<circle cx="457.348" cy="1166" r="5" fill="#D97706"/>
+<text class="sub" fill="#475569" x="469.348" y="1170" font-size="12">Asks the user</text>
+<circle cx="574.044" cy="1166" r="5" fill="#DC2626"/>
+<text class="sub" fill="#475569" x="586.044" y="1170" font-size="12">Refused</text>
 </svg>

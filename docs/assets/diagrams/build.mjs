@@ -53,6 +53,14 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 .rule { stroke: var(--line); stroke-opacity: 0.35; }
 `;
 
+// Widths of Helvetica's characters in thousandths of the font size, near enough for the
+// system fonts the pictures name: enough to space a legend evenly, where a fixed width per
+// character left wide gaps after long words.
+const WIDTHS = { ' ': 278, '·': 278, ',': 278, '.': 278, ':': 278, '/': 278, "'": 191, '-': 333, '(': 333, ')': 333,
+  f: 278, i: 222, j: 222, l: 222, r: 333, t: 278, m: 833, w: 722, c: 500, k: 500, s: 500, v: 500, x: 500, y: 500, z: 500,
+  I: 278, J: 500, L: 556, F: 611, T: 611, Z: 611, M: 833, W: 944, C: 722, D: 722, H: 722, N: 722, R: 722, U: 722, G: 778, O: 778, Q: 778 };
+const textWidth = (text, size) => [...text].reduce((sum, ch) => sum + (WIDTHS[ch] ?? (/[A-Z]/.test(ch) ? 667 : 556)), 0) * size / 1000;
+
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 /** One picture: shapes are added to it, and it is written as one file. */
@@ -91,13 +99,14 @@ function picture(width, height, title, desc, draw) {
     /** What the colours mean, said in words under the picture: a thin rule, then a dot and a word for each. */
     legend(y, items = [['slate', 'Components'], ['green', 'TabGoblin'], ['red', 'Denied']]) {
       out.push(`<line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="${y}" x2="${width - 24}" y2="${y}" stroke-width="1"/>`);
-      // Each word has the room its length needs: a long one does not run into the next dot.
-      const room = (word) => 12 + word.length * 6.4 + 28;
-      let x = width / 2 - items.reduce((sum, [, word]) => sum + room(word), 0) / 2 + 10;
+      // Each item is a dot, its word, and the same gap before the next dot; the row is centred.
+      const GAP = 32;
+      const room = (word) => 12 + textWidth(word, 12);
+      let x = width / 2 - (items.reduce((sum, [, word]) => sum + room(word), 0) + GAP * (items.length - 1)) / 2 + 5;
       for (const [kind, word] of items) {
         out.push(`<circle cx="${x}" cy="${y + 24}" r="5" fill="${COLOUR[kind]}"/>`);
         out.push(`<text class="sub" fill="#475569" x="${x + 12}" y="${y + 28}" font-size="12">${esc(word)}</text>`);
-        x += room(word);
+        x += room(word) + GAP;
       }
     },
     /** A small label beside a connector. */
@@ -179,16 +188,16 @@ picture(760, 1166, named('components', 'The components of TabGoblin'),
     d.box(40, 108, 540, 110, 'Integration interfaces', 'green', false, 'centre');
     const cli = d.node(70, 140, 220, 56, 'CLI', ['one process per command'], 'green');
     const link = d.node(330, 140, 220, 56, 'MCP link', ['one process per agent'], 'green');
-    d.line([[agent.cx - 40, agent.bottom], [agent.cx - 40, 88], [cli.cx, 88], [cli.cx, cli.top]]);
-    d.line([[agent.cx + 40, agent.bottom], [agent.cx + 40, 88], [link.cx, 88], [link.cx, link.top]]);
-    d.label(cli.cx - 8, 102, 'runs a command', { anchor: 'end' });
-    d.label(link.cx + 8, 102, 'MCP over stdio');
+    d.line([[agent.cx - 40, agent.bottom], [agent.cx - 40, 84], [cli.cx, 84], [cli.cx, cli.top]]);
+    d.line([[agent.cx + 40, agent.bottom], [agent.cx + 40, 84], [link.cx, 84], [link.cx, link.top]]);
+    d.label(cli.cx - 8, 99, 'runs a command', { anchor: 'end' });
+    d.label(link.cx + 8, 99, 'MCP over stdio');
 
     d.box(40, 268, 540, 440, 'TabGoblin server', 'green');
     const door = d.node(170, 300, 280, 56, 'Link endpoint', ['proofs: pairing token · agent key'], 'green');
     d.line([[cli.cx, cli.bottom], [cli.cx, 244], [door.cx - 50, 244], [door.cx - 50, door.top]]);
     d.line([[link.cx, link.bottom], [link.cx, 244], [door.cx + 50, 244], [door.cx + 50, door.top]]);
-    d.label(link.cx + 10, 226, ['loopback socket: the proofs, then', "the interface's own messages"]);
+    d.label(link.cx + 10, 237, ['loopback socket: the proofs, then', "the interface's own messages"]);
 
     const cmd = d.node(52, 396, 156, 72, 'Command adapter', ['call · cancel · result', 'no MCP'], 'green');
     const tools = d.node(228, 396, 164, 72, 'Tool definitions', ['one set for both', "in no protocol's terms"], 'green');
@@ -242,9 +251,9 @@ picture(800, 1186, named('command-checks', 'Where a command is checked'),
       d.label(n.right + 6, n.cy - 7, no, { kind: 'red', bold: true });
       return n;
     };
-    const down = (a, b, text = 'yes') => {
+    const down = (a, b, text = 'yes', at = (a.bottom + b.top) / 2 + 4) => {
       d.line([[a.cx, a.bottom], [b.cx, b.top]]);
-      if (text) d.label(a.cx + 10, (a.bottom + b.top) / 2 + 4, text);
+      if (text) d.label(a.cx + 10, at, text);
     };
 
     d.box(20, 6, 760, 1124, 'One operating-system account · application checks, not isolation between programs', 'slate', true);
@@ -258,8 +267,8 @@ picture(800, 1186, named('command-checks', 'Where a command is checked'),
     down(s1, s2);
     down(s2, s3);
 
-    d.box(36, 474, 728, 446, 'TabGoblin extension · in Chrome', 'green');
-    const e1 = check(504, 88, 'Is the session valid?', ["this agent's · not expired,", 'paused or suspended', 'tab on its authorized origins'], 'ENFORCED', ['NOT_AUTHORIZED · SESSION_NOT_OWNED', 'AUTHORIZATION_EXPIRED · PAUSED', 'SESSION_SUSPENDED · ORIGIN_MISMATCH']);
+    d.box(36, 474, 728, 432, 'TabGoblin extension · in Chrome', 'green');
+    const e1 = check(504, 88, 'Is the session valid?', ["this agent's · not expired", 'not paused or suspended', 'tab on its authorized origins'], 'ENFORCED', ['NOT_AUTHORIZED · SESSION_NOT_OWNED', 'AUTHORIZATION_EXPIRED · PAUSED', 'SESSION_SUSPENDED · ORIGIN_MISMATCH']);
     const e2 = check(624, 56, 'Does the access level cover it?', ['Read · Explore · Read / Write'], 'ENFORCED', ['EXPLORE_NOT_AUTHORIZED', 'WRITE_NOT_AUTHORIZED']);
     const e3 = check(712, 72, 'A submission: ask the user?', ["the user's setting decides · always under", 'the strict profile or for high impact'], 'CONFIGURABLE', ['SUBMIT_DENIED', 'SUBMIT_NOT_CONFIRMED'], 'amber', 'deny');
     const e4 = check(816, 72, 'Still allowed, still the same?', ['checked again right before', 'each step that touches the page'], 'ENFORCED', ['CANCELLED · the codes above, again', 'APPROVAL_STALE']);
@@ -269,13 +278,13 @@ picture(800, 1186, named('command-checks', 'Where a command is checked'),
     down(e3, e4, 'allowed, or not asked');
 
     const tab = d.node(X, 950, W, 56, 'Authorized tab', ['one fixed operation'], 'green');
-    down(e4, tab);
+    down(e4, tab, 'yes', 932);
     const result = d.node(X, 1054, W, 56, 'Result to the agent', ['only allowlisted text', 'credential-like text taken out']);
     d.line([[tab.cx, tab.bottom], [result.cx, result.top]]);
     // The result's two lines, each with its class beside it.
-    d.label(X - 14, result.y + 37, 'ENFORCED', { anchor: 'end', bold: true, spaced: true, kind: 'green' });
-    d.label(X - 14, result.y + 53, 'BEST EFFORT', { anchor: 'end', bold: true, spaced: true });
-    d.label(RX, result.cy - 24, ['Nothing is retried. A refusal ends', 'the command where it happens.', 'A cancel, pause or revoke stops it at', 'the next check before the page.']);
+    d.label(X - 14, result.y + 33, 'ENFORCED', { anchor: 'end', bold: true, spaced: true, kind: 'green' });
+    d.label(X - 14, result.y + 49, 'BEST EFFORT', { anchor: 'end', bold: true, spaced: true });
+    d.label(RX, result.cy - 17, ['Nothing is retried. A refusal ends', 'the command where it happens.', 'A cancel, pause or revoke stops it at', 'the next check before the page.']);
     d.legend(1142, [['slate', 'Components'], ['green', 'Checked by TabGoblin'], ['amber', 'Asks the user'], ['red', 'Refused']]);
   });
 
@@ -331,11 +340,10 @@ picture(760, 494, named('security-boundary', 'What an agent can reach'),
     const ask = d.node(270, 262, 220, 112, 'Submissions', ['declared by the agent', 'shown to you first by default', 'you allow or deny'], 'amber');
     const no = d.node(510, 262, 220, 112, 'Out of reach', ['other tabs and websites', 'cookies, headers, site storage', 'password fields', 'scripts, debugger, requests'], 'red', { dashed: true });
     d.line([[gate.cx, gate.bottom], [gate.cx, 232]], { head: false });
-    d.line([[tab.cx, 232], [no.cx, 232]], { head: false });
-    d.line([[tab.cx, 232], [tab.cx, tab.top]], { kind: 'green' });
-    d.line([[ask.cx, 232], [ask.cx, ask.top]], { kind: 'amber' });
+    d.line([[gate.cx, 232], [tab.cx, 232], [tab.cx, tab.top]], { kind: 'green' });
+    d.line([[gate.cx, 232], [ask.cx, ask.top]], { kind: 'amber' });
     // No arrow: nothing goes there.
-    d.line([[no.cx, 232], [no.cx, no.top]], { kind: 'red', dashed: true, head: false });
+    d.line([[gate.cx, 232], [no.cx, 232], [no.cx, no.top]], { kind: 'red', dashed: true, head: false });
     // What each one is, and where a submission ends when the answer is no.
     d.label(tab.cx, 396, 'ENFORCED', { anchor: 'middle', bold: true, spaced: true, kind: 'green' });
     d.label(ask.cx, 396, 'CONFIGURABLE', { anchor: 'middle', bold: true, spaced: true });

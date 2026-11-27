@@ -170,7 +170,7 @@ sequenceDiagram
   break the server's proof is wrong
     L--xS: closes: not a TabGoblin server, nothing passes
   end
-  Note over A,S: Tool calls now pass: a CLI command's one call (call, cancel, result), or an MCP client's calls (MCP)
+  Note over A,S: Tool calls now pass: a CLI command's own messages (call, cancel, result), or an MCP client's calls
 ```
 
 The extension finds the agent's WebSocket port by trying the ports, and pairs with it:
@@ -198,7 +198,7 @@ sequenceDiagram
   E->>S: event sessions: those that belong to this clientId
   S->>E: policy: blocked sites and the settings' limits
   loop every 20 seconds
-    E->>S: ping, two left unanswered and the server counts as gone
+    E->>S: ping, after two unanswered the server counts as gone
   end
 ```
 
@@ -243,9 +243,9 @@ sequenceDiagram
   break not a website, a blocked site, a level above the policy's, no named agent under the strict profile, or that agent gone
     B-->>P: refused with the reason, no session
   end
-  B->>B: create the session: tab, origin, level, owner, expiry, it replaces one the tab had
+  B->>B: create the session (tab, origin, level, owner, expiry), replacing any the tab had
   B->>S: event sessions: the agent's sessions
-  Note over S: The agent's status now lists the session
+  Note over B,S: The agent's status now lists the session
 ```
 
 A session exists only through this path. No tool creates one, raises its level or adds a site
@@ -383,7 +383,7 @@ sequenceDiagram
     S-->>A: the error code, or the recorded outcome, nothing is sent
   end
   S->>B: submit
-  Note over A,U: From here a refusal goes back to the agent as its error code, nothing after it runs, and the server forgets the id, so it may be used again. Every step that touches the page is preceded by the recheck, which ends it with CANCELLED or the session's code.
+  Note over A,U: From here a refusal goes back to the agent as its error code, nothing after it runs,<br/>and the server forgets the id, so it may be used again. Every step that touches the page<br/>is preceded by the recheck, which ends it with CANCELLED or the session's code.
   B->>B: gate, as for every command, with Write access
   B->>P: prepare: resolve refs, fingerprint control, form fields and content
   break a ref does not resolve, the level does not cover this control, or the same content went out within two minutes
@@ -424,26 +424,24 @@ sequenceDiagram
   B->>P: click or press Enter
   B->>P: read the signals until the page settles
   B-->>S: CONFIRMED, FAILED or UNCERTAIN, with the page's evidence
-  S-->>A: verdict, a timeout or lost connection is recorded as UNCERTAIN and never resent
+  S-->>A: the verdict (a timeout or a lost connection is recorded as UNCERTAIN, never resent)
 ```
 
 ```mermaid
 stateDiagram-v2
+  state "Not submitted" as NOT_SUBMITTED
   [*] --> PREPARED: refs resolve, the level covers the control, not a duplicate
-  PREPARED --> [*]: denied, unanswered, cancelled, access changed, stale, or a field refused its text, nothing sent
   PREPARED --> FILLED: allowed by the user, or not asked under their setting, fields filled
-  FILLED --> FAILED: the form's own validation rejects, nothing sent
-  FILLED --> [*]: cancelled at the last safe point, nothing sent
   FILLED --> SUBMITTING: past the last safe point
-  SUBMITTING --> [*]: control gone or disabled in the page, or Enter only started a new line, nothing submitted
-  SUBMITTING --> UNCERTAIN: the page stopped answering during the click
   SUBMITTING --> VERIFYING: click or Enter dispatched
   VERIFYING --> CONFIRMED: text visible, or the page reacted as if it accepted
   VERIFYING --> FAILED: error alert or field marked invalid
   VERIFYING --> UNCERTAIN: no conclusive signal, cancelled, or the tab left its sites
-  CONFIRMED --> [*]
-  FAILED --> [*]
-  UNCERTAIN --> [*]
+  SUBMITTING --> UNCERTAIN: the page stopped answering during the click
+  FILLED --> FAILED: the form's own validation rejects, nothing sent
+  PREPARED --> NOT_SUBMITTED: denied, unanswered, cancelled, access changed, stale, or a field refused its text
+  FILLED --> NOT_SUBMITTED: cancelled at the last safe point
+  SUBMITTING --> NOT_SUBMITTED: control gone or disabled in the page, or Enter only started a new line
   note right of CONFIRMED
     What the page showed, not what the site's backend stored
   end note
