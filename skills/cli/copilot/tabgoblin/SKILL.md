@@ -145,7 +145,8 @@ to the page it came from: after a navigation or a change, `STALE_REF` asks for a
   asked for exactly that. Give it the control's ref, and what to fill first as `fields` in
   `--args`: `{"ref": 7, "fields": [{"ref": 5, "text": "…"}], "expect_text": "…"}`. It fills,
   submits once, and reports `CONFIRMED`, `FAILED` or `UNCERTAIN` in `result` with what it saw.
-  All three come with exit code 0: read the state, not the exit code.
+  All three come with exit code 0: read the state, not the exit code. `CONFIRMED` is what the
+  page showed, not proof that the site stored it: say it that way to the user.
 - The user may be asked in the popup to allow it, and the command waits for the answer.
   `SUBMIT_DENIED` and `SUBMIT_NOT_CONFIRMED` are the user's answer: do not try the same thing
   another way.

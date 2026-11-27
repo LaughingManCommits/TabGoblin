@@ -3,6 +3,12 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-27, branch `ccr-f3dc7878-ztt85n` from `e47b696`: the backlog cleared
+
+Documentation only. `TODO.md` cut from 2150 lines to what is open; each kept fault checked against the source (`Ports.note` with `PORT_RANGE` 8, `McpMain` `--help`, `popup.ts`, `TABGOBLIN_COMMAND_IDLE_SECONDS`, `release.yml` `--generate-notes`); CI on `main` read on GitHub (runs #52 and #54 passed and #56 was running, so the billing fault is gone). The link check (311 links) and the personal-information check passed; `node release/version.mjs` prints one version. No suite run: no code changed.
+
+Then the six skills against the server: the three MCP skills gain `INTERRUPTED` among the unknown outcomes and a row for `CANCELLED` (both reach an MCP agent: `ExtensionConnection`, `Protocol`), and all six say that `CONFIRMED` is what the page showed. With a JDK 25 from Ubuntu's packages: `SkillsTest` 9 of 9 and `ToolReferenceTest` 2 of 2 passed; each three are the same from "Start with the status" on. No skill was loaded in an agent.
+
 ## 2026-11-27, branch `ccr-ed552230-wm7n6w` from `4534eda`: JavaFX's native files in the download
 
 On Linux with a JDK 25 (installed in the session) and Xvfb. `mvn package` under `xvfb-run`: 244 server tests, none skipped, `PanelTest` 20 of them. `release/bundle.sh` made the Linux download, with the ten `.so` files in `runtime/tabgoblin-javafx`. A probe (not in the repository) opened a JavaFX window through `Panel.onFxThread` with an empty home folder: on the system's Java with the jar alone, JavaFX wrote 8 files into `.openjfx`; on the download's runtime it wrote nothing there, named the download's folder in `javafx.cachedir`, and left no lock file in that folder. Links and the personal-information check passed. Not run: the Windows download, the scanner that quarantined it, macOS, the extension and end-to-end suites (neither part they test changed).

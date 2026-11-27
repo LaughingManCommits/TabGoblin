@@ -113,7 +113,8 @@ to the page it came from: after a navigation or a change, `STALE_REF` asks for a
 
 - Anything that sends or changes data goes through `browser_submit`, and only when the user
   asked for exactly that. It fills what you give it, submits once, and reports `CONFIRMED`,
-  `FAILED` or `UNCERTAIN` with what it saw.
+  `FAILED` or `UNCERTAIN` with what it saw. `CONFIRMED` is what the page showed, not proof
+  that the site stored it: say it that way to the user.
 - The user may be asked in the popup to allow it. `SUBMIT_DENIED` and `SUBMIT_NOT_CONFIRMED`
   are the user's answer: do not try the same thing another way.
 - After `UNCERTAIN`, never submit again without looking: read the page first.
@@ -145,7 +146,8 @@ retried for you, and a refusal is never an error to work around.
 | `STALE_REF` | Take a new snapshot and use its refs |
 | `SENSITIVE_FIELD` | Passwords and credentials are off limits. The user enters those |
 | `TAB_NOT_VISIBLE` | Ask the user to bring the tab to the front |
-| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED` | The outcome is unknown. Look at the page before you do anything again |
+| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED` | The outcome is unknown. Look at the page before you do anything again |
+| `CANCELLED` | The call was stopped part way: the user paused the session or lowered its level, or the session ended. Look at the page before you do anything again |
 | `RATE_LIMITED` | Too many calls at once. Go on more slowly |
 
 ## Rules that do not bend
