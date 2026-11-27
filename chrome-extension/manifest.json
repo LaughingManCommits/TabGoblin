@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabGoblin",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Lets AI agents on your machine read and operate the browser tabs you authorize, and nothing else.",
   "minimum_chrome_version": "120",
   "icons": { "16": "icons/icon16.png", "32": "icons/icon32.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },

@@ -6,7 +6,7 @@
 
     <groupId>tabgoblin</groupId>
     <artifactId>tabgoblin</artifactId>
-    <version>0.2.1</version>
+    <version>0.3.0</version>
     <packaging>jar</packaging>
     <name>TabGoblin server</name>
 
