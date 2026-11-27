@@ -67,6 +67,21 @@ jobs:
       - name: Check the files
         run: node docs/agents/check-personal.mjs
 
+  # The files that carry the version name the same one. The script's own tests run first.
+  version:
+    name: One version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Test the script
+        run: node --test release/version.test.mjs
+      - name: Check the files
+        run: node release/version.mjs
+
   # Known vulnerabilities in what the parts are built from and with. The npm packages are asked
   # of the registry; a pull request is also held against GitHub's advisories, which covers the
   # server's Maven libraries. Neither needs a service of our own.

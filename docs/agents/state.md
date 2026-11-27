@@ -2,6 +2,10 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## A script for the version, 2026-11-27
+
+On branch `ccr-9855a613-wqwjrk`, made from `main` at `02eef57`, on the owner's word: `node release/version.mjs <version>` changes the version in the ten files that carry it (the runbook said seven; it had left out the lock files of `e2e`, and the two others were mended by `npm install`; the script writes their root version itself, as npm does). Without a version it prints it, and fails if the files disagree; a new CI job, "One version", runs it and its tests (`release/version.test.mjs`). The runbook's section "Change the version" and the task map say so. The version stays 0.2.1. Not committed. **Next:** the owner's commit and merge; the job runs on GitHub for the first time with the pull request.
+
 ## A review of WP-31 and WP-32, 2026-11-27
 
 On branch `ccr-2317e25f-tftdvd` (the same commits as `cli-mcp-side-by-side`): a review found four faults in the command line's conversation with the server and six smaller ones, mended (see the validation log). **Left open:** the window says every agent is turned away while the settings file cannot be read, where agents are let in and only sites refused (`PanelModel.Blocked`); every command's process logs the blocked sites and the policy on its standard error (`Cli.java` reads the file through `BlockedSites.source`); the validation log is not folded to about ten entries; `release/bundle.sh` does not look at an `app.classpath` line of `TabGoblin.cfg`; the download's documentation links to pages it does not hold (`docs/agents/`, `TODO.md`, `art/`). Pushed to `cli-mcp-side-by-side`, the branch of pull request 6, after every CI job passed here. **Next:** the owner's merge.

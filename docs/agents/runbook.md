@@ -94,6 +94,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
 | Nothing personal | `node --test docs/agents/check-personal.test.mjs`; `node docs/agents/check-personal.mjs` |
+| One version | `node --test release/version.test.mjs`; `node release/version.mjs` |
 | Dependencies | `npm audit --audit-level=high` in `chrome-extension` and in `e2e`; the same in `e2e/editors`, whose result does not fail the job. The review of a pull request runs on GitHub only |
 
 CI runs on pushes to `main`, on pull requests, and by hand. A push to another branch without a
@@ -261,22 +262,32 @@ no window comes, and the answer names `--show-token`.
 
 ## Change the version
 
-The version is written in seven places. Change all of them in one commit:
+The version is written in ten files. A script changes all of them, from any folder:
 
-```text
-pom.xml
-java-server/pom.xml
-chrome-extension/manifest.json
-chrome-extension/package.json                              then npm install, for the lock file
-e2e/package.json
-e2e/editors/package.json                                   then npm install, for the lock file
-e2e/mcp-client.mjs                                         clientInfo
+```bash
+node release/version.mjs                    # prints the version; exits 1 if the files disagree
+node release/version.mjs 0.3.0 --dry-run    # says which files it would change, writes nothing
+node release/version.mjs 0.3.0              # changes them
 ```
 
-Check: `git grep -n "0\.2\.0" -- ":!*package-lock.json"` (with the old version) prints nothing, and
-all four suites pass. The server reads its version from the build (`java-server/pom.xml`), and the
-conformance check compares the two. There is no changelog; a version is a number in the tree
-and a merge to `main` by the owner, and a release of it is a tag: see the next section.
+The files are the two POMs, the extension's manifest, the three `package.json` files of
+`chrome-extension`, `e2e` and `e2e/editors` with their lock files (the root package's version
+only, as `npm install` would write it), and `clientInfo` in `e2e/mcp-client.mjs`; the list is
+`PLACES` in the script. The version is three numbers, as Chrome takes it: no suffix such as
+`-beta`, no leading zeros. If a place is not found exactly once, the script writes nothing and
+names the file; then the file's layout changed, and `PLACES` with it.
+
+After a change it lists the other lines of the tree that still name the old version
+(`TODO.md` and the two records in `docs/agents/` are left out: they are history). Most speak of
+the published release (the README, `docs/installation.md`) and stay until that release is
+replaced; change them when the new one is published. The script runs no build, commits nothing
+and tags nothing.
+
+Then: all four suites, and one commit with the ten files. The server reads its version from the
+build (`java-server/pom.xml`), and the conformance check compares the two; `release/bundle.sh`
+reads the manifest's. The CI job "One version" runs the script without a version, and fails if
+the files disagree. There is no changelog; a version is a number in the tree and a merge to
+`main` by the owner, and a release of it is a tag: see the next section.
 
 ## Make a release
 

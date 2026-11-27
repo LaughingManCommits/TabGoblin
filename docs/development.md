@@ -28,6 +28,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 
 | Command | What it covers |
 |---|---|
+| `node release/version.mjs` | Prints the version, or fails if the files that carry it disagree; with a version, changes it in all of them (runbook: "Change the version") |
 | `bash release/bundle.sh` | Makes the download for the system it runs on, from both parts as they are built, into `release/out` |
 | `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. The tests of the panel's window (`PanelTest`) need a display and are skipped without one |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
@@ -109,6 +110,7 @@ started by hand:
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
 | Nothing personal | Linux | Runs the tests of `docs/agents/check-personal.mjs` and then the check on the files |
+| One version | Linux | Runs the tests of `release/version.mjs` and then the script without a version, which fails if the files that carry the version disagree |
 | Dependencies | Linux | `npm audit` for the extension and the test runner, which fails on an advisory of high severity; the same for the editor lab, listed only, because the editors under test are fixed versions of other people's libraries and are never shipped; and, on a pull request, GitHub's dependency review of what it changes, which covers the server's Maven libraries |
 
 The end-to-end job runs on Windows because that is where the suite is developed.
