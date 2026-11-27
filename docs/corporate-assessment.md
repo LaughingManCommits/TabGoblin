@@ -33,7 +33,7 @@ Two different things can be restricted, and they should not be mistaken for each
   off in the server: an MCP start ends with the reason before any MCP message is exchanged,
   and the server refuses MCP connections. The server's window shows the state of both
   interfaces. The switch is enforced by the server only, is as protected as the file (below),
-  and leaves the MCP library in the jar and the legacy names (`tabgoblin`) in place.
+  and leaves the MCP library in the jar.
 - **The CLI does not override a policy.** It grants nothing that MCP does not, and every
   control in this document applies to it unchanged. Where browser interaction by agents is
   not permitted, using the CLI instead of MCP is a violation of that rule, not a way to comply
@@ -162,7 +162,9 @@ No service is contacted at run time. Each release carries two CycloneDX lists of
   one tab, exact origins (scheme, host, port) and one agent.
 - Three access levels: Read; Explore (also navigation within the site); Read / Write (also
   input, and submissions that the agent must declare).
-- A submission has to be declared by the agent, is sent once and is verified. By default it
+- A recognised submission (a form's submit control, Enter in a form field) has to be declared
+  by the agent; outside forms, submitting controls are recognised by English labels (best
+  effort). A submission is sent once and is verified. By default it
   is shown to the user with its content for approval, and an approval is bound to that
   content. The user can relax this per session; the strict profile makes it mandatory.
 - Checks run in the server before a command is sent, in the extension when it arrives and
@@ -190,7 +192,8 @@ agent on the workstation:
 
 Both the server and the extension enforce these, except `interfaces`, which the server alone
 enforces. A file that cannot be read, or a value that
-cannot be understood, blocks every site rather than none.
+cannot be understood, blocks every site rather than none; `audit.log` is off unless it says
+`on`.
 
 **What an organisation must provide itself.** The file is read from the user's home folder and
 is protected only by that folder's permissions. There is no remote, signed or centrally
@@ -207,7 +210,7 @@ guard-rail for cooperative users, not as a boundary against them.
 |---|---|---|---|
 | Audit file (off by default) | One JSON line per command sent or refused: time, agent id, session, action, duration, outcome and error category | `audit.jsonl` beside the settings file | Rotated at 5 MB; at most two files |
 | Server log | The same metadata, plus connection events | The server's stderr, kept by the agent's program; last 300 lines in the server's window | Not persisted by TabGoblin |
-| Activity list | The six most recent operations per session | The extension's popup | Until the browser closes |
+| Activity list | What runs now and the six most recent finished operations | The extension's popup | Until the browser closes |
 
 No record contains page content, addresses, entered text or secrets. None is tamper-proof: a
 program running as the user can alter the audit file. None is forwarded; collecting it into a

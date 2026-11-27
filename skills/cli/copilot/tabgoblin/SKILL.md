@@ -63,8 +63,9 @@ reach another site from it, and you cannot widen it yourself.
   writes beside the output is its log, not a result.
 - **The exit code:** 0, it went through. 1, the command was refused or failed, as the code
   says. 2, the command line was wrong (`USAGE`) and nothing was sent: read the message and
-  `--help`. 3, nothing was sent, because no server could be had (`NO_SERVER`) or an agent of
-  your name is connected in another way (`AGENT_IN_USE`): tell the user. 4, with
+  `--help`. 3, nothing was sent, because no server could be had (`NO_SERVER`), an agent of
+  your name is connected in another way (`AGENT_IN_USE`), or the command line is turned off
+  (`INTERFACE_NOT_ALLOWED`): tell the user. 4, with
   `"outcome": "unknown"`: the command was sent and no answer came.
 - **Let a command finish.** One that waits for the user's answer to a submission takes up to
   95 seconds. Ending it cancels it in the browser, and its outcome is then unknown.
@@ -180,7 +181,7 @@ retried for you, and a refusal is never an error to work around.
 | `STALE_REF` | Take a new snapshot and use its refs |
 | `SENSITIVE_FIELD` | Passwords and credentials are off limits. The user enters those |
 | `TAB_NOT_VISIBLE` | Ask the user to bring the tab to the front |
-| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `CANCELLED` | The outcome is unknown. Look at the page before you do anything again |
+| `TIMEOUT`, `CONNECTION_LOST`, `PAGE_TIMEOUT`, `PAGE_NAVIGATED`, `INTERRUPTED`, `CANCELLED` | The outcome is unknown, or the command was stopped part way. Look at the page before you do anything again |
 | `RATE_LIMITED` | Too many commands at once. Go on more slowly |
 
 ## Rules that do not bend

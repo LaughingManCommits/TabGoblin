@@ -62,17 +62,31 @@ GitHub and an editor's preview both understand; a `<picture>` element with two f
 had at first, did not show in IntelliJ's preview. They are drawn by one script, which holds
 their common style (four colours, one meaning each: slate for what is not TabGoblin, such as
 the agent and Chrome; green for TabGoblin and what runs with its leave, such as an authorized
-tab; amber for what waits for the user's answer; red for what is denied or refused; rounded
-boxes, thin lines, dashed borders for boundaries). Each shows one idea: the README has the two
-simplest, and the detail is in the pages that own it:
+tab, and the CLI and MCP interfaces, which are TabGoblin's code; amber for what waits for the
+user's answer; red for what is denied or refused; rounded boxes, thin lines, dashed borders for
+boundaries). Lines mean one thing each too: a solid line with a head is a request going that
+way, whose answer comes back the same way; heads at both ends, in the data-flow picture only,
+are data going both ways; dashed without a head is files read and written, or what is built from
+a definition, where no request goes; red and dashed without a head is no path at all. A control
+is named *enforced*, *configurable* or *best effort*, the words of the security model's summary
+of controls. Each picture shows one idea: the README has the two simplest, and the detail is in
+the pages that own it:
 
 ```sh
 node docs/assets/diagrams/build.mjs
 ```
 
 Change a diagram in that script, not in an SVG file, and open it afterwards, with the system
-set to light and to dark. The sequence and state diagrams are Mermaid in the pages
-themselves, with the viewer's own theme; an editor shows them only if it draws Mermaid.
+set to light and to dark. The sequence, state and flow diagrams are Mermaid in the pages
+themselves, with the viewer's own theme and no colours of their own; an editor shows them only
+if it draws Mermaid. They keep the same names as the pictures (*Coding agent*, *CLI process*,
+*MCP link*, *TabGoblin server*, *TabGoblin extension*, or *Extension worker* and *Content
+script* where the inside of the extension matters, *Popup*, *User*). A refusal, a cancellation
+or an expiry is a `break` block, which ends the sequence there: nothing is drawn after it as if
+the operation went on. A closed connection is an arrow that ends in a cross (`--x`). Inside a
+Mermaid block a semicolon ends the statement, so a message's text uses commas. To check that
+they parse, render each block with Mermaid in Chromium; the session that last did so used
+Mermaid 11.4.1.
 
 ### About the screenshots
 
@@ -222,7 +236,7 @@ page that owns it:
 
 | Page | Owns |
 |---|---|
-| [README](../README.md) | What TabGoblin is and why, example workflows, the quick start, the list of pages. It sums up and links |
+| [README](../README.md) | What TabGoblin is and why, how it works, the controls in one table, the quick start, the list of pages. It sums up and links; no comparisons or workflows |
 | [Installation](installation.md) | Setting it up from a download or from source, verifying a download, and what goes wrong while doing that |
 | [Developer guide](developer-guide.md) | What the user sees and does: authorizing, access levels, sessions, workspaces, submissions, stopping, the settings file, the server's panel, options and commands, troubleshooting |
 | [CLI guide](cli.md) | The CLI: commands and arguments, discovery, what a command prints, exit codes, how many commands are one agent, instructions for an agent without a skill |

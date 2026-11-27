@@ -19,6 +19,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 // agent, Chrome, other systems), green for TabGoblin and what runs with its leave, amber for what
 // waits for the user's answer, red for what is refused or out of reach. A fill is its colour at
 // low opacity; text and ground differ by theme.
+//
+// Lines mean one thing each, too. A solid line with a head: a request goes that way, and its answer
+// comes back the same way. Heads at both ends (the data-flow picture only): data goes both ways.
+// Dashed without a head: files read and written, or what is built from a definition; no request
+// goes there. Red and dashed without a head: there is no path at all. A dashed box is a trust
+// boundary; a solid one only groups. A control is named enforced, configurable or best effort, as
+// in the security model's summary of controls.
 const SLATE = '#64748B';
 const GREEN = '#16A34A';
 const AMBER = '#D97706';
@@ -123,97 +130,116 @@ ${out.join('\n')}
 /** A title that also carries the file's name. */
 const named = (file, text) => Object.assign(new String(text), { file });
 
+// What a control is, said in the same three words in every picture and in the security model's
+// summary of controls: enforced (always, by TabGoblin), configurable (by the user's settings, and
+// enforced once set), best effort (it helps, and has holes).
+const CLASS_KIND = { ENFORCED: 'green', CONFIGURABLE: undefined, 'BEST EFFORT': undefined };
+
 // ---- 1. Overview: the README's picture, after the owner's reference
 
 picture(760, 742, named('overview', 'TabGoblin at a glance'),
-  'An AI coding agent reaches TabGoblin through the CLI or through MCP, side by side. Both lead into the TabGoblin bridge, which checks identity, validates the request and applies the policy. The bridge leads to the browser extension, where execution is under the user\'s control: it reaches the tabs the user authorized, and every other tab is denied.', (d) => {
+  "An AI coding agent reaches TabGoblin through the CLI or through MCP, two interfaces side by side. Both lead to the one TabGoblin server, which proves who is asking, validates every request (enforced) and applies the user's settings (configurable). The server sends the command to the TabGoblin extension, which checks the session, the origin and the access level again (enforced) and asks the user before a submission (configurable). The command reaches only the tabs the user authorized; every other tab is denied, and no path leads there.", (d) => {
     const big = { big: true };
     const plain = { head: false };
     const agent = d.node(210, 20, 340, 64, 'AI coding agent', [], 'slate', big);
-    const cli = d.node(40, 132, 320, 80, 'CLI', ['Local execution'], 'slate', big);
-    const mcp = d.node(400, 132, 320, 80, 'MCP', ['Native integration'], 'slate', big);
+    const cli = d.node(40, 132, 320, 80, 'CLI', ['one process per command'], 'green', big);
+    const mcp = d.node(400, 132, 320, 80, 'MCP', ['one link per agent'], 'green', big);
     // One trunk from the agent, forked to the two interfaces, and joined again below them.
     d.line([[agent.cx, agent.bottom], [agent.cx, 108]], plain);
-    d.line([[cli.cx, cli.top], [cli.cx, 108], [mcp.cx, 108], [mcp.cx, mcp.top]], plain);
+    d.line([[cli.cx, 108], [mcp.cx, 108]], plain);
+    d.line([[cli.cx, 108], [cli.cx, cli.top]]);
+    d.line([[mcp.cx, 108], [mcp.cx, mcp.top]]);
     d.line([[cli.cx, cli.bottom], [cli.cx, 236], [mcp.cx, 236], [mcp.cx, mcp.bottom]], plain);
-    d.line([[agent.cx, 236], [agent.cx, 260]], plain);
+    d.line([[agent.cx, 236], [agent.cx, 260]]);
 
     d.box(80, 260, 600, 168, '', 'green');
-    d.heading(380, 296, 'TabGoblin bridge');
-    d.node(104, 318, 172, 84, 'Identity', ['agent key'], 'green', { big: true });
-    d.node(294, 318, 172, 84, 'Validation', ['every request'], 'green', { big: true });
-    d.node(484, 318, 172, 84, 'Policy', ['sites and limits'], 'green', { big: true });
+    d.heading(380, 296, 'TabGoblin server');
+    d.node(104, 318, 172, 84, 'Identity', ['token · agent key', 'enforced'], 'green', big);
+    d.node(294, 318, 172, 84, 'Validation', ['every request', 'enforced'], 'green', big);
+    d.node(484, 318, 172, 84, 'Policy', ['your settings', 'configurable'], 'green', big);
 
-    const ext = d.node(160, 476, 440, 80, 'Browser extension', ['User-controlled execution'], 'green', big);
-    d.line([[380, 428], [380, ext.top]], plain);
+    const ext = d.node(160, 476, 440, 80, 'TabGoblin extension', ['session · origin · access level: enforced', 'asks you before a submission: configurable'], 'green', big);
+    d.line([[380, 428], [380, ext.top]]);
 
     const tabs = d.node(40, 604, 320, 56, 'Tabs you authorized', [], 'green', big);
     const other = d.node(400, 604, 320, 56, 'Every other tab', [], 'red', { big: true, dashed: true });
     d.line([[ext.cx, ext.bottom], [ext.cx, 580]], plain);
-    d.line([[tabs.cx, tabs.top], [tabs.cx, 580], [ext.cx, 580]], plain);
+    d.line([[ext.cx, 580], [tabs.cx, 580], [tabs.cx, tabs.top]], { kind: 'green' });
+    // No arrow: nothing goes there.
     d.line([[ext.cx, 580], [other.cx, 580], [other.cx, other.top]], { head: false, kind: 'red', dashed: true });
     d.legend(692, [['slate', 'Your agent'], ['green', 'TabGoblin · authorized'], ['red', 'Denied']]);
   });
 
 // ---- 2. Components: the architecture's picture
 
-picture(760, 1040, named('components', 'The components of TabGoblin'),
-  'The CLI and the MCP link are two interfaces to one TabGoblin server, which has one set of tool definitions, one service and one WebSocket endpoint. In Chrome, the extension has a popup for the user, a worker that holds the rules, and a content script that works in the authorized tab.', (d) => {
+picture(760, 1166, named('components', 'The components of TabGoblin'),
+  "The CLI and the MCP link are two interfaces of TabGoblin, one process per command and one per agent. Both connect over a loopback socket to the one TabGoblin server, whose link endpoint checks the proofs of the pairing token and the agent's key. A command goes to the command adapter (call, cancel, result) and an MCP call to the MCP adapter; neither runs through the other, both are built from one set of tool definitions, and both lead into one service that validates and applies the policy. The service sends the command through the agent's WebSocket endpoint to the extension's worker in Chrome, which takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.", (d) => {
     const agent = d.node(190, 20, 240, 48, 'Coding agent');
 
-    d.box(40, 108, 540, 110, 'Integration interfaces', 'slate', false, 'centre');
-    const cli = d.node(70, 140, 220, 56, 'CLI', ['one process per command']);
-    const link = d.node(330, 140, 220, 56, 'MCP link', ['one process per agent']);
+    d.box(40, 108, 540, 110, 'Integration interfaces', 'green', false, 'centre');
+    const cli = d.node(70, 140, 220, 56, 'CLI', ['one process per command'], 'green');
+    const link = d.node(330, 140, 220, 56, 'MCP link', ['one process per agent'], 'green');
     d.line([[agent.cx - 40, agent.bottom], [agent.cx - 40, 88], [cli.cx, 88], [cli.cx, cli.top]]);
     d.line([[agent.cx + 40, agent.bottom], [agent.cx + 40, 88], [link.cx, 88], [link.cx, link.top]]);
     d.label(cli.cx - 8, 102, 'runs a command', { anchor: 'end' });
     d.label(link.cx + 8, 102, 'MCP over stdio');
 
-    d.box(40, 268, 540, 314, 'TabGoblin server', 'green');
-    const tools = d.node(170, 300, 280, 56, 'Tool definitions', ['one set for both interfaces'], 'green');
-    d.line([[cli.cx, cli.bottom], [cli.cx, 244], [tools.cx - 50, 244], [tools.cx - 50, tools.top]]);
-    d.line([[link.cx, link.bottom], [link.cx, 244], [tools.cx + 50, 244], [tools.cx + 50, tools.top]]);
-    d.label(link.cx + 10, 226, ['loopback socket: proof of token', 'and agent key, then tool calls']);
-    const svc = d.node(170, 396, 280, 72, 'Service', ['validation · blocked sites', 'policy · submission ids'], 'green');
-    d.line([[tools.cx, tools.bottom], [tools.cx, svc.top]]);
-    const ws = d.node(170, 508, 280, 56, 'WebSocket endpoint', ['one port per agent'], 'green');
+    d.box(40, 268, 540, 440, 'TabGoblin server', 'green');
+    const door = d.node(170, 300, 280, 56, 'Link endpoint', ['proofs: pairing token · agent key'], 'green');
+    d.line([[cli.cx, cli.bottom], [cli.cx, 244], [door.cx - 50, 244], [door.cx - 50, door.top]]);
+    d.line([[link.cx, link.bottom], [link.cx, 244], [door.cx + 50, 244], [door.cx + 50, door.top]]);
+    d.label(link.cx + 10, 226, ['loopback socket: the proofs, then', "the interface's own messages"]);
+
+    const cmd = d.node(52, 396, 156, 72, 'Command adapter', ['call · cancel · result', 'no MCP'], 'green');
+    const tools = d.node(228, 396, 164, 72, 'Tool definitions', ['one set for both', "in no protocol's terms"], 'green');
+    const sdk = d.node(412, 396, 156, 72, 'MCP adapter', ['the official MCP SDK', 'tools · cancellation'], 'green');
+    d.line([[door.cx - 50, door.bottom], [door.cx - 50, 376], [cmd.cx, 376], [cmd.cx, cmd.top]]);
+    d.line([[door.cx + 50, door.bottom], [door.cx + 50, 376], [sdk.cx, 376], [sdk.cx, sdk.top]]);
+    // Built from the definitions: no request goes this way.
+    d.line([[tools.left, tools.cy], [cmd.right, tools.cy]], { dashed: true, head: false });
+    d.line([[tools.right, tools.cy], [sdk.left, tools.cy]], { dashed: true, head: false });
+
+    const svc = d.node(170, 520, 280, 72, 'Service', ['validation · blocked sites', 'policy · submission ids'], 'green');
+    d.line([[cmd.cx, cmd.bottom], [cmd.cx, 500], [svc.cx - 50, 500], [svc.cx - 50, svc.top]]);
+    d.line([[sdk.cx, sdk.bottom], [sdk.cx, 500], [svc.cx + 50, 500], [svc.cx + 50, svc.top]]);
+    d.label(svc.cx, 490, 'one path from here', { anchor: 'middle' });
+    const ws = d.node(170, 632, 280, 56, 'WebSocket endpoint', ['one port per agent'], 'green');
     d.line([[svc.cx, svc.bottom], [svc.cx, ws.top]]);
 
-    const files = d.node(606, 396, 140, 72, 'Home folder', ['token · agent keys', 'settings · audit']);
+    const files = d.node(606, 520, 140, 72, 'Home folder', ['token · agent keys', 'settings · audit']);
     d.line([[svc.right, svc.cy], [files.left, svc.cy]], { dashed: true, head: false });
 
-    d.box(40, 632, 706, 342, 'Chrome', 'slate', true);
-    d.box(60, 660, 666, 208, 'TabGoblin extension', 'green');
-    const worker = d.node(170, 690, 280, 56, 'Extension worker', ['sessions · rules · flows'], 'green');
+    d.box(40, 758, 706, 342, 'Chrome', 'slate', true);
+    d.box(60, 786, 666, 208, 'TabGoblin extension', 'green');
+    const worker = d.node(170, 816, 280, 56, 'Extension worker', ['sessions · rules · flows'], 'green');
     d.line([[ws.cx, ws.bottom], [ws.cx, worker.top]]);
-    d.label(ws.cx + 10, 604, ['WebSocket on 127.0.0.1', 'paired · protocol 3']);
-    const content = d.node(170, 790, 280, 56, 'Content script', ['fixed page operations'], 'green');
+    d.label(ws.cx + 10, 730, ['WebSocket on 127.0.0.1', 'paired · protocol 3']);
+    const content = d.node(170, 916, 280, 56, 'Content script', ['fixed page operations'], 'green');
     d.line([[worker.cx, worker.bottom], [worker.cx, content.top]]);
-    d.label(worker.cx + 10, 772, 'one operation');
-    const popup = d.node(560, 690, 146, 56, 'Popup', ["the user's decisions"], 'green');
+    d.label(worker.cx + 10, 898, 'one operation');
+    const popup = d.node(560, 816, 146, 56, 'Popup', ["the user's decisions"], 'green');
     d.line([[popup.left, popup.cy], [worker.right, popup.cy]]);
     d.label(505, popup.cy - 8, 'grants, answers', { anchor: 'middle' });
-    const tab = d.node(170, 902, 280, 48, 'Authorized tab');
-    d.line([[content.cx, content.bottom], [tab.cx, tab.top]]);
-    d.legend(996, [['slate', 'Components'], ['green', 'TabGoblin']]);
+    const tab = d.node(170, 1028, 280, 48, 'Authorized tab', [], 'green');
+    d.line([[content.cx, content.bottom], [tab.cx, tab.top]], { kind: 'green' });
+    d.legend(1122, [['slate', 'Not TabGoblin'], ['green', 'TabGoblin · authorized']]);
   });
 
 // ---- 3. Where a command is checked: the security model's picture
 
-picture(800, 1066, named('command-checks', 'Where a command is checked'),
-  'A command from the CLI or from MCP passes two checks in the TabGoblin server and four in the TabGoblin extension before one fixed operation runs in the authorized tab. A check that fails refuses the command with an error code. Whether the user is asked about a submission is configurable; the other checks are enforced. Taking credential-like text out of the result is best effort.', (d) => {
+picture(800, 1186, named('command-checks', 'Where a command is checked'),
+  "A command from the CLI or from MCP passes three checks in the TabGoblin server and four in the TabGoblin extension before one fixed operation runs in the authorized tab. A check that fails refuses the command with an error code, and nothing after it runs. Who is asking, the arguments, the session, the access level and the check right before the page are enforced; the user's settings and whether the user is asked about a submission are configurable; only allowlisted text leaves the page (enforced), and credential-like text is taken out of it (best effort). A cancel, pause or revoke stops the command at the next check before the page.", (d) => {
     const X = 150;
     const W = 280;
     const RX = 474;
     const RW = 276;
     const check = (y, h, name, lines, cls, codes, kind = 'green', no = 'no') => {
       const n = d.node(X, y, W, h, name, lines, kind);
-      d.label(X - 14, n.cy + 4, cls, { anchor: 'end', bold: true, spaced: true, kind: cls === 'ENFORCED' ? 'green' : kind === 'amber' ? 'amber' : undefined });
-      if (codes) {
-        const r = d.node(RX, n.cy - 26, RW, 52, 'Refused', codes, 'red');
-        d.line([[n.right, n.cy], [r.left, n.cy]], { kind: 'red' });
-        d.label(n.right + 6, n.cy - 7, no, { kind: 'red', bold: true });
-      }
+      d.label(X - 14, n.cy + 4, cls, { anchor: 'end', bold: true, spaced: true, kind: CLASS_KIND[cls] });
+      const rh = Math.max(52, 20 + 16 * (codes.length + 1));
+      const r = d.node(RX, n.cy - rh / 2, RW, rh, 'Refused', codes, 'red');
+      d.line([[n.right, n.cy], [r.left, n.cy]], { kind: 'red' });
+      d.label(n.right + 6, n.cy - 7, no, { kind: 'red', bold: true });
       return n;
     };
     const down = (a, b, text = 'yes') => {
@@ -221,31 +247,36 @@ picture(800, 1066, named('command-checks', 'Where a command is checked'),
       if (text) d.label(a.cx + 10, (a.bottom + b.top) / 2 + 4, text);
     };
 
-    d.box(20, 6, 760, 1004, 'One operating-system account · application checks, not isolation between programs', 'slate', true);
+    d.box(20, 6, 760, 1124, 'One operating-system account · application checks, not isolation between programs', 'slate', true);
     const agent = d.node(X, 44, W, 52, 'Coding agent', ['a CLI command or an MCP call']);
 
-    d.box(36, 134, 728, 222, 'TabGoblin server', 'green');
-    const s1 = check(164, 72, 'Who is asking?', ['pairing token and agent key proven', 'agent not revoked'], 'ENFORCED', ['connection refused', 'AGENT_REVOKED']);
-    const s2 = check(268, 72, 'Is the request allowed here?', ['arguments valid · site not blocked', 'within the policy'], 'ENFORCED', ['INVALID_ARGUMENT · SITE_BLOCKED', 'SITE_NOT_ALLOWED · ACCESS_RESTRICTED']);
+    d.box(36, 134, 728, 318, 'TabGoblin server', 'green');
+    const s1 = check(164, 72, 'Who is asking?', ['pairing token and agent key proven', 'agent not revoked'], 'ENFORCED', ['link refused, nothing passes', 'AGENT_REVOKED']);
+    const s2 = check(268, 56, 'Are the arguments valid?', ['every argument against its tool'], 'ENFORCED', ['INVALID_ARGUMENT']);
+    const s3 = check(356, 72, 'Do your settings allow it?', ['interface · blocked and allowed sites', 'level · screenshots · in both parts'], 'CONFIGURABLE', ['INTERFACE_NOT_ALLOWED · SITE_BLOCKED', 'SITE_NOT_ALLOWED · ACCESS_RESTRICTED', 'SCREENSHOTS_DISABLED']);
     down(agent, s1, '');
     down(s1, s2);
+    down(s2, s3);
 
-    d.box(36, 378, 728, 430, 'TabGoblin extension · in Chrome', 'green');
-    const e1 = check(408, 72, 'Is the session valid?', ["this agent's · not paused or expired", 'tab on its authorized origins'], 'ENFORCED', ['NOT_AUTHORIZED · SESSION_NOT_OWNED', 'PAUSED · SESSION_SUSPENDED']);
-    const e2 = check(512, 56, 'Does the access level cover it?', ['Read · Explore · Read / Write'], 'ENFORCED', ['EXPLORE_NOT_AUTHORIZED', 'WRITE_NOT_AUTHORIZED']);
-    const e3 = check(600, 72, 'A submission: ask the user?', ["the user's setting decides · always under", 'the strict profile or for high impact'], 'CONFIGURABLE', ['SUBMIT_DENIED', 'SUBMIT_NOT_CONFIRMED'], 'amber', 'deny');
-    const e4 = check(704, 72, 'Still allowed?', ['checked again right before', 'the page is touched'], 'ENFORCED', ['CANCELLED · ORIGIN_MISMATCH', 'APPROVAL_STALE']);
-    down(s2, e1);
+    d.box(36, 474, 728, 446, 'TabGoblin extension · in Chrome', 'green');
+    const e1 = check(504, 88, 'Is the session valid?', ["this agent's · not expired,", 'paused or suspended', 'tab on its authorized origins'], 'ENFORCED', ['NOT_AUTHORIZED · SESSION_NOT_OWNED', 'AUTHORIZATION_EXPIRED · PAUSED', 'SESSION_SUSPENDED · ORIGIN_MISMATCH']);
+    const e2 = check(624, 56, 'Does the access level cover it?', ['Read · Explore · Read / Write'], 'ENFORCED', ['EXPLORE_NOT_AUTHORIZED', 'WRITE_NOT_AUTHORIZED']);
+    const e3 = check(712, 72, 'A submission: ask the user?', ["the user's setting decides · always under", 'the strict profile or for high impact'], 'CONFIGURABLE', ['SUBMIT_DENIED', 'SUBMIT_NOT_CONFIRMED'], 'amber', 'deny');
+    const e4 = check(816, 72, 'Still allowed, still the same?', ['checked again right before', 'each step that touches the page'], 'ENFORCED', ['CANCELLED · the codes above, again', 'APPROVAL_STALE']);
+    down(s3, e1);
     down(e1, e2);
     down(e2, e3);
     down(e3, e4, 'allowed, or not asked');
 
-    const tab = d.node(X, 838, W, 56, 'Authorized tab', ['one fixed operation'], 'green');
+    const tab = d.node(X, 950, W, 56, 'Authorized tab', ['one fixed operation'], 'green');
     down(e4, tab);
-    const result = d.node(X, 942, W, 56, 'Result to the agent', ['only allowlisted text · enforced', 'credentials taken out · best effort']);
+    const result = d.node(X, 1054, W, 56, 'Result to the agent', ['only allowlisted text', 'credential-like text taken out']);
     d.line([[tab.cx, tab.bottom], [result.cx, result.top]]);
-    d.label(RX, result.cy - 3, ['Nothing is retried. A refusal ends', 'the command where it happens.']);
-    d.legend(1022, [['slate', 'Components'], ['green', 'Enforced by TabGoblin'], ['amber', 'Asks the user'], ['red', 'Refused']]);
+    // The result's two lines, each with its class beside it.
+    d.label(X - 14, result.y + 37, 'ENFORCED', { anchor: 'end', bold: true, spaced: true, kind: 'green' });
+    d.label(X - 14, result.y + 53, 'BEST EFFORT', { anchor: 'end', bold: true, spaced: true });
+    d.label(RX, result.cy - 24, ['Nothing is retried. A refusal ends', 'the command where it happens.', 'A cancel, pause or revoke stops it at', 'the next check before the page.']);
+    d.legend(1142, [['slate', 'Components'], ['green', 'Checked by TabGoblin'], ['amber', 'Asks the user'], ['red', 'Refused']]);
   });
 
 // ---- 4. Deployment and data flow: the corporate assessment's picture
@@ -258,8 +289,8 @@ picture(760, 830, named('data-flow', 'Deployment boundary and data flow'),
     d.line([[agent.right, agent.cy], [model.left, agent.cy]]);
     d.label(606, 122, ['prompts that include', 'tool results']);
 
-    const cli = d.node(50, 152, 230, 56, 'CLI', ['commands in · JSON out']);
-    const mcp = d.node(320, 152, 230, 56, 'MCP', ['MCP over stdio']);
+    const cli = d.node(50, 152, 230, 56, 'CLI', ['commands in · JSON out'], 'green');
+    const mcp = d.node(320, 152, 230, 56, 'MCP', ['MCP over stdio'], 'green');
     d.line([[agent.cx - 40, agent.bottom], [agent.cx - 40, 128], [cli.cx, 128], [cli.cx, cli.top]], { both: true });
     d.line([[agent.cx + 40, agent.bottom], [agent.cx + 40, 128], [mcp.cx, 128], [mcp.cx, mcp.top]], { both: true });
 
@@ -275,7 +306,7 @@ picture(760, 830, named('data-flow', 'Deployment boundary and data flow'),
     const ext = d.node(60, 452, 360, 88, 'TabGoblin extension', ['checks: session · origin · access level', 'policy · approval', 'four permissions, no host permissions'], 'green');
     d.line([[server.cx - 60, server.bottom], [server.cx - 60, ext.top]], { both: true });
     d.label(server.cx - 50, 392, ['WebSocket on 127.0.0.1', 'commands and results']);
-    const tab = d.node(60, 578, 360, 48, 'Authorized tab');
+    const tab = d.node(60, 578, 360, 48, 'Authorized tab', [], 'green');
     d.line([[ext.cx, ext.bottom], [tab.cx, tab.top]], { both: true });
     d.label(ext.cx + 10, 563, 'fixed page operations');
 
@@ -283,13 +314,13 @@ picture(760, 830, named('data-flow', 'Deployment boundary and data flow'),
     d.line([[tab.cx, tab.bottom], [app.cx, app.top]], { both: true });
     d.label(tab.cx + 10, 692, ["HTTPS · the developer's own session"]);
     d.label(456, 736, ['TabGoblin itself makes no', 'connection out of the workstation.']);
-    d.legend(786, [['slate', 'Components'], ['green', 'TabGoblin']]);
+    d.legend(786, [['slate', 'Not TabGoblin'], ['green', 'TabGoblin · authorized']]);
   });
 
 // ---- 5. The security boundary: the README's second picture, one idea only
 
-picture(760, 452, named('security-boundary', 'What an agent can reach'),
-  'TabGoblin checks every command from the agent: who is asking, whether the tab is authorized for it, whether the page is still on its website, whether the access level covers the action, and whether the policy allows it. What passes reaches only the tabs the user authorized. A submission is shown to the user first, by default. Other tabs, cookies, request headers, website storage, password fields, scripts, the debugger and network requests are out of reach.', (d) => {
+picture(760, 494, named('security-boundary', 'What an agent can reach'),
+  'TabGoblin checks every command from the agent: who is asking, whether the tab is authorized for it, whether the page is still on its website, whether the access level covers the action, and whether the policy allows it. What passes reaches only the tabs the user authorized (enforced). A submission is shown to the user first by default (configurable); one the user denies or does not answer is not sent. Other tabs, cookies, request headers, website storage, password fields, scripts, the debugger and network requests are out of reach: there is no tool or permission for them (enforced).', (d) => {
     const agent = d.node(230, 24, 300, 52, 'AI coding agent', ['through the CLI or MCP'], 'slate');
     const gate = d.node(80, 110, 600, 92, 'TabGoblin checks every command', [
       'the agent is who it says · the tab is authorized for it',
@@ -305,7 +336,13 @@ picture(760, 452, named('security-boundary', 'What an agent can reach'),
     d.line([[ask.cx, 232], [ask.cx, ask.top]], { kind: 'amber' });
     // No arrow: nothing goes there.
     d.line([[no.cx, 232], [no.cx, no.top]], { kind: 'red', dashed: true, head: false });
-    d.legend(404, [['slate', 'Your agent'], ['green', 'TabGoblin · authorized'], ['amber', 'Asks you'], ['red', 'Denied']]);
+    // What each one is, and where a submission ends when the answer is no.
+    d.label(tab.cx, 396, 'ENFORCED', { anchor: 'middle', bold: true, spaced: true, kind: 'green' });
+    d.label(ask.cx, 396, 'CONFIGURABLE', { anchor: 'middle', bold: true, spaced: true });
+    d.label(ask.cx, 412, ['allowed: it runs in the tab', 'denied or unanswered: not sent'], { anchor: 'middle', kind: 'amber' });
+    d.label(no.cx, 396, 'ENFORCED', { anchor: 'middle', bold: true, spaced: true, kind: 'green' });
+    d.label(no.cx, 412, 'no tool, no permission for it', { anchor: 'middle', kind: 'red' });
+    d.legend(446, [['slate', 'Your agent'], ['green', 'TabGoblin · authorized'], ['amber', 'Asks you'], ['red', 'Denied']]);
   });
 
 console.log('5 files written to docs/assets/diagrams');

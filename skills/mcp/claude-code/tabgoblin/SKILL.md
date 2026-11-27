@@ -22,7 +22,7 @@ how much you may do there.
 - If the tools are missing, or Claude Code says that the server is not connected, you cannot
   mend that yourself: ask the user to run `/mcp` and reconnect `tabgoblin`.
 - The server is a program on the user's machine that Claude Code starts. If it was never
-  added, point the user to step 5 of TabGoblin's installation guide.
+  added, point the user to the installation guide, *Connect your agent*.
 
 ## Start with the status
 

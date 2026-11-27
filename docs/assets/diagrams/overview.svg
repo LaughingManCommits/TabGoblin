@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 742" width="760" height="742" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
 <title id="t">TabGoblin at a glance</title>
-<desc id="d">An AI coding agent reaches TabGoblin through the CLI or through MCP, side by side. Both lead into the TabGoblin bridge, which checks identity, validates the request and applies the policy. The bridge leads to the browser extension, where execution is under the user's control: it reaches the tabs the user authorized, and every other tab is denied.</desc>
+<desc id="d">An AI coding agent reaches TabGoblin through the CLI or through MCP, two interfaces side by side. Both lead to the one TabGoblin server, which proves who is asking, validates every request (enforced) and applies the user's settings (configurable). The server sends the command to the TabGoblin extension, which checks the session, the origin and the access level again (enforced) and asks the user before a submission (configurable). The command reaches only the tabs the user authorized; every other tab is denied, and no path leads there.</desc>
 <style>
 svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; --amber-text: #B45309; }
 @media (prefers-color-scheme: dark) {
@@ -30,37 +30,43 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <rect class="ground" fill="#FFFFFF" stroke="#D0D7DE" x="0.5" y="0.5" width="759" height="741" rx="12" stroke-width="1"/>
 <rect class="tint" fill-opacity="0.07" x="210" y="20" width="340" height="64" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="380" y="58" text-anchor="middle" font-size="18">AI coding agent</text>
-<rect class="tint" fill-opacity="0.07" x="40" y="132" width="320" height="80" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<rect class="tint" fill-opacity="0.07" x="40" y="132" width="320" height="80" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="200" y="167" text-anchor="middle" font-size="18">CLI</text>
-<text class="sub" fill="#475569" x="200" y="189" text-anchor="middle" font-size="14">Local execution</text>
-<rect class="tint" fill-opacity="0.07" x="400" y="132" width="320" height="80" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
+<text class="sub" fill="#475569" x="200" y="189" text-anchor="middle" font-size="14">one process per command</text>
+<rect class="tint" fill-opacity="0.07" x="400" y="132" width="320" height="80" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="560" y="167" text-anchor="middle" font-size="18">MCP</text>
-<text class="sub" fill="#475569" x="560" y="189" text-anchor="middle" font-size="14">Native integration</text>
+<text class="sub" fill="#475569" x="560" y="189" text-anchor="middle" font-size="14">one link per agent</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,84 380,108"/>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,132 200,108 560,108 560,132"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,108 560,108"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,108 200,132" marker-end="url(#head)"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="560,108 560,132" marker-end="url(#head)"/>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,212 200,236 560,236 560,212"/>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,236 380,260"/>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,236 380,260" marker-end="url(#head)"/>
 <rect class="half" fill-opacity="0.035" fill="#16A34A" x="80" y="260" width="600" height="168" rx="12" stroke="#16A34A" stroke-width="1.5"/>
-<text class="name" fill="#0F172A" font-weight="600" x="380" y="296" text-anchor="middle" font-size="19">TabGoblin bridge</text>
+<text class="name" fill="#0F172A" font-weight="600" x="380" y="296" text-anchor="middle" font-size="19">TabGoblin server</text>
 <rect class="tint" fill-opacity="0.07" x="104" y="318" width="172" height="84" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="190" y="355" text-anchor="middle" font-size="18">Identity</text>
-<text class="sub" fill="#475569" x="190" y="377" text-anchor="middle" font-size="14">agent key</text>
+<text class="name" fill="#0F172A" font-weight="600" x="190" y="344" text-anchor="middle" font-size="18">Identity</text>
+<text class="sub" fill="#475569" x="190" y="366" text-anchor="middle" font-size="14">token · agent key</text>
+<text class="sub" fill="#475569" x="190" y="388" text-anchor="middle" font-size="14">enforced</text>
 <rect class="tint" fill-opacity="0.07" x="294" y="318" width="172" height="84" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="380" y="355" text-anchor="middle" font-size="18">Validation</text>
-<text class="sub" fill="#475569" x="380" y="377" text-anchor="middle" font-size="14">every request</text>
+<text class="name" fill="#0F172A" font-weight="600" x="380" y="344" text-anchor="middle" font-size="18">Validation</text>
+<text class="sub" fill="#475569" x="380" y="366" text-anchor="middle" font-size="14">every request</text>
+<text class="sub" fill="#475569" x="380" y="388" text-anchor="middle" font-size="14">enforced</text>
 <rect class="tint" fill-opacity="0.07" x="484" y="318" width="172" height="84" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="570" y="355" text-anchor="middle" font-size="18">Policy</text>
-<text class="sub" fill="#475569" x="570" y="377" text-anchor="middle" font-size="14">sites and limits</text>
+<text class="name" fill="#0F172A" font-weight="600" x="570" y="344" text-anchor="middle" font-size="18">Policy</text>
+<text class="sub" fill="#475569" x="570" y="366" text-anchor="middle" font-size="14">your settings</text>
+<text class="sub" fill="#475569" x="570" y="388" text-anchor="middle" font-size="14">configurable</text>
 <rect class="tint" fill-opacity="0.07" x="160" y="476" width="440" height="80" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
-<text class="name" fill="#0F172A" font-weight="600" x="380" y="511" text-anchor="middle" font-size="18">Browser extension</text>
-<text class="sub" fill="#475569" x="380" y="533" text-anchor="middle" font-size="14">User-controlled execution</text>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,428 380,476"/>
+<text class="name" fill="#0F172A" font-weight="600" x="380" y="500" text-anchor="middle" font-size="18">TabGoblin extension</text>
+<text class="sub" fill="#475569" x="380" y="522" text-anchor="middle" font-size="14">session · origin · access level: enforced</text>
+<text class="sub" fill="#475569" x="380" y="544" text-anchor="middle" font-size="14">asks you before a submission: configurable</text>
+<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,428 380,476" marker-end="url(#head)"/>
 <rect class="tint" fill-opacity="0.07" x="40" y="604" width="320" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="200" y="638" text-anchor="middle" font-size="18">Tabs you authorized</text>
 <rect class="tint" fill-opacity="0.07" x="400" y="604" width="320" height="56" rx="8" fill="#DC2626" stroke="#DC2626" stroke-width="1.25" stroke-dasharray="5 4"/>
 <text class="name" fill="#0F172A" font-weight="600" x="560" y="638" text-anchor="middle" font-size="18">Every other tab</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="380,556 380,580"/>
-<polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="200,604 200,580 380,580"/>
+<polyline class="wire green" fill="none" stroke="#16A34A" stroke-width="1.25" points="380,580 200,580 200,604" marker-end="url(#head-green)"/>
 <polyline class="wire red" fill="none" stroke="#DC2626" stroke-width="1.25" points="380,580 560,580 560,604" stroke-dasharray="4 4"/>
 <line class="rule" stroke="#64748B" stroke-opacity="0.35" x1="24" y1="692" x2="736" y2="692" stroke-width="1"/>
 <circle cx="208.39999999999998" cy="716" r="5" fill="#64748B"/>

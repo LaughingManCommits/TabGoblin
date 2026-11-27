@@ -14,37 +14,17 @@ extension (a pairing token).
 
 ## CLI or MCP
 
-Your agent reaches TabGoblin through one of two integration interfaces. They give the same
-tools, go through the same server and extension, and are held to the same rules. Choose one
-for each agent:
-
-| | CLI | MCP |
-|---|---|---|
-| Your agent | Can run commands in a terminal. It needs no MCP support | Is an MCP client that starts servers over stdio |
-| What you set up | A skill, or a few lines of instructions. Nothing is registered | A skill, and one line that registers TabGoblin's server with the agent |
-| What the agent does | Runs `tabgoblin status --agent <name>`, `tabgoblin click …` | Calls `browser_status`, `browser_click`, … |
-| Good when | The agent or the IDE has no MCP support, or you prefer plain commands | The agent has MCP and you want the tools in its tool list |
-
-An agent uses the interface you set up for it and does not change to the other by itself. Both
-can be in use on one machine, for different agents. The CLI is an alternative interface, not a way around a rule: it
-grants nothing that MCP does not, and a rule about agents in the browser covers both
-([corporate assessment](corporate-assessment.md#restrictions-on-mcp-and-the-cli)).
+Your agent reaches TabGoblin through one of two equal integration interfaces: the **CLI**, for
+an agent that runs commands in a terminal (nothing is registered), or **MCP**, for an agent
+that is an MCP client (one line registers the server). Both give the same tools, go through the
+same server and extension, and are held to the same checks. Choose one per agent; both can be
+in use on one machine, for different agents. How they differ in detail is in the
+[architecture](architecture.md#integration-interfaces-cli-and-mcp).
 
 ## From a download
 
 You need Google Chrome 120 or newer, and an agent that can run local commands or that speaks
 MCP. The Java TabGoblin runs on is in the download.
-
-**Which release has what.** This page describes `main`. A release has what `main` had on the
-day it was made, and its notes list what changed since the one before. The first release,
-[0.2.0](https://github.com/LaughingManCommits/TabGoblin/releases/tag/v0.2.0), supports MCP only:
-it has eleven tools, no CLI (`--mode cli` and the commands), no agent names (`--agent`), no
-workspaces, no policy beyond blocked sites and no audit record, and its setup prints a
-registration line without `--agent`. Its own steps are in
-[its README](https://github.com/LaughingManCommits/TabGoblin/blob/v0.2.0/README.md). If
-the latest release is 0.2.0, build `main` and pack it into the same folder a download has, for
-everything on this page: [From source](#from-source), then
-[a folder like a download](#a-folder-like-a-download).
 
 1. **Download** the file for your system from the [latest release](https://github.com/LaughingManCommits/TabGoblin/releases/latest),
    and unpack it where it can stay: your agent is told its place. It is one folder, `tabgoblin`,
@@ -75,9 +55,7 @@ On Linux and macOS the command is `./tabgoblin` while you are in the folder. On 
 folder also has two files to double-click. `TabGoblin.exe`, with the goblin as its icon, is
 `tabgoblin --panel` without a console: it opens the server's window, starts the server if none
 runs, and says in a small window why if it could not. `tabgoblin-token.cmd` is
-`tabgoblin --show-token`, which prints the token and starts nothing. Neither is signed, as the
-Java in the download is not: Windows may ask before it runs a file that came from the
-internet, and a machine that runs signed programs only refuses them.
+`tabgoblin --show-token`, which prints the token and starts nothing. Neither is signed (see below).
 
 ### CLI
 
@@ -142,10 +120,8 @@ download, and GitHub attests that each was built by this repository's release wo
 commit that the attestation names is the one before the release's tag: the workflow sets the
 version, builds, and only then commits the version and tags it.
 
-A release whose name ends in `-beta.` and a number, as `0.3.0-beta.1`, is a beta: it is marked
-as a pre-release on GitHub, and is made from a branch to try what comes next. In
-`chrome://extensions` it shows its full name; its version there is `0.3.0.1`. Keep the latest
-release that is not a beta.
+A release whose name ends in `-beta.` and a number is a beta: it is marked as a pre-release on
+GitHub and is made to try what comes next. Keep the latest release that is not a beta.
 
 To check one:
 
@@ -153,17 +129,8 @@ To check one:
 gh attestation verify tabgoblin-<version>-windows-x64.zip --repo LaughingManCommits/TabGoblin
 ```
 
-**What is known of the downloads.** The one for Windows was made on Windows 11 and used there:
-setup, the line for Claude Code in Command Prompt and in PowerShell, the server and its window
-on the runtime that is inside, and the whole end-to-end suite on that runtime. The one for
-Linux was made and used in Ubuntu under Windows' Linux subsystem, on a machine without Java:
-setup, and the server as an agent starts it. Its window was not seen there, though the server
-said it had shown it; and a server started with `tabgoblin --panel` ended when its terminal
-was closed, where the command says that it stays. The one for macOS was made on GitHub's
-machine, where the server started on the runtime that is inside; nobody has used it on a Mac.
-A release's downloads are as GitHub's machines made them. Those of the first release, 0.2.0 of
-2026-11-23, had not been used by a person on 2026-11-27. None is signed for Windows or macOS:
-either system may warn before it runs what is in a download.
+**Not signed.** The downloads are not code-signed for Windows or macOS: either system may warn
+before it runs what is in a download, and a machine that runs signed programs only refuses it.
 
 ## From source
 
@@ -266,7 +233,7 @@ the jar, with forward slashes, also on Windows. Most MCP clients take this JSON:
 | Agent | Where it goes |
 |---|---|
 | IntelliJ IDEA, AI Assistant | *Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add*, paste the JSON. The menu names vary a little between versions. |
-| Claude Code | `claude mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent claude-code` |
+| Claude Code | `claude mcp add --scope user tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent claude-code` |
 | Anything else that speaks MCP over stdio | Command `java`, arguments `-jar`, the path, `--agent` and a name |
 
 Restart the agent, or reload its MCP servers, so it picks the server up.
@@ -344,19 +311,19 @@ What happens the first time, with either interface:
 
 ```mermaid
 sequenceDiagram
-  actor U as You
+  actor U as User
   participant A as Coding agent
-  participant T as TabGoblin server
+  participant S as TabGoblin server
   participant X as TabGoblin extension
-  A->>T: status, under its name (CLI: --agent, MCP: as registered)
-  T-->>A: connected, no tab authorized
+  A->>S: status, under its name (CLI: --agent, MCP: as registered)
+  S-->>A: connected, no tab authorized
   Note over X: now listed in the popup
   U->>X: click the icon on a tab, choose the agent and a level, Authorize
-  X-->>T: session s1 belongs to this agent
-  A->>T: snapshot
-  T->>X: snapshot of s1
-  X-->>T: the page as text
-  T-->>A: the page, with numbered elements
+  X->>S: event sessions: s1 belongs to this agent
+  A->>S: snapshot
+  S->>X: snapshot of s1
+  X-->>S: the page as text
+  S-->>A: the page, with numbered elements
 ```
 
 1. Make sure TabGoblin's server is up: through MCP, start your agent; through the CLI, run
@@ -369,10 +336,13 @@ sequenceDiagram
 
    ```text
    Extension: connected (protocol 3)
+   This agent: a-1a2b3c4d5e6f on port 47821 …
+   Submissions need user confirmation: …
    Sessions: 1
    Session s1
      Authorized origin: https://example.com
      Access: read only
+     Paused: no
    ```
 
 4. Ask it: *"Take a snapshot of the page and tell me what is on it."*
