@@ -2,6 +2,22 @@
 
 Last updated: 2026-11-28. Claims here go stale; check the date, then `git status` and `git log`.
 
+## Connecting an agent through MCP, said more simply: 2026-11-28
+
+On branch `simpler-agent-setup-docs`, made from `main` at `354952c`, on the owner's word
+("update the docs to make it simple for developers"). Not committed. In
+[installation.md](../installation.md#through-mcp) the part for a build from source now has the
+one command every agent is told, setup as the short way, a row for each agent with its own
+line (Claude Code, Codex, Copilot's command line and VS Code, IntelliJ IDEA), the JSON, and
+four things to get right: an absolute path, a Java 25, no `--port`, a name for each agent. The
+lines are the ones `Setup.java` `registration` prints. Taken out as no longer so: "up to eight
+at once" in the installation guide, the developer guide and the architecture's vocabulary
+(WP-33 dropped the limit; no code has it). **Next:** the owner reviews and commits.
+
+Seen the same day with the live server from `main`'s build (port 47821, agent `claude-code`,
+one tab at Explore): eleven tools answered, a fill and a navigation to another site were
+refused. See the validation log.
+
 ## WP-33, one port: built, 2026-11-28
 
 On branch `one-port`, made from `main` at `0d54694` (the merge of pull request 15) on the owner's

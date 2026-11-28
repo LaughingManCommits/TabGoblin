@@ -3,6 +3,20 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-28, branch `simpler-agent-setup-docs` from `354952c`: the installation guide's MCP part, and a live run
+
+Documentation only. Passed: the link check (353 links), the drift check, the check for personal
+content (202 files). Not run: the diagram check (`MERMAID` not set here; no diagram was
+changed), any test suite (no code was changed).
+
+By hand, with the server of `main`'s build started by Claude Code without `--port` and with
+`--agent claude-code`: it listened on 47821, the extension connected, and on one tab at Explore
+`status`, `extract` (also with `find`), `snapshot`, `click` on a link, `wait_for`,
+`navigate` back, `hover`, `scroll`, `press_key`, `collect` and `screenshot` answered; `fill`
+was refused with `WRITE_NOT_AUTHORIZED` and a navigation to another site with
+`NAVIGATION_BLOCKED`. Not run there: `submit`, `request_access`. Before that, the same build
+started with `--port 39821` had no browser, and its status said why.
+
 ## 2026-11-28, branch `one-port` after `fbc1125`: the popup without a port field
 
 In the copy with the Java 25 runtime: the extension's `npm run check`, 217 tests, none failed
