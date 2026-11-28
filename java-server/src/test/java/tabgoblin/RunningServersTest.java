@@ -109,6 +109,29 @@ class RunningServersTest {
     }
 
     @Test
+    void twoTokenFilesInOneFolderAreTwoTabGoblinsWhoseServersDoNotSeeEachOther(@TempDir Path folder) throws IOException {
+        // As the end-to-end suite has it: a second server with a token of its own, beside the first's.
+        Path token = folder.resolve("pairing-token");
+        Path other = folder.resolve("window-token");
+        RunningServers.add(token, 39821, FIT);
+        assertTrue(RunningServers.write(token, 39821, true, FIT));
+        assertEquals(List.of(), RunningServers.read(other), "the other token's process sees no server");
+        assertEquals(List.of(45000), RunningServers.firsts(45000, true, other, FIT),
+                "and starts its own, on its port, though the first's server has the browser and the same settings");
+        assertEquals(null, RunningServers.other(other, 45000, FIT), "and is not told of the first's server");
+
+        RunningServers.add(other, 45000, FIT);
+        assertEquals(List.of(new RunningServers.Entry(39821, true, FIT)), RunningServers.read(token),
+                "the first token's process sees its own server only, and the other's opening did not take it out");
+        assertEquals(List.of(new RunningServers.Entry(45000, false, FIT)), RunningServers.read(other));
+        assertEquals(2, Files.list(folder.resolve("servers")).count(), "both files are in the one folder");
+
+        Files.writeString(folder.resolve("servers").resolve("41000.json"), "{\"first\":41000,\"browser\":true}");
+        assertEquals(List.of(new RunningServers.Entry(39821, true, FIT)), RunningServers.read(token),
+                "a file that names no token is nobody's");
+    }
+
+    @Test
     void theOneFileOfAnEarlierBuildMakesWayForTheFolder(@TempDir Path folder) throws IOException {
         Path token = folder.resolve("pairing-token");
         Files.writeString(RunningServers.folder(token), "39821\n");
@@ -121,18 +144,19 @@ class RunningServersTest {
     void whatIsNotAServersFileIsNotRead(@TempDir Path folder) throws IOException {
         Path token = folder.resolve("pairing-token");
         Path servers = Files.createDirectories(RunningServers.folder(token));
-        Files.writeString(servers.resolve("39821.json"), "{\"first\":39821,\"browser\":true}");
-        Files.writeString(servers.resolve("40000.json"), "{\"first\":39821,\"browser\":true}");
-        Files.writeString(servers.resolve("80.json"), "{\"first\":80,\"browser\":true}");
-        Files.writeString(servers.resolve("41000.json"), "{\"first\":41000,\"browser\":\"yes\"}");
+        String mine = ",\"token\":" + "\"" + token.toAbsolutePath().toString().replace("\\", "\\\\") + "\"";
+        Files.writeString(servers.resolve("39821.json"), "{\"first\":39821,\"browser\":true" + mine + "}");
+        Files.writeString(servers.resolve("40000.json"), "{\"first\":39821,\"browser\":true" + mine + "}");
+        Files.writeString(servers.resolve("80.json"), "{\"first\":80,\"browser\":true" + mine + "}");
+        Files.writeString(servers.resolve("41000.json"), "{\"first\":41000,\"browser\":\"yes\"" + mine + "}");
         Files.writeString(servers.resolve("42000.json"), "not json");
-        Files.writeString(servers.resolve("43000.txt"), "{\"first\":43000,\"browser\":true}");
-        Files.writeString(servers.resolve("44000.json.tmp"), "{\"first\":44000,\"browser\":true}");
+        Files.writeString(servers.resolve("43000.txt"), "{\"first\":43000,\"browser\":true" + mine + "}");
+        Files.writeString(servers.resolve("44000.json.tmp"), "{\"first\":44000,\"browser\":true" + mine + "}");
         assertEquals(List.of(new RunningServers.Entry(39821, true, new RunningServers.Fit("", ""))), RunningServers.read(token),
                 "a name and a first port that agree, a port nine ports can begin at, and a browser that is yes or no");
 
         for (int first = 30001; first <= 30010; first++) {
-            Files.writeString(servers.resolve(first + ".json"), "{\"first\":" + first + ",\"browser\":false}");
+            Files.writeString(servers.resolve(first + ".json"), "{\"first\":" + first + ",\"browser\":false" + mine + "}");
         }
         assertEquals(8, RunningServers.read(token).size(), "and no more than a few");
     }

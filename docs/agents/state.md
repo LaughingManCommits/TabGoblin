@@ -2,6 +2,35 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## CI's end-to-end run on Windows: two steps mended, 2026-11-28
+
+On branch `one-server-found-and-plain-answers`, after `3cfff0b`, on the owner's word ("the CI
+fails on the end2end tests"). CI run 61 (pull request 15) failed in two steps of the suite on
+Windows and in *Dependencies*:
+
+- **"Kill in the window …":** the suite's second server has a token file of its own beside the
+  first's (`window-token`), and the `servers` folder is beside the token, so both tokens shared
+  it. The new agent saw the first server (browser, same settings), was refused there for its
+  token, and served its agent alone, so nothing listened on its link port. Each file now names
+  its token file, and a process reads only its own token's files (`RunningServers.ownToken`);
+  a test has two tokens in one folder. Seen with real processes: the second token's agent got
+  its own server while the first's had the browser.
+- **"a command under the name of a connected MCP agent …":** timed out waiting for the extension
+  to find the new agent. Concluded from the code, not seen: the step opened the popup while the
+  command's process was still starting, so the popup's look came before the new agent's port
+  existed, and the extension found it only at its 30-second alarm; a Windows runner starts a
+  Java process more slowly than this container, and the branch's start reads the folder and
+  probes a server once more. The step opens the popup again once the command is through.
+- **Also found:** the architecture page still described process ids in the files, since an edit
+  of the session before had not been written; mended.
+- **Not ours:** *Dependencies* fails on every pull request with "Dependency review is not
+  supported on this repository. Please ensure that Dependency graph is enabled" (runs 57, 59,
+  61); a push to `main` does not run that step. The owner enables the dependency graph in the
+  repository's security settings, or the step goes.
+
+**Not run:** the window's section of the suite, which runs on Windows only: CI's next run on
+the pull request is the check. **Next:** read that run.
+
 ## The branch reviewed: six faults mended, 2026-11-27
 
 On branch `one-server-found-and-plain-answers`, after `c350f29`, on the owner's word ("review the

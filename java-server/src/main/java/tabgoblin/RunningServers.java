@@ -33,8 +33,10 @@ import tools.jackson.databind.node.ObjectNode;
  * it, which the browser never came to. So each server writes a file of its own into the folder
  * {@code servers} when it has opened: its first port, whether the browser is connected to it,
  * which it writes again when that changes, and what it is run under. It takes the file out when
- * it ends in order. A process without a port of its own looks there before it looks at the list:
- * first at a server that has the browser, then at the others.
+ * it ends in order. Each file names the pairing token its server runs with, and a process reads
+ * only the files of its own token: two token files in one folder are two TabGoblins, whose
+ * servers do not know of each other. A process without a port of its own looks there before it
+ * looks at the list: first at a server that has the browser, then at the others.
  *
  * <p>The folder decides nothing by itself. A port from it is used only if something answers there
  * as the server does, and the two proofs of the pairing token follow on that connection as on
@@ -103,7 +105,27 @@ final class RunningServers {
         return folder(tokenFile).resolve(first + ".json");
     }
 
-    /** What the servers wrote, the last written first. A folder that is not there or cannot be read says none. */
+    /** The token file as every process writes and compares it. */
+    private static String tokenName(Path tokenFile) {
+        return tokenFile.toAbsolutePath().normalize().toString();
+    }
+
+    /** Whether a file's token is this process's: by the rules of the system's paths, as a settings file is compared. */
+    private static boolean ownToken(JsonNode node, Path tokenFile) {
+        if (!node.path("token").isString()) {
+            return false;
+        }
+        try {
+            return Path.of(node.path("token").asString()).equals(Path.of(tokenName(tokenFile)));
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * What the servers of this token wrote, the last written first. A folder that is not there or
+     * cannot be read says none; the files of servers with another token are not read.
+     */
     static List<Entry> read(Path tokenFile) {
         Path folder = folder(tokenFile);
         if (!Files.isDirectory(folder)) {
@@ -121,7 +143,7 @@ final class RunningServers {
             if (entries.size() >= MOST) {
                 break;
             }
-            Entry entry = parse(file);
+            Entry entry = parse(file, tokenFile);
             if (entry != null) {
                 entries.add(entry);
             }
@@ -137,8 +159,8 @@ final class RunningServers {
         }
     }
 
-    /** One server's file, or null if it is not one of this kind: its name and its first port have to agree. */
-    private static Entry parse(Path file) {
+    /** One server's file, or null if it is not one of this kind or of this token: its name and its first port have to agree. */
+    private static Entry parse(Path file, Path tokenFile) {
         try {
             String name = file.getFileName().toString();
             if (!name.matches("[0-9]{4,5}\\.json") || Files.size(file) > 1024) {
@@ -147,7 +169,7 @@ final class RunningServers {
             JsonNode node = JSON.readTree(Files.readString(file, StandardCharsets.UTF_8));
             int first = node.path("first").asInt(0);
             if (!name.equals(first + ".json") || first < 1024 || first > 65535 - McpMain.PORT_RANGE
-                    || !node.path("browser").isBoolean()) {
+                    || !node.path("browser").isBoolean() || !ownToken(node, tokenFile)) {
                 return null;
             }
             return new Entry(first, node.path("browser").asBoolean(),
@@ -158,8 +180,9 @@ final class RunningServers {
     }
 
     /**
-     * A server has opened with this first port. Files of servers that no longer answer are taken
-     * out first. A folder that cannot be written leaves things as they were before there was one.
+     * A server has opened with this first port. Files of servers of this token that no longer answer
+     * are taken out first; another token's are left to its own servers. A folder that cannot be
+     * written leaves things as they were before there was one.
      */
     static void add(Path tokenFile, int first, Fit fit) {
         for (Entry entry : read(tokenFile)) {
@@ -186,6 +209,7 @@ final class RunningServers {
             Files.createDirectories(folder);
             ObjectNode node = JSON.createObjectNode();
             node.put("first", first);
+            node.put("token", tokenName(tokenFile));
             node.put("browser", browser);
             node.put("settings", fit.settings());
             node.put("origin", fit.origin());

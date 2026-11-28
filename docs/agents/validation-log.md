@@ -3,6 +3,21 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-28, branch `one-server-found-and-plain-answers` after `3cfff0b`: CI's two failed steps
+
+CI run 61 on pull request 15, read on GitHub: *End to end* on Windows, 113 passed, 2 failed
+("Kill in the window …": nothing listens on the second server's link port; "a command under the
+name of a connected MCP agent …": timed out waiting for the extension to find the new agent);
+*Dependencies* failed on the dependency review, which the repository does not support; the five
+other jobs passed. After the mends, in the same copy, runtime and compiler as below: `mvn
+verify`, 261 tests, none failed, 20 skipped (`PanelTest`), with the new `RunningServersTest`
+case of two tokens in one folder; `McpConformanceIT` 8 of 8. With real processes of that jar
+and the test's fake extension: a second token's agent with `--port 45821` got its own server on
+45821 while the first token's server had the browser, and the first token's second agent joined
+that server; stopped, every file was taken out. End to end here: 110 passed, 0 failed; the
+window's section is skipped on Linux, so the mended step itself has not run. Links 318, nothing
+personal.
+
 ## 2026-11-27, branch `one-server-found-and-plain-answers` after `c350f29`: the review's six mends
 
 In the same copy, runtime and compiler as below: `mvn verify`, 260 tests, none failed, 20

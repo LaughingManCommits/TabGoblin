@@ -137,17 +137,24 @@ of its own still reaches a server with the browser is below.
 **When one agent's setup names a port and another's does not.** A server on a port of the
 user's own is not on that list, and an agent set up without a port would start a second
 server beside it, which the browser never comes to. So each server writes a file of its own
-into the folder `servers`, beside the pairing token, when it has opened: its first port, its
-process id, and whether the browser is connected to it, which it writes again when that
-changes (`RunningServers`; the server looks four times a second). It takes the file out when it
-ends in order, and a server that opens takes out the files of servers whose process is gone.
-A link or a command without a port of its own looks there before it looks at the list: first
-at a server that has the browser, then at the other servers that run. The folder decides
-nothing by itself: a port from it is used only where something opens with the server's
-greeting, the two proofs of the pairing token follow on that connection as on any other, and
-what a file says of the browser only puts one server before another. The file of a server that
-was ended by force is passed over without a connection, because its process is gone. Each
-server writes its own file only, so two servers never write over each other.
+into the folder `servers`, beside the pairing token, when it has opened: its first port, whether
+the browser is connected to it, which it writes again when that changes (`RunningServers`; the
+server looks four times a second, and writes again at the next look where a write failed, as
+it can on Windows while another process reads the file), and what it runs under (below). It
+takes the file out when it ends in order, and nothing is written of it once it has begun to
+stop; a server that opens takes out the files of servers that no longer answer. A link or a
+command without a port of its own looks there before it looks at the list: first at a server
+that has the browser, then at the other servers that answer. The folder decides nothing by
+itself: a port from it is used only where something opens with the server's greeting, the two
+proofs of the pairing token follow on that connection as on any other, and what a file says of
+the browser only puts one server before another. Whether a server is there is told by its port
+alone, never by a process id, which means nothing across the Linux subsystem of Windows or a
+sandbox; a port nobody listens on refuses at once, so the file of a server that was ended by
+force costs nothing to pass over. Each server writes its own file only, so two servers never
+write over each other; each file names the token file its server runs with, and a process reads
+only the files of its own token, so two token files in one folder are two TabGoblins whose
+servers do not know of each other. What a look costs: a start reads the folder and connects
+once to each server in it; a tool that finds no browser does the same.
 
 **A link or a command that names a port** goes to a server that has the browser only where that
 server runs as the one it would start would: each file also says which settings file its server
