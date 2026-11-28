@@ -70,8 +70,10 @@ jobs:
         run: npm run check
 
   # The documentation's checks: no home directory, no mail address outside the example domains
-  # and no link to an agent's session in the files; no retired name, and the numbers both parts
-  # carry the same; every link resolves. The checks' own tests run first.
+  # and no link to an agent's session in the files; no retired name, the numbers both parts
+  # carry the same, every code file and variable a page names there; every link resolves; the
+  # SVG diagrams as their script draws them; every Mermaid block parses. The checks' own tests
+  # run first. Mermaid is installed outside the tree: its dependencies carry advisories.
   documentation:
     name: Documentation
     runs-on: ubuntu-latest
@@ -91,6 +93,19 @@ jobs:
         run: node docs/agents/check-drift.mjs
       - name: The documentation's links
         run: node docs/agents/check-links.mjs
+      - name: The SVG diagrams are what their script draws
+        run: |
+          node docs/assets/diagrams/build.mjs
+          git diff --exit-code -- docs/assets/diagrams
+      - name: The browser driver, for the Mermaid check
+        working-directory: e2e
+        run: npm ci
+      - name: Mermaid, outside the tree
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/mermaid" mermaid@11.4.1
+      - name: The Mermaid diagrams parse
+        env:
+          MERMAID: ${{ runner.temp }}/mermaid/node_modules/mermaid/dist/mermaid.min.js
+        run: node docs/agents/check-diagrams.mjs
 
   # The files that carry the version name the same one. The script's own tests run first.
   version:

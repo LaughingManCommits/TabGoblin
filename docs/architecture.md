@@ -308,7 +308,7 @@ sequenceDiagram
   break a check fails
     S-->>A: its error code, nothing was sent
   end
-  S->>B: command { id, action: "click", session, params, deadline }, in the session's turn
+  S->>B: command { id, agent, action: "click", session, params, deadline }, on the one connection, in the session's turn
   B->>B: id seen before? rate limit? deadline passed?
   B->>B: gate: owner, expiry, pause, suspension, tab origin, access level, settings
   break a check fails

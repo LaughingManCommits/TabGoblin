@@ -33,8 +33,9 @@ head (`documentation.svg`, the sixth of the script's); `AGENTS.md` and `CONTRIBU
 point there. Two checks are new: `check-drift.mjs` (retired names; the protocol version, the
 link version and the ports the same in both parts and in the pages; in CI, in the job now
 called *Documentation*, with the link check) and `check-diagrams.mjs` (every Mermaid block
-parses; by hand, with a Mermaid installed outside the tree, since its dependencies carry
-advisories). The alignment review of the branch found and mended: the components picture ("one
+parses; in CI too, with a Mermaid installed outside the tree, since its dependencies carry
+advisories, and the SVG files held to their script there). The drift check also holds every
+code file and `TABGOBLIN_*` variable a page names to the tree. The alignment review of the branch found and mended: the components picture ("one
 port per agent", "protocol 3"), the window's picture (footer "protocol 3"), the popup's pictures
 (port chips, *First port*), `status.txt`, a Mermaid line that a semicolon cut short, stale
 comments in five tests and `McpMain`, the worker's header comment, two backlog notes, the Windows

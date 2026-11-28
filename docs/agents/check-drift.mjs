@@ -1,6 +1,7 @@
 // Checks the files for documentation drift that has happened before and can be told apart by a
-// machine: a name that was retired and must not come back, and a number that two parts carry and
-// have to agree on (the protocol version, the link version, the server's ports).
+// machine: a name that was retired and must not come back; a number that two parts carry and
+// have to agree on (the protocol version, the link version, the server's ports); a code file a
+// page names that is not in the tree; a TABGOBLIN_* variable a page names that no part reads.
 //   node docs/agents/check-drift.mjs        from the repository root
 // Prints each finding as file:line and what it is, and exits 1; or prints what agreed.
 //
@@ -29,6 +30,11 @@ export const RETIRED = [
 
 /** Files whose words are history and are not held to the list. */
 const RECORDS = ['docs/agents/state.md', 'docs/agents/validation-log.md', 'docs/agents/check-drift.mjs', 'docs/agents/check-drift.test.mjs'];
+
+/** A code file named in a page, as `Name.java` or `name.ts`: it has to be in the tree, by that name. */
+const CODE_FILE = /`([A-Za-z0-9_.-]+\.(?:java|ts|mjs|yml|sh|cmd|ps1|css|html))`/g;
+/** A variable of the server or the scripts named in a page: some part has to read it. */
+const VARIABLE = /\bTABGOBLIN_[A-Z][A-Z_]*\b/g;
 
 function files(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -87,11 +93,27 @@ export function findings(root = ROOT) {
   if (facts.ports.server.join() !== facts.ports.extension.join()) {
     say(join(root, 'chrome-extension/src/policy.ts'), 0, `PORTS is ${facts.ports.extension.join(', ')}, Ports.FIRST is ${facts.ports.server.join(', ')}`);
   }
-  for (const path of files(root)) {
+  const all = files(root);
+  const names = new Set(all.map((path) => path.split(/[\\/]/).pop()));
+  // The variables some part reads: named in a source, a script or a workflow, not in a page.
+  const read = new Set();
+  for (const path of all) {
+    if (!/\.(md|txt|svg)$/.test(path)) for (const m of readFileSync(path, 'utf8').matchAll(VARIABLE)) read.add(m[0]);
+  }
+  for (const path of all) {
     const rel = relative(root, path).replaceAll('\\', '/');
     const lines = readFileSync(path, 'utf8').split('\n');
     const record = RECORDS.includes(rel);
+    const page = rel.endsWith('.md') && !record;
     lines.forEach((text, i) => {
+      if (page) {
+        for (const m of text.matchAll(CODE_FILE)) {
+          if (!names.has(m[1])) say(path, i + 1, `names ${m[1]}, and no file of that name is in the tree`);
+        }
+        for (const m of text.matchAll(VARIABLE)) {
+          if (!read.has(m[0])) say(path, i + 1, `names ${m[0]}, which no part reads`);
+        }
+      }
       if (!record) {
         for (const { find, why, statedIn = [] } of RETIRED) {
           if (find.test(text) && !statedIn.includes(rel)) say(path, i + 1, `a retired name: ${why}`);
@@ -123,5 +145,5 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(1);
   }
   const facts = defined();
-  console.log(`no drift: protocol ${facts.protocol.server} in both parts, link ${facts.link}, ports ${facts.ports.server.join(', ')} in both parts, no retired name`);
+  console.log(`no drift: protocol ${facts.protocol.server} in both parts, link ${facts.link}, ports ${facts.ports.server.join(', ')} in both parts, no retired name, every code file and variable the pages name is there`);
 }

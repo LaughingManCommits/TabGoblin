@@ -129,7 +129,7 @@ started by hand:
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
-| Documentation | Linux | Runs the tests of `docs/agents/check-personal.mjs` and `check-drift.mjs`, then both checks on the files and the link check |
+| Documentation | Linux | Runs the tests of `docs/agents/check-personal.mjs` and `check-drift.mjs`, then both checks on the files, the link check, the diagram script against the committed SVG files, and the Mermaid check with a Mermaid installed outside the tree |
 | One version | Linux | Runs the tests of `release/version.mjs` and then the script without a version, which fails if the files that carry the version disagree |
 | Dependencies | Linux | `npm audit` for the extension and the test runner, which fails on an advisory of high severity; the same for the editor lab, listed only, because the editors under test are fixed versions of other people's libraries and are never shipped; and, on a pull request, GitHub's dependency review of what it changes, which covers the server's Maven libraries |
 
@@ -282,11 +282,15 @@ and every contributor, agent or person:
   to it; it does not say it again in its own words.
 - **What is gone is taken out.** A removed component, a changed default, a dropped option leaves
   no description behind. Nothing is added beside an old sentence to correct it.
-- **Nothing planned, assumed or unverified is written as implemented.** A plan goes into
-  [TODO.md](../TODO.md); what a run showed into the [validation log](agents/validation-log.md),
-  with what it did not show.
+- **Nothing planned, assumed or unverified is written as implemented.** A page says what is.
+  A plan goes into [TODO.md](../TODO.md), marked as one; what was goes into git and the records;
+  what a run showed into the [validation log](agents/validation-log.md), with what it did not
+  show. Where a page keeps a word on the past, it says so (*the release before*).
+- **One behaviour, said alike for every way in.** What the CLI and MCP share is written once and
+  holds for both; a page about one interface names what is shared and any actual difference, and
+  the six skills say the same of it.
 - **Plain, short, consistent, easy to find.** The names of the [vocabulary](architecture.md) and
-  of the diagrams, the same in every page.
+  of the diagrams, the same in every page; no detail a reader of that page does not need.
 
 ### The impact review
 
@@ -324,9 +328,11 @@ changes, assess every diagram that shows it, and the alt text and the paragraph 
   the participants, the layout ([about the diagrams](#about-the-diagrams)). One idea a diagram.
 - Change an SVG picture in `docs/assets/diagrams/build.mjs` and run it; never edit an SVG file.
 - Check that the Mermaid blocks parse ([runbook](agents/runbook.md#check-the-diagrams)), and open
-  a changed diagram with the system set to light and to dark. Look for a participant that no
-  longer exists, a path that cannot happen, an arrow in the wrong direction, a label that runs out
-  of its box, a boundary drawn where the code does not enforce one.
+  a changed diagram with the system set to light and to dark. Check it against the code: the
+  participants, the arrows and their direction, the order of the steps, the labels, the
+  boundaries. Look for a participant that no longer exists, a path that cannot happen, a step out
+  of order, a label that runs out of its box, a boundary drawn where the code does not enforce
+  one; and that the picture renders and can be read at the size the page shows it.
 - Regenerate a picture with its script only ([about the screenshots](#about-the-screenshots)),
   and open it before it is used.
 
@@ -355,14 +361,16 @@ before a change is done:
 | `SkillsTest` | The six skills to the tools, to the reference's codes and to each other |
 | `node docs/agents/check-links.mjs` | Every relative link and heading anchor |
 | `node docs/agents/check-personal.mjs` | Nothing personal in the files |
-| `node docs/agents/check-drift.mjs` | No retired name anywhere; the protocol version, the link version and the server's ports the same in both parts and in every page, skill, example and diagram source that quotes them |
+| `node docs/agents/check-drift.mjs` | No retired name anywhere; the protocol version, the link version and the server's ports the same in both parts and in every page, skill, example and diagram source that quotes them; every code file and every `TABGOBLIN_*` variable a page names is in the tree |
 | `node docs/agents/check-diagrams.mjs` | Every Mermaid block parses ([runbook](agents/runbook.md#check-the-diagrams)) |
-| `node docs/assets/diagrams/build.mjs` | The SVG pictures are what the script draws |
+| `node docs/assets/diagrams/build.mjs` | The SVG pictures are what the script draws; CI fails where a committed file differs |
 | `node release/version.mjs` | One version in every file that carries it |
 
 A check is extended where a drift has happened and a machine can tell it apart; a small,
-deterministic rule, not a framework. A change to code alone asks for no edit of a page: the
-review is of the impact, and its result may be that nothing is affected.
+deterministic rule, not a framework, no match on prose and no new dependency. The checks
+complement the impact review and do not stand in for it: what they cannot tell apart, a reader
+does. A change to code alone asks for no edit of a page: the review is of the impact, and its
+result may be that nothing is affected.
 
 ### The documentation review
 

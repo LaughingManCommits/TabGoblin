@@ -81,6 +81,23 @@ test('the protocol version, the ports and the link version have to agree with th
   }
 });
 
+test('a code file or a variable a page names has to be in the tree, and a record may name what is gone', () => {
+  const root = tree({
+    'docs/developer-guide.md': 'Set `TABGOBLIN_PORT`, or `TABGOBLIN_GONE`; the rule is in `policy.ts`, not in `Vanished.java`.\n',
+    'java-server/src/main/java/tabgoblin/Options.java': 'String port = System.getenv("TABGOBLIN_PORT");\n',
+    'chrome-extension/src/policy.ts': 'export const PORTS: readonly number[] = [47821, 37821];\n',
+    'docs/agents/state.md': 'Then `Vanished.java` and `TABGOBLIN_GONE` went.\n',
+  });
+  try {
+    assert.deepEqual(whats(root), [
+      'docs/developer-guide.md:1 names Vanished.java, and no file of that name is in the tree',
+      'docs/developer-guide.md:1 names TABGOBLIN_GONE, which no part reads',
+    ]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('a definition that cannot be read is one finding, not a crash', () => {
   const root = tree({ 'chrome-extension/src/protocol.ts': 'export const PROTOCOL_VERSION = "seven";\n' });
   try {

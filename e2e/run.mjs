@@ -1996,7 +1996,7 @@ try {
     has(ok(await two.tool('browser_extract')).text, 'Completeness: COMPLETE');
   });
 
-  console.log('\nProtocol protections, tested with a hand-made agent');
+  console.log('\nProtocol protections, tested with a hand-made server');
   const raw = new RawAgent(token);
   let pageR;
   let sR;

@@ -21,7 +21,11 @@ comments; its own tests 4 of 4. `check-diagrams.mjs`: 10 Mermaid blocks, 0 fail,
 the script; the components picture and the new picture of the documentation rules were opened
 in light and in dark. Links 348, all resolve;
 nothing personal. Not run: the full suites (the code changes of this commit are comments, a
-test's expected string and the pictures' made-up log lines), the end-to-end suite.
+test's expected string and the pictures' made-up log lines), the end-to-end suite. Later the
+same day, with the drift check extended to the code files and the `TABGOBLIN_*` variables the
+pages name: it found its own example in the runbook and nothing else; its tests 5 of 5; the
+SVG files unchanged by the script; the Mermaid check 10 of 10 after the command diagram got
+its `agent` field.
 
 ## 2026-11-28, branch `one-port`, WP-33 built, before its first commit
 

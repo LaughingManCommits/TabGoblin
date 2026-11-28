@@ -51,13 +51,15 @@ or says it differently, the linked page is right.
   are not to come back.
 - **Agents read the tools' text output.** Changing a tool's result text is a public contract
   change: update [docs/tool-reference.md](docs/tool-reference.md) and run the end-to-end suite.
-- **Documentation is part of a change.** A change is done when every page, diagram, picture and
-  skill that describes what it touched says what is so now, and nothing of what was. The impact
-  is assessed for every change, whatever files it touched; what to assess, how, and what the
-  summary at the end says is in [docs/development.md](docs/development.md#documentation), the
-  owner of these rules. What the implementation and its tests do is what may be claimed; a page
-  that disagrees with the design or the security model is a fault to look into, not a sentence
-  to adjust.
+- **Documentation is part of a change.** For every change, whatever files it touched, assess
+  its impact: name the claims in the pages, diagrams, pictures and skills that the change could
+  make untrue; search the whole repository for the words of the change (names, components,
+  settings, defaults, behaviour, examples), not only the files already open; update what is
+  affected in the same change, taking the old out rather than writing the new beside it; and
+  where nothing is affected, say so and why. What the implementation and its tests do is what
+  may be claimed; where a page, the code and the intended design disagree, that is a fault to
+  look into and report, not a sentence to adjust. The rules in full, and their one owner:
+  [docs/development.md](docs/development.md#documentation).
 
 The full list of conventions is in
 [docs/development.md](docs/development.md#conventions).
@@ -141,22 +143,29 @@ Each fact has one home. Link to it; do not copy it.
 | Validation history | [docs/agents/validation-log.md](docs/agents/validation-log.md) | only when a past result matters |
 | Product behaviour and decisions | `docs/*.md`; which page owns what is in [development.md](docs/development.md#documentation) | per the task map |
 
-At the end of a session that changed something:
+## Definition of done
 
-1. Update `state.md`: what changed, blockers, the next action. Date it. Remove what is resolved.
-2. Add one entry to `validation-log.md`: revision, what passed, what failed, what was not run.
-   When it passes about ten entries, fold the oldest into one summary line.
-3. A lasting decision goes into the page that owns it (`security-model.md`, `architecture.md`,
-   `development.md`), not into `state.md`.
-4. Check each claim you changed against its source: a command against `package.json`, `pom.xml` or
-   `ci.yml`; a path against the tree; a count against a run.
-5. Run the documentation checks in the runbook: the links, nothing personal, drift (retired
-   names, and the numbers two parts carry), and the diagrams where one changed. There is no
-   other freshness check and no changelog; git history is the record of changes.
-6. End the session's last message with the documentation review summary, in the form
-   [development.md](docs/development.md#the-documentation-review) gives: what was updated, what
-   was verified as unaffected (diagrams, pictures, skills), what was run, and what could not be
-   checked. Where nothing needed changing, say that the impact was assessed and why.
+A change is complete when all of this holds; the list is also the end of a session:
+
+1. Its documentation impact is assessed as the constraint above says, and every affected page,
+   diagram, picture and skill is updated in the change; what the CLI and MCP share is said alike
+   for both and in the six skills.
+2. `state.md` says what changed, the blockers and the next action, dated; what is resolved is
+   taken out. `validation-log.md` has one entry: revision, what passed, what failed, what was not
+   run. When it passes about ten entries, fold the oldest into one summary line.
+3. A lasting decision is in the page that owns it (`security-model.md`, `architecture.md`,
+   `development.md`), not in `state.md`.
+4. Each claim changed is checked against its source: a command against `package.json`, `pom.xml`
+   or `ci.yml`; a path against the tree; a count against a run; a picture against the interface.
+5. The documentation checks ran (runbook, the sections that begin with "Check"): links, nothing
+   personal, drift; the diagram script and the diagram check where a diagram changed;
+   `ToolReferenceTest` and `SkillsTest` where a tool or a skill changed. They complement the
+   assessment; they do not replace it. There is no changelog: git history is the record.
+6. The last message ends with the documentation review summary, in the form
+   [development.md](docs/development.md#the-documentation-review) gives: what was updated; the
+   diagrams, pictures and skills updated or verified unaffected; what ran; the discrepancies found
+   and the claims not verified. Where nothing needed changing, it says that the impact was
+   assessed and why. No other report is written for a routine change.
 
 There is no index or search tooling. Use repository search; add tooling only for a retrieval
 problem that has actually occurred.

@@ -53,7 +53,9 @@ what was. Each fact has one page, and the others link to it; the
 [table of pages](docs/development.md#documentation) says which page owns what, and the rules
 under it say what to assess for each kind of change, how diagrams and security claims are kept
 true, and which checks to run. Document what is implemented and what was measured, and say
-where it stops. Do not describe planned work as done.
+where it stops. Do not describe planned work as done. A change is complete by the
+[definition of done](AGENTS.md#definition-of-done) in the agent guide, which holds for a person
+as for an agent.
 
 ## Pull requests
 
