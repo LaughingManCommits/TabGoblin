@@ -18,6 +18,7 @@ import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.PrintStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -29,6 +30,9 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.java_websocket.WebSocket;
+import org.java_websocket.handshake.ClientHandshake;
+import org.java_websocket.server.WebSocketServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -494,6 +498,83 @@ class CliTest {
     }
 
     // ---- When there is no answer
+
+    @Test
+    void handshakeReportsWhichMessageFailed(@TempDir Path dir) throws Exception {
+        keys = dir;
+        String hello = "{\"type\":\"hello\",\"nonce\":\"0123456789abcdef\",\"link\":" + Link.VERSION + "}";
+        checkHandshake(null, null, "server greeting timed out after 5000 ms");
+        checkHandshake("bad json", null, "invalid JSON in server greeting");
+        checkHandshake("{}", null, "invalid server greeting");
+        checkHandshake(hello, "bad json", "invalid JSON in attach reply");
+        checkHandshake(hello, null, "attach reply timed out after 5000 ms");
+    }
+
+    private void checkHandshake(String greeting, String reply, String expected) throws Exception {
+        var ready = new CompletableFuture<Void>();
+        var server = new WebSocketServer(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 1) {
+            @Override public void onStart() { ready.complete(null); }
+            @Override public void onError(WebSocket conn, Exception error) { ready.completeExceptionally(error); }
+            @Override public void onClose(WebSocket conn, int code, String reason, boolean remote) { }
+            @Override public void onOpen(WebSocket conn, ClientHandshake request) {
+                if (greeting != null) {
+                    conn.send(greeting);
+                }
+            }
+            @Override public void onMessage(WebSocket conn, String text) {
+                if (reply != null) {
+                    conn.send(reply);
+                }
+            }
+        };
+        server.start();
+        try {
+            ready.get(5, TimeUnit.SECONDS);
+            port = server.getPort();
+            Ran ran = run("status", "--agent", "ide");
+            assertEquals("NO_SERVER", ran.code(), ran.printed());
+            assertTrue(ran.said().path("text").asString("").contains(expected), ran.printed());
+            assertEquals(0, starts.get());
+        } finally {
+            server.stop(2000);
+        }
+    }
+
+    @Test
+    void silentListenerAndRefusedUpgradeReachTheCommandAnswer(@TempDir Path dir) throws Exception {
+        keys = dir;
+        for (boolean silent : List.of(true, false)) {
+            try (ServerSocket listener = new ServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
+                port = listener.getLocalPort();
+                var answer = new Command("").start("status", "--agent", "ide");
+                listener.setSoTimeout(5000);
+                try (var socket = listener.accept()) {
+                    socket.setSoTimeout(6000);
+                    var request = new java.io.BufferedReader(new java.io.InputStreamReader(
+                            socket.getInputStream(), StandardCharsets.US_ASCII));
+                    String line;
+                    do {
+                        line = request.readLine();
+                    } while (line != null && !line.isEmpty());
+                    assertEquals("", line, "the client sent an HTTP upgrade request");
+                    if (!silent) {
+                        socket.getOutputStream().write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n"
+                                .getBytes(StandardCharsets.US_ASCII));
+                        socket.getOutputStream().flush();
+                    }
+                    Ran ran = answer.get(6, TimeUnit.SECONDS);
+                    assertEquals(Cli.EXIT_NO_SERVER, ran.exit(), ran.printed());
+                    assertEquals("NO_SERVER", ran.code());
+                    assertTrue(ran.printed().contains(silent ? "WebSocket open timed out after 2 seconds"
+                            : "WebSocket connection ended before opening"), ran.printed());
+                    if (silent) {
+                        assertEquals(-1, request.read(), "the timeout released the socket");
+                    }
+                    assertEquals(0, starts.get());
+                }
+            }
+        }
+    }
 
     @Test
     void whereNoServerIsToBeHadNothingIsSentAndNoneStandsInForIt(@TempDir Path dir) throws Exception {

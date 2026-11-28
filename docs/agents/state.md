@@ -2,6 +2,24 @@
 
 Last updated: 2026-11-28. Claims here go stale; check the date, then `git status` and `git log`.
 
+## Link opening and CLI connection errors, 2026-11-28
+
+Commit `864d165` on branch `cli-link-handshake-diagnostics`, from `9492189`, distinguishes an
+open timeout from a connection that ended before opening, and reports the stage in the CLI
+answer. See the [protocol reference](../development.md#protocol-reference) and
+[validation log](validation-log.md). The live server still uses its existing jar.
+
+Fixes after its review, in the commit after it on branch `claude/brave-cray-om9bhd`: an I/O error before opening stays an I/O error, so that
+the window's command (`McpMain.showWindow`) tells a connection that timed out from a program that
+is not the server; a reason is never null; the link's log lines keep `reason=`; a server that
+did not start in time is said in words. `HubTest` holds the next port after a refused one, and
+what `show()` throws for a silent port and for a refused upgrade. The CLI skills' `AGENT_IN_USE`
+row no longer presents a handover as the way: the user chooses, and no tab is promised.
+
+**Next:** the owner reviews both commits and takes them into `cli-link-handshake-diagnostics`.
+Whether the same key can read its original tab after a live MCP-to-CLI handover remains
+unverified.
+
 ## Connecting an agent through MCP, said more simply: 2026-11-28
 
 On branch `simpler-agent-setup-docs`, made from `main` at `354952c`, on the owner's word

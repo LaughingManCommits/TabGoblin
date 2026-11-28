@@ -734,8 +734,11 @@ interrupted, which stops the command in the browser at its next safe point, and 
 the tool reference lists it, where `isError` is true; `structured` is the object of a tool
 that returns one; `image` has `mimeType` and `base64`.
 `refused` with the reason `interface_not_allowed` says that the settings file has this
-interface off (`interfaces`); `not_a_tabgoblin_server` is the link's own word for a port on
-which something answers that does not greet as the server does. A `turned_away` in the place
+interface off (`interfaces`). The link waits two seconds for the WebSocket to open. Its own
+open, close and error callbacks distinguish expiry from a connection that ended before opening.
+Once open, it waits five seconds each for the greeting and for the reply. A timeout, closure or
+invalid JSON names the stage in the command's `NO_SERVER` answer. An invalid greeting and
+a different link version have their own reasons. A `turned_away` in the place
 of `attach`, with the same proof, tells a running server that an MCP start found MCP off before
 it came; it is answered with `counted`, and the server's window counts it.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
