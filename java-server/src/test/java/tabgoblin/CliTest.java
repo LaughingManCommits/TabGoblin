@@ -3,6 +3,7 @@ package tabgoblin;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -65,7 +66,7 @@ class CliTest {
         for (int attempt = 0; attempt < 50; attempt++) {
             int port = 20_000 + (int) (Math.random() * 30_000);
             boolean free = true;
-            for (int i = 0; i <= McpMain.PORT_RANGE && free; i++) {
+            for (int i = 0; i <= 0 && free; i++) {
                 try (ServerSocket probe = new ServerSocket(port + i, 1, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
                     probe.setReuseAddress(true);
                 } catch (IOException e) {
@@ -143,7 +144,7 @@ class CliTest {
 
     /** The link of a command to the test's server. No server is started for it: a start is only counted. */
     private Link link(InputStream in, java.io.OutputStream out, McpMain.Options options) {
-        return new Link(in, out, new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, Link.port(port), false, true,
+        return new Link(in, out, new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, port, false, true,
                 () -> {
                     starts.incrementAndGet();
                     throw new IOException("no server is started in this test");
@@ -162,8 +163,13 @@ class CliTest {
         int before = hub.agents().size();
         CompletableFuture<Ran> status = new Command("").start("status", "--agent", agent);
         await(() -> hub.agents().size() == before + 1, "the agent of the first command");
-        FakeExtension ext = FakeExtension.paired(hub.agents().get(before).bridge().getPort(), TOKEN);
-        extensions.add(ext);
+        // One connection for the server's agents: paired once, the next agent is told to it.
+        FakeExtension ext = extensions.isEmpty() ? FakeExtension.paired(hub.port(), TOKEN) : extensions.get(extensions.size() - 1);
+        if (!extensions.contains(ext)) {
+            extensions.add(ext);
+        }
+        String id = hub.agents().get(before).bridge().clientId();
+        await(() -> ext.agents().contains(id), "the extension to be told of the agent");
         Ran ran = status.get(15, TimeUnit.SECONDS);
         assertEquals(Cli.EXIT_OK, ran.exit(), ran.printed());
         assertTrue(ran.said().path("ok").asBoolean(), ran.printed());
@@ -298,8 +304,8 @@ class CliTest {
         assertEquals("ide (command line)", hub.agents().get(0).bridge().clientName());
 
         // The command's process is gone; the agent, its port and its pairing are not.
-        ext.send("""
-                {"type":"event","event":"sessions","data":{"sessions":[{"session":"s1","origin":"https://a.example","mode":"write","state":"active"}]}}""");
+        ext.sessions(id, JSON.createArrayNode().add(JSON.createObjectNode().put("session", "s1").put("origin", "https://a.example")
+                .put("mode", "write").put("state", "active")));
         await(() -> hub.agents().get(0).bridge().sessions().size() == 1, "the session the user gave");
         ext.responder = cmd -> cmd.path("action").asString().equals("click")
                 ? FakeExtension.ok(cmd, JSON.createObjectNode().put("dispatched", true))
@@ -395,13 +401,15 @@ class CliTest {
         Agent ide = hub.agents().get(0);
         Agent second = hub.agents().get(1);
         assertNotEquals(ide.bridge().clientId(), second.bridge().clientId());
-        assertNotEquals(ide.bridge().getPort(), second.bridge().getPort(), "each has a connection of its own to the extension");
+        assertEquals(ide.bridge().getPort(), second.bridge().getPort(), "the one connection to the extension is both agents'");
+        assertSame(ext, other);
 
-        ext.send("""
-                {"type":"event","event":"sessions","data":{"sessions":[{"session":"s1","origin":"https://a.example","mode":"read","state":"active"}]}}""");
+        ext.sessions(ide.bridge().clientId(), JSON.createArrayNode().add(JSON.createObjectNode().put("session", "s1")
+                .put("origin", "https://a.example").put("mode", "read").put("state", "active")));
         await(() -> ide.bridge().sessions().size() == 1, "the first agent's session");
-        ext.responder = cmd -> FakeExtension.ok(cmd, JSON.createObjectNode().put("text", "the first agent's page"));
-        other.responder = cmd -> FakeExtension.fail(cmd, "NOT_AUTHORIZED", "No tab is authorized for this agent.");
+        ext.responder = cmd -> cmd.path("agent").asString().equals(ide.bridge().clientId())
+                ? FakeExtension.ok(cmd, JSON.createObjectNode().put("text", "the first agent's page"))
+                : FakeExtension.fail(cmd, "NOT_AUTHORIZED", "No tab is authorized for this agent.");
 
         // Several commands of one agent at the same time: each has its answer, and they are one agent.
         List<CompletableFuture<Ran>> together = new java.util.ArrayList<>();
@@ -418,7 +426,9 @@ class CliTest {
         Ran refused = ofTheOther.get(15, TimeUnit.SECONDS);
         assertEquals(Cli.EXIT_FAILED, refused.exit(), refused.printed());
         assertFalse(refused.printed().contains("the first agent's page"));
-        assertEquals(4, ext.commands.size());
+        assertEquals(4, ext.commands.stream().filter(c -> c.path("agent").asString().equals(ide.bridge().clientId())).count());
+        assertEquals(1, ext.commands.stream().filter(c -> c.path("agent").asString().equals(second.bridge().clientId())).count(),
+                "the other agent's command named the other agent");
         assertEquals(2, hub.agents().size());
         assertTrue(second.bridge().sessions().isEmpty(), "an agent is told nothing of another's tabs");
     }
@@ -430,7 +440,7 @@ class CliTest {
         PipedOutputStream open = new PipedOutputStream();
         held.add(open);
         Link staying = new Link(new PipedInputStream(open), new ByteArrayOutputStream(), new PrintStream(new ByteArrayOutputStream()),
-                () -> TOKEN, Link.port(port), false, true, () -> { }, "ide", dir);
+                () -> TOKEN, port, false, true, () -> { }, "ide", dir);
         assertTrue(staying.connect());
         await(() -> hub.agents().size() == 1, "the agent that stays connected");
 
@@ -465,7 +475,7 @@ class CliTest {
         assertNotEquals(id, AgentKeys.idOf(AgentKeys.read(dir, "ide")), "a new agent: what the old one had does not come to it");
         String newId = AgentKeys.idOf(AgentKeys.read(dir, "ide"));
         Agent fresh = hub.agents().stream().filter(agent -> agent.bridge().clientId().equals(newId)).findFirst().orElseThrow();
-        extensions.add(FakeExtension.paired(fresh.bridge().getPort(), TOKEN));
+        await(() -> extensions.get(extensions.size() - 1).agents().contains(newId), "the extension to be told of the new agent");
         assertEquals(Cli.EXIT_OK, again.get(15, TimeUnit.SECONDS).exit());
         assertTrue(fresh.bridge().sessions().isEmpty());
     }
@@ -477,7 +487,8 @@ class CliTest {
         FakeExtension ext = firstCommand(hub, "ide");
         String id = hub.agents().get(0).bridge().clientId();
         await(() -> hub.agents().isEmpty(), "the agent to be let go");
-        await(() -> !ext.isOpen(), "its connection to the extension to be closed");
+        await(() -> !ext.agents().contains(id), "the extension to be told that the agent is gone");
+        assertTrue(ext.isOpen(), "the server's connection to the extension is not an agent's to end");
         firstCommand(hub, "ide");
         assertEquals(id, hub.agents().get(0).bridge().clientId());
     }

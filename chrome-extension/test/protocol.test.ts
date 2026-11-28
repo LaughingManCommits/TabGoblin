@@ -3,93 +3,57 @@ import { test } from 'node:test';
 import { PROTOCOL_VERSION, commandTiming, parseServerMessage } from '../src/protocol.ts';
 
 test('well-formed protocol messages are typed', () => {
-  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [1, 2], clientId: 'c-1' }),
-    { type: 'challenge', nonce: 'abc', versions: [1, 2], clientId: 'c-1' });
-  // A server from before it said who it is in its first message, or one that says it wrongly: nobody.
-  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [2] }),
-    { type: 'challenge', nonce: 'abc', versions: [2], clientId: '' });
-  for (const noId of [7, '', 'x'.repeat(65), null, ['c-1']]) {
-    assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [2], clientId: noId }),
-      { type: 'challenge', nonce: 'abc', versions: [2], clientId: '' });
-  }
-  assert.deepEqual(parseServerMessage({ type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION, clientId: 'c-1', clientName: 'IDE' }),
-    { type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION, clientId: 'c-1', clientName: 'IDE' });
+  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', version: 1 }), { type: 'challenge', nonce: 'abc', version: 1 });
+  // The server names its agents in its proven answer, and again whenever they change.
+  assert.deepEqual(parseServerMessage({ type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION, agents: [{ id: 'c-1', name: 'IDE' }] }),
+    { type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION, agents: [{ id: 'c-1', name: 'IDE' }] });
+  assert.deepEqual(parseServerMessage({ type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION }),
+    { type: 'auth_ok', proof: 'p', version: PROTOCOL_VERSION, agents: [] }, 'a server without an agent yet');
+  assert.deepEqual(parseServerMessage({ type: 'agents', agents: [{ id: 'c-1', name: 'x'.repeat(200) }, { id: 'a-2' }] }),
+    { type: 'agents', agents: [{ id: 'c-1', name: 'x'.repeat(60) }, { id: 'a-2', name: '' }] });
   assert.deepEqual(parseServerMessage({ type: 'cancel', id: '17' }), { type: 'cancel', id: '17' });
-  assert.deepEqual(parseServerMessage({ type: 'client', name: 'x'.repeat(200) }), { type: 'client', name: 'x'.repeat(60) });
-  assert.deepEqual(parseServerMessage({ id: '17', action: 'click', session: 's2', params: { ref: 4 }, deadline: 99 }), {
+  assert.deepEqual(parseServerMessage({ id: '17', agent: 'c-1', action: 'click', session: 's2', params: { ref: 4 }, deadline: 99 }), {
     type: 'command',
-    command: { id: '17', action: 'click', session: 's2', params: { ref: 4 }, deadline: 99 },
+    command: { id: '17', agent: 'c-1', action: 'click', session: 's2', params: { ref: 4 }, deadline: 99 },
   });
   // No session and no params: the only-session default, with empty params.
-  assert.deepEqual(parseServerMessage({ id: '1', action: 'status', deadline: 5 }),
-    { type: 'command', command: { id: '1', action: 'status', params: {}, deadline: 5 } });
+  assert.deepEqual(parseServerMessage({ id: '1', agent: 'c-1', action: 'status', deadline: 5 }),
+    { type: 'command', command: { id: '1', agent: 'c-1', action: 'status', params: {}, deadline: 5 } });
 });
 
-test('a pre-versioning server offers no versions', () => {
-  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc' }), { type: 'challenge', nonce: 'abc', versions: [], clientId: '' });
+test('a server from before there was a version says none, which is version 0', () => {
+  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc' }), { type: 'challenge', nonce: 'abc', version: 0 });
+  assert.deepEqual(parseServerMessage({ type: 'challenge', nonce: 'abc', versions: [3] }), { type: 'challenge', nonce: 'abc', version: 0 },
+    'the list of versions of the releases before is none either');
 });
 
 test('malformed or forged messages are rejected', () => {
   const bad: unknown[] = [
     null, 'text', 42, [], {},
     { type: 'challenge' },
-    { type: 'auth_ok', proof: 'p', clientId: 'c-1' },                         // no version
-    { type: 'auth_ok', proof: 'p', version: 2 },                              // no identity
+    { type: 'auth_ok', proof: 'p', agents: [] },                               // no version
+    { type: 'auth_ok', proof: 'p', version: 1, agents: [{ name: 'no id' }] },  // an agent without an id is no agent
+    { type: 'auth_ok', proof: 'p', version: 1, agents: 'c-1' },                // not a list
+    { type: 'agents' },
+    { type: 'agents', agents: [{ id: 7 }] },
     { type: 'cancel' },
-    { type: 'evaluate', script: 'document.cookie' },                          // unknown type
-    { action: 'click', deadline: 1 },                                         // no id
-    { id: '1', deadline: 1 },                                                 // no action
-    { id: '1', action: 'click' },                                             // no deadline
-    { id: '1', action: 'click', deadline: 'soon' },
-    { id: '1', action: 'click', deadline: Infinity },
-    { id: 1, action: 'click', deadline: 1 },
-    { id: 'x'.repeat(65), action: 'click', deadline: 1 },
-    { id: '1', action: 'click', deadline: 1, session: 'tab-4' },
-    { id: '1', action: 'click', deadline: 1, session: 's1; s2' },
-    { id: '1', action: 'click', deadline: 1, session: 7 },
-    { id: '1', action: 'click', deadline: 1, params: 'ref=4' },
-    { id: '1', action: 'click', deadline: 1, params: [4] },
+    { type: 'client', name: 'x' },                                             // of the releases before: an agent's name comes with the agents
+    { type: 'evaluate', script: 'document.cookie' },                           // unknown type
+    { action: 'click', agent: 'c-1', deadline: 1 },                            // no id
+    { id: '1', action: 'click', deadline: 1 },                                 // no agent
+    { id: '1', agent: 'c-1', deadline: 1 },                                    // no action
+    { id: '1', agent: 'c-1', action: 'click' },                                // no deadline
+    { id: '1', agent: 'c-1', action: 'click', deadline: 'soon' },
+    { id: '1', agent: 'c-1', action: 'click', session: 'tab-1', deadline: 1 }, // a session id is s<number>
+    { id: '1', agent: 'c-1', action: 'click', params: 'ref=1', deadline: 1 },
+    { id: 'x'.repeat(65), agent: 'c-1', action: 'click', deadline: 1 },
   ];
-  for (const message of bad) {
-    assert.equal(parseServerMessage(message), null, JSON.stringify(message));
-  }
+  for (const message of bad) assert.equal(parseServerMessage(message), null, JSON.stringify(message));
 });
 
-test('an answer says how long the command ran, waited for its turn, and waited for the user', () => {
-  // Arrived at 1000, had its turn at 1040, ended at 3040; the user took 1500 of that to answer.
-  assert.deepEqual(commandTiming(1000, 1040, 3040, 1500), { ran: 2000, queued: 40, asked: 1500 });
-  // Numbers only, whole and never negative; the user cannot have taken longer than the command ran.
-  assert.deepEqual(commandTiming(1000, 1000, 1010.6, 0), { ran: 11, queued: 0, asked: 0 });
-  assert.deepEqual(commandTiming(1000, 990, 995, 50), { ran: 5, queued: 0, asked: 5 });
-  assert.deepEqual(commandTiming(1000, 1000, Number.NaN, Number.NaN), { ran: 0, queued: 0, asked: 0 });
-  assert.deepEqual(Object.keys(commandTiming(1, 2, 3, 0)).sort(), ['asked', 'queued', 'ran']);
-});
-
-const NO_LIMITS = { strict: false, allowed: [], screenshots: true, maxAccess: 'write', sessionMaxMinutes: 0, sessionIdleMinutes: 0 };
-
-test('the list of blocked sites is taken whole or not at all', () => {
-  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: ['example.org', 'xn--bcher-kva.example', '127.0.0.1', '[::1]'], unreadable: false }),
-    { type: 'policy', blocked: ['example.org', 'xn--bcher-kva.example', '127.0.0.1', '[::1]'], unreadable: false, limits: NO_LIMITS });
-  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: true }), { type: 'policy', blocked: [], unreadable: true, limits: NO_LIMITS });
-  // Only a plain yes is a yes.
-  assert.deepEqual(parseServerMessage({ type: 'policy', blocked: [], unreadable: 'yes' }), { type: 'policy', blocked: [], unreadable: false, limits: NO_LIMITS });
-  // A list with an entry that is no host is no list: a part of it would leave a site open without a word.
-  for (const blocked of [undefined, 'example.org', [7], ['example.org', null], ['Example.org'], ['exa mple.org'], ['https://example.org'],
-    ['x'.repeat(254)], Array.from({ length: 5001 }, () => 'example.org')]) {
-    assert.equal(parseServerMessage({ type: 'policy', blocked, unreadable: false }), null, JSON.stringify(blocked)?.slice(0, 60));
-  }
-});
-
-test('the restrictions of the user\'s policy are taken whole or not at all, and a missing one restricts nothing', () => {
-  const said = { type: 'policy', blocked: [], unreadable: false };
-  assert.deepEqual(parseServerMessage({
-    ...said, strict: true, allowed: ['example.org'], screenshots: false, maxAccess: 'explore', sessionMaxMinutes: 480, sessionIdleMinutes: 30,
-  }), { ...said, limits: { strict: true, allowed: ['example.org'], screenshots: false, maxAccess: 'explore', sessionMaxMinutes: 480, sessionIdleMinutes: 30 } });
-  // Only a plain yes makes it strict, and only a plain no switches screenshots off.
-  assert.deepEqual((parseServerMessage({ ...said, strict: 'true', screenshots: 0 }) as any).limits, NO_LIMITS);
-  // A restriction that is said and cannot be read makes the message no message: it is not taken as "none".
-  for (const bad of [{ allowed: 'example.org' }, { allowed: ['Example.org'] }, { allowed: [7] }, { maxAccess: 'admin' }, { maxAccess: '' },
-    { sessionMaxMinutes: -1 }, { sessionMaxMinutes: 1.5 }, { sessionIdleMinutes: '30' }, { sessionIdleMinutes: 10081 }]) {
-    assert.equal(parseServerMessage({ ...said, ...bad }), null, JSON.stringify(bad));
-  }
+test('the timing of a round trip is whole milliseconds, never negative, and the user\'s part never more than the running', () => {
+  assert.deepEqual(commandTiming(1000, 1040, 1300, 100), { ran: 260, queued: 40, asked: 100 });
+  assert.deepEqual(commandTiming(1000, 1000, 1000, 0), { ran: 0, queued: 0, asked: 0 });
+  assert.deepEqual(commandTiming(1000, 900, 950, 500), { ran: 50, queued: 0, asked: 50 });
+  assert.deepEqual(commandTiming(1000, 1000.6, 1002.4, Number.NaN), { ran: 2, queued: 1, asked: 0 });
 });

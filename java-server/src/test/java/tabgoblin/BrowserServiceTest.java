@@ -20,21 +20,23 @@ import tools.jackson.databind.node.ObjectNode;
 /** Tool routing: MCP tool call -> BrowserService -> WebSocket command -> rendered result. */
 class BrowserServiceTest {
 
+    ExtensionServer server;
     WebSocketBridge bridge;
     BrowserService service;
     FakeExtension ext;
 
     @BeforeEach
     void start() throws Exception {
-        bridge = new WebSocketBridge(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
-        bridge.startAndWait();
+        server = new ExtensionServer(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
+        server.startAndWait();
+        bridge = new WebSocketBridge(server, "c-" + Pairing.randomHex(4));
         service = new BrowserService(bridge, null, Duration.ofMillis(500));
-        ext = FakeExtension.paired(bridge.getPort(), WebSocketBridgeTest.TOKEN);
+        ext = FakeExtension.paired(server.getPort(), WebSocketBridgeTest.TOKEN);
     }
 
     @AfterEach
     void stop() throws Exception {
-        bridge.stop(500);
+        server.stop(500);
     }
 
     private static ObjectNode args() {
@@ -372,7 +374,7 @@ class BrowserServiceTest {
             return FakeExtension.ok(cmd, s);
         };
         String text = service.call("browser_status", args()).text();
-        assertTrue(text.contains("Extension: connected (protocol 3)"), text);
+        assertTrue(text.contains("Extension: connected (protocol " + Protocol.VERSION + ")"), text);
         assertTrue(text.contains("This agent: " + bridge.clientId()));
         assertTrue(text.contains("Sessions: 2 (pass session=<id> to every tool)"));
         assertTrue(text.contains("Session s1\n  Authorized origin: https://example.com\n  Access: read/write\n  Paused: no"));
@@ -478,17 +480,19 @@ class BrowserServiceTest {
         String waiting = "An extension that is paired finds this server within about 30 seconds, or at once when the "
                 + "user opens the TabGoblin popup. If it is not paired yet, ask the user to load the TabGoblin extension "
                 + "in Chrome, open its popup and paste this server's pairing token. ";
+        // The test's server is on a port of its own, which the extension does not look at: the help ends by saying so.
+        String off = " " + Ports.offList(bridge.getPort());
         String status = asking.call("browser_status", args()).text();
         assertEquals(1, asked.get());
-        assertEquals(head + waiting + "The user sees the token by running the server's jar with --show-token in a terminal.", status);
+        assertEquals(head + waiting + "The user sees the token by running the server's jar with --show-token in a terminal." + off, status);
         // Another tool says the same behind its error.
         String refused = asking.call("browser_snapshot", args()).text();
         assertEquals("Error [NOT_CONNECTED]: The Chrome extension is not connected. " + waiting
-                + "The user sees the token by running the server's jar with --show-token in a terminal.", refused);
+                + "The user sees the token by running the server's jar with --show-token in a terminal." + off, refused);
         // With the server's window open, the token is copied there.
         known.set(new BrowserService.Unpaired(false, false, true));
         assertEquals(head + waiting + "The TabGoblin server's window is open on the user's screen: Copy, next to "
-                + "Pairing token, puts the token on the clipboard.", asking.call("browser_status", args()).text());
+                + "Pairing token, puts the token on the clipboard." + off, asking.call("browser_status", args()).text());
 
         // The browser is paired with the server by way of another agent: nothing to paste, only to wait for.
         known.set(new BrowserService.Unpaired(true, false, true));
@@ -505,17 +509,17 @@ class BrowserServiceTest {
         String pair = "Ask the user to pair the browser with this server: in Chrome, with the TabGoblin extension loaded, "
                 + "open its popup and paste this server's pairing token. ";
         assertEquals(head + "The browser holds a token that is not this server's. " + pair
-                + "The user sees the token by running the server's jar with --show-token in a terminal.",
+                + "The user sees the token by running the server's jar with --show-token in a terminal." + off,
                 asking.call("browser_status", args()).text());
         // The window has come up for it: the step and its button are at its top.
         known.set(new BrowserService.Unpaired(false, true, true));
         assertEquals(head + "The browser holds a token that is not this server's. " + pair
                 + "The TabGoblin server's window is open on the user's screen: Copy token, at its top, puts the token on "
-                + "the clipboard.", asking.call("browser_status", args()).text());
+                + "the clipboard." + off, asking.call("browser_status", args()).text());
         // Behind an error the reason stands once.
         assertEquals("Error [NOT_CONNECTED]: The Chrome extension is not paired with this server: the token it holds is "
                 + "not this server's. " + pair + "The TabGoblin server's window is open on the user's screen: Copy token, at "
-                + "its top, puts the token on the clipboard.", asking.call("browser_snapshot", args()).text());
+                + "its top, puts the token on the clipboard." + off, asking.call("browser_snapshot", args()).text());
 
         // What the user switched off is theirs to switch on: nobody is asked, and no window comes up.
         int before = asked.get();
@@ -523,66 +527,6 @@ class BrowserServiceTest {
         asking.call("browser_status", args());
         asking.call("browser_snapshot", args());
         assertEquals(before, asked.get());
-    }
-
-    @Test
-    void withoutABrowserAndWithAnotherServerThatHasItAToolSaysSoAndWhetherTheAgentGoesThereByItself() throws Exception {
-        ext.closeBlocking();
-        for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
-            Thread.sleep(20);
-        }
-        String elsewhere = "Another TabGoblin server runs on this machine, and the browser is connected to that one, not to "
-                + "this one. ";
-        String same = elsewhere + "It runs under the settings this agent's setup names. ";
-        String forMcp = same + "Tell the user: this agent goes to that server by itself when it is started again, and their "
-                + "agents' setups name different ports.";
-        String forCommands = same + "Run the command once more: it goes to that server by itself. If it comes back here, tell "
-                + "the user. Their agents' setups name different ports.";
-        String otherSettings = elsewhere + "It reads another settings file, or lets in another extension, than this agent's "
-                + "setup names, so this agent does not go to it by itself. Tell the user: the server's window shows the ports; "
-                + "their agents' setups have to name the same settings, or the browser has to be paired with this server instead.";
-        String head = "Extension: not connected\nListening on: ws://127.0.0.1:" + bridge.getPort() + "\n";
-        BrowserService.Unpaired other = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(true));
-
-        // It is said in place of the pairing, which is not what is missing then.
-        BrowserService mcp = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> other, null, false);
-        assertEquals(head + forMcp, mcp.call("browser_status", args()).text());
-        assertEquals("Error [NOT_CONNECTED]: The Chrome extension is not connected. " + forMcp,
-                mcp.call("browser_snapshot", args()).text());
-        // The next command of the command line goes there by itself.
-        BrowserService commands = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> other, null, true);
-        assertEquals(head + forCommands, commands.call("browser_status", args()).text());
-
-        // That server runs under other settings: nobody goes there by itself, and nobody is sent there.
-        BrowserService.Unpaired apart = new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(false));
-        for (boolean byCommands : new boolean[] {false, true}) {
-            BrowserService either = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO, () -> apart, null, byCommands);
-            assertEquals(head + otherSettings, either.call("browser_status", args()).text());
-        }
-
-        // The browser is paired with this server by way of another agent: it is here, not at the other one.
-        BrowserService pairedHere = new BrowserService(bridge, null, Duration.ofMillis(500), Duration.ZERO,
-                () -> new BrowserService.Unpaired(true, false, false, new BrowserService.Elsewhere(true)), null, false);
-        assertTrue(pairedHere.call("browser_status", args()).text().endsWith("Try again then."));
-    }
-
-    @Test
-    void anAgentThatCameHereFromThePortOfItsSetupIsToldWhyInItsStatus() throws Exception {
-        ext.responder = cmd -> FakeExtension.ok(cmd, args().put("confirmSubmissions", true).set("sessions", args().arrayNode()));
-        String line = "This agent's setup names first port 47821. It is served by this server because the browser was connected "
-                + "here, under the same settings, and not at that port; a setup's port only says where to start a server "
-                + "when none has the browser.";
-        assertFalse(service.call("browser_status", args()).text().contains("setup names"));
-        service.cameFrom(47821);
-        assertTrue(service.call("browser_status", args()).text().contains("\n" + line + "\n"));
-        // Before the browser has found it as well: it came here because the browser is at this server.
-        ext.closeBlocking();
-        for (int i = 0; i < 50 && bridge.isExtensionConnected(); i++) {
-            Thread.sleep(20);
-        }
-        assertTrue(service.call("browser_status", args()).text().contains("\n" + line + "\n"));
-        service.cameFrom(0);
-        assertFalse(service.call("browser_status", args()).text().contains("setup names"));
     }
 
     @Test
@@ -635,11 +579,11 @@ class BrowserServiceTest {
     /** Two sessions as the extension reports them: one on a site of the user's, one on a site that is blocked. */
     private void twoSessions() throws Exception {
         ext.send("""
-                {"type":"event","event":"sessions","data":{"sessions":[
+                {"type":"event","event":"sessions","agent":"%s","data":{"sessions":[
                   {"session":"s1","origin":"https://docs.example.net","mode":"write","state":"active",
                    "tab":{"title":"Docs","url":"https://docs.example.net/guide"}},
                   {"session":"s2","origin":"https://mail.example.org:8443","mode":"write","state":"active",
-                   "tab":{"title":"Inbox","url":"https://mail.example.org:8443/inbox"}}]}}""");
+                   "tab":{"title":"Inbox","url":"https://mail.example.org:8443/inbox"}}]}}""".formatted(bridge.clientId()));
         for (int i = 0; i < 100 && bridge.sessions().size() < 2; i++) {
             Thread.sleep(20);
         }
@@ -649,7 +593,7 @@ class BrowserServiceTest {
     @Test
     void anActionOnABlockedSiteIsRefusedBeforeItReachesTheBrowser() throws Exception {
         twoSessions();
-        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
+        server.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
         Log.keep(20);
         try {
             // Every kind of action in the session on the blocked site: none of them is sent.
@@ -698,7 +642,7 @@ class BrowserServiceTest {
 
     @Test
     void theStatusSaysWhichSessionIsBlockedAndNeverTheList() throws Exception {
-        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("bank.example", "example.org", "intranet.example"), null));
+        server.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("bank.example", "example.org", "intranet.example"), null));
         ext.responder = cmd -> FakeExtension.ok(cmd, FakeExtension.JSON.readTree("""
                 {"sessions":[
                   {"session":"s1","origin":"https://docs.example.net","mode":"write","paused":false,
@@ -722,13 +666,13 @@ class BrowserServiceTest {
         // The user added a second site to the session. The tab may be on either, and the server knows
         // its place from a report: so the session counts as blocked.
         ext.send("""
-                {"type":"event","event":"sessions","data":{"sessions":[
+                {"type":"event","event":"sessions","agent":"%s","data":{"sessions":[
                   {"session":"s1","origin":"https://docs.example.net","origins":["https://docs.example.net","https://sso.example.org"],
-                   "mode":"write","state":"active","tab":{"title":"Docs","url":"https://docs.example.net/guide"}}]}}""");
+                   "mode":"write","state":"active","tab":{"title":"Docs","url":"https://docs.example.net/guide"}}]}}""".formatted(bridge.clientId()));
         for (int i = 0; i < 100 && bridge.sessions().isEmpty(); i++) {
             Thread.sleep(20);
         }
-        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
+        server.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
         // The session is the agent's only one: a command that names none is meant for it.
         BrowserService.ToolResult refused = service.call("browser_snapshot", args());
         assertTrue(refused.text().startsWith("Error [SITE_BLOCKED]: sso.example.org is on the user's list"), refused.text());
@@ -739,7 +683,7 @@ class BrowserServiceTest {
     void aSessionTheServerHasNotHeardOfYetIsAskedForBeforeAnythingIsSentToIt() throws Exception {
         // The server's picture of the sessions is the extension's last report, and here there is none
         // yet. What the server refuses must not hang on that, nor on an extension that refuses as well.
-        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
+        server.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null));
         ext.responder = cmd -> cmd.path("action").asString().equals("status")
                 ? FakeExtension.ok(cmd, FakeExtension.JSON.readTree("""
                         {"sessions":[
@@ -770,7 +714,7 @@ class BrowserServiceTest {
     @Test
     void aSettingsFileThatCannotBeReadRefusesEveryActionAndTheStatusSaysWhy() throws Exception {
         twoSessions();
-        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of(), "\"exam_ple.org\" in blocked.sites is no domain"));
+        server.blockedSites(() -> new BlockedSites.Rule(java.util.List.of(), "\"exam_ple.org\" in blocked.sites is no domain"));
         for (String session : java.util.List.of("s1", "s2")) {
             BrowserService.ToolResult refused = service.call("browser_snapshot", args().put("session", session));
             assertEquals("Error [SETTINGS_UNREADABLE]: " + BrowserService.SETTINGS_UNREADABLE, refused.text());
@@ -789,7 +733,7 @@ class BrowserServiceTest {
     void theExtensionIsToldTheBlockedSitesWhenItPairsAndWhenTheyChange() throws Exception {
         // Nothing is sent behind the pairing answer: an extension from before this message would take it,
         // while it still checks the server's proof, for a failed pairing.
-        bridge.blockedSites(() -> BlockedSites.Rule.NONE);
+        server.blockedSites(() -> BlockedSites.Rule.NONE);
         Thread.sleep(1300);
         assertEquals(0, ext.policies.size());
         // It is told with its first word as a paired extension, which the real one says at once.
@@ -803,7 +747,7 @@ class BrowserServiceTest {
 
         java.util.concurrent.atomic.AtomicReference<BlockedSites.Rule> rule =
                 new java.util.concurrent.atomic.AtomicReference<>(new BlockedSites.Rule(java.util.List.of("example.org"), null));
-        bridge.blockedSites(rule::get);
+        server.blockedSites(rule::get);
         for (int i = 0; i < 200 && ext.policies.size() < 2; i++) {
             Thread.sleep(20);
         }
@@ -819,7 +763,7 @@ class BrowserServiceTest {
         assertFalse(ext.policies.get(2).toString().contains("AccessDenied"), "the reason stays with the server");
         // An extension that pairs later is told what is in force then.
         FakeExtension later = FakeExtension.paired(bridge.getPort(), WebSocketBridgeTest.TOKEN);
-        later.send("{\"type\":\"event\",\"event\":\"sessions\",\"data\":{\"sessions\":[]}}");
+        later.sessions(bridge.clientId(), FakeExtension.JSON.createArrayNode());
         for (int i = 0; i < 100 && later.policies.isEmpty(); i++) {
             Thread.sleep(20);
         }
@@ -835,12 +779,12 @@ class BrowserServiceTest {
     void whatTheUsersPolicyTakesAwayIsRefusedBeforeItReachesTheBrowser() throws Exception {
         twoSessions();
         // No screenshots.
-        bridge.blockedSites(() -> limited(false, java.util.List.of(), false, "write"));
+        server.blockedSites(() -> limited(false, java.util.List.of(), false, "write"));
         BrowserService.ToolResult picture = service.call("browser_screenshot", args().put("session", "s1"));
         assertTrue(picture.text().startsWith("Error [SCREENSHOTS_DISABLED]"), picture.text());
 
         // No session more than Explore: what needs Write is refused, what Explore may do is sent.
-        bridge.blockedSites(() -> limited(false, java.util.List.of(), true, "explore"));
+        server.blockedSites(() -> limited(false, java.util.List.of(), true, "explore"));
         for (BrowserService.ToolResult refused : java.util.List.of(
                 service.call("browser_fill", args().put("session", "s1").put("ref", 3).put("text", "x")),
                 service.call("browser_submit", args().put("session", "s1").put("ref", 3)))) {
@@ -851,7 +795,7 @@ class BrowserServiceTest {
         assertFalse(service.call("browser_click", args().put("session", "s1").put("ref", 3)).text().startsWith("Error [ACCESS_RESTRICTED]"));
         assertEquals(1, ext.commands.size());
         // No session more than Read.
-        bridge.blockedSites(() -> limited(false, java.util.List.of(), true, "read"));
+        server.blockedSites(() -> limited(false, java.util.List.of(), true, "read"));
         for (BrowserService.ToolResult refused : java.util.List.of(
                 service.call("browser_click", args().put("session", "s1").put("ref", 3)),
                 service.call("browser_press_key", args().put("session", "s1").put("key", "Tab")),
@@ -862,7 +806,7 @@ class BrowserServiceTest {
 
         // Only the sites that are allowed: the session elsewhere is refused, and the agent is told
         // the one site it ran into and never which ones are allowed.
-        bridge.blockedSites(() -> limited(false, java.util.List.of("example.net"), true, "write"));
+        server.blockedSites(() -> limited(false, java.util.List.of("example.net"), true, "write"));
         BrowserService.ToolResult outside = service.call("browser_snapshot", args().put("session", "s2"));
         assertEquals("Error [SITE_NOT_ALLOWED]: mail.example.org is not among the sites the user's security policy allows agents "
                 + "to work on. Only the user can change that, in the settings of the TabGoblin server.", outside.text());
@@ -876,7 +820,7 @@ class BrowserServiceTest {
     @Test
     void theStatusSaysWhatThePolicyRestrictsAndNotWhichSitesAreAllowed() throws Exception {
         twoSessions();
-        bridge.blockedSites(() -> limited(true, java.util.List.of("example.net"), false, "explore"));
+        server.blockedSites(() -> limited(true, java.util.List.of("example.net"), false, "explore"));
         ext.responder = cmd -> FakeExtension.ok(cmd, args());
         String text = service.call("browser_status", args()).text();
         assertTrue(text.contains("Security policy: strict profile"), text);
@@ -885,13 +829,13 @@ class BrowserServiceTest {
         assertTrue(text.contains("agents work only on the sites the user allows"), text);
         assertFalse(text.contains("example.net"), "the list is the user's, and is not given to an agent");
         // Without a policy the status has no such line.
-        bridge.blockedSites(() -> BlockedSites.Rule.NONE);
+        server.blockedSites(() -> BlockedSites.Rule.NONE);
         assertFalse(service.call("browser_status", args()).text().contains("Security policy"));
     }
 
     @Test
     void theExtensionIsToldTheRestrictionsWithTheListOfBlockedSites() throws Exception {
-        bridge.blockedSites(() -> limited(true, java.util.List.of("example.org"), false, "explore"));
+        server.blockedSites(() -> limited(true, java.util.List.of("example.org"), false, "explore"));
         ext.send("{\"type\":\"ping\"}");
         for (int i = 0; i < 200 && ext.policies.isEmpty(); i++) {
             Thread.sleep(10);
@@ -945,7 +889,7 @@ class BrowserServiceTest {
     @Test
     void whereThePolicyAllowsNoSessionMoreThanReadNoPageIsFollowedAndNothingIsHoveredOver() throws Exception {
         twoSessions();
-        bridge.blockedSites(() -> limited(false, java.util.List.of(), true, "read"));
+        server.blockedSites(() -> limited(false, java.util.List.of(), true, "read"));
         assertTrue(service.call("browser_hover", args().put("session", "s1").put("ref", 3)).text().startsWith("Error [ACCESS_RESTRICTED]"));
         assertTrue(service.call("browser_collect", args().put("session", "s1").put("next", "Next")).text().startsWith("Error [ACCESS_RESTRICTED]"));
         assertEquals(0, ext.commands.size());
@@ -974,12 +918,12 @@ class BrowserServiceTest {
             assertTrue(service.call("browser_request_access", bad).text().startsWith("Error [INVALID_ARGUMENT]"), bad.toString());
         }
         // The user's settings rule it out: they are not asked for what they could not give.
-        bridge.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null,
+        server.blockedSites(() -> new BlockedSites.Rule(java.util.List.of("example.org"), null,
                 new BlockedSites.Limits(false, java.util.List.of(), true, BlockedSites.Access.EXPLORE, 0, 0)));
         assertTrue(service.call("browser_request_access", args().put("level", "write")).text().startsWith("Error [ACCESS_RESTRICTED]"));
         assertTrue(service.call("browser_request_access", args().put("level", "read").put("site", "https://mail.example.org/"))
                 .text().startsWith("Error [SITE_BLOCKED]: mail.example.org"));
-        bridge.blockedSites(() -> limited(false, java.util.List.of("example.net"), true, "write"));
+        server.blockedSites(() -> limited(false, java.util.List.of("example.net"), true, "write"));
         assertTrue(service.call("browser_request_access", args().put("level", "read").put("site", "https://elsewhere.example"))
                 .text().startsWith("Error [SITE_NOT_ALLOWED]: elsewhere.example"));
         assertEquals(sent, ext.commands.size(), "none of them reached the browser");
@@ -1005,7 +949,7 @@ class BrowserServiceTest {
     void anAgentOfAnInterfaceTheSettingsTurnedOffIsToldByEveryToolAndNothingIsSent() throws Exception {
         BlockedSites.Rule mcpOff = new BlockedSites.Rule(java.util.List.of(), null,
                 new BlockedSites.Limits(false, java.util.List.of(), true, BlockedSites.Access.WRITE, 0, 0, true, false));
-        bridge.blockedSites(() -> mcpOff);
+        server.blockedSites(() -> mcpOff);
         // This service is an MCP agent's: the settings changed under it.
         BrowserService.ToolResult told = service.call("browser_snapshot", args());
         assertTrue(told.isError());
@@ -1017,7 +961,7 @@ class BrowserServiceTest {
         assertFalse(commands.call("browser_status", args()).isError());
         BlockedSites.Rule cliOff = new BlockedSites.Rule(java.util.List.of(), null,
                 new BlockedSites.Limits(false, java.util.List.of(), true, BlockedSites.Access.WRITE, 0, 0, false, true));
-        bridge.blockedSites(() -> cliOff);
+        server.blockedSites(() -> cliOff);
         assertEquals("INTERFACE_NOT_ALLOWED", commands.call("browser_status", args()).code());
         assertFalse(service.call("browser_status", args()).isError());
         // The status says what holds.

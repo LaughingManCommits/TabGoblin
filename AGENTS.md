@@ -51,6 +51,15 @@ or says it differently, the linked page is right.
   are not to come back.
 - **Agents read the tools' text output.** Changing a tool's result text is a public contract
   change: update [docs/tool-reference.md](docs/tool-reference.md) and run the end-to-end suite.
+- **Documentation is part of a change.** For every change, whatever files it touched, assess
+  its impact: name the claims in the pages, diagrams, pictures and skills that the change could
+  make untrue; search the whole repository for the words of the change (names, components,
+  settings, defaults, behaviour, examples), not only the files already open; update what is
+  affected in the same change, taking the old out rather than writing the new beside it; and
+  where nothing is affected, say so and why. What the implementation and its tests do is what
+  may be claimed; where a page, the code and the intended design disagree, that is a fault to
+  look into and report, not a sentence to adjust. The rules in full, and their one owner:
+  [docs/development.md](docs/development.md#documentation).
 
 The full list of conventions is in
 [docs/development.md](docs/development.md#conventions).
@@ -107,11 +116,11 @@ build in a copy (runbook: "Common problems"). Three rules apply to every row:
 | Change the goblin: its icons, its sprites, an animation, or when the panel plays which | `art/goblin.ts` (the drawing), `art/mascot.ts` (writes the pictures: run `node art/mascot.ts`), `PanelModel.java` `mood` (which animation, from what the server knows), `Panel.java` `Mascot` (playing it), `notice.ts` `goblinParts` (the face in the page) | `art/goblin.ts` draws; nothing else does. The look and the rules are in [development.md](docs/development.md#the-goblin) | `test/mascot.test.ts` (the files are what the script draws), `test/notice.test.ts`, `PanelModelTest`, `PanelTest` (needs a display); then the panel's pictures, `HEADED=1 node screenshots.mjs` for the popup and the notice, and your eyes on `docs/images/mascot.png` |
 | Change the notice in the page | `notice.ts` (what it shows at a moment, the drawing, and when what was taken out of the page is out of the picture: `whenDrawn`), `background.ts` `setNotice` (when a state or a line is sent), `policy.ts` `endedLine` (a line's words); `content.ts` holds it | Same; what goes to the page is a state and the activity list's fixed words, and the flow is in [architecture.md](docs/architecture.md#the-notice-in-the-page), how it is drawn in [development.md](docs/development.md#the-notice-in-the-page) | `test/notice.test.ts`, `test/background.test.ts` (what the page is told), end to end (it reads the closed box through the debugging interface); for its look, `node notice-pictures.mjs` in `e2e` and your eyes on every state; then `HEADED=1 node screenshots.mjs` for `indicator.png` |
 | Change the server's panel (the window of `--panel`) | `PanelModel.java` (what it shows), `Panel.java` and `panel.css` (the window and its look), `McpMain.java` `showPanel` (what a command does), `WebSocketBridge.java` `setHeld` (the switch) | Same; the rules it must keep are in [security-model.md](docs/security-model.md#the-servers-panel), how it is built in [development.md](docs/development.md#the-servers-panel) | `PanelModelTest`, `PanelTest` (needs a display), `LogTest`, `WebSocketBridgeTest`, end to end (the section "The server's window", which runs on Windows only and presses the real window through `e2e/panel-window.ps1`); then the pictures and the real window by hand, on every system it is to work on (runbook: "Look at the server's panel") |
-| Change how the one server and the agents' processes find, prove and leave each other | `Link.java` (the process an agent starts), `Hub.java` (the server), `Agent.java` (one agent inside it), `McpMain.java` (`main`, `startServer`, `showWindow`, `openWhereThePortsAre`), `Pairing.java` (the two proofs), `Ports.java` (the list of first ports for a machine whose system keeps ports back; `FIRST_PORTS` and `rangesToScan` in `policy.ts` have to say the same), `RunningServers.java` (the file in which a server on a port of the user's own is found by a process that names none) | Same. What it has to keep is in [architecture.md](docs/architecture.md#processes-and-ports) and [how a server ends](docs/architecture.md#how-a-server-ends): nothing is sent twice, a stop is told apart from a loss, and no agent learns of another | `HubTest`, `PortsTest`, `RunningServersTest`, `test/policy.test.ts`, `mvn verify` (the conformance check starts the jar as an agent does), end to end (two agents through one server), and by hand with real processes: one server for two agents, an agent leaving, the server's process ended |
+| Change how the one server and the agents' processes find, prove and leave each other | `Link.java` (the process an agent starts), `Hub.java` (the server), `Agent.java` (one agent inside it), `ExtensionServer.java` (the one endpoint: the extension on `/`, the links on `/link`), `McpMain.java` (`main`, `startServer`, `showWindow`, `openWhereThePortsAre`), `Pairing.java` (the two proofs), `Ports.java` (the list of ports for a machine whose system keeps one back; `PORTS` in `policy.ts` has to say the same, and `check-drift.mjs` holds it) | Same. What it has to keep is in [architecture.md](docs/architecture.md#processes-and-ports) and [how a server ends](docs/architecture.md#how-a-server-ends): nothing is sent twice, a stop is told apart from a loss, and no agent learns of another | `HubTest`, `PortsTest`, `WebSocketBridgeTest`, `test/policy.test.ts`, `test/background.test.ts`, `mvn verify` (the conformance check starts the jar as an agent does), end to end (two agents through one server), and by hand with real processes: one server for two agents, an agent leaving, the server's process ended |
 | Change MCP behaviour of the server (lifecycle, cancellation, tool metadata) | `McpMain.java`, `StdinTap.java` | [docs/mcp-conformance.md](docs/mcp-conformance.md) says which revision it is measured against and what is done by hand | `StdinTapTest`, `mvn verify` (runs `McpConformanceIT` on the built jar), end to end |
 | Change build wiring or CI | `java-server/pom.xml`, `chrome-extension/build.mjs`, `.github/workflows/ci.yml` | Same | Run the job's commands locally (runbook: "Reproduce a CI job") |
 | Change the download, setup, or how a release is made | `release/bundle.sh` (what a download holds), `release/tabgoblin` and `tabgoblin.cmd` (the command in it), `tabgoblin-token.cmd` (that command with `--show-token`, to double-click on Windows), `McpMain.java` `byHand` and `launcher` (the program `TabGoblin.exe` that the bundle makes for the window: a start without a console that is a person's), `Setup.java` (what `--setup` does and says), `.github/workflows/release.yml` | Same. Setup runs no other program and writes nothing but the skill: an agent is told about the server by its own command, which the user runs. A release is the owner's, by starting the workflow with a version: from `main` a release, from another branch a beta. What a user does with a download is in [installation.md](docs/installation.md#from-a-download); the workflow in [development.md](docs/development.md#releases) | `SetupTest`, `McpMainTest`; then make the download and use it, in a folder with a space in its name (runbook: "Make a release"). The workflow itself runs on GitHub only: start it by hand there with *publish* off, which writes nothing |
-| Edit documentation | `docs/`, root `README.md` | Each fact has one page and the others link to it; which page owns what is in [development.md](docs/development.md#documentation) | Check the links and that nothing personal got in; regenerate pictures only with their scripts (runbook: "Regenerate screenshots and examples", "Look at the server's panel") and open each one |
+| Edit documentation | `docs/`, root `README.md`, `skills/` | Each fact has one page and the others link to it; which page owns what, and what a change owes the pages, is in [development.md](docs/development.md#documentation) | The documentation checks (runbook: the four sections that begin with "Check": links, nothing personal, drift, and the diagrams where one changed); regenerate pictures only with their scripts (runbook: "Regenerate screenshots and examples", "Look at the server's panel") and open each one |
 | Change the version | Runbook: "Change the version": `node release/version.mjs <version>` | Ten files carry it; the script's `PLACES` lists them | `node release/version.mjs` prints one version; all suites |
 | Something slow or hanging | First `browser_status` with `diagnostics: true`: it says whether the time went to the agent, the server, the extension and the page, or the user (`Timings.java`). Then `ExtensionConnection.java` (deadlines), `background.ts` (settle, queues) | Same | `SHOW_STDERR=1 npm test` in `e2e` prints the servers' logs; `SHOW_TIMES=1` prints the timing report of that run |
 
@@ -134,18 +143,29 @@ Each fact has one home. Link to it; do not copy it.
 | Validation history | [docs/agents/validation-log.md](docs/agents/validation-log.md) | only when a past result matters |
 | Product behaviour and decisions | `docs/*.md`; which page owns what is in [development.md](docs/development.md#documentation) | per the task map |
 
-At the end of a session that changed something:
+## Definition of done
 
-1. Update `state.md`: what changed, blockers, the next action. Date it. Remove what is resolved.
-2. Add one entry to `validation-log.md`: revision, what passed, what failed, what was not run.
-   When it passes about ten entries, fold the oldest into one summary line.
-3. A lasting decision goes into the page that owns it (`security-model.md`, `architecture.md`,
-   `development.md`), not into `state.md`.
-4. Check each claim you changed against its source: a command against `package.json`, `pom.xml` or
-   `ci.yml`; a path against the tree; a count against a run.
-5. Check links with the command in the runbook ("Check the documentation links"), and the files
-   with the one under "Check that nothing personal is in the files". There is no other freshness
-   check and no changelog; git history is the record of changes.
+A change is complete when all of this holds; the list is also the end of a session:
+
+1. Its documentation impact is assessed as the constraint above says, and every affected page,
+   diagram, picture and skill is updated in the change; what the CLI and MCP share is said alike
+   for both and in the six skills.
+2. `state.md` says what changed, the blockers and the next action, dated; what is resolved is
+   taken out. `validation-log.md` has one entry: revision, what passed, what failed, what was not
+   run. When it passes about ten entries, fold the oldest into one summary line.
+3. A lasting decision is in the page that owns it (`security-model.md`, `architecture.md`,
+   `development.md`), not in `state.md`.
+4. Each claim changed is checked against its source: a command against `package.json`, `pom.xml`
+   or `ci.yml`; a path against the tree; a count against a run; a picture against the interface.
+5. The documentation checks ran (runbook, the sections that begin with "Check"): links, nothing
+   personal, drift; the diagram script and the diagram check where a diagram changed;
+   `ToolReferenceTest` and `SkillsTest` where a tool or a skill changed. They complement the
+   assessment; they do not replace it. There is no changelog: git history is the record.
+6. The last message ends with the documentation review summary, in the form
+   [development.md](docs/development.md#the-documentation-review) gives: what was updated; the
+   diagrams, pictures and skills updated or verified unaffected; what ran; the discrepancies found
+   and the claims not verified. Where nothing needed changing, it says that the impact was
+   assessed and why. No other report is written for a routine change.
 
 There is no index or search tooling. Use repository search; add tooling only for a retrieval
 problem that has actually occurred.

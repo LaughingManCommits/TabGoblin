@@ -23,10 +23,8 @@ how much you may do there.
 ## Start with the status
 
 Leave `--port` out: the commands find the one TabGoblin server by themselves. Give
-`--port <first-port>` only when the user's setup names one, and then the same on every command,
-starting with `status`. The port that `status` lists for your agent is not the one to give. A
-command may be served by another server than the one of that port, where that one has the
-browser and runs under the same settings: `status` then says so.
+`--port <port>` only when the user's setup names one, and then the same on every command,
+starting with `status`.
 
 1. Run `tabgoblin status --agent <name>`. It reports the extension connection and lists
    your sessions: one for each tab the user has authorized, with its id (`s1`, `s2`, …), its
@@ -35,10 +33,6 @@ browser and runs under the same settings: `status` then says so.
    and go on when they have done it. No command pairs the browser. One thing passes by
    itself: after some minutes without a command the extension has to find you again, within
    half a minute or when the user opens the popup. Try once more then, and not in a loop.
-   **When it says that another TabGoblin server has the browser,** do what it says: run the
-   command once more where it says that the command goes there by itself, and otherwise tell
-   the user. Do not look for that server's port yourself, and do not run the command a third
-   time.
 3. **No session:** ask the user to open the site in Chrome, click the TabGoblin icon on that
    tab, choose an access level and press **Authorize**. Say which level the task needs:
    - **Read** looks at the page that is open.

@@ -16,6 +16,7 @@ npm --prefix e2e install
 npm --prefix e2e test                          # both parts in a real Chrome
 node docs/agents/check-links.mjs               # the documentation's links
 node docs/agents/check-personal.mjs            # nothing personal in the files
+node docs/agents/check-drift.mjs               # no retired name; the numbers both parts carry agree
 ```
 
 The end-to-end suite needs both parts built. After rebuilding the extension, reload it at
@@ -46,10 +47,15 @@ These decide whether a change can be accepted. The reasons are in the
 
 ## Documentation
 
-Each fact has one page, and the others link to it; the
-[table of pages](docs/development.md#documentation) says which page owns what. Document what
-is implemented and what was measured, and say where it stops. Do not describe planned work as
-done.
+Documentation is part of a change, not a task after it: a change is complete when the pages,
+diagrams, pictures and skills that describe what it touched say what is so now, and nothing of
+what was. Each fact has one page, and the others link to it; the
+[table of pages](docs/development.md#documentation) says which page owns what, and the rules
+under it say what to assess for each kind of change, how diagrams and security claims are kept
+true, and which checks to run. Document what is implemented and what was measured, and say
+where it stops. Do not describe planned work as done. A change is complete by the
+[definition of done](AGENTS.md#definition-of-done) in the agent guide, which holds for a person
+as for an agent.
 
 ## Pull requests
 
@@ -58,6 +64,10 @@ done.
 - A security-relevant change says which row of
   [what is verified by tests](docs/security-model.md#what-is-verified-by-tests) it adds or
   changes.
+- End the description with the
+  [documentation review](docs/development.md#the-documentation-review): what was updated, what
+  was verified as unaffected, what was run, what could not be checked; or that the impact was
+  assessed and why nothing was affected.
 
 Vulnerabilities are reported privately: see the [security policy](SECURITY.md).
 

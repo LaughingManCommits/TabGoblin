@@ -4,20 +4,31 @@
 import type { Limits } from './policy.ts';
 
 /**
- * Version 3: an agent is known by the id of its key, and no session passes to an agent by its
- * name; a server tells its security policy. A peer of version 2 is refused: it would bring the
- * older, weaker rule with it.
+ * The version this extension speaks: said in the handshake, and a server that speaks another is
+ * refused, with the popup's word to update both parts to one release. It is 1: counted from the
+ * first release that has one connection for every agent of the server. The server names its
+ * agents, a command names its agent, and the extension says back which agents the user
+ * disconnected. The releases before it (0.2.0 said 3) had a connection and a port for each agent.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 1;
 
 export const CLOSE_UNAUTHORIZED = 4401;
+/** Not a close code any more: the user's disconnecting of one agent is said as `agents_refused`. Kept for the popup's words. */
 export const CLOSE_USER_DISCONNECTED = 4403;
 export const CLOSE_VERSION = 4406;
 /** The extension closes with this when a server has left its heartbeats unanswered. */
 export const CLOSE_UNRESPONSIVE = 4408;
 
+/** One agent of the server, as the server names it: its id, which its tabs are bound to, and the name the user is shown. */
+export interface AgentInfo {
+  id: string;
+  name: string;
+}
+
 export interface CommandMessage {
   id: string;
+  /** The agent the command is from: one the server named. */
+  agent: string;
   action: string;
   /** Session the command is bound to; absent means "this agent's only session". */
   session?: string;
@@ -27,12 +38,12 @@ export interface CommandMessage {
 }
 
 export type ServerMessage =
-  /** `clientId` is who the server says it is before anything is proven; empty from a server that does not say. */
-  | { type: 'challenge'; nonce: string; versions: number[]; clientId: string }
-  | { type: 'auth_ok'; proof: string; version: number; clientId: string; clientName: string }
+  | { type: 'challenge'; nonce: string; version: number }
+  | { type: 'auth_ok'; proof: string; version: number; agents: AgentInfo[] }
+  /** Who the server's agents are now: one came, went, or was named. */
+  | { type: 'agents'; agents: AgentInfo[] }
   | { type: 'pong' }
   | { type: 'cancel'; id: string }
-  | { type: 'client'; name: string }
   /** The sites no agent may work on, as the server's settings have them; `unreadable` when they cannot be read and everything is refused. */
   | { type: 'policy'; blocked: string[]; unreadable: boolean; limits: Limits }
   | { type: 'command'; command: CommandMessage };
@@ -41,26 +52,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const str = (v: unknown, max: number): string | null =>
+  typeof v === 'string' && v.length > 0 && v.length <= max ? v : null;
+
+/** The agents of a server as it names them, or null when the list is not one: an agent without an id is no agent. */
+function parseAgents(raw: unknown): AgentInfo[] | null {
+  if (!Array.isArray(raw) || raw.length > 100) return null;
+  const agents: AgentInfo[] = [];
+  for (const entry of raw) {
+    if (!isRecord(entry)) return null;
+    const id = str(entry.id, 64);
+    if (!id) return null;
+    agents.push({ id, name: typeof entry.name === 'string' ? entry.name.slice(0, 60) : '' });
+  }
+  return agents;
+}
+
 /** Turns a parsed JSON message into a typed one, or null when it is not a valid protocol message. */
 export function parseServerMessage(raw: unknown): ServerMessage | null {
   if (!isRecord(raw)) return null;
-  const str = (v: unknown, max: number): string | null =>
-    typeof v === 'string' && v.length > 0 && v.length <= max ? v : null;
 
   switch (raw.type) {
     case 'challenge': {
       const nonce = str(raw.nonce, 128);
-      const versions = Array.isArray(raw.versions) ? raw.versions.filter((v): v is number => Number.isInteger(v)) : [];
-      return nonce ? { type: 'challenge', nonce, versions, clientId: str(raw.clientId, 64) ?? '' } : null;
+      // A server that names no version is of a release before there was one: that is version 0, and refused.
+      return nonce ? { type: 'challenge', nonce, version: Number.isInteger(raw.version) ? raw.version as number : 0 } : null;
     }
     case 'auth_ok': {
       const proof = str(raw.proof, 128);
-      const clientId = str(raw.clientId, 64);
-      if (!proof || !clientId || !Number.isInteger(raw.version)) return null;
-      return {
-        type: 'auth_ok', proof, clientId, version: raw.version as number,
-        clientName: typeof raw.clientName === 'string' ? raw.clientName.slice(0, 60) : '',
-      };
+      const agents = parseAgents(raw.agents ?? []);
+      if (!proof || !agents || !Number.isInteger(raw.version)) return null;
+      return { type: 'auth_ok', proof, version: raw.version as number, agents };
+    }
+    case 'agents': {
+      const agents = parseAgents(raw.agents);
+      return agents ? { type: 'agents', agents } : null;
     }
     case 'pong':
       return { type: 'pong' };
@@ -68,8 +94,6 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
       const id = str(raw.id, 64);
       return id ? { type: 'cancel', id } : null;
     }
-    case 'client':
-      return typeof raw.name === 'string' ? { type: 'client', name: raw.name.slice(0, 60) } : null;
     case 'policy': {
       if (!Array.isArray(raw.blocked) || raw.blocked.length > 5000) return null;
       // A list with an entry that is no host is not taken in part: it is not a list.
@@ -98,15 +122,16 @@ export function parseServerMessage(raw: unknown): ServerMessage | null {
     }
     case undefined: {
       const id = str(raw.id, 64);
+      const agent = str(raw.agent, 64);
       const action = str(raw.action, 40);
-      if (!id || !action) return null;
+      if (!id || !agent || !action) return null;
       if (raw.session !== undefined && (typeof raw.session !== 'string' || !/^s\d{1,9}$/.test(raw.session))) return null;
       if (raw.params !== undefined && !isRecord(raw.params)) return null;
       if (typeof raw.deadline !== 'number' || !Number.isFinite(raw.deadline)) return null;
       return {
         type: 'command',
         command: {
-          id, action,
+          id, agent, action,
           ...(typeof raw.session === 'string' ? { session: raw.session } : {}),
           params: isRecord(raw.params) ? raw.params : {},
           deadline: raw.deadline,

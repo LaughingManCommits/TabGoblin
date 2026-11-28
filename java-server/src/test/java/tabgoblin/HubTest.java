@@ -30,9 +30,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * One server for all agents: the processes that agents' programs start connect to it, each proves
- * that it knows the pairing token, and each agent has its own port, sessions and tools there. And
- * what happens when the server ends: stopped by the user, left by its last agent, or gone.
+ * One server for all agents, on one port: the processes that agents' programs start connect to it
+ * there, each proves that it knows the pairing token, and each agent has its own id, sessions and
+ * tools there. And what happens when the server ends: stopped by the user, left by its last agent,
+ * or gone.
  */
 class HubTest {
 
@@ -48,12 +49,12 @@ class HubTest {
         hubs.forEach(Hub::drop);
     }
 
-    /** A port from which this many are free in a row: the agents' ports, and the server's own after them. */
+    /** A free port for a server of the test's own. */
     private static int freePorts() throws IOException {
         for (int attempt = 0; attempt < 50; attempt++) {
             int port = 20_000 + (int) (Math.random() * 30_000);
             boolean free = true;
-            for (int i = 0; i <= McpMain.PORT_RANGE && free; i++) {
+            for (int i = 0; i <= 0 && free; i++) {
                 try (ServerSocket probe = new ServerSocket(port + i, 1, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
                     probe.setReuseAddress(true);
                 } catch (IOException e) {
@@ -106,7 +107,7 @@ class HubTest {
             PipedInputStream linkIn = new PipedInputStream(toLink, 1 << 16);
             PipedOutputStream linkOut = new PipedOutputStream();
             BufferedReader fromLink = new BufferedReader(new InputStreamReader(new PipedInputStream(linkOut, 1 << 16), StandardCharsets.UTF_8));
-            link = new Link(linkIn, linkOut, new PrintStream(log, true, StandardCharsets.UTF_8), () -> token, Link.port(port), false, false, () -> {
+            link = new Link(linkIn, linkOut, new PrintStream(log, true, StandardCharsets.UTF_8), () -> token, port, false, false, () -> {
                 starts.incrementAndGet();
                 starter.start();
             }, agent, agentKeys);
@@ -197,7 +198,7 @@ class HubTest {
         Agent agent = hub.agents().get(0);
         // The agent's name comes from its opening message, as it does where an agent has a process of its own.
         await(() -> agent.bridge().clientName().equals("claude-code"), "the agent's name");
-        assertEquals(port, agent.bridge().getPort(), "the first agent has the first port");
+        assertEquals(port, agent.bridge().getPort(), "the agent is on the server's port");
 
         client.send("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
         assertEquals(14, client.answerTo(1).path("result").path("tools").size());
@@ -206,12 +207,13 @@ class HubTest {
         client.call(2, "browser_status", "{}");
         String status = client.text(client.answerTo(2));
         assertTrue(status.contains("Extension: connected"), status);
-        assertTrue(status.contains("This agent: " + agent.bridge().clientId() + " on port " + port), status);
+        assertTrue(status.contains("This agent: " + agent.bridge().clientId()), status);
+        assertFalse(status.contains(" on port "), "the port is the server's, not the agent's: " + status);
         ext.closeBlocking();
     }
 
     @Test
-    void twoAgentsOfOneServerEachHaveTheirOwnPortAndTheirOwnSessions() throws Exception {
+    void twoAgentsOfOneServerShareItsConnectionAndEachHasItsOwnSessions() throws Exception {
         int port = freePorts();
         Hub hub = hub(port, false);
         Client first = new Client(port, TOKEN, () -> { });
@@ -226,40 +228,42 @@ class HubTest {
         Agent one = hub.agents().get(0);
         Agent two = hub.agents().get(1);
         assertEquals(port, one.bridge().getPort());
-        assertEquals(port + 1, two.bridge().getPort(), "each agent has a port of its own to the extension");
+        assertEquals(port, two.bridge().getPort(), "the one port is every agent's");
         assertNotEquals(one.bridge().clientId(), two.bridge().clientId());
         await(() -> two.bridge().clientName().equals("IntelliJ IDEA"), "the second agent's name");
 
-        // The extension is connected to each agent on that agent's port, and tells each its own sessions.
-        FakeExtension toOne = FakeExtension.paired(port, TOKEN);
-        FakeExtension toTwo = FakeExtension.paired(port + 1, TOKEN);
-        toOne.send("""
-                {"type":"event","event":"sessions","data":{"sessions":[{"session":"s1","origin":"https://a.example","mode":"read","state":"active"}]}}""");
+        // The extension is connected to the server once, knows both agents, and tells each its own sessions.
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        assertEquals(List.of(one.bridge().clientId(), two.bridge().clientId()), ext.agents());
+        assertEquals("IntelliJ IDEA", ext.nameOf(two.bridge().clientId()));
+        ext.sessions(one.bridge().clientId(), JSON.createArrayNode().add(JSON.createObjectNode().put("session", "s1")
+                .put("origin", "https://a.example").put("mode", "read").put("state", "active")));
         await(() -> one.bridge().sessions().size() == 1, "the first agent's session");
         assertTrue(two.bridge().sessions().isEmpty(), "an agent is told nothing of another's tabs");
-        // A command of one agent goes to that agent's connection, and to no other.
-        toOne.responder = cmd -> FakeExtension.ok(cmd, JSON.createObjectNode().put("text", "the first agent's page"));
-        toTwo.responder = cmd -> FakeExtension.fail(cmd, "NOT_AUTHORIZED", "No tab is authorized for this agent.");
+        // A command names its agent, and the answer goes to that agent and to no other.
+        ext.responder = cmd -> cmd.path("agent").asString().equals(one.bridge().clientId())
+                ? FakeExtension.ok(cmd, JSON.createObjectNode().put("text", "the first agent's page"))
+                : FakeExtension.fail(cmd, "NOT_AUTHORIZED", "No tab is authorized for this agent.");
         first.call(5, "browser_snapshot", "{}");
         assertTrue(first.text(first.answerTo(5)).contains("the first agent's page"));
         second.call(5, "browser_snapshot", "{}");
         assertTrue(second.text(second.answerTo(5)).contains("Error [NOT_AUTHORIZED]"));
-        assertEquals(1, toOne.commands.size());
-        assertEquals(1, toTwo.commands.size());
+        assertEquals(2, ext.commands.size());
 
         // A line of the log that is one agent's goes to the log of that agent's process, and to no other's.
         await(() -> second.log().contains("code=NOT_AUTHORIZED"), "the second agent's line in its own log");
         assertFalse(first.log().contains("code=NOT_AUTHORIZED"), first.log());
-        assertTrue(first.log().contains("listening port=" + port + " client=" + one.bridge().clientId()), first.log());
+        assertTrue(first.log().contains("serving client=" + one.bridge().clientId()), first.log());
         assertFalse(first.log().contains(two.bridge().clientId()), "nothing of the other agent: " + first.log());
 
-        // One agent goes: the other works on, and the first port is free for the next one.
+        // One agent goes: the other works on, and the extension is told who is left.
         first.leave();
         assertEquals(Link.End.AGENT_LEFT, first.ended.get(5, TimeUnit.SECONDS));
         await(() -> hub.agents().size() == 1, "the first agent to be gone");
+        await(() -> ext.agents().equals(List.of(two.bridge().clientId())), "the extension to be told");
         second.call(6, "browser_snapshot", "{}");
         assertTrue(second.text(second.answerTo(6)).contains("Error [NOT_AUTHORIZED]"));
-        toTwo.closeBlocking();
+        ext.closeBlocking();
     }
 
     @Test
@@ -272,17 +276,14 @@ class HubTest {
         assertTrue(hub.agents().isEmpty());
         assertEquals(0, stranger.starts.get(), "a server that refuses is not started a second time");
 
-        // Something that is not a link at all: it is given the first line, and nothing after it.
-        try (Socket raw = new Socket(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), Link.port(port))) {
-            raw.setSoTimeout(3000);
-            BufferedReader from = new BufferedReader(new InputStreamReader(raw.getInputStream(), StandardCharsets.UTF_8));
-            JsonNode hello = JSON.readTree(from.readLine());
-            assertEquals("hello", hello.path("type").asString());
-            assertFalse(hello.has("clientId"), "it says nothing of an agent before the proof");
-            raw.getOutputStream().write("GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".getBytes(StandardCharsets.UTF_8));
-            raw.getOutputStream().flush();
-            assertNull(from.readLine(), "closed without a word");
-        }
+        // Something that is not a link at all: it is given the first message, and nothing after it.
+        RawLink raw = new RawLink(port);
+        assertTrue(raw.connectBlocking(3, TimeUnit.SECONDS));
+        JsonNode hello = JSON.readTree(raw.take());
+        assertEquals("hello", hello.path("type").asString());
+        assertFalse(hello.has("clientId"), "it says nothing of an agent before the proof");
+        raw.send("GET / HTTP/1.1");
+        assertNull(raw.take(), "closed without a word");
         // Wrong proofs are counted, and after ten nobody is listened to for a while: not the right one either.
         for (int i = 0; i < 10; i++) {
             assertFalse(new Client(port, "e".repeat(64), () -> { }).connect());
@@ -295,7 +296,7 @@ class HubTest {
     @Test
     void aProgramThatHoldsTheServersPortIsNotTakenForTheServer() throws Exception {
         int port = freePorts();
-        try (ServerSocket other = new ServerSocket(Link.port(port), 5, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
+        try (ServerSocket other = new ServerSocket(port, 5, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
             Thread answering = new Thread(() -> {
                 try (Socket socket = other.accept()) {
                     socket.getOutputStream().write("220 some other service ready\r\n".getBytes(StandardCharsets.UTF_8));
@@ -424,31 +425,56 @@ class HubTest {
         hub.whenEmpty(ended::incrementAndGet);
 
         // What a link does, by hand, so that the connection can be broken as a killed process breaks it.
-        Socket socket = new Socket(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), Link.port(port));
-        BufferedReader from = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-        String serverNonce = JSON.readTree(from.readLine()).path("nonce").asString();
+        RawLink raw = new RawLink(port);
+        assertTrue(raw.connectBlocking(3, TimeUnit.SECONDS));
+        String serverNonce = JSON.readTree(raw.take()).path("nonce").asString();
         String nonce = Pairing.randomHex(16);
-        socket.getOutputStream().write(("{\"type\":\"attach\",\"nonce\":\"" + nonce + "\",\"proof\":\""
-                + Pairing.linkProof(TOKEN, serverNonce, nonce) + "\",\"link\":" + Link.VERSION + ",\"panel\":false}\n")
-                .getBytes(StandardCharsets.UTF_8));
-        socket.getOutputStream().flush();
-        assertEquals("attached", JSON.readTree(from.readLine()).path("type").asString());
-        socket.getOutputStream().write(("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":"
-                + "\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"claude-code\",\"version\":\"1\"}}}\n")
-                .getBytes(StandardCharsets.UTF_8));
-        socket.getOutputStream().flush();
+        raw.send("{\"type\":\"attach\",\"nonce\":\"" + nonce + "\",\"proof\":\""
+                + Pairing.linkProof(TOKEN, serverNonce, nonce) + "\",\"link\":" + Link.VERSION + ",\"panel\":false}");
+        assertEquals("attached", JSON.readTree(raw.take()).path("type").asString());
+        raw.send("{\"jsonrpc\":\"2.0\",\"id\":0,\"method\":\"initialize\",\"params\":{\"protocolVersion\":"
+                + "\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"claude-code\",\"version\":\"1\"}}}");
         await(() -> hub.agents().size() == 1, "the agent to be with the server");
-        int agentsPort = hub.agents().get(0).bridge().getPort();
 
         // Broken, not closed: the other side gets an error where it would have got the end.
-        socket.setSoLinger(true, 0);
-        socket.close();
+        raw.getSocket().setSoLinger(true, 0);
+        raw.getSocket().close();
 
         await(() -> hub.agents().isEmpty(), "the agent to be gone for the server");
         await(() -> ended.get() == 1, "the server to end after its last agent");
-        // And its port to the extension is given up, for the next agent.
-        try (ServerSocket free = new ServerSocket(agentsPort, 1, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
-            assertTrue(free.isBound());
+    }
+
+    /** A connection of a process to the server, by hand: what a link speaks, without a link. */
+    private static final class RawLink extends org.java_websocket.client.WebSocketClient {
+        private final java.util.concurrent.BlockingQueue<String> in = new java.util.concurrent.LinkedBlockingQueue<>();
+
+        RawLink(int port) {
+            super(java.net.URI.create("ws://127.0.0.1:" + port + ExtensionServer.LINK_PATH), new org.java_websocket.drafts.Draft_6455(),
+                    java.util.Map.of(), 2000);
+        }
+
+        /** The next message, or null once the connection has ended. */
+        String take() throws InterruptedException {
+            String next = in.poll(5, TimeUnit.SECONDS);
+            return next == null || next.equals("\u0000") ? null : next;
+        }
+
+        @Override
+        public void onOpen(org.java_websocket.handshake.ServerHandshake handshake) {
+        }
+
+        @Override
+        public void onMessage(String message) {
+            in.add(message);
+        }
+
+        @Override
+        public void onClose(int code, String reason, boolean remote) {
+            in.add("\u0000");
+        }
+
+        @Override
+        public void onError(Exception ex) {
         }
     }
 
@@ -475,102 +501,36 @@ class HubTest {
         await(() -> hub.agents().size() == 1, "the agent");
 
         // No browser has come. One that is paired is on its way as a rule: no window for that.
-        assertEquals(new BrowserService.Unpaired(false, false, false), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(false, false, false), hub.unpaired(false));
         assertEquals(0, shown.get());
         assertFalse(hub.standing());
-        // Another server runs: its first port is said, since the browser connects to one server only.
-        hub.others(mine -> new BrowserService.Elsewhere(true));
-        assertEquals(new BrowserService.Unpaired(false, false, false, new BrowserService.Elsewhere(true)), hub.unpaired(false, null));
 
         // A browser came with another token: now the user has to paste the server's, and the window comes up.
         // That browser came here, so another server is not where it is: nothing is said of one, now or after it left.
         comeWithAnotherToken(hub.agents().get(0));
-        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
         assertEquals(1, shown.get());
         assertFalse(hub.standing(), "a window that came up by itself does not make the server stay");
         // Asked again, it is not brought to the front again: once is enough until something is paired.
-        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
         assertEquals(1, shown.get());
 
         // The browser is paired with this agent. A second agent that it has not found yet has nothing
         // to paste: the browser is paired with the server.
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         await(() -> hub.agents().get(0).bridge().isExtensionConnected(), "the pairing");
-        assertEquals(new BrowserService.Unpaired(true, false, true), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(true, false, true), hub.unpaired(false));
         assertEquals(1, shown.get());
 
-        // The browser goes, as when Chrome is closed: nothing is wrong with its token, and no window comes. What
-        // another server says of the browser is fresh, and is passed on whatever happened here before.
+        // The browser goes, as when Chrome is closed: nothing is wrong with its token, and no window comes.
         ext.closeBlocking();
         await(() -> !hub.agents().get(0).bridge().isExtensionConnected(), "the browser to be gone");
-        assertEquals(new BrowserService.Unpaired(false, false, true, new BrowserService.Elsewhere(true)), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(false, false, true), hub.unpaired(false));
         assertEquals(1, shown.get());
         // It comes with another token again, as after a rotation: the window comes up once more.
         comeWithAnotherToken(hub.agents().get(0));
-        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(false, true, true), hub.unpaired(false));
         assertEquals(2, shown.get());
-    }
-
-    @Test
-    void anAgentWhoseSetupNamesAnotherPortIsToldInItsStatusAndOneOfThisPortIsNot() throws Exception {
-        int port = freePorts();
-        Hub hub = hub(port, false);
-        Client elsewhere = new Client(port, TOKEN, () -> { });
-        elsewhere.link.setup(port + 1000, new RunningServers.Fit("one", FakeExtension.ORIGIN));
-        assertTrue(elsewhere.connect());
-        elsewhere.open("claude-code");
-        Client here = new Client(port, TOKEN, () -> { });
-        here.link.setup(port, new RunningServers.Fit("two", FakeExtension.ORIGIN));
-        assertTrue(here.connect());
-        here.open("codex");
-        await(() -> hub.agents().size() == 2, "the two agents");
-        // Whether another server with the browser runs as an agent's setup asks is each agent's own question: it
-        // is answered from what that agent's process said of itself, not from what this server runs under.
-        hub.others(mine -> new BrowserService.Elsewhere(mine != null && mine.settings().equals("two")));
-        // Each status waits its grace for the browser once: the two are asked at the same time.
-        List<String> before = hub.agents().parallelStream()
-                .map(agent -> agent.service().call("browser_status", JSON.createObjectNode()).text()).toList();
-        assertEquals(1, before.stream().filter(text -> text.contains("It runs under the settings this agent's setup names.")).count(),
-                String.join("\n---\n", before));
-        assertEquals(1, before.stream().filter(text -> text.contains("It reads another settings file")).count());
-        FakeExtension.paired(hub.agents().get(0).bridge().getPort(), TOKEN);
-        FakeExtension.paired(hub.agents().get(1).bridge().getPort(), TOKEN);
-        String said = "This agent's setup names first port " + (port + 1000) + ".";
-        List<String> statuses = new ArrayList<>();
-        for (Agent agent : hub.agents()) {
-            statuses.add(agent.service().call("browser_status", JSON.createObjectNode()).text());
-        }
-        assertEquals(1, statuses.stream().filter(text -> text.contains(said)).count(), String.join("\n---\n", statuses));
-        assertEquals(1, statuses.stream().filter(text -> !text.contains("setup names")).count(), "the one of this server's port");
-    }
-
-    @Test
-    void theServerIsToldWhenTheBrowserComesAndGoesOnceEachTime() throws Exception {
-        int port = freePorts();
-        Hub hub = hub(port, false);
-        List<Boolean> changes = new java.util.concurrent.CopyOnWriteArrayList<>();
-        hub.onBrowser(changes::add);
-        Client agent = new Client(port, TOKEN, () -> { });
-        assertTrue(agent.connect());
-        agent.open("claude-code");
-        await(() -> hub.agents().size() == 1, "the agent");
-        assertFalse(hub.hasBrowser());
-
-        FakeExtension ext = FakeExtension.paired(port, TOKEN);
-        await(() -> changes.equals(List.of(true)), "the browser to be told as come");
-        assertTrue(hub.hasBrowser());
-        ext.closeBlocking();
-        await(() -> changes.equals(List.of(true, false)), "the browser to be told as gone");
-        Thread.sleep(600);
-        assertEquals(List.of(true, false), changes, "and nothing more while nothing changes");
-
-        // The browser is back, and the server stops: its agents are closed and the browser goes with them,
-        // which is not told, so that what is written of the server is not written again after it is taken out.
-        FakeExtension.paired(port, TOKEN);
-        await(() -> changes.equals(List.of(true, false, true)), "the browser to be told as come again");
-        hub.close();
-        Thread.sleep(600);
-        assertEquals(List.of(true, false, true), changes, "nothing is told after the server began to stop");
     }
 
     @Test
@@ -585,15 +545,15 @@ class HubTest {
         await(() -> hub.agents().size() == 1, "the agent");
         comeWithAnotherToken(hub.agents().get(0));
         // Started with --no-panel: it is known that the browser holds another token, and no window comes.
-        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(true, null));
+        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(true));
         assertEquals(0, shown.get());
         // Switched off in the window: pairing would change nothing.
         hub.setHeld(true);
-        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(false));
         assertEquals(0, shown.get());
         hub.setHeld(false);
         // A server that has no display says so by having no window: the token comes from the command then.
-        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(false, null));
+        assertEquals(new BrowserService.Unpaired(false, true, false), hub.unpaired(false));
         assertEquals(1, shown.get(), "the window was asked for; that none came is the display's doing");
     }
 
@@ -601,7 +561,7 @@ class HubTest {
     void askedForItsWindowTheServerShowsItAndStaysForTheUser() throws Exception {
         int port = freePorts();
         Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(),
-                new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, Link.port(port), true, () -> { });
+                new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, port, true, () -> { });
         assertFalse(asker.show(), "no server runs: there is no window to ask for");
 
         Hub hub = hub(port, false);
@@ -616,7 +576,7 @@ class HubTest {
         // An agent whose settings ask for the window has it shown as well.
         PipedOutputStream toLink = new PipedOutputStream();
         Link wishing = new Link(new PipedInputStream(toLink), java.io.OutputStream.nullOutputStream(),
-                new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, Link.port(port), true, () -> { });
+                new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, port, true, () -> { });
         assertTrue(wishing.connect());
         await(() -> shown.get() == 2, "the window to be asked for by the agent's settings");
         toLink.close();
@@ -669,20 +629,21 @@ class HubTest {
         assertFalse(AgentKeys.read(keys, "ide").equals(TOKEN), "an agent's key is not the pairing token");
     }
 
-    /** One line to the server as a link writes it, and the server's answer to it. */
+    /** One message to the server as a link writes it, and the server's answer to it. */
     private static JsonNode attachBy(int port, java.util.function.BiConsumer<tools.jackson.databind.node.ObjectNode, String> fill) throws Exception {
-        try (Socket raw = new Socket(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), Link.port(port))) {
-            raw.setSoTimeout(5000);
-            BufferedReader from = new BufferedReader(new InputStreamReader(raw.getInputStream(), StandardCharsets.UTF_8));
-            String nonce = JSON.readTree(from.readLine()).path("nonce").asString();
+        RawLink raw = new RawLink(port);
+        try {
+            assertTrue(raw.connectBlocking(3, TimeUnit.SECONDS));
+            String nonce = JSON.readTree(raw.take()).path("nonce").asString();
             String mine = "0123456789abcdef0123456789abcdef";
             tools.jackson.databind.node.ObjectNode ask = JSON.createObjectNode();
             ask.put("type", "attach").put("nonce", mine).put("link", Link.VERSION);
             ask.put("proof", Pairing.linkProof(TOKEN, nonce, mine));
             fill.accept(ask, AgentKeys.class.getSimpleName() + ":" + nonce + ":" + mine);
-            raw.getOutputStream().write((JSON.writeValueAsString(ask) + "\n").getBytes(StandardCharsets.UTF_8));
-            raw.getOutputStream().flush();
-            return JSON.readTree(from.readLine());
+            raw.send(JSON.writeValueAsString(ask));
+            return JSON.readTree(raw.take());
+        } finally {
+            raw.close();
         }
     }
 

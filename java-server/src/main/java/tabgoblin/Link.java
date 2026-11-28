@@ -7,13 +7,20 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.ConnectException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
+import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import org.java_websocket.client.WebSocketClient;
+import org.java_websocket.drafts.Draft_6455;
+import org.java_websocket.handshake.ServerHandshake;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
@@ -24,9 +31,10 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>An agent's program starts the server as a child of its own and talks to it through that
  * child's input and output; that cannot be changed from here. So the child stays, and is this:
- * a pipe to the one server ({@link Hub}), which it finds on the loopback address or starts as a
- * process of its own if there is none. Each side proves to the other that it knows the pairing
- * token before a message passes.
+ * a pipe to the one server ({@link Hub}), which it reaches on the server's one port, on the path
+ * {@code /link}, or starts as a process of its own if there is none. A line of the agent's is one
+ * message of the connection, and a message of the server's one line to the agent. Each side proves
+ * to the other that it knows the pairing token before a message passes.
  *
  * <p>If the server's process ends while the agent is still there, and nobody stopped it, the
  * link starts the server anew and goes on: it tells the new server who its agent is, by sending
@@ -36,7 +44,7 @@ import tools.jackson.databind.node.ObjectNode;
 final class Link {
 
     /** The version of what a link and the server say to each other before the agent's messages pass. */
-    static final int VERSION = 2;
+    static final int VERSION = 3;
 
     /** How the link's time with the server ended. */
     enum End {
@@ -62,20 +70,75 @@ final class Link {
         }
     }
 
-    /** One connection to the server, once both sides have proven themselves. */
-    private record Channel(Socket socket, BufferedReader from, OutputStream to) {
+    /**
+     * One connection to the server. Its messages are taken from a queue, so that the handshake and
+     * the pump read them in turn; its end is the last entry of the queue.
+     */
+    private static final class Wire extends WebSocketClient {
+        private static final String END = "\u0000";
+        private final BlockingQueue<String> in = new LinkedBlockingQueue<>();
+        private volatile Exception failure;
+
+        Wire(URI uri) {
+            super(uri, new Draft_6455(Collections.emptyList(), Collections.singletonList(new org.java_websocket.protocols.Protocol("")),
+                    ExtensionServer.MAX_MESSAGE_BYTES), Map.of(), 2000);
+            setTcpNoDelay(true);
+        }
+
+        @Override
+        public void onOpen(ServerHandshake handshake) {
+        }
+
+        @Override
+        public void onMessage(String message) {
+            in.add(message);
+        }
+
+        @Override
+        public void onClose(int code, String reason, boolean remote) {
+            in.add(END);
+        }
+
+        @Override
+        public void onError(Exception ex) {
+            if (failure == null) {
+                failure = ex;
+            }
+        }
+
+        /** The next message, or null when the connection has ended. */
+        String take() throws InterruptedException {
+            String next = in.take();
+            return END.equals(next) ? null : next;
+        }
+
+        /** The next message within a time, or null when the connection has ended. */
+        String take(long ms) throws IOException {
+            String next;
+            try {
+                next = in.poll(ms, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted");
+            }
+            if (next == null) {
+                throw new SocketTimeoutException("no answer from the server");
+            }
+            return END.equals(next) ? null : next;
+        }
     }
 
     private static final String CONTROL = "{\"tabgoblin\":";
     private static final long CONNECT_WITHIN_MS = 20_000;
+    private static final long ANSWER_WITHIN_MS = 5_000;
 
     private final BufferedReader in;
     private final OutputStream out;
     private final PrintStream err;
     private final Supplier<String> token;
     private final boolean quiet;
-    /** The ports the one server may listen on for links, in the order they are tried. */
-    private final java.util.List<Integer> ports;
+    /** The ports the one server may listen on, in the order they are tried. */
+    private final List<Integer> ports;
     private final boolean panel;
     private final Starter starter;
     /** The label of this agent's key and the folder the keys are in; null for an agent that has none. */
@@ -91,20 +154,16 @@ final class Link {
     private String opened;
     /** The id of an answer the agent has already: the new server's answer to the opening sent anew. */
     private String swallow;
-    private Channel channel;
+    private Wire channel;
     private volatile boolean inputEnded;
     private volatile boolean stopping;
     /** This process runs one command for its agent and ends ({@link Cli}): the server keeps the agent between such commands. */
     private boolean command;
-    /** The first port this process's setup names, or 0: said to the server, which tells the agent if it is another server's. */
-    private int setupPort;
-    /** What this process would start its own server under: said to the server, which compares another server's with it. */
-    private RunningServers.Fit fit;
     /** Why the server would not have this process, if it said so. */
     private volatile String refusal;
 
     /**
-     * @param port    the port the server listens on for links
+     * @param port    the port the server listens on
      * @param panel   the agent's settings ask for the server's window
      * @param starter starts the one server when there is none
      * @param err     where this process's own log goes: the server's lines for this agent are written there
@@ -128,14 +187,14 @@ final class Link {
      */
     Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, int port, boolean panel, boolean quiet,
             Starter starter, String agent, java.nio.file.Path agentKeys) {
-        this(in, out, err, token, java.util.List.of(port), panel, quiet, starter, agent, agentKeys);
+        this(in, out, err, token, List.of(port), panel, quiet, starter, agent, agentKeys);
     }
 
     /**
-     * @param ports the ports the server may listen on for links, in the order they are tried: one
-     *              for each first port of {@link Ports}, or the one that follows from the user's own
+     * @param ports the ports the server may listen on, in the order they are tried: the list that
+     *              every part knows, or the one the user chose
      */
-    Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, java.util.List<Integer> ports, boolean panel,
+    Link(InputStream in, OutputStream out, PrintStream err, Supplier<String> token, List<Integer> ports, boolean panel,
             boolean quiet, Starter starter, String agent, java.nio.file.Path agentKeys) {
         this.agent = agentKeys == null ? null : agent;
         this.agentKeys = agentKeys;
@@ -151,21 +210,11 @@ final class Link {
 
     /**
      * For a process that runs one command and ends. The server is told so, and keeps the agent's
-     * connection to the browser for the next command; and a server that goes away under the
-     * command is not started anew: the command's outcome is unknown, and that is its answer.
+     * view of the browser for the next command; and a server that goes away under the command is
+     * not started anew: the command's outcome is unknown, and that is its answer.
      */
     Link forCommand() {
         command = true;
-        return this;
-    }
-
-    /**
-     * @param first the first port the setup names, or 0 if it names none
-     * @param mine  what this process would start its own server under
-     */
-    Link setup(int first, RunningServers.Fit mine) {
-        setupPort = first;
-        fit = mine;
         return this;
     }
 
@@ -174,18 +223,13 @@ final class Link {
         return refusal;
     }
 
-    /** The port the one server listens on for links: the one after the agents' own. */
-    static int port(int firstAgentPort) {
-        return firstAgentPort + McpMain.PORT_RANGE;
-    }
-
     /**
-     * Connects to the one server, and starts it first if there is none. Says false if there is no
-     * server to be had here: its port is held by something else, or it cannot be started. The
+     * Has the server: connects to the one that runs, or starts it and connects. Says false if no
+     * server is to be had here: its port is held by something else, or it cannot be started. The
      * agent's messages have not been touched then, and the process can serve its agent alone.
      */
     boolean connect() {
-        Channel found = reach();
+        Wire found = reach();
         if (found == null) {
             return false;
         }
@@ -197,7 +241,7 @@ final class Link {
     }
 
     /** A connection to the server on which both sides have proven themselves, or null if there is none to be had. */
-    private Channel reach() {
+    private Wire reach() {
         long deadline = System.currentTimeMillis() + CONNECT_WITHIN_MS;
         long started = 0;
         while (true) {
@@ -242,7 +286,7 @@ final class Link {
      */
     boolean show() throws IOException, Refused {
         try {
-            attach("show").socket().close();
+            attach("show").close();
             return true;
         } catch (ConnectException e) {
             return false;
@@ -256,7 +300,7 @@ final class Link {
      */
     boolean turnedAway() throws IOException, Refused {
         try {
-            attach("turned_away").socket().close();
+            attach("turned_away").close();
             return true;
         } catch (ConnectException e) {
             return false;
@@ -265,39 +309,46 @@ final class Link {
 
     /**
      * Connects to the server on the first of its ports that somebody listens on. Where the system
-     * keeps the usual ports back, the server is on a later one of the list ({@link Ports}).
+     * keeps the usual port back, the server is on a later one of the list.
      *
      * @throws ConnectException if nobody listens on any of them: there is no server
      */
-    private Socket open() throws IOException {
-        ConnectException nobody = new ConnectException("no port to look for the server on");
+    private Wire open() throws IOException, Refused {
+        IOException nobody = new ConnectException("no port to look for the server on");
         for (int port : ports) {
-            Socket socket = new Socket();
+            Wire wire = new Wire(URI.create("ws://127.0.0.1:" + port + ExtensionServer.LINK_PATH));
+            boolean opened;
             try {
-                socket.connect(new InetSocketAddress(InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), port), 1000);
-                return socket;
-            } catch (ConnectException e) {
-                nobody = e;
-                socket.close();
-            } catch (IOException e) {
-                socket.close();
-                throw e;
+                opened = wire.connectBlocking(2, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted");
             }
+            if (opened) {
+                return wire;
+            }
+            Exception failure = wire.failure;
+            if (failure instanceof ConnectException refused) {
+                nobody = refused;
+                continue;
+            }
+            if (failure instanceof IOException io) {
+                throw io;
+            }
+            // Something holds the port and does not answer the handshake as the server does, or not in time:
+            // a program that is not TabGoblin, or a server that hangs. The server answers at once.
+            throw new Refused("not_a_tabgoblin_server");
         }
         throw nobody;
     }
 
     /** Proves this side, has the other side proven, and says what is wanted: to pass an agent's messages, or the window. */
-    private Channel attach(String what) throws IOException, Refused {
-        Socket socket = null;
+    private Wire attach(String what) throws IOException, Refused {
+        Wire wire = null;
         boolean kept = false;
         try {
-            socket = open();
-            socket.setSoTimeout(5000);
-            socket.setTcpNoDelay(true);
-            BufferedReader from = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
-            OutputStream to = socket.getOutputStream();
-            JsonNode hello = message(from.readLine());
+            wire = open();
+            JsonNode hello = message(wire.take(ANSWER_WITHIN_MS));
             String serverNonce = hello.path("nonce").asString("");
             if (!hello.path("type").asString("").equals("hello") || serverNonce.length() < 16) {
                 throw new Refused("not_a_tabgoblin_server");
@@ -317,13 +368,6 @@ final class Link {
             if (command && what.equals("attach")) {
                 ask.put("cli", true);
             }
-            if (what.equals("attach") && setupPort > 0) {
-                ask.put("setup_port", setupPort);
-            }
-            if (what.equals("attach") && fit != null) {
-                ask.put("settings", fit.settings());
-                ask.put("origin", fit.origin());
-            }
             if (what.equals("attach") && agent != null) {
                 // Who this agent is: the label of its key, and the proof that this process holds the
                 // key. A label the user revoked is named without a proof: no key is made for it.
@@ -338,9 +382,8 @@ final class Link {
                     }
                 }
             }
-            to.write((json.writeValueAsString(ask) + "\n").getBytes(StandardCharsets.UTF_8));
-            to.flush();
-            JsonNode answer = message(from.readLine());
+            wire.send(json.writeValueAsString(ask));
+            JsonNode answer = message(wire.take(ANSWER_WITHIN_MS));
             if (answer.path("type").asString("").equals("refused")) {
                 throw new Refused(answer.path("reason").asString("refused"));
             }
@@ -348,26 +391,24 @@ final class Link {
             if (!Pairing.constantTimeEquals(answer.path("proof").asString(""), Pairing.hubProof(current, serverNonce, nonce))) {
                 throw new Refused("server_without_proof");
             }
-            socket.setSoTimeout(0);
             kept = true;
-            return new Channel(socket, from, to);
+            return wire;
+        } catch (RuntimeException e) {
+            // The connection went while a message was sent: as a connection that closed.
+            throw new IOException(e.getClass().getSimpleName(), e);
         } finally {
-            if (!kept && socket != null) {
-                try {
-                    socket.close();
-                } catch (IOException e) {
-                    // closing anyway
-                }
+            if (!kept && wire != null) {
+                wire.close();
             }
         }
     }
 
-    private JsonNode message(String line) throws Refused {
-        if (line == null) {
+    private JsonNode message(String text) throws Refused {
+        if (text == null) {
             throw new Refused("connection_closed");
         }
         try {
-            return json.readTree(line);
+            return json.readTree(text);
         } catch (RuntimeException e) {
             throw new Refused("not_a_tabgoblin_server");
         }
@@ -382,7 +423,7 @@ final class Link {
         up.setDaemon(true);
         up.start();
         while (true) {
-            Channel now;
+            Wire now;
             synchronized (this) {
                 now = channel;
             }
@@ -404,7 +445,7 @@ final class Link {
                 return End.SERVER_LOST;
             }
             say("the server has gone: starting it anew");
-            Channel again;
+            Wire again;
             try {
                 again = reconnect();
             } catch (IOException e) {
@@ -421,8 +462,8 @@ final class Link {
     }
 
     /** Has the server again, and sends it the agent's opening anew before any other message goes to it. */
-    private Channel reconnect() throws IOException {
-        Channel found = reach();
+    private Wire reconnect() throws IOException {
+        Wire found = reach();
         if (found == null) {
             return null;
         }
@@ -438,9 +479,9 @@ final class Link {
         }
         // Before any other message of the agent's: the caller hands the connection over after this.
         if (first != null) {
-            write(found.to(), first);
+            write(found, first);
             if (second != null) {
-                write(found.to(), second);
+                write(found, second);
             }
         }
         return found;
@@ -458,7 +499,7 @@ final class Link {
             // The agent's end of the pipe is gone: as if it had closed it.
         }
         inputEnded = true;
-        Channel now;
+        Wire now;
         synchronized (this) {
             now = channel;
             notifyAll();
@@ -492,9 +533,9 @@ final class Link {
     }
 
     private void send(String line, String request) {
-        Channel last = null;
+        Wire last = null;
         while (true) {
-            Channel now;
+            Wire now;
             synchronized (this) {
                 while ((channel == null || channel == last) && !inputEnded && !stopping) {
                     try {
@@ -514,7 +555,7 @@ final class Link {
                 }
             }
             try {
-                write(now.to(), line);
+                write(now, line);
                 return;
             } catch (IOException e) {
                 // That server is gone before it had the message: it goes to the next one, once.
@@ -529,10 +570,10 @@ final class Link {
     }
 
     /** The server's messages, to the agent, until that server's connection ends. */
-    private void pumpDown(Channel from) {
+    private void pumpDown(Wire from) {
         try {
             String line;
-            while ((line = from.from().readLine()) != null) {
+            while ((line = from.take()) != null) {
                 if (line.startsWith(CONTROL)) {
                     control(line);
                     continue;
@@ -541,10 +582,10 @@ final class Link {
                     continue;
                 }
                 synchronized (out) {
-                    write(out, line);
+                    writeLine(out, line);
                 }
             }
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             // The connection is gone: the caller decides what that means.
         }
     }
@@ -616,7 +657,7 @@ final class Link {
             }
             try {
                 synchronized (out) {
-                    write(out, answer);
+                    writeLine(out, answer);
                 }
             } catch (IOException e) {
                 // The agent is gone as well.
@@ -624,16 +665,25 @@ final class Link {
         });
     }
 
-    private static void write(OutputStream to, String line) throws IOException {
+    /** One line of the agent's, as one message of the connection. */
+    private static void write(Wire to, String line) throws IOException {
+        try {
+            to.send(line);
+        } catch (RuntimeException e) {
+            throw new IOException("the server is gone", e);
+        }
+    }
+
+    private static void writeLine(OutputStream to, String line) throws IOException {
         to.write((line + "\n").getBytes(StandardCharsets.UTF_8));
         to.flush();
     }
 
-    private static void close(Channel channel) {
+    private static void close(Wire channel) {
         if (channel != null) {
             try {
-                channel.socket().close();
-            } catch (IOException e) {
+                channel.close();
+            } catch (RuntimeException e) {
                 // closing anyway
             }
         }

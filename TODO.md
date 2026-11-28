@@ -3,7 +3,7 @@
 What is still open, and nothing else. Cleared on 2026-11-27: what was done, decided or overtaken
 was taken out. The full entries of every work package, WP-1 to WP-32, are in git history
 (`git log -p -- TODO.md`); lasting decisions are in the pages that own them (`security-model.md`,
-`architecture.md`, `development.md`). Numbers are not reused; new work gets the next one, WP-33.
+`architecture.md`, `development.md`). Numbers are not reused; new work gets the next one, WP-34.
 
 ## Not started
 
@@ -56,10 +56,44 @@ command in the session); how long, and whether on from the start (proposal: on, 
 (proposal) or a choice at each authorization; a word before it ends, or none; and what the agent
 is told (proposal: the code for an expired authorization).
 
+### WP-33: One port for the server, one connection for the browser
+
+Filed 2026-11-28, on the owner's word ("go, one port, drop the servers folder, new branch after
+merge"); built the same day on branch `one-port`, from `main` at `0d54694`. Open until the owner
+has merged it and the acceptance by hand below has been done.
+
+**Why.** Each agent had a WebSocket port of its own to the extension, eight for a server, and
+the agents' processes reached the server on the ninth. That was from before there was one server
+for all agents. Everything intricate about ports followed from it: the fallback ranges of eight,
+the extension looking at 24 ports, the limit of eight agents, a command-line agent holding a port
+for ten minutes, the `servers` folder with what a server writes of itself, and the question which
+server the browser is at. With one port, one server for a machine is what the operating system
+enforces: a second process finds the port taken and joins.
+
+**What it is.** The server listens on one port (default 47821, then 37821, then 27821 where the
+system keeps one back; the popup has no port to set). The extension opens one
+WebSocket to it and pairs once; the agents travel inside that connection, each named by its id
+(`agents` from the server, `agent` on every command and event, `agents_refused` from the
+extension for those the user disconnected). The agents' processes reach the server over the same
+port, as WebSocket connections on the path `/link`, one message a frame. Protocol version 1,
+counted anew from this release; a peer of the release before (which said 3) is refused with the
+word to update both. The status says the server's port and no port of the agent's; the window
+and the popup list agents without ports. Described in
+[architecture.md](docs/architecture.md#processes-and-ports) and the
+[protocol reference](docs/development.md#protocol-reference).
+
+**Acceptance.** The three suites and the end-to-end suite pass (done, see the validation log);
+the suite has two agents through one server, a command-line agent beside an MCP agent, an agent
+leaving, the server ending after its last agent, a chosen port set in both places, and a server
+of another protocol version refused. Seen with real processes: a program that holds the usual
+port makes each agent's process serve its agent alone and say why (taken, not kept back: a held
+port is never stepped over, only one the system keeps back is, `Ports.usable`), and the processes
+end in order. The window's and the popup's pictures are drawn anew and looked at. Not yet done:
+Kill and Stop in the window on Windows, and a port the system keeps back with the fallback
+taken, which only a Windows machine with such a range shows.
+
 ## Small faults, found and not mended
 
-- `Ports.note` says the ranges are `47821-47829` and `37821-37829`; each range is eight ports
-  (`PORT_RANGE`), so they end at …28. `docs/tool-reference.md` quotes the text: mend both.
 - The server's window says every agent is turned away while the settings file cannot be read;
   in fact agents are let in and every site is refused (`PanelModel.Blocked`).
 - Every command's process logs the blocked sites and the policy on its standard error
@@ -74,8 +108,7 @@ is told (proposal: the code for an expired authorization).
   `art/`).
 - Read from the source in November and not rechecked since: a tool call right after the
   connection was switched off in the window may wait ten seconds (`awaitExtension` in
-  `BrowserService.java`); a server that cannot take its first port prints the socket library's
-  stack trace to the agent's log before it takes the next.
+  `BrowserService.java`).
 
 ## Not tried
 
@@ -96,7 +129,8 @@ is told (proposal: the code for an expired authorization).
   how the server is added to them could not be read from their documentation.
 - **The command line on Windows and macOS** beyond reading and Explore: Write, `submit`,
   `tabgoblin.cmd`, quoting JSON (`--args-file` and `--args -` are there for it).
-- **Reserved ports (WP-28):** never run on a machine whose system keeps the ports back.
+- **Reserved ports (WP-28):** never run on a machine whose system keeps the port back; the
+  fallback to 37821 and 27821 is held by tests with a stand-in for the system.
 - A screenshot of a tab whose window is covered or minimized.
 - The SBOM and the dependency scan in the workflows were read, not run.
 - The Mermaid diagrams on GitHub's own renderer.
@@ -123,8 +157,8 @@ is told (proposal: the code for an expired authorization).
   - WP-27: the strict profile's values (eight hours, thirty minutes); redaction cannot be
     switched off; a frame under 8 pixels a side does not hold a picture back; search runs on an
     automaton of its own, with a subset of the syntax.
-  - WP-28: which first ports, and that the others are tried only when the first range has
-    nobody.
+  - WP-28: which ports (47821, 37821, 27821), and that the next is tried only when the system
+    keeps the one before back; a port another program holds is not stepped over.
   - `OFF` on the toolbar badge when no agent is there to act.
   - The popup's setting is called "Indicator in the page" where the documentation says notice.
 - **Not built:** a build without the MCP SDK; progress while a command waits; a skill installed

@@ -30,10 +30,10 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 |---|---|
 | `node release/version.mjs` | Prints the version, or fails if the files that carry it disagree; with a version, changes it in all of them (runbook: "Change the version") |
 | `bash release/bundle.sh` | Makes the download for the system it runs on, from both parts as they are built, into `release/out` |
-| `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. The tests of the panel's window (`PanelTest`) need a display and are skipped without one |
+| `mvn -f java-server/pom.xml test` | Pairing, origin check, version check, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. The tests of the panel's window (`PanelTest`) need a display and are skipped without one |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, the notice in the page, and the background worker against a fake Chrome |
-| `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
+| `cd e2e && npm test` | Everything together in your installed Chrome: one real server with two agents' processes and a command-line agent, a hand-made server for the protocol's protections, three demo sites |
 | `cd e2e/editors && npm test` | Text entry into thirteen editor libraries and two plain controls, checked against each editor's own model |
 
 How the end-to-end run works:
@@ -41,7 +41,9 @@ How the end-to-end run works:
 - It starts real server processes and speaks MCP to them over stdio, like an IDE does.
 - It launches your installed Chrome with a temporary profile, installs the unmodified extension,
   and triggers its toolbar button the way a click does, so Chrome's real `activeTab` grant is used.
-- It drives the popup through its real controls.
+- It drives the popup through its real controls. Its servers are on ports of their own, which
+  an extension does not look at, so it writes the port into the extension's storage through the
+  debugging interface (`port`, a key no popup writes), and the worker takes it up at once.
 - `HEADED=1 npm test` shows the browser; `TABGOBLIN_CHROME=<path>` picks another Chrome.
 
 Other scripts in `e2e/`:
@@ -55,7 +57,7 @@ Other scripts in `e2e/`:
 
 ### About the diagrams
 
-Five diagrams are SVG files in `docs/assets/diagrams/`. Each is one file that carries its own
+Six diagrams are SVG files in `docs/assets/diagrams/`. Each is one file that carries its own
 ground and both sets of colours: it is light or dark by the reader's own setting, and readable
 on any page. A page shows one with the plain Markdown form of an image, `![…](…)`, which
 GitHub and an editor's preview both understand; a `<picture>` element with two files, as they
@@ -89,9 +91,10 @@ than a line is broken with `<br/>`, and a note over one participant is kept shor
 (`Note over B,S`): Mermaid does not wrap a note, and a long one runs out of its box. Where
 several outcomes end the same way, they lead to one named state (*Not submitted*) and not to
 the end marker, whose lines otherwise cross the whole diagram. A legend in an SVG picture is
-spaced by an estimate of each word's width (`textWidth` in the script), so its gaps are even. To check that
-they parse, render each block with Mermaid in Chromium; the session that last did so used
-Mermaid 11.4.1.
+spaced by an estimate of each word's width (`textWidth` in the script), so its gaps are even.
+`docs/agents/check-diagrams.mjs` renders each block with Mermaid in a headless Chrome and
+reports the ones that do not parse ([runbook](agents/runbook.md#check-the-diagrams)); the pages
+were last rendered with Mermaid 11.4.1.
 
 ### About the screenshots
 
@@ -128,7 +131,7 @@ started by hand:
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
-| Nothing personal | Linux | Runs the tests of `docs/agents/check-personal.mjs` and then the check on the files |
+| Documentation | Linux | Runs the tests of `docs/agents/check-personal.mjs` and `check-drift.mjs`, then both checks on the files, the link check, the diagram script against the committed SVG files, and the Mermaid check with a Mermaid installed outside the tree |
 | One version | Linux | Runs the tests of `release/version.mjs` and then the script without a version, which fails if the files that carry the version disagree |
 | Dependencies | Linux | `npm audit` for the extension and the test runner, which fails on an advisory of high severity; the same for the editor lab, listed only, because the editors under test are fixed versions of other people's libraries and are never shipped; and, on a pull request, GitHub's dependency review of what it changes, which covers the server's Maven libraries |
 
@@ -236,6 +239,8 @@ Run them by hand with `node demo-site/server.mjs`.
 
 ## Documentation
 
+![How a change keeps the documentation true: AGENTS.md is the entry with the rule and the definition of done; this section owns the rules; they apply to the pages, the pictures and the skills; before a change is done the impact review and the checks run (the contract tests, the diagram script, the link, personal, drift and diagram checks); a change is complete when it ends with the documentation review summary.](assets/diagrams/documentation.svg)
+
 Each fact has one page; every other page links to it. Before writing something down, find the
 page that owns it:
 
@@ -262,8 +267,128 @@ page that owns it:
   log and into git, not into a page that explains.
 - A number that a run produces (a count of tests, a size) goes stale: state it where a command
   beside it checks it, and nowhere else.
-- After an edit, check the links and that nothing personal got in
-  ([runbook](agents/runbook.md#check-the-documentation-links)).
+- After an edit, run the checks under [the documentation review](#the-documentation-review).
+
+### Documentation is part of a change
+
+A change is done when the pages say what the code does now. These rules hold for every change
+and every contributor, agent or person:
+
+- **The pages are part of the implementation,** not a task after it. A change is not complete
+  until its impact on the documentation has been assessed and what is affected has been updated.
+- **The implementation and its tests decide what may be claimed.** A page describes the behaviour
+  as it is and as a test or a run has shown it. Where that disagrees with the intended design or
+  with a security requirement, the disagreement is a fault to look into and to say, not a sentence
+  to adjust until it fits.
+- **Each fact has one page**, the table above. Another page may sum it up in a sentence and link
+  to it; it does not say it again in its own words.
+- **What is gone is taken out.** A removed component, a changed default, a dropped option leaves
+  no description behind. Nothing is added beside an old sentence to correct it.
+- **Nothing planned, assumed or unverified is written as implemented.** A page says what is.
+  A plan goes into [TODO.md](../TODO.md), marked as one; what was goes into git and the records;
+  what a run showed into the [validation log](agents/validation-log.md), with what it did not
+  show. Where a page keeps a word on the past, it says so (*the release before*).
+- **One behaviour, said alike for every way in.** What the CLI and MCP share is written once and
+  holds for both; a page about one interface names what is shared and any actual difference, and
+  the six skills say the same of it.
+- **Plain, short, consistent, easy to find.** The names of the [vocabulary](architecture.md) and
+  of the diagrams, the same in every page; no detail a reader of that page does not need.
+
+### The impact review
+
+For every change, whatever files it touched, look at the pages the row names. It is an
+assessment: a page is changed where it says something that is no longer so, and left alone
+where it does not.
+
+| The change touches | Assess |
+|---|---|
+| Architecture, components, transport or protocol | [Architecture](architecture.md) with its diagrams, the [protocol reference](#protocol-reference), the [security model](security-model.md), the [corporate assessment](corporate-assessment.md) |
+| Authentication, authorization, permissions or policy | Security model, corporate assessment, architecture, [developer guide](developer-guide.md), [README](../README.md) |
+| Tools, their arguments, answers or errors | [Tool reference](tool-reference.md), [CLI guide](cli.md), the server instructions in `McpMain.java`, the examples in `docs/examples`, the six [skills](../skills/README.md) |
+| Installation, configuration or startup | [Installation](installation.md), README, developer guide, CLI guide, the skills |
+| The popup, the window, the notice, or how the user is asked | The pictures, the developer guide, the README, the flows that show the interaction (architecture, installation) |
+| Dependencies, the build or a release | This page, installation, [CONTRIBUTING](../CONTRIBUTING.md), the [runbook](agents/runbook.md) |
+| Tests, what is possible, or where something stops | The reference it belongs to, the security model's [table of what is verified](security-model.md#what-is-verified-by-tests), the validation log |
+
+Then search the whole repository, not the files already open, for the words of the change: the
+names of what was removed, the old default, the old number, the old message. Comments, tests,
+the skills, examples, tables and the diagrams' sources carry them as pages do. The drift check
+below finds the names that were retired before; a new removal adds its names to that list.
+
+### Diagrams and pictures
+
+A diagram is documentation under the same contract: it shows the implementation as it is.
+There are the six SVG pictures (the README's overview and security boundary, the architecture's
+components, the security model's command checks, the assessment's data flow, this section's
+own), the Mermaid
+diagrams in the pages (the connections, a command end to end, submissions, the session's
+lifecycle, the command line's identity, the first use) and the pictures of the popup, the window
+and the notice. When a flow, a component, a responsibility, an interface or a security boundary
+changes, assess every diagram that shows it, and the alt text and the paragraph beside it.
+
+- Keep the visual language: the four colours and what each means, the line kinds, the names of
+  the participants, the layout ([about the diagrams](#about-the-diagrams)). One idea a diagram.
+- Change an SVG picture in `docs/assets/diagrams/build.mjs` and run it; never edit an SVG file.
+- Check that the Mermaid blocks parse ([runbook](agents/runbook.md#check-the-diagrams)), and open
+  a changed diagram with the system set to light and to dark. Check it against the code: the
+  participants, the arrows and their direction, the order of the steps, the labels, the
+  boundaries. Look for a participant that no longer exists, a path that cannot happen, a step out
+  of order, a label that runs out of its box, a boundary drawn where the code does not enforce
+  one; and that the picture renders and can be read at the size the page shows it.
+- Regenerate a picture with its script only ([about the screenshots](#about-the-screenshots)),
+  and open it before it is used.
+
+### Security claims
+
+The security model, the assessment, the architecture, the README and the security pictures say
+the same thing in four grades, and a change keeps the grade: a boundary that is **enforced**
+always and by TabGoblin; a control the user's settings **configure**, enforced once set; a
+protection that is **best effort** and has holes; and a **limitation** or residual risk. A claim
+is never made stronger than the implementation and a test show; a weaker one is said as such.
+The CLI and MCP share one set of controls ([security model](security-model.md#cli-and-mcp-one-set-of-controls)):
+a page that describes one interface says what is shared and names any actual difference, and
+says no difference where there is none.
+
+### Checks before a change is done
+
+Verify against the tree and a run, not from memory: component names, file paths and links;
+commands, settings keys, defaults, ports and protocol versions; tool names, arguments, answers,
+error codes and access levels; the examples; the pictures against the interface as it is; and
+that nothing removed is still described as there. The checks that exist do part of it, and run
+before a change is done:
+
+| Check | Holds |
+|---|---|
+| `ToolReferenceTest` | The tool reference to the server's tool definitions: every tool and argument |
+| `SkillsTest` | The six skills to the tools, to the reference's codes and to each other |
+| `node docs/agents/check-links.mjs` | Every relative link and heading anchor |
+| `node docs/agents/check-personal.mjs` | Nothing personal in the files |
+| `node docs/agents/check-drift.mjs` | No retired name anywhere; the protocol version, the link version and the server's ports the same in both parts and in every page, skill, example and diagram source that quotes them; every code file and every `TABGOBLIN_*` variable a page names is in the tree |
+| `node docs/agents/check-diagrams.mjs` | Every Mermaid block parses ([runbook](agents/runbook.md#check-the-diagrams)) |
+| `node docs/assets/diagrams/build.mjs` | The SVG pictures are what the script draws; CI fails where a committed file differs |
+| `node release/version.mjs` | One version in every file that carries it |
+
+A check is extended where a drift has happened and a machine can tell it apart; a small,
+deterministic rule, not a framework, no match on prose and no new dependency. The checks
+complement the impact review and do not stand in for it: what they cannot tell apart, a reader
+does. A change to code alone asks for no edit of a page: the review is of the impact, and its
+result may be that nothing is affected.
+
+### The documentation review
+
+Every completed task ends with a short summary of its documentation review, in the last message
+of a session and in a pull request's description, and nowhere in a page:
+
+- Documentation updated: which pages.
+- Diagrams updated, or verified as unaffected.
+- Pictures updated, or verified as unaffected.
+- Skills updated, or verified as unaffected.
+- Validation performed: which checks and tests ran.
+- Outstanding: what could not be checked, and why.
+
+Where no documentation changes were needed, the summary says that the impact was assessed and
+why nothing was affected. The [state file](agents/state.md) and the
+[validation log](agents/validation-log.md) are kept as before; they record, and repeat no page.
 
 ## Implementation notes
 
@@ -373,8 +498,8 @@ browser has to be paired. How it is built:
 - **The switch holds the connection off.** The server closes the extension's connection with
   the code for "going away" and refuses every handshake after it, before any pairing proof is
   looked at, until it is switched on. A refused handshake is not a failed pairing and counts
-  nothing towards the lockout. The extension is not told why. It goes on looking for servers
-  every half minute, as for any server it cannot reach, so switching on needs nothing in the
+  nothing towards the lockout. The extension is not told why. It goes on looking for the server
+  every half minute, as for a server it cannot reach, so switching on needs nothing in the
   popup. Meanwhile a tool call is answered [`NOT_CONNECTED`](tool-reference.md#errors), with words that
   say where the connection was switched off.
 - **The log is kept for the window, which may come up at any time:** the last 300 lines, in
@@ -485,44 +610,61 @@ is WP-12.
 
 ## Protocol reference
 
-Version 3. Typed in `Protocol.java` and `protocol.ts`; independent of MCP. A peer of another
-version is refused; version 2 handed sessions on by an agent's name and had no security policy.
+Version 1. Typed in `Protocol.java` and `protocol.ts`; independent of MCP. A peer of another
+version is refused. It is counted from the release with one connection for every agent of the
+server, 0.3.0; the release before it (0.2.0, which called its protocol version 3) had a
+connection and a port for each agent, and a server or an extension of that release is refused
+and told to update.
 
 ```json
-{ "type": "challenge", "nonce": "…", "versions": [3], "clientId": "a-1a2b3c4d5e6f" }
-{ "type": "auth", "nonce": "…", "proof": "…", "version": 3 }
-{ "type": "auth_ok", "proof": "…", "version": 3, "clientId": "a-1a2b3c4d5e6f", "clientName": "…" }
+{ "type": "challenge", "nonce": "…", "version": 1 }
+{ "type": "auth", "nonce": "…", "proof": "…", "version": 1 }
+{ "type": "auth_ok", "proof": "…", "version": 1, "agents": [{ "id": "a-1a2b3c4d5e6f", "name": "IntelliJ IDEA" }] }
+{ "type": "agents", "agents": [{ "id": "a-1a2b3c4d5e6f", "name": "IntelliJ IDEA" }, { "id": "c-7f3a9b2c", "name": "" }] }
+{ "type": "agents_refused", "agents": ["c-7f3a9b2c"] }
 
-{ "id": "17", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
+{ "id": "17", "agent": "a-1a2b3c4d5e6f", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
 { "id": "17", "success": true, "result": {}, "timing": { "ran": 132, "queued": 0, "asked": 0 }, "session": "s2" }
 { "id": "17", "success": false, "error": { "code": "NOT_AUTHORIZED", "message": "…" } }
 
 { "type": "cancel", "id": "17" }
-{ "type": "client", "name": "IntelliJ IDEA" }
 { "type": "policy", "blocked": ["example.org"], "unreadable": false, "strict": false, "allowed": [], "screenshots": true,
   "maxAccess": "write", "sessionMaxMinutes": 0, "sessionIdleMinutes": 0 }
-{ "type": "event", "event": "sessions", "data": { "sessions": [] } }
-{ "type": "event", "event": "activity", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
+{ "type": "event", "event": "sessions", "agent": "a-1a2b3c4d5e6f", "data": { "sessions": [] } }
+{ "type": "event", "event": "activity", "agent": "a-1a2b3c4d5e6f", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
 { "type": "ping" }   { "type": "pong" }
 ```
 
-On a connection the server sends `auth_ok` before anything else, and may send a command or
-`client` right behind it. Taking the connection for its paired one and sending `auth_ok` are one
-step for the server's other threads (`WebSocketBridge.authenticate`): an extension that holds
-`auth_ok` is connected for every tool call from then on, and none is told `NOT_CONNECTED`. The
-agent's name is in `auth_ok` if the server knows it by then, and follows as `client` if it
-learns it later. An agent names itself when it opens its connection to the server
-(`initialize`). The name is shown to the user and decides nothing. `clientId` is who the agent
-is: `a-` and twelve hexadecimal digits for an agent with a key of its own, the same at every
-start; anything else is an id for one start ([architecture](architecture.md#browser-session-authorization)).
+One connection carries every agent of the server. The server names its agents in `auth_ok`, and
+again as `agents` whenever one comes, goes or says its name; a command names its agent; an event
+names the agent it is for, and so does a `sessions` event, which the extension sends for each
+agent. An agent's `id` is who it is: `a-` and twelve hexadecimal digits for an agent with a key
+of its own, the same at every start; anything else is an id for one start
+([architecture](architecture.md#browser-session-authorization)). The `name` is what the user is
+shown; an agent names itself when it opens its connection to the server (`initialize`), so the
+name may be empty at first and come with a later `agents`. The name decides nothing.
+
+On a connection the server sends `auth_ok` before anything else, and may send a command right
+behind it. Taking the connection for its paired one and sending `auth_ok` are one step for the
+server's other threads (`ExtensionServer`): an extension that holds `auth_ok` is connected for
+every tool call of every agent from then on, and none is told `NOT_CONNECTED`. The extension
+keeps per agent what is an agent's: its sessions, bound to its id; the rate limit; the command
+ids it has seen. What is the server's it keeps once: the pairing, the blocked sites and the
+policy, the heartbeat.
+
+`agents_refused` is the extension's answer to the server's list, each time it gets one: those of
+the named agents the user disconnected in the popup. No command of such an agent runs, however
+often the server names it, and the server tells that agent that it has no browser until the
+user allows it again, when the next `agents_refused` no longer names it. A command whose
+`agent` the server did not name is answered with `NOT_CONNECTED` and runs nowhere. Nothing is
+granted by any of this: a tab is still the user's click in the popup, on an agent the server
+has proven by its key.
 
 `policy` is the user's list of [blocked sites](security-model.md#blocked-sites), as the server's settings
 have it: the domains, in lower case and in their encoded form; `unreadable` is true while the
 settings file cannot be read and every site is refused. The extension takes the list whole or not
 at all. The server sends it when the extension has said its first word as a paired one, which it
-does at once with its sessions, and again when the list has changed. It is not sent right behind
-`auth_ok`: an extension from before this message, still checking the server's proof, would take a
-message it does not know for a failed pairing. Once paired, such an extension ignores it. What an
+does at once with its agents refused and its sessions, and again when the list has changed. What an
 entry blocks is decided in two places, `BlockedSites.java` and `blockedBy` in `policy.ts`; both are
 held to one list of cases, `java-server/src/test/resources/tabgoblin/blocked-sites-cases.json`.
 The same message carries the rest of the user's [security policy](security-model.md#the-security-policy):
@@ -535,13 +677,6 @@ A command's `action` is one of `ACTIONS` in `policy.ts`. Two of them need no ses
 answered before one is looked for: `status`, and `request_access`, an agent's request to the
 user, which may be for a site it has no session on.
 
-`clientId` in `challenge` is who the server says it is before anything is proven. The
-extension uses it for one thing: the server of an agent the user disconnected is closed there
-with 4403, without a proof being sent, so that server never counts the extension as connected
-and logs nothing. Nothing is granted on it; that takes the id in `auth_ok`, which is proven.
-The field is optional: without it a disconnected agent is turned away after the pairing, as
-before, and an older extension ignores it.
-
 The extension takes the messages of a connection in the order they came. One that arrives while
 it still checks the proof in `auth_ok` waits for that, and is then a message like any other.
 Without a valid `auth_ok` before it, any other message is a failed pairing (4401).
@@ -550,38 +685,33 @@ Without a valid `auth_ok` before it, any other message is a failed pairing (4401
 the extension, how long it waited before that for its turn in the tab's queue, and how much of
 the running was waiting for the user's answer. The server cannot see inside the round trip; with
 these it says where the time of a tool call went (`Timings.java`,
-[tool-reference.md](tool-reference.md#where-the-time-went)). The field is optional: an older server ignores it, and
-without it the server counts the round trip whole.
+[tool-reference.md](tool-reference.md#where-the-time-went)).
 
 `session` comes with the answer of every command that ran in a session, failed ones too: the
 id of that session. A command may name none and be given the agent's only one, and the
 server's panel shows the times and the calls of one tab
 ([architecture](architecture.md#the-servers-panel)). The status and a command that was refused
-before a session was looked for have none. The field is optional: without it the server keeps
-the session the command named.
+before a session was looked for have none.
 
 Between the process an agent starts and the one server there is a second, smaller protocol, on
-the port after the agents' eight (`Link.java`, `Hub.java`): one line of JSON each way to prove
-the pairing token, then the agent's messages: MCP as it is for an MCP client's process, or the
-command line's own three messages for a command. Its version is 2 (1 had MCP for both).
+the same port: a WebSocket connection on the path `/link`, each message a text frame
+(`Link.java`, `Hub.java`). One message each way proves the pairing token, then the agent's
+messages follow: MCP as it is for an MCP client's process, or the command line's own three
+messages for a command. Its version is 3 (2 had a line of JSON on a plain TCP connection, on a
+port of its own; 1 had MCP for both).
 
 ```json
-{ "type": "hello", "nonce": "…", "link": 2 }
-{ "type": "attach", "nonce": "…", "proof": "…", "link": 2, "panel": false, "quiet": false, "setup_port": 47821, "settings": "…/tabgoblin.properties", "origin": "chrome-extension://…", "agent": "claude-code", "agentProof": "…" }
+{ "type": "hello", "nonce": "…", "link": 3 }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 3, "panel": false, "quiet": false, "agent": "claude-code", "agentProof": "…" }
 { "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
 
-{ "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
+{ "tabgoblin": "log", "text": "serving client=a-1a2b3c4d5e6f port=47821" }
 { "tabgoblin": "stopping" }
 ```
 
 `panel` asks for the server's window at once; `quiet` says that the window is not to come up
 by itself for this agent when the browser has to be paired (`--no-panel`). Both are optional.
-`setup_port` is the first port the process's setup names (`--port`), sent only where it names
-one: a server on another port that serves the agent, because it has the browser and runs under
-the same settings ([architecture](architecture.md#processes-and-ports)), says so in the agent's
-status. `settings` and `origin` are the settings file and the extension origin the process would
-start its own server with; the server compares another server's with them when it tells the
-agent that the browser is at that other server. `agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
+`agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
 the proof that it holds that name's key (`AgentKeys.proof`). Without them, or with a proof that
 does not hold, the agent gets an id for this start only.
 A process that runs one command of the [command line](cli.md) adds
@@ -604,11 +734,12 @@ interrupted, which stops the command in the browser at its next safe point, and 
 the tool reference lists it, where `isError` is true; `structured` is the object of a tool
 that returns one; `image` has `mimeType` and `base64`.
 `refused` with the reason `interface_not_allowed` says that the settings file has this
-interface off (`interfaces`). A `turned_away` in the place of `attach`, with the same proof,
-tells a running server that an MCP start found MCP off before it came; it is answered with
-`counted`, and the server's window counts it.
+interface off (`interfaces`); `not_a_tabgoblin_server` is the link's own word for a port on
+which something answers that does not greet as the server does. A `turned_away` in the place
+of `attach`, with the same proof, tells a running server that an MCP start found MCP off before
+it came; it is answered with `counted`, and the server's window counts it.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
-two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
+two messages that begin with `tabgoblin` are the server's to the link itself and never reach the
 agent: a line of the agent's log, and the word that the user stopped the server, without which
 a link takes the server's end for a loss and starts it anew
 ([architecture](architecture.md#how-a-server-ends)).
@@ -616,8 +747,8 @@ a link takes the server's end for a loss and starts it anew
 | Close code | Meaning |
 |---|---|
 | 4401 | Pairing failed, timed out, or the token was rotated |
-| 4403 | The user disconnected this agent |
-| 4406 | No common protocol version |
+| 4403 | Not a close code since version 1: the user's disconnecting of one agent is said as `agents_refused`, and that agent is told so. The number is kept in both parts for the agent's state |
+| 4406 | Another protocol version |
 | 4408 | The server left two heartbeats in a row unanswered; the extension takes it for gone and looks for it again |
 | 4409 | Replaced by a newer connection |
 | 4429 | Too many messages |

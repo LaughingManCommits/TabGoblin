@@ -543,10 +543,10 @@ final class Panel {
         }
     }
 
-    /** The top right corner of the main screen; each further server's window a step down and to the left. */
+    /** The top right corner of the main screen; a server on another than the usual port a step down and to the left. */
     private static void place(Stage stage, int port, double shadow) {
         Rectangle2D screen = Screen.getPrimary().getVisualBounds();
-        int step = Math.floorMod(port - McpMain.DEFAULT_PORT, McpMain.PORT_RANGE) * 30;
+        int step = port == McpMain.DEFAULT_PORT ? 0 : 30;
         stage.setX(screen.getMaxX() - WIDTH - shadow - 24 - step);
         stage.setY(screen.getMinY() + 24 - shadow + step);
     }
@@ -812,11 +812,9 @@ final class Panel {
         /** Hides the window; shown only where the window has no button of the system's for it. */
         private final Button close = new Button();
         private final Label agent = label("", "sub");
-        /** The first port the extension scans, available before any agent connects. */
-        private final PortLabel firstPort = new PortLabel("chip").about(port -> "The port to set in the extension's popup, "
-                + "under Connection. Click to copy " + port + ".");
-        /** The port of the one agent a server has: where the extension reaches that agent, in the line about that. A click copies it. */
-        private final PortLabel agentPort = new PortLabel("chip");
+        /** The server's one port, there before any agent connects. The extension finds it by itself; a command or a link may have to name it. */
+        private final PortLabel port = new PortLabel("chip").about(number -> "The server's port. The extension finds it by "
+                + "itself; a command or a link that has to name it uses this number. Click to copy " + number + ".");
         /** The two interfaces, in the header: each a pill, green while agents may come that way, red with a sign where it is off. */
         private final WayLabel cliWay = new WayLabel();
         private final WayLabel mcpWay = new WayLabel();
@@ -897,13 +895,13 @@ final class Panel {
             title.setMinWidth(Region.USE_PREF_SIZE);
             var titleRow = new HBox(8, title, cliWay, mcpWay);
             titleRow.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-            header.getChildren().addAll(mascot.node(), new VBox(titleRow, new HBox(6, agent, firstPort)), grow(), minimize, close);
+            header.getChildren().addAll(mascot.node(), new VBox(titleRow, new HBox(6, agent, port)), grow(), minimize, close);
 
             // The popup's status line: a dot and one sentence.
             dot.getStyleClass().add("dot");
             // The one agent's port is where the browser reaches it: said at the end of the line about
             // that connection, where there is room for it. The header keeps the agent's name whole.
-            var status = new HBox(dot, connection, grow(), agentPort);
+            var status = new HBox(dot, connection, grow());
             status.setAlignment(Pos.CENTER_LEFT);
             status.getStyleClass().add("status");
 
@@ -1152,7 +1150,7 @@ final class Panel {
             bar.setRightSystemPadding(false);
             javafx.scene.layout.HeaderBar.setDragType(header, javafx.scene.layout.HeaderDragType.DRAGGABLE_SUBTREE);
             // A click on the port copies it; it does not take hold of the window.
-            javafx.scene.layout.HeaderBar.setDragType(firstPort, javafx.scene.layout.HeaderDragType.NONE);
+            javafx.scene.layout.HeaderBar.setDragType(port, javafx.scene.layout.HeaderDragType.NONE);
             javafx.scene.layout.HeaderBar.setButtonType(minimize, javafx.scene.layout.HeaderButtonType.ICONIFY);
             javafx.scene.layout.HeaderBar.setButtonType(close, javafx.scene.layout.HeaderButtonType.CLOSE);
             root.getChildren().add(at, bar);
@@ -1187,16 +1185,10 @@ final class Panel {
 
         /** Brings the view up to what the server holds now. What has not changed is left as it is. */
         void show(PanelModel model) {
-            firstPort.showing("Port " + model.firstPort(), model.firstPort());
+            port.showing("Port " + model.port(), model.port());
             cliWay.show(model.blocked(), true);
             mcpWay.show(model.blocked(), false);
             agent.setText(model.identity());
-            // One agent: its port ends the line about its connection. Several have theirs in their rows.
-            // Only where it is another than the port in the header: the same number twice says nothing.
-            boolean another = model.agentPort() > 0 && model.agentPort() != model.firstPort();
-            agentPort.setVisible(another);
-            agentPort.setManaged(another);
-            agentPort.showing("agent port " + model.agentPort(), model.agentPort());
             connection.setText(model.connection());
             dot.getStyleClass().setAll("dot", model.connected() ? "connected" : model.switchedOff() ? "off" : "waiting");
             mascot.show(model.mood());
@@ -1436,10 +1428,6 @@ final class Panel {
                 state.setMinWidth(Region.USE_PREF_SIZE);
                 state.setTooltip(new Tooltip(member.connection()));
                 row.getChildren().add(state);
-            } else if (member.port() > 0) {
-                // Its port while the extension is connected to it: the row has room for one of the two.
-                // The port is copied by a click on it; the row is chosen by a click anywhere else.
-                row.getChildren().add(new PortLabel("chip").showing(":" + member.port(), member.port()));
             }
             return chooser(row, member.id(), "agent", member.name() + ": show the metrics and the log of this agent only");
         }

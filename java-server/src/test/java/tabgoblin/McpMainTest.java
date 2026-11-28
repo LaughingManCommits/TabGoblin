@@ -240,8 +240,8 @@ class McpMainTest {
     }
 
     @Test
-    void aFirstPortIsTheUsersOwnOnlyWhenTheOptionOrTheVariableNamesOne() throws Exception {
-        assertFalse(parse(Map.of()).portChosen(), "none named: the list of first ports holds");
+    void aPortIsTheUsersOwnOnlyWhenTheOptionOrTheVariableNamesOne() throws Exception {
+        assertFalse(parse(Map.of()).portChosen(), "none named: the list of ports holds");
         assertEquals(McpMain.DEFAULT_PORT, parse(Map.of()).port());
         assertTrue(parse(Map.of(), "--port", "5000").portChosen());
         assertTrue(parse(Map.of("TABGOBLIN_PORT", "5000")).portChosen());

@@ -45,7 +45,7 @@ class ToolReferenceTest {
     }
 
     private static Map<String, McpSchema.Tool> tools() {
-        WebSocketBridge bridge = new WebSocketBridge(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
+        WebSocketBridge bridge = new WebSocketBridge(null, "c-tools");
         Map<String, McpSchema.Tool> tools = new LinkedHashMap<>();
         McpMain.toolSpecs(new BrowserService(bridge, null), McpJsonDefaults.getMapper())
                 .forEach(spec -> tools.put(spec.tool().name(), spec.tool()));

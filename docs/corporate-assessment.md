@@ -106,20 +106,19 @@ There are **no host permissions** and no `cookies`, `webRequest`, `debugger`, `t
 
 | Listener | Address | Default port | Accepts |
 |---|---|---|---|
-| WebSocket endpoint, one per connected agent | `127.0.0.1` | 47821 to 47828 | Only this extension's origin, then mutual proof of the pairing token |
-| Server's endpoint for agents' processes | `127.0.0.1` | 47829 | A process that proves the pairing token, and for a named agent that agent's key |
+| WebSocket endpoint, one for the browser's extension (path `/`) | `127.0.0.1` | 47821 | Only this extension's origin, then mutual proof of the pairing token; every agent of the server travels on it |
+| The same endpoint for agents' processes (path `/link`) | `127.0.0.1` | 47821 | A process that proves the pairing token, and for a named agent that agent's key |
 
-Nothing listens on another interface. The first port is configurable (`--port`). Where the
-system keeps the default ports back, the server uses the same nine ports counted from 37821,
-or else from 27821. The
-connections are not encrypted; they do not leave the loopback interface. There are no outbound
-connections.
+Nothing listens on another interface. The port is 47821; where the system keeps it back, the
+server uses 37821, or else 27821, and the extension looks at those three only (`--port` names
+another, for a server the browser does not pair with). The connections are not
+encrypted; they do not leave the loopback interface. There are no outbound connections.
 
 ## Authentication mechanisms
 
 | Between | Mechanism |
 |---|---|
-| Extension and server | A shared pairing token of 256 random bits, proven in both directions by HMAC-SHA256 challenge and response. The token is not transmitted. The WebSocket `Origin` must be this extension's id. Ten failures lock a port for a minute. `--rotate-token` invalidates all pairings |
+| Extension and server | A shared pairing token of 256 random bits, proven in both directions by HMAC-SHA256 challenge and response. The token is not transmitted. The WebSocket `Origin` must be this extension's id. Ten failures lock the port for a minute. `--rotate-token` invalidates all pairings |
 | Agent's process and server | Proof of the same pairing token, with a distinct prefix. The same for an MCP agent's process and for each CLI command |
 | Agent identity | A per-agent key of 256 random bits (`--agent <name>`; optional through MCP, required by the CLI), proven by HMAC-SHA256. The agent's id is derived from the key. Sessions are bound to that id and never pass to another. `--revoke-agent` deletes a key |
 | User and extension | None beyond the browser profile: whoever operates the browser operates the popup |

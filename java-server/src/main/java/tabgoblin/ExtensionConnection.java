@@ -9,15 +9,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
-import org.java_websocket.WebSocket;
+import org.java_websocket.exceptions.WebsocketNotConnectedException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * The paired extension connection of this server: request/response correlation, deadlines,
- * cancellation, and the browser sessions the extension reports for this agent.
+ * One agent's view of the server's connection to the extension: request/response correlation,
+ * deadlines, cancellation, the browser sessions the extension reports for this agent, and why the
+ * agent has no browser when it has none.
  *
  * <p>Commands for the same session run one at a time; different sessions run in parallel.
  * Nothing is ever retried, and a command that times out or is interrupted is cancelled in the
@@ -25,20 +25,19 @@ import tools.jackson.databind.ObjectMapper;
  */
 final class ExtensionConnection {
 
+    private final ExtensionServer server;
+    private final WebSocketBridge agent;
     private final ObjectMapper json;
     private final Timings timings;
     private final Map<String, CompletableFuture<Protocol.Response>> pending = new ConcurrentHashMap<>();
     /** The action of each command sent and not yet answered, by its id: what the panel's goblin shows while it runs. */
     private final Map<String, String> running = new ConcurrentHashMap<>();
     private final Map<String, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
-    private final AtomicLong ids = new AtomicLong();
-    private volatile WebSocket conn;
     private volatile List<Protocol.Session> sessions = List.of();
-    private volatile int lastCloseCode;
-    /** When the paired connection was made, or 0 while there is none. */
-    private volatile long connectedSince;
-    /** The user switched this server's connection to the browser off, in its panel. */
-    private volatile boolean held;
+    /** The user disconnected this agent in the popup: the extension refuses it, though it is paired with the server. */
+    private volatile boolean refusedByUser;
+    /** The agent has gone: nothing of its is sent or taken any more. */
+    private volatile boolean closed;
 
     /** What a tool call is told while the user has the connection switched off in the panel. */
     static final String NOT_CONNECTED_HELD = "The user switched this server's connection to the browser off, in the "
@@ -47,19 +46,20 @@ final class ExtensionConnection {
     /** The log of the agent this connection is for. */
     private final Log.Scope log;
 
-    ExtensionConnection(ObjectMapper json, Timings timings) {
-        this(json, timings, Log.of(null));
-    }
-
-    ExtensionConnection(ObjectMapper json, Timings timings, Log.Scope log) {
+    /**
+     * @param server the server's one connection, or null for an agent whose server has no port
+     */
+    ExtensionConnection(ExtensionServer server, WebSocketBridge agent, ObjectMapper json, Timings timings, Log.Scope log) {
+        this.server = server;
+        this.agent = agent;
         this.json = json;
         this.timings = timings;
         this.log = log;
     }
 
+    /** Whether this agent has a browser: the server is paired, and the user has not disconnected this agent. */
     boolean isConnected() {
-        WebSocket c = conn;
-        return c != null && c.isOpen();
+        return server != null && !closed && server.isConnected() && !refusedByUser;
     }
 
     /** Sessions of this agent as last reported by the extension. */
@@ -67,67 +67,65 @@ final class ExtensionConnection {
         return sessions;
     }
 
+    /**
+     * Why this agent has no browser: {@link Protocol#CLOSE_USER_DISCONNECTED} where the user
+     * disconnected it, else the close code of the server's last connection, or 0.
+     */
     int lastCloseCode() {
-        return lastCloseCode;
+        if (refusedByUser) {
+            return Protocol.CLOSE_USER_DISCONNECTED;
+        }
+        return server == null ? 0 : server.lastCloseCode();
     }
 
     /** When the extension connected, in milliseconds since the epoch, or 0 while it is not connected. */
     long connectedSince() {
-        return isConnected() ? connectedSince : 0;
+        return isConnected() ? server.connectedSince() : 0;
     }
 
     boolean held() {
-        return held;
+        return server != null && server.isHeld();
     }
 
-    void held(boolean on) {
-        held = on;
-    }
-
-    /**
-     * Makes {@code newConn} the paired connection and sends it {@code answer}, the message that
-     * completes its pairing. Returns the connection it replaced, if any.
-     *
-     * <p>For a command the two are one step ({@link #paired()}). The connection is taken first, so
-     * that an extension which holds the answer is connected for every tool call. And no command
-     * goes out on it before the answer does: the extension takes whatever reaches it ahead of the
-     * answer for a failed pairing.
-     */
-    synchronized WebSocket attach(WebSocket newConn, String answer) {
-        WebSocket old = conn;
-        conn = newConn;
+    /** The extension paired with the server: this agent has it, unless the user disconnected the agent. */
+    void connected() {
         sessions = List.of();
-        lastCloseCode = 0;
-        connectedSince = System.currentTimeMillis();
-        newConn.send(answer);
-        return old == newConn ? null : old;
+    }
+
+    /** The extension's connection ended: what this agent was waiting for has an unknown outcome. */
+    void disconnected(int closeCode) {
+        sessions = List.of();
+        failPending("The browser extension disconnected before answering. The outcome is unknown and the "
+                + "command was not retried; inspect the page before repeating it.");
+    }
+
+    /** The agent has gone: nothing is waited for any more, and nothing more is sent. */
+    void closed() {
+        closed = true;
+        failPending("The agent has gone.");
     }
 
     /**
-     * A browser came with a token that is not this server's: mistyped, or from before a rotation.
-     * While none is paired, that is the reason why: the user has to paste this server's token.
+     * The extension said which agents the user disconnected: whether this one is among them. One
+     * that is has no browser, and is told so by every tool; one that is not any more has it again.
      */
-    synchronized void turnedAway() {
-        if (conn == null || !conn.isOpen()) {
-            lastCloseCode = Protocol.CLOSE_UNAUTHORIZED;
-        }
-    }
-
-    /** The paired connection to send a command on: never one whose pairing answer is not out yet. */
-    private synchronized WebSocket paired() {
-        return conn;
-    }
-
-    synchronized void detach(WebSocket closed, int closeCode) {
-        if (conn != closed) {
+    void refusedByUser(boolean refused) {
+        if (refused == refusedByUser) {
             return;
         }
-        conn = null;
-        sessions = List.of();
-        lastCloseCode = closeCode;
-        BrowserException lost = new BrowserException("CONNECTION_LOST",
-                "The browser extension disconnected before answering. The outcome is unknown and the "
-                        + "command was not retried; inspect the page before repeating it.");
+        refusedByUser = refused;
+        if (refused) {
+            sessions = List.of();
+            log.info("agent disconnected by the user in the popup");
+            failPending("The user disconnected this agent in the TabGoblin popup. The outcome is unknown and the "
+                    + "command was not retried.");
+        } else {
+            log.info("agent allowed again by the user in the popup");
+        }
+    }
+
+    private void failPending(String why) {
+        BrowserException lost = new BrowserException("CONNECTION_LOST", why);
         pending.values().forEach(f -> f.completeExceptionally(lost));
     }
 
@@ -162,7 +160,6 @@ final class ExtensionConnection {
         if (lock != null) {
             lock.lock();
         }
-        String id = Long.toString(ids.incrementAndGet());
         long started = System.nanoTime();
         // Behind another call on the same session: that is waiting, not the round trip.
         timings.waited(started - asked);
@@ -172,14 +169,15 @@ final class ExtensionConnection {
         // The session the command ran in: the one it named, or the one the extension says it found for
         // a command that named none. The panel shows the times and the calls of one tab by it.
         String[] ranIn = {session};
+        String[] id = {"-"};
         try {
-            return exchange(id, action, session, params, timeout, inside, ranIn);
+            return exchange(action, session, params, timeout, inside, ranIn, id);
         } catch (BrowserException e) {
             errorCode = e.code();
             throw e;
         } finally {
             long trip = System.nanoTime() - started;
-            log.command(id, ranIn[0], action, trip / 1_000_000, errorCode);
+            log.command(id[0], ranIn[0], action, trip / 1_000_000, errorCode);
             timings.trip(trip, inside[0], ranIn[0]);
             if (lock != null) {
                 lock.unlock();
@@ -187,15 +185,18 @@ final class ExtensionConnection {
         }
     }
 
-    private JsonNode exchange(String id, String action, String session, JsonNode params, Duration timeout,
-            Protocol.Timing[] inside, String[] ranIn) {
-        WebSocket c = paired();
-        if (c == null || !c.isOpen()) {
-            if (held) {
+    private JsonNode exchange(String action, String session, JsonNode params, Duration timeout,
+            Protocol.Timing[] inside, String[] ranIn, String[] idOut) {
+        if (server != null) {
+            // A pairing made on an older token ends before anything is sent on it, and is then none.
+            server.dropStalePairing();
+        }
+        if (!isConnected()) {
+            if (held()) {
                 // The nearest cause comes first: nothing else can connect while this is so.
                 throw new BrowserException("NOT_CONNECTED", NOT_CONNECTED_HELD);
             }
-            throw new BrowserException("NOT_CONNECTED", switch (lastCloseCode) {
+            throw new BrowserException("NOT_CONNECTED", switch (lastCloseCode()) {
                 case Protocol.CLOSE_USER_DISCONNECTED ->
                     "The user disconnected this agent in the TabGoblin popup. Ask them to allow it again.";
                 // What the user has to do about these two is said by the one who knows where the token is.
@@ -204,13 +205,16 @@ final class ExtensionConnection {
                 default -> "The Chrome extension is not connected.";
             });
         }
-        Protocol.Command command = new Protocol.Command(id, action, session, params,
-                System.currentTimeMillis() + timeout.toMillis());
+        // The id is given with the sending: both are the server's, so that an answer finds its agent.
         CompletableFuture<Protocol.Response> future = new CompletableFuture<>();
-        pending.put(id, future);
-        running.put(id, action);
+        String id = null;
         try {
-            c.send(command.toJson(json));
+            long deadline = System.currentTimeMillis() + timeout.toMillis();
+            id = server.send(agent, action, session, params, deadline, sent -> {
+                pending.put(sent, future);
+                running.put(sent, action);
+            });
+            idOut[0] = id;
             Protocol.Response response = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             inside[0] = response.timing();
             if (response.session() != null) {
@@ -221,7 +225,7 @@ final class ExtensionConnection {
             }
             throw new BrowserException(response.errorCode(), response.errorMessage());
         } catch (TimeoutException e) {
-            cancel(c, id);
+            server.cancel(id);
             throw new BrowserException("TIMEOUT", "No response from the browser within " + timeout.toSeconds()
                     + "s. The command was cancelled and not retried, but its outcome is unknown; inspect the "
                     + "page before repeating it.");
@@ -231,34 +235,27 @@ final class ExtensionConnection {
             }
             throw new BrowserException("ERROR", "Command failed: " + e.getCause().getMessage());
         } catch (InterruptedException e) {
-            cancel(c, id);
+            server.cancel(id);
             Thread.currentThread().interrupt();
             throw new BrowserException("INTERRUPTED", "The command was cancelled. If it had already reached "
                     + "the page its outcome is unknown; inspect the page before repeating it.");
         } catch (BrowserException e) {
             throw e;
+        } catch (WebsocketNotConnectedException e) {
+            throw new BrowserException("NOT_CONNECTED", "The Chrome extension connection was lost.");
         } catch (RuntimeException e) {
-            // e.g. WebsocketNotConnectedException from send()
             throw new BrowserException("NOT_CONNECTED", "The Chrome extension connection was lost.");
         } finally {
-            pending.remove(id);
-            running.remove(id);
+            if (id != null) {
+                pending.remove(id);
+                running.remove(id);
+                server.done(id);
+            }
         }
     }
 
     /** The action of a command that was sent and is not answered yet, or null when none is. */
     String running() {
         return running.values().stream().findFirst().orElse(null);
-    }
-
-    /** Tells the extension to drop or stop a command, so it cannot run after we stopped waiting. */
-    private void cancel(WebSocket c, String id) {
-        try {
-            if (c.isOpen()) {
-                c.send("{\"type\":\"cancel\",\"id\":\"" + id + "\"}");
-            }
-        } catch (RuntimeException e) {
-            // connection already gone: nothing left to cancel
-        }
     }
 }

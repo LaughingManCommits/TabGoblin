@@ -112,6 +112,7 @@ const fakeChrome = {
       set: async (values: object) => { Object.assign(storageLocal, values); },
       remove: async (key: string) => { delete storageLocal[key]; },
     },
+    onChanged: new FakeEvent(),
     session: {
       get: async (key: string) => ({ [key]: storageSession[key] }),
       set: async (values: object) => { Object.assign(storageSession, structuredClone(values)); },
@@ -136,54 +137,58 @@ const fakeChrome = {
   alarms: { create: async () => undefined, onAlarm: new FakeEvent() },
 };
 
-/** A fake agent server on one port: speaks the real handshake, then sends commands. */
-class FakeServer {
+/**
+ * The one TabGoblin server as the extension sees it: one connection, which speaks the real
+ * handshake and then carries every agent of the server. The agents are the `FakeServer`s in
+ * `servers`; the hub names them to the extension, sends their commands with their ids, and hands
+ * each the answers and the events that name it.
+ */
+class FakeHub {
   socket: FakeSocket | null = null;
-  /** The server has sent `auth_ok`. The extension checks its proof a moment later: ask the worker whether it is paired. */
+  /** The hub has sent `auth_ok`. The extension checks its proof a moment later: ask the worker whether it is paired. */
   paired = false;
-  /** Sends a command right behind every `auth_ok`, as a server does whose agent was waiting for the extension. */
+  /** Sends a command of the first agent right behind every `auth_ok`, as a server does whose agent was waiting for the extension. */
   eager = false;
   /** The answers to those commands, in order. One that is never answered stays pending. */
   eagerAnswers: Promise<any>[] = [];
-  /** A server that hangs: its connections stay open, and it says nothing, to old ones and to new ones. */
+  /** A server that hangs: its connection stays open, and it says nothing, to old ones and to new ones. */
   silent = false;
-  /** Says who it is in its first message, as a server does now. One from before that says it only in its proven answer. */
-  announces = true;
-  /** Who it says it is there. Its own id, unless a test has it name another. */
-  announced: string;
+  /** The protocol version it speaks. */
+  version = 1;
   /** How many times the extension proved to this server that it knows the token. */
   proofs = 0;
   closeCodes: number[] = [];
   events: any[] = [];
+  /** The agents the extension said the user disconnected, as it last said them. */
+  refused: string[] = [];
   private nonce = 'a'.repeat(32);
   private waiting = new Map<string, (response: any) => void>();
   private nextId = 1;
-  readonly clientId: string;
-  readonly name: string;
-  readonly versions: number[];
 
-  constructor(clientId: string, name: string, versions = [3]) {
-    this.clientId = clientId;
-    this.announced = clientId;
-    this.name = name;
-    this.versions = versions;
+  agents(): FakeServer[] {
+    return [...servers.values()];
+  }
+
+  private named(): object[] {
+    return this.agents().map((agent) => ({ id: agent.clientId, name: agent.name }));
   }
 
   attach(socket: FakeSocket): void {
     this.socket = socket;
     this.paired = false;
     if (this.silent) return;
-    this.deliver(this.challenge());
+    this.deliver({ type: 'challenge', nonce: this.nonce, version: this.version });
   }
 
-  private challenge(): object {
-    return { type: 'challenge', nonce: this.nonce, versions: this.versions, ...(this.announces ? { clientId: this.announced } : {}) };
-  }
-
-  /** The server runs again: a connection that was made meanwhile gets its answer now. */
+  /** The server runs again: a connection that was made meanwhile gets its challenge now. */
   wake(): void {
     this.silent = false;
-    if (this.socket?.readyState === 1 && !this.paired) this.deliver(this.challenge());
+    if (this.socket?.readyState === 1 && !this.paired) this.deliver({ type: 'challenge', nonce: this.nonce, version: this.version });
+  }
+
+  /** Who the agents are now: said to the extension, as a server does when one comes, goes or is named. */
+  announce(): void {
+    if (this.paired && this.socket?.readyState === 1) this.deliver({ type: 'agents', agents: this.named() });
   }
 
   async receive(msg: any): Promise<void> {
@@ -193,11 +198,22 @@ class FakeServer {
     } else if (msg.type === 'auth') {
       this.proofs += 1;
       assert.equal(msg.proof, await clientProof(TOKEN, this.nonce, msg.nonce), 'the extension must prove it knows the token');
-      this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: 3, clientId: this.clientId, clientName: this.name });
+      this.deliver({ type: 'auth_ok', proof: await serverProof(TOKEN, this.nonce, msg.nonce), version: this.version, agents: this.named() });
       this.paired = true;
-      if (this.eager) this.eagerAnswers.push(this.command('status'));
+      for (const agent of this.agents()) agent.paired = !this.refused.includes(agent.clientId);
+      if (this.eager) this.eagerAnswers.push(this.agents()[0].command('status'));
+    } else if (msg.type === 'agents_refused') {
+      const before = this.refused;
+      this.refused = msg.agents;
+      for (const agent of this.agents()) {
+        const now = this.refused.includes(agent.clientId);
+        // What a disconnect was before there was one connection: told as the close code the popup still names.
+        if (now && !before.includes(agent.clientId)) agent.closeCodes.push(4403);
+        agent.paired = this.paired && !now;
+      }
     } else if (msg.type === 'event') {
       this.events.push(msg);
+      this.agents().find((agent) => agent.clientId === msg.agent)?.events.push(msg);
     } else if (typeof msg.id === 'string') {
       this.waiting.get(msg.id)?.(msg);
       this.waiting.delete(msg.id);
@@ -208,17 +224,75 @@ class FakeServer {
     this.socket?.onmessage?.({ data: JSON.stringify(msg) });
   }
 
-  /** Sends a command and resolves with the extension's response. */
-  command(action: string, extra: { session?: string; params?: object; id?: string; deadline?: number } = {}): Promise<any> {
-    const id = extra.id ?? `${this.clientId}-${this.nextId++}`;
+  /** Sends a command of an agent and resolves with the extension's response. */
+  command(agent: string, action: string, extra: { session?: string; params?: object; id?: string; deadline?: number } = {}): Promise<any> {
+    const id = extra.id ?? `${agent}-${this.nextId++}`;
     return new Promise((resolve) => {
       this.waiting.set(id, resolve);
-      this.deliver({ id, action, ...(extra.session ? { session: extra.session } : {}), params: extra.params ?? {}, deadline: extra.deadline ?? Date.now() + 30000 });
+      this.deliver({ id, agent, action, ...(extra.session ? { session: extra.session } : {}), params: extra.params ?? {}, deadline: extra.deadline ?? Date.now() + 30000 });
     });
+  }
+
+  /** The connection ended, by the extension's doing. */
+  closed(code: number): void {
+    this.paired = false;
+    this.closeCodes.push(code);
+    for (const agent of this.agents()) {
+      agent.paired = false;
+      agent.closeCodes.push(code);
+    }
   }
 }
 
-const servers = new Map<number, FakeServer>();
+/** One agent of the server: it sends its commands on the hub's connection, and gets what the extension says of it. */
+class FakeServer {
+  /** The extension has this agent: the hub is paired, and the user has not disconnected the agent. */
+  paired = false;
+  /** What ended this agent's part, in the codes of before: 4403 when the user disconnected it, the hub's codes otherwise. */
+  closeCodes: number[] = [];
+  events: any[] = [];
+  readonly clientId: string;
+  name: string;
+
+  constructor(clientId: string, name: string) {
+    this.clientId = clientId;
+    this.name = name;
+  }
+
+  /** Sends a command and resolves with the extension's response. */
+  command(action: string, extra: { session?: string; params?: object; id?: string; deadline?: number } = {}): Promise<any> {
+    return hub.command(this.clientId, action, extra);
+  }
+
+  /** A message from the server, in this agent's name where it needs one. */
+  deliver(msg: any): void {
+    if (msg.type === 'client') {
+      // The agent's name, as its opening message gives it: the server names its agents anew.
+      this.name = msg.name;
+      hub.announce();
+      return;
+    }
+    hub.deliver(msg.action && !msg.agent ? { ...msg, agent: this.clientId } : msg);
+  }
+}
+
+const hub = new FakeHub();
+
+/** The agents of the server, by a key of the test's own. Coming or going, they are announced to the extension. */
+class Agents extends Map<number, FakeServer> {
+  override set(key: number, value: FakeServer): this {
+    super.set(key, value);
+    hub.announce();
+    return this;
+  }
+
+  override delete(key: number): boolean {
+    const was = super.delete(key);
+    hub.announce();
+    return was;
+  }
+}
+const servers = new Agents();
 /** Every port a connection was tried on. */
 const tried = new Set<number>();
 
@@ -230,13 +304,13 @@ class FakeSocket {
   onmessage: ((event: { data: string }) => void) | null = null;
   onclose: ((event: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
-  private server: FakeServer | undefined;
+  private server: FakeHub | undefined;
 
   constructor(url: string) {
-    const port = Number(url.split(':').pop());
+    const port = Number(url.split(':').pop()?.split('/')[0]);
     tried.add(port);
     setTimeout(() => {
-      this.server = servers.get(port);
+      this.server = port === BASE_PORT ? hub : undefined;
       if (!this.server) {
         this.readyState = 3;
         this.onclose?.({ code: 1006 }); // nothing listening on this port
@@ -254,10 +328,7 @@ class FakeSocket {
   close(code = 1000): void {
     if (this.readyState === 3) return;
     this.readyState = 3;
-    if (this.server) {
-      this.server.closeCodes.push(code);
-      this.server.paired = false;
-    }
+    if (this.server && this.server.socket === this) this.server.closed(code);
     setTimeout(() => this.onclose?.({ code }), 0);
   }
 }
@@ -284,12 +355,10 @@ async function until(condition: () => boolean | Promise<boolean>, what: string):
 
 const one = new FakeServer('c-one', 'agent-one');
 const two = new FakeServer('c-two', 'agent-two');
-const old = new FakeServer('c-old', 'old-agent', [1]);
 
 before(async () => {
   servers.set(BASE_PORT, one);
-  servers.set(BASE_PORT + 2, two); // a gap: some other program holds the port in between
-  servers.set(BASE_PORT + 3, old);
+  servers.set(BASE_PORT + 2, two);
   tabs.set(1, { id: 1, url: 'https://app.example/issues', status: 'complete', active: true, windowId: 1, title: 'Issues' });
   tabs.set(2, { id: 2, url: 'https://docs.example/guide', status: 'complete', active: false, windowId: 1, title: 'Guide' });
   (globalThis as any).chrome = fakeChrome;
@@ -306,12 +375,24 @@ before(async () => {
   await until(async () => (await state()).clients.length === 2, 'the agents to pair');
 });
 
-test('finds servers across the port range and refuses one that speaks another protocol version', async () => {
+test('connects to the one server, which names its agents, and refuses one that speaks another protocol version', async () => {
   const s = await state();
   assert.equal(s.connection, 'connected');
-  assert.deepEqual(s.clients.map((c: any) => `${c.name}:${c.port}`).sort(), ['agent-one:5000', 'agent-two:5002']);
-  await until(() => old.closeCodes.includes(4406), 'the old-protocol server to be refused');
-  assert.equal(old.paired, false);
+  // The agents by name; the popup is told no port, since there is none to set.
+  assert.deepEqual(s.clients.map((c: any) => [c.name, c.port]).sort(), [['agent-one', undefined], ['agent-two', undefined]]);
+  assert.deepEqual([...tried], [BASE_PORT], 'the port the user set is the only one looked at');
+  assert.equal(hub.proofs, 1);
+
+  // The server speaks another version: it is refused with the code for that, and the extension says so.
+  hub.version = 3;
+  hub.socket!.close(1001);
+  await until(() => hub.closeCodes.includes(4406), 'the old-protocol server to be refused');
+  assert.equal(hub.paired, false);
+  await until(async () => (await state()).connection === 'version_mismatch', 'the popup to be told');
+  // Updated, it is found at the next look, and the agents are back.
+  hub.version = 1;
+  await until(async () => (await state()).clients.length === 2, 'the server to be connected again');
+  assert.equal((await state()).connection, 'connected');
 });
 
 test('nothing runs before a tab is authorized, and only the popup can authorize', async () => {
@@ -771,11 +852,13 @@ test('closing a tab ends its session, and a disconnected agent stays out until a
 
   await popup({ type: 'disconnectClient', clientId: 'c-two' });
   await until(() => two.closeCodes.includes(4403), 'the agent to be disconnected');
-  await sleep(2700); // the next scan connects again, recognises the agent and closes it again
+  // The server names its agents again, as it does when one comes or goes: the disconnected one stays out.
+  hub.announce();
   await popup({ type: 'getState' });
   await sleep(100);
   assert.equal(two.paired && (await state()).clients.some((c: any) => c.id === 'c-two'), false, 'a disconnected agent must not slip back in');
-  assert.ok(two.closeCodes.filter((c) => c === 4403).length >= 1);
+  assert.deepEqual(hub.refused, ['c-two'], 'the server is told whom the user disconnected');
+  assert.equal(code(await two.command('status')), 'NOT_CONNECTED', 'a command in its name runs nothing');
 
   await popup({ type: 'allowClient', clientId: 'c-two' });
   await until(async () => (await state()).clients.some((c: any) => c.id === 'c-two'), 'the agent to be allowed back');
@@ -798,7 +881,7 @@ test('disconnecting an agent ends its sessions; allowing it again gives back the
 
   // Something of the agent's is under way in a page.
   void two.command('wait_for', { session: first, id: 'wd', params: { text: 'never', timeoutMs: 20000 } });
-  await until(() => waits.has(`${BASE_PORT + 2}:wd`), 'the wait to reach the page');
+  await until(() => waits.has(`${BASE_PORT}:wd`), 'the wait to reach the page');
   // And in its other tab it has put a question to the user.
   const pageAnswers = ['key_describe', 'submit_prepare', 'submit_baseline'].map((op) => [op, pageResults.get(op)] as const);
   pageResults.set('key_describe', { submit: 'text', click: null, label: 'Message' });
@@ -814,7 +897,7 @@ test('disconnecting an agent ends its sessions; allowing it again gives back the
 
   await popup({ type: 'disconnectClient', clientId: 'c-two' });
   await until(() => two.closeCodes.includes(4403), 'the agent to be disconnected');
-  await until(() => !waits.has(`${BASE_PORT + 2}:wd`), 'the wait in the page to be cancelled');
+  await until(() => !waits.has(`${BASE_PORT}:wd`), 'the wait in the page to be cancelled');
   s = await state();
   assert.equal(s.pendingConfirm, null, 'its question to the user is withdrawn');
   await sleep(50);
@@ -865,97 +948,65 @@ test('what a server sends right behind the pairing is a message like any other, 
   const within = <T>(promise: Promise<T>, ms: number, what: string): Promise<T> => Promise.race([
     promise, sleep(ms).then(() => { throw new Error(`timed out waiting for ${what}`); }),
   ]);
-  /** Waits across scans: the popup asks for one whenever it is open, at most every 2.5 seconds. */
-  const eventually = async (condition: () => boolean, what: string): Promise<void> => {
-    for (let i = 0; i < 120 && !condition(); i++) {
-      await state();
-      await sleep(50);
-    }
-    assert.ok(condition(), `timed out waiting for ${what}`);
-  };
   // A server whose agent was waiting for the extension: its command leaves in the same turn as
   // `auth_ok`, and reaches the worker while it is still checking the server's proof.
-  const eager = new FakeServer('c-eager', 'eager-agent');
-  eager.eager = true;
-  servers.set(BASE_PORT + 4, eager);
-  await eventually(() => eager.eagerAnswers.length === 1, 'the new server to be found');
-  assert.equal(code(await within(eager.eagerAnswers[0], 3000, 'an answer to the command sent with the pairing')), 'ok');
+  hub.eager = true;
+  hub.socket!.close(1001);
+  await until(() => hub.eagerAnswers.length === 1, 'the server to be found again');
+  assert.equal(code(await within(hub.eagerAnswers[0], 3000, 'an answer to the command sent with the pairing')), 'ok');
+  hub.eager = false;
   let s = await state();
   assert.equal(s.connection, 'connected');
-  assert.ok(s.clients.some((c: any) => c.id === 'c-eager'), 'the server is paired');
-  assert.deepEqual(eager.closeCodes, [], 'and its connection was not closed');
+  assert.equal(hub.closeCodes.at(-1), 1001, 'the connection was not closed again');
 
-  // An agent the user disconnected is turned away as that. Its command behind `auth_ok` does not
-  // make it a failed pairing, which would stop the search for every other server.
+  // An agent the user disconnected is no agent here: a command in its name is answered as not
+  // connected, runs nothing, and does not make the pairing a failed one.
+  const eager = new FakeServer('c-eager', 'eager-agent');
+  servers.set(BASE_PORT + 4, eager);
+  await until(async () => (await state()).clients.some((c: any) => c.id === 'c-eager'), 'the new agent to be known');
   await popup({ type: 'disconnectClient', clientId: 'c-eager' });
   await until(() => eager.closeCodes.includes(4403), 'the agent to be disconnected');
-  await eventually(() => eager.closeCodes.filter((c) => c === 4403).length >= 2, 'the agent to come back and be turned away again');
-  await sleep(50);
+  assert.equal(code(await eager.command('status')), 'NOT_CONNECTED');
   s = await state();
   assert.equal(s.connection, 'connected', 'no pairing has failed');
   assert.ok(!s.clients.some((c: any) => c.id === 'c-eager'));
   servers.delete(BASE_PORT + 4);
 });
 
-test('an agent the user disconnected is turned away before anything is proven to it, where its server says who it is', async () => {
-  /** Waits across scans: the popup asks for one whenever it is open, at most every 2.5 seconds. */
-  const eventually = async (condition: () => boolean | Promise<boolean>, what: string): Promise<void> => {
-    for (let i = 0; i < 160 && !(await condition()); i++) {
-      await state();
-      await sleep(50);
-    }
-    assert.ok(await condition(), `timed out waiting for ${what}`);
-  };
-  const turnedAway = (server: FakeServer): number => server.closeCodes.filter((c) => c === 4403).length;
+test('an agent the user disconnected stays out however often the server names it, until the user allows it again', async () => {
   const paired = async (id: string): Promise<boolean> => (await state()).clients.some((c: any) => c.id === id);
+  const proofs = hub.proofs;
   const back = new FakeServer('c-back', 'back-agent');
   servers.set(BASE_PORT + 7, back);
-  await eventually(() => paired('c-back'), 'the new server to be found');
-  assert.equal(back.proofs, 1);
+  await until(() => paired('c-back'), 'the new agent to be known');
+  assert.equal(hub.proofs, proofs, 'nothing was proven again for an agent that came');
 
   await popup({ type: 'disconnectClient', clientId: 'c-back' });
-  await until(() => turnedAway(back) === 1, 'the agent to be disconnected');
-  // The ports are looked at again and again while the popup is open. Its server is still there and
-  // is connected to each time, because only a connection says whose server holds a port. It says so
-  // at once, and that is where it ends: no proof goes to it, so it never counts the extension as
-  // connected and writes nothing about it. Before, each look paired with it and closed it again.
-  await eventually(() => turnedAway(back) >= 3, 'the server to be looked at again, and turned away');
-  assert.equal(back.proofs, 1, 'nothing was proven to it again');
+  await until(() => back.closeCodes.filter((c) => c === 4403).length === 1, 'the agent to be disconnected');
+  assert.deepEqual(hub.refused, ['c-back']);
+  // The server names its agents again and again, as agents come and go: the disconnected one stays out each time.
+  for (let i = 0; i < 3; i++) {
+    hub.announce();
+    await sleep(30);
+    assert.equal(await paired('c-back'), false);
+    assert.deepEqual(hub.refused, ['c-back']);
+  }
   assert.equal(back.paired, false);
-  assert.equal(await paired('c-back'), false);
+  assert.equal(hub.proofs, proofs, 'nothing was proven to it again');
   assert.equal((await state()).connection, 'connected', 'and no pairing has failed');
 
-  // A server from before this says who it is only in its proven answer. It is turned away as it
-  // always was: after the pairing, and not let in.
-  back.announces = false;
-  const before = turnedAway(back);
-  await eventually(() => back.proofs >= 2 && turnedAway(back) > before, 'the older server to be paired with and turned away');
-  await sleep(50);
-  assert.equal(await paired('c-back'), false, 'a disconnected agent must not slip back in');
-  assert.equal((await state()).connection, 'connected');
-  back.announces = true;
+  // A command that names an agent the server never named is answered as not connected, and runs nothing.
+  const before = pageLog.length;
+  assert.equal(code(await hub.command('c-nobody', 'snapshot', { session: 's1' })), 'NOT_CONNECTED');
+  assert.equal(pageLog.length, before);
 
-  // What a server says of itself before the proof turns it away and gives it nothing. One that
-  // names another agent there is paired with as itself, by the id in its proven answer.
-  const liar = new FakeServer('c-liar', 'liar-agent');
-  liar.announced = 'c-one';
-  servers.set(BASE_PORT + 5, liar);
-  await eventually(() => paired('c-liar'), 'the server to be paired with under its proven id');
-  const s = await state();
-  assert.equal(s.clients.filter((c: any) => c.id === 'c-one').length, 1, 'the agent it named is there once, as before');
-  assert.equal(s.clients.find((c: any) => c.id === 'c-liar').tabs, 0, 'and it has none of that agent\'s tabs');
-  // And one that names a disconnected agent is not paired with: it has turned itself away.
-  liar.announced = 'c-back';
-  await popup({ type: 'disconnectClient', clientId: 'c-liar' });
-  await until(() => turnedAway(liar) === 1, 'the server to be disconnected');
-  await popup({ type: 'allowClient', clientId: 'c-liar' });
-  const proofs = liar.proofs;
-  await eventually(() => turnedAway(liar) >= 3, 'the server to be looked at again');
-  assert.equal(liar.proofs, proofs);
-  assert.equal(await paired('c-liar'), false);
-
-  servers.delete(BASE_PORT + 5);
+  // Allowed again, it is an agent at once, and the server is told so.
+  await popup({ type: 'allowClient', clientId: 'c-back' });
+  await until(() => paired('c-back'), 'the agent to be allowed back');
+  assert.deepEqual(hub.refused, []);
+  assert.equal(back.paired, true);
   servers.delete(BASE_PORT + 7);
+  await until(async () => !(await paired('c-back')), 'the agent to be gone with its server\'s word');
 });
 
 test('the panels of the popup fold on the user\'s word, and the prompt is not one of them', async () => {
@@ -1083,8 +1134,7 @@ test('a server that stops answering is taken for gone, and the badge says ON onl
   const quiet = new FakeServer('c-quiet', 'quiet-agent');
   servers.set(BASE_PORT + 6, quiet);
   const found = async (): Promise<boolean> => (await state()).clients.some((c: any) => c.id === 'c-quiet');
-  for (let i = 0; i < 120 && !(await found()); i++) await sleep(50);
-  assert.ok(await found(), 'the new server is found');
+  await until(found, 'the new agent is known');
   tabs.set(9, { id: 9, url: 'https://quiet.example/board', status: 'complete', active: false, windowId: 1, title: 'Board' });
   const reply = await popup({ type: 'authorize', tabId: 9, mode: 'read', clientId: 'c-quiet' });
   assert.equal(reply.ok, true);
@@ -1096,28 +1146,29 @@ test('a server that stops answering is taken for gone, and the badge says ON onl
   // The heartbeat of this connection is the last one that was set up; it comes round every twenty seconds.
   const beat = intervals.filter((i) => i.ms === 20000).at(-1)!.fn;
   // A server that answers stays, however many heartbeats pass.
+  const closes = hub.closeCodes.length;
   for (let i = 0; i < 5; i++) {
     beat();
     await sleep(20);
   }
   assert.ok(await found());
-  assert.equal(quiet.closeCodes.length, 0);
+  assert.equal(hub.closeCodes.length, closes);
 
   // It hangs: the connection stays open, and nothing comes back.
-  quiet.silent = true;
+  hub.silent = true;
   beat();
   await sleep(20);
   beat();
   await sleep(20);
   assert.ok(await found(), 'two heartbeats are let go by: one answer may be late');
-  assert.equal(quiet.closeCodes.length, 0);
+  assert.equal(hub.closeCodes.length, closes);
   beat();
   await until(async () => !(await found()), 'the silent server to be taken for gone');
-  assert.ok(quiet.closeCodes.includes(4408));
-  // The other agents are untouched, and the tab stays authorized: the popup says that its agent
-  // is not connected, and the badge no longer says that an agent may act.
+  assert.ok(hub.closeCodes.includes(4408));
+  // Every agent goes with the one connection, and the tabs stay authorized: the popup says that
+  // their agents are not connected, and the badge no longer says that an agent may act.
   const s = await state();
-  assert.deepEqual(s.clients.map((c: any) => c.id).sort(), ['c-one', 'c-two']);
+  assert.deepEqual(s.clients, []);
   assert.equal(s.sessions.find((x: any) => x.id === sid).ownerConnected, false);
   await sleep(30);
   assert.equal(badges.at(-1), 'OFF');
@@ -1127,11 +1178,12 @@ test('a server that stops answering is taken for gone, and the badge says ON onl
     await sleep(50);
   }
   assert.equal(await found(), false);
+  assert.equal((await state()).connection, 'disconnected');
 
-  // It runs again: it is found, the tab is its own as before, and the badge says ON.
-  quiet.wake();
-  for (let i = 0; i < 120 && !(await found()); i++) await sleep(50);
-  assert.ok(await found(), 'the server is found again');
+  // It runs again: it is found, every agent is back, the tab is its agent's as before, and the badge says ON.
+  hub.wake();
+  await until(found, 'the server to be found again');
+  assert.deepEqual((await state()).clients.map((c: any) => c.id).sort(), ['c-one', 'c-quiet', 'c-two']);
   assert.equal(code(await quiet.command('snapshot', { session: sid })), 'ok');
   await sleep(30);
   assert.equal(badges.at(-1), 'ON');
@@ -1139,8 +1191,7 @@ test('a server that stops answering is taken for gone, and the badge says ON onl
   await popup({ type: 'revoke', session: sid });
   tabs.delete(9);
   servers.delete(BASE_PORT + 6);
-  quiet.socket?.close();
-  await until(async () => !(await found()), 'the server to be gone at the end');
+  await until(async () => !(await found()), 'the agent to be gone at the end');
   await sleep(30);
   assert.equal(badges.at(-1), '', 'no tab is authorized: the badge says nothing');
 });
@@ -1156,7 +1207,6 @@ test('an agent that is started again has its tabs by its id, and an agent of the
   };
   const leave = async (server: FakeServer): Promise<void> => {
     servers.delete(port);
-    server.socket?.close();
     await until(async () => !(await has(server.clientId)), `${server.clientId} to be gone`);
   };
   /** Whether the extension has told this server, without being asked, that the tab is its own. */
@@ -1220,7 +1270,6 @@ test('an agent that is started again has its tabs by its id, and an agent of the
   assert.equal((await state()).clients.find((c: any) => c.id === second.clientId).lasting, false);
   assert.equal(code(await second.command('snapshot', { session: sid })), 'SESSION_NOT_OWNED');
   servers.delete(BASE_PORT + 5);
-  second.socket?.close();
 
   // The user's no to an agent with a key is kept beyond this run of the browser; one to an agent
   // that has an id for one start only is not, because that id never comes again.
@@ -1342,14 +1391,14 @@ test('a site on the user\'s list of blocked sites: no command runs there, no tab
   assert.equal(none.ok, false);
   assert.match(none.error, /cannot read its settings file/);
 
-  // Mended: everything is as it was. And a server that leaves takes its list with it.
+  // Mended: everything is as it was. The list is the server's, and stays when an agent goes.
   await say([]);
   assert.equal(code(await guard.command('snapshot', { session: fresh })), 'ok');
   await say(['example.org']);
   servers.delete(port);
-  guard.socket?.close();
-  await until(async () => !(await has('c-guard')), 'the server to be gone');
-  assert.deepEqual((await state()).blocked, { sites: [], everything: false });
+  await until(async () => !(await has('c-guard')), 'the agent to be gone');
+  assert.deepEqual((await state()).blocked, { sites: ['example.org'], everything: false }, 'what the server said holds for every agent');
+  await say([]);
   for (const left of (await state()).sessions) await popup({ type: 'revoke', session: left.id });
   for (const id of [10, 11, 12, 13]) tabs.delete(id);
 });
@@ -1513,9 +1562,8 @@ test('the user\'s security policy is enforced at the moment of a command: screen
   for (const op of ['describe', 'submit_prepare', 'submit_baseline', 'submit_fire', 'submit_observe']) pageResults.delete(op);
   await say({});
   servers.delete(port);
-  guard.socket?.close();
-  await until(async () => !(await has(ID)), 'the server to be gone');
-  assert.deepEqual((await state()).limits, NONE, 'a server that leaves takes its policy with it');
+  await until(async () => !(await has(ID)), 'the agent to be gone');
+  assert.deepEqual((await state()).limits, NONE, 'the policy is as the server last said it');
   for (const id of [21, 22]) tabs.delete(id);
 });
 
@@ -1687,7 +1735,7 @@ test('commands that pile up for one tab are refused beyond a limit, and not left
 
   // One command holds the tab, and thirty more come behind it.
   const first = flood.command('wait_for', { id: 'hold', session: sid, params: { text: 'never', timeoutMs: 20000 } });
-  await until(() => waits.has(`${port}:hold`), 'the wait to reach the page');
+  await until(() => waits.has(`${BASE_PORT}:hold`), 'the wait to reach the page');
   const behind = Array.from({ length: 30 }, () => flood.command('snapshot', { session: sid }));
   const refusedAtOnce = await Promise.race([Promise.all(behind.slice(19)), sleep(500).then(() => null)]);
   assert.ok(refusedAtOnce, 'what is beyond the limit is answered at once');
@@ -1701,7 +1749,6 @@ test('commands that pile up for one tab are refused beyond a limit, and not left
 
   await popup({ type: 'revoke', session: sid });
   servers.delete(port);
-  flood.socket?.close();
   tabs.delete(51);
 });
 
@@ -2260,11 +2307,20 @@ test('a tab sent to an address that answers late is waited for, and is not said 
   }
 });
 
-test('a first port the user set is the only range that is looked at', async () => {
-  // The whole file runs with a first port of its own. The ranges a server falls back to where the
-  // system keeps the usual ports back are for a setup that names no port (`rangesToScan`).
+test('a port in the storage is the only one that is looked at, and one written there is looked at next', async () => {
+  // The whole file runs with a port of its own, in the storage: no popup writes one, the end-to-end
+  // suite does. The ports a server falls back to where the system keeps the usual one back are
+  // for a storage that names no port (`portsToTry`).
   await popup({ type: 'getState' });
-  assert.ok(tried.has(BASE_PORT));
-  for (const port of tried) assert.ok(port >= BASE_PORT && port < BASE_PORT + 8, `port ${port} was tried`);
+  assert.deepEqual([...tried], [BASE_PORT]);
+  // Written anew, the next look is there and nowhere else; the server found before is let go.
+  fakeChrome.storage.onChanged.emit({ port: { newValue: BASE_PORT + 7 } }, 'local');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok(tried.has(BASE_PORT + 7), `the new port was not looked at: ${[...tried]}`);
+  // Taken out, the list is looked at again, which this fake's one server is not on.
+  tried.clear();
+  fakeChrome.storage.onChanged.emit({ port: { newValue: undefined, oldValue: BASE_PORT + 7 } }, 'local');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual([...tried], [47821, 37821, 27821]);
 });
 

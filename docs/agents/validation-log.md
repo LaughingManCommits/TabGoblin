@@ -3,6 +3,67 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-28, branch `one-port` after `fbc1125`: the popup without a port field
+
+In the copy with the Java 25 runtime: the extension's `npm run check`, 217 tests, none failed
+(the worker's suite has a new case: a port written into the storage is looked at next, and the
+list again when it is taken out). The server's `BrowserServiceTest` (35), `PortsTest` (9, one
+new on the words about ports), `PanelModelTest` (17), `McpMainTest` (18), `HubTest` (17),
+`CliTest`, none failed; `PanelTest` under a virtual display 19 of 20, the icon test wanting the
+extension's icons beside the copy as before. The end-to-end suite, with the popup told the port
+through the extension's storage: 110 passed, 0 failed, among them the pairing steps, the one
+that asserts the popup has no port field, and the hand-made server reached by a port written
+into the storage. The pairing picture was captured anew under the virtual display and opened:
+token field and button, no port. Links 352, nothing personal, no drift, the SVG files as drawn.
+CI run 66 on pull request 16 (`d459614`): the editor lab failed at once, since its two scripts
+still set the popup's port field; both now write the port into the extension's storage as the
+suite does, checked for syntax here and not run (the lab runs on Windows in CI). The other jobs
+passed but *Dependencies*, which fails on the repository's dependency graph as before.
+
+## 2026-11-28, branch `one-port` after `9a6e233`: the documentation rules and the alignment review
+
+In the copy with the Java 25 runtime, under a virtual display (`xvfb-run`): `PanelTest` ran its
+20 tests, 19 passed, and `theWindowsIconIsTheGoblinInAFormTheWindowTakes` errored for want of
+`icon16.png`, which the build takes from `chrome-extension/icons` beside `java-server` and the
+copy has no `chrome-extension`; `PanelModelTest` 17, `McpMainTest` 18, `HubTest` 17,
+`SkillsTest` 9, `ToolReferenceTest` 2, none failed. `PanelPictures` drew its 21 pictures under
+the display; the first is the documentation's. The popup's pictures were captured under the
+display with `HEADED=1` and the container's Chromium; four pictures and `status.txt` changed for
+the cause (port chips, the form's label, the status line) and were taken; the others differed in
+pixels only, from another Chrome, and were left. The extension's type-check passed. The new
+`check-drift.mjs` found, before the mends, nine places: the agent guide's task map, the
+development page's names (allowed: the rule states them), `status.txt` (protocol 3), two
+comments; its own tests 4 of 4. `check-diagrams.mjs`: 10 Mermaid blocks, 0 fail, Mermaid
+11.4.1, after it had found one that a semicolon cut short. The six SVG pictures were drawn by
+the script; the components picture and the new picture of the documentation rules were opened
+in light and in dark. Links 348, all resolve;
+nothing personal. Not run: the full suites (the code changes of this commit are comments, a
+test's expected string and the pictures' made-up log lines), the end-to-end suite. Later the
+same day, with the drift check extended to the code files and the `TABGOBLIN_*` variables the
+pages name: it found its own example in the runbook and nothing else; its tests 5 of 5; the
+SVG files unchanged by the script; the Mermaid check 10 of 10 after the command diagram got
+its `agent` field.
+
+## 2026-11-28, branch `one-port`, WP-33 built, before its first commit
+
+In a copy of the tree with a Java 25 runtime (`jdk4py`) and the Eclipse compiler, the tree
+having no JDK: `mvn verify`, 240 tests, none failed, 20 skipped (`PanelTest`, no display), among
+them `WebSocketBridgeTest` rewritten (33: one connection for every agent, each told apart; a
+user's disconnect of one agent; the links' path refuses a page's origin; versions 0, 2 and 3
+refused), `HubTest` (17: two agents on one connection, each with its own sessions; a program
+that holds the port is not taken for the server), `CliTest`, `CommandsTest`, `PanelModelTest`,
+`PortsTest` rewritten for single ports, `BrowserServiceTest` (35); `McpConformanceIT` 8 of 8.
+In the same copy `npm run check` in `chrome-extension`: 217 tests, with the type-check and the
+build; `background.test.ts` drives one fake server with several agents. End to end here, in the
+copy: 110 passed, 0 failed, with the hand-made server reached by setting the popup's port to it
+and the suite's own server paired with again after; the window's section is Windows-only and
+did not run. With real processes of that jar and a plain program holding 47821: two agents'
+processes started without `--port` each served their agent alone, logged `no port to listen on
+port=47821 reason=taken`, answered `initialize`, and left the fallback port free, which is the
+designed telling-apart of a held port from one the system keeps back. After the pages: links
+320, all resolve; nothing personal. Not run: the panel's tests and its pictures (no display),
+Kill and Stop in the window, a port the system keeps back.
+
 ## 2026-11-28, branch `one-server-found-and-plain-answers` after `3cfff0b`: CI's two failed steps
 
 CI run 61 on pull request 15, read on GitHub: *End to end* on Windows, 113 passed, 2 failed

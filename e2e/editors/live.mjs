@@ -96,7 +96,8 @@ try {
       await popup.waitForSelector('#connection');
       if (!paired) {
         await popup.type('#token', token);
-        await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
+        // The popup has no port: the lab's server is on a port of its own, which goes into the extension's storage.
+        await (await until(async () => (await extension.workers())[0], 'the extension service worker')).evaluate((p) => chrome.storage.local.set({ port: p }), wsPort);
         await popup.click('#pair');
         await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('agent connected'));
         paired = true;

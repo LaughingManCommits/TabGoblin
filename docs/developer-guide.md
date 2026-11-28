@@ -99,7 +99,7 @@ controls.
 **Activity** shows what is happening now and the six most recent finished ones, across all sessions, with
 their outcome. It never shows page content or anything typed.
 
-**Agents** lists every connected agent with its number of tabs and its port. *Disconnect* cuts
+**Agents** lists every connected agent with its number of tabs. *Disconnect* cuts
 one off and ends its sessions; the number beside the button is what that will end. The agent
 stays out until you press *Allow again*, and comes back without a tab.
 
@@ -265,20 +265,20 @@ its last command. To stop it yourself, press **Stop server** in
 [its window](#the-servers-panel). Every agent then has no TabGoblin tools until its program
 connects again (in Claude Code, *Reconnect* under `/mcp`). Its tabs are kept.
 
-**A server that hangs or is left over.** The agents' ports are 47821 to 47828, and the
-server's own is 47829. (Where the system keeps those back, they begin at 37821 or 27821
-instead: `browser_status` and the server's window say which.) To find the process:
+**A server that hangs or is left over.** The server's port is 47821. (Where the system keeps
+it back, it is 37821 or 27821 instead: `browser_status` and the server's window say which.) To
+find the process:
 
 ```powershell
 # Windows (PowerShell)
-Get-NetTCPConnection -State Listen -LocalPort (47821..47829) -ErrorAction SilentlyContinue |
+Get-NetTCPConnection -State Listen -LocalPort 47821 -ErrorAction SilentlyContinue |
   Select-Object LocalPort, OwningProcess
 Stop-Process -Id <OwningProcess>
 ```
 
 ```sh
 # macOS and Linux
-lsof -nP -iTCP:47821-47829 -sTCP:LISTEN
+lsof -nP -iTCP:47821 -sTCP:LISTEN
 kill <PID>
 ```
 
@@ -378,9 +378,9 @@ focus a heading with Tab and toggle it with Space.
 |---|---|
 | The goblin | What the server is at. Asleep while the connection is switched off; puzzled by a problem, or by a call that failed; waiting while the browser is not connected; while a call runs, and for three seconds after, reading a page, walking (a navigation) or at work; behind its shield for a moment when the rules refused a call; and otherwise at rest, still but for a blink. It moves only while the window is on the screen |
 | The title line | Beside the title, a pill for each interface: **CLI** and **MCP**. Green while agents may come that way; red with a no-entry sign where the settings file has it off (`interfaces`), and then its tooltip says so, how many MCP starts were turned away since the server started, and where the file is. Both are red while the file cannot be read |
-| The line under the title | Click **Port** beside the agent information to copy the number for the extension popup, where it is set as *First port* under *Connection…*. It is available before an agent or browser connects |
-| The line with the dot | Whether the extension is connected, and if not, why. While it waits for the extension, a line below says what to do: open the popup, and pair it if it says so. With one agent whose port is another than the one under the title, the line ends with it (*agent port …*), as that agent's status names it; a click copies it |
-| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id, its port and the way it comes (**CLI** or **MCP**), and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
+| The line under the title | **Port** beside the agent information is the server's one port, there before an agent or browser connects; a click copies the number. The extension finds it by itself; the number is for a command or a link that has to name it |
+| The line with the dot | Whether the extension is connected, and if not, why. While it waits for the extension, a line below says what to do: open the popup, and pair it if it says so |
+| Sessions | The tabs each agent has: site, access level, and *paused*, *suspended* or *blocked*. No page title or address. With several agents each has a heading with its id and the way it comes (**CLI** or **MCP**), and a tab's row says whose it is (*owner: …*), or *any agent* while none has used it. A click on a tab or an agent shows its metrics and log lines alone |
 | Metrics | Where the time of the last tool calls went: the agent and its model, the server, the extension and the page, and your answers. *share* is the part of all that time; *typical* is what the middle one of the calls spent there, so waiting for you can have a share and 0 ms |
 | Log | The server's last 300 lines: connections, and one line per tool call in short, as `s1 navigate  31 ms  NAVIGATION_BLOCKED`: its tab, action, duration, and `ok` or the error code, with `outside scope` after a call refused for leaving its session's sites. Nothing of a page |
 | Connection to the browser | A switch. Off, the server closes its connection to the extension until you switch it on. The agent's tabs stay authorized |
@@ -451,7 +451,6 @@ Tips:
 |---|---|---|
 | When to ask before a submission | *Before an agent submits anything* in the popup; per session next to *Submissions* | Ask me every time |
 | Indicator in the page | Switch under *Settings* in the popup | on |
-| First port | *Connection…* in the popup; `--port` on the server. Set both or neither | 47821, and by itself 37821 or 27821 where the system keeps the ports before back |
 | Blocked sites, security policy, audit record | The settings file: [restricting what agents may do](#restricting-what-agents-may-do) | none, no restriction, off |
 
 Options of the server go after the jar's path (or after `tabgoblin` in a download). The
@@ -460,7 +459,7 @@ variable is set in the environment the server is started in; the option wins.
 | Option | Variable | Default | What it sets |
 |---|---|---|---|
 | `--agent <name>` | `TABGOBLIN_AGENT` | none | The name of the agent that starts the server ([agents](#agents)) |
-| `--port` | `TABGOBLIN_PORT` | `47821`, else `37821`, else `27821` | The first of the eight agents' ports. Without it the server takes the first of the three whose range the system gives out, and the extension finds it. With it, only that port is tried, and the popup's *First port* has to say the same |
+| `--port` | `TABGOBLIN_PORT` | `47821`, else `37821`, else `27821` | The server's one port, for the extension and for the agents' processes. Without it the server takes the first of the three that the system gives out, and the extension finds it there by itself: the popup has no port to set. With another port the server is one the browser does not pair with, for a second server beside the one; the commands and links that are to reach it need the same option |
 | `--token-file` | `TABGOBLIN_TOKEN_FILE` | `~/.tabgoblin/pairing-token` | Where the pairing token is kept |
 | `--settings` | `TABGOBLIN_SETTINGS` | `tabgoblin.properties` beside the token file | Where the settings file is |
 | `--panel`, `--no-panel` | `TABGOBLIN_PANEL=1`, `=0` | neither | The server's window: there from the start, or never by itself |
@@ -493,7 +492,7 @@ Commands an agent runs through the CLI: `tabgoblin tools --json`,
 |---|---|---|
 | *Not paired* | No token stored | Paste the token: **Copy** in the server's window, or `--show-token` |
 | *Paste the server's current token to connect* | A server refused the token the extension holds: it was mistyped, or replaced with `--rotate-token` | Paste the current token: **Copy token** in the server's window, which comes up by itself then |
-| *Disconnected: is the MCP server running?* (for either interface) | No server found on the ports, or the connection is switched off in the server's window | Start a server: have your agent use any TabGoblin tool or command, or run `tabgoblin --panel`. Check the *First port* under *Connection…*; switch the connection on |
+| *Disconnected: is the MCP server running?* (for either interface) | No server found on its ports (47821, 37821, 27821), or the connection is switched off in the server's window | Start a server: have your agent use any TabGoblin tool or command, or run `tabgoblin --panel`, without `--port`; switch the connection on |
 | *Server and extension versions differ* | The server and the extension are from different releases | Update both and reload the extension |
 | Agent says "not connected" right after starting | It asked before the extension found its server | It waits up to 10 seconds by itself; opening the popup connects at once |
 | Agent has no tabs after a restart | An MCP agent registered without `--agent` is a new agent each time (a command of the CLI always has a name) | Add `--agent <name>` to its registration |
@@ -510,4 +509,4 @@ Commands an agent runs through the CLI: `tabgoblin tools --json`,
 | The page stopped responding | A native `alert` or `confirm` dialog is open | Dismiss the dialog |
 | Working through TabGoblin is slow | The time goes to the agent and its model, to the browser, or to waiting for you | Ask the agent to call `browser_status` with `diagnostics`: it says [where the time went](tool-reference.md#where-the-time-went) |
 | `--panel` is set and no window appears | The server found no display, or runs on a system the jar has no window for | The server's log has a line `panel not shown reason=…` |
-| *Could not listen on any of ports 47821-47828* | Eight agents are connected already, other programs hold the ports, or the system keeps all three ranges back | See [installation problems](installation.md#problems) |
+| *Could not listen on port 47821* | Another program holds the port, or the system keeps all three of the server's ports back | See [installation problems](installation.md#problems) |

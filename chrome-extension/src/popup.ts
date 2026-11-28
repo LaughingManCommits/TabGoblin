@@ -58,7 +58,6 @@ interface SessionView {
 interface ClientView {
   id: string;
   name: string;
-  port: number;
   /** The tabs a Disconnect would take from this agent. */
   tabs: number;
   /** Whether it has a key of its own, and so is the same agent at every start. */
@@ -67,7 +66,6 @@ interface ClientView {
 
 interface State {
   connection: 'unpaired' | 'connected' | 'disconnected' | 'pairing_failed' | 'version_mismatch';
-  port: number;
   hasToken: boolean;
   /** When the user is asked about a submission: the general setting. */
   ask: AskMode;
@@ -222,7 +220,7 @@ function renderAgents(s: State): void {
       name.title = `${name.textContent ?? ''} · ${client.id} · ${client.lasting
         ? 'has a key of its own: the same agent at every start'
         : 'no key of its own: known for this start only, and its tabs do not come back after a restart'}`;
-      li.append(name, el('span', 'tabs', cost.beside), el('span', 'muted', `:${client.port}`), button);
+      li.append(name, el('span', 'tabs', cost.beside), button);
       list.append(li);
     }
     for (const id of s.blockedClients) {
@@ -640,9 +638,7 @@ function render(): void {
   $('connection').textContent = connectionText(s);
 
   const pairing = $('pairing');
-  const wasHidden = pairing.hidden;
   pairing.hidden = !(showSettings || !s.hasToken || s.connection === 'pairing_failed');
-  if (wasHidden && !pairing.hidden) $<HTMLInputElement>('port').value = String(s.port);
   $<HTMLButtonElement>('forget').hidden = !s.hasToken;
 
   $('confirm').hidden = !s.pendingConfirm;
@@ -711,11 +707,8 @@ for (const panel of document.querySelectorAll<HTMLElement>('.panel')) {
 
 $('pair').addEventListener('click', () => {
   showSettings = false;
-  void request({
-    type: 'pair',
-    token: $<HTMLInputElement>('token').value,
-    port: Number($<HTMLInputElement>('port').value),
-  }).then(() => { $<HTMLInputElement>('token').value = ''; });
+  void request({ type: 'pair', token: $<HTMLInputElement>('token').value })
+    .then(() => { $<HTMLInputElement>('token').value = ''; });
 });
 $('forget').addEventListener('click', () => void request({ type: 'forget' }));
 $('authorize').addEventListener('click', () => {

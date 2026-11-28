@@ -182,7 +182,7 @@ picture(760, 742, named('overview', 'TabGoblin at a glance'),
 // ---- 2. Components: the architecture's picture
 
 picture(760, 1166, named('components', 'The components of TabGoblin'),
-  "The CLI and the MCP link are two interfaces of TabGoblin, one process per command and one per agent. Both connect over a loopback socket to the one TabGoblin server, whose link endpoint checks the proofs of the pairing token and the agent's key. A command goes to the command adapter (call, cancel, result) and an MCP call to the MCP adapter; neither runs through the other, both are built from one set of tool definitions, and both lead into one service that validates and applies the policy. The service sends the command through the agent's WebSocket endpoint to the extension's worker in Chrome, which takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.", (d) => {
+  "The CLI and the MCP link are two interfaces of TabGoblin, one process per command and one per agent. Both connect over a WebSocket on the server's one port, path /link, to the one TabGoblin server, whose link endpoint checks the proofs of the pairing token and the agent's key. A command goes to the command adapter (call, cancel, result) and an MCP call to the MCP adapter; neither runs through the other, both are built from one set of tool definitions, and both lead into one service that validates and applies the policy. The service sends the command, named for its agent, through the server's one WebSocket connection to the extension's worker in Chrome, which takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.", (d) => {
     const agent = d.node(190, 20, 240, 48, 'Coding agent');
 
     d.box(40, 108, 540, 110, 'Integration interfaces', 'green', false, 'centre');
@@ -194,10 +194,10 @@ picture(760, 1166, named('components', 'The components of TabGoblin'),
     d.label(link.cx + 8, 99, 'MCP over stdio');
 
     d.box(40, 268, 540, 440, 'TabGoblin server', 'green');
-    const door = d.node(170, 300, 280, 56, 'Link endpoint', ['proofs: pairing token · agent key'], 'green');
+    const door = d.node(170, 300, 280, 56, 'Link endpoint', ['path /link · proofs: token · agent key'], 'green');
     d.line([[cli.cx, cli.bottom], [cli.cx, 244], [door.cx - 50, 244], [door.cx - 50, door.top]]);
     d.line([[link.cx, link.bottom], [link.cx, 244], [door.cx + 50, 244], [door.cx + 50, door.top]]);
-    d.label(link.cx + 10, 237, ['loopback socket: the proofs, then', "the interface's own messages"]);
+    d.label(link.cx + 10, 237, ['WebSocket on the one port: the proofs,', "then the interface's own messages"]);
 
     const cmd = d.node(52, 396, 156, 72, 'Command adapter', ['call · cancel · result', 'no MCP'], 'green');
     const tools = d.node(228, 396, 164, 72, 'Tool definitions', ['one set for both', "in no protocol's terms"], 'green');
@@ -212,7 +212,7 @@ picture(760, 1166, named('components', 'The components of TabGoblin'),
     d.line([[cmd.cx, cmd.bottom], [cmd.cx, 500], [svc.cx - 50, 500], [svc.cx - 50, svc.top]]);
     d.line([[sdk.cx, sdk.bottom], [sdk.cx, 500], [svc.cx + 50, 500], [svc.cx + 50, svc.top]]);
     d.label(svc.cx, 490, 'one path from here', { anchor: 'middle' });
-    const ws = d.node(170, 632, 280, 56, 'WebSocket endpoint', ['one port per agent'], 'green');
+    const ws = d.node(170, 632, 280, 56, 'WebSocket endpoint', ['one port · one connection · every agent'], 'green');
     d.line([[svc.cx, svc.bottom], [svc.cx, ws.top]]);
 
     const files = d.node(606, 520, 140, 72, 'Home folder', ['token · agent keys', 'settings · audit']);
@@ -222,7 +222,7 @@ picture(760, 1166, named('components', 'The components of TabGoblin'),
     d.box(60, 786, 666, 208, 'TabGoblin extension', 'green');
     const worker = d.node(170, 816, 280, 56, 'Extension worker', ['sessions · rules · flows'], 'green');
     d.line([[ws.cx, ws.bottom], [ws.cx, worker.top]]);
-    d.label(ws.cx + 10, 730, ['WebSocket on 127.0.0.1', 'paired · protocol 3']);
+    d.label(ws.cx + 10, 730, ['WebSocket on 127.0.0.1, paired once', 'each command names its agent · protocol 1']);
     const content = d.node(170, 916, 280, 56, 'Content script', ['fixed page operations'], 'green');
     d.line([[worker.cx, worker.bottom], [worker.cx, content.top]]);
     d.label(worker.cx + 10, 898, 'one operation');
@@ -353,4 +353,30 @@ picture(760, 494, named('security-boundary', 'What an agent can reach'),
     d.legend(446, [['slate', 'Your agent'], ['green', 'TabGoblin · authorized'], ['amber', 'Asks you'], ['red', 'Denied']]);
   });
 
-console.log('5 files written to docs/assets/diagrams');
+// ---- 6. How a change keeps the pages true: the development page's picture
+
+picture(760, 650, named('documentation', 'How a change keeps the documentation true'),
+  'AGENTS.md is the entry every agent reads: it holds the rule that documentation is part of a change, and the definition of done. The rules themselves are owned by one section of docs/development.md: what a change owes the pages, the impact review by kind of change, the contract for diagrams and pictures, the grades of a security claim, and the checks. They apply to three kinds of artefact: the pages, the pictures (the SVG diagrams drawn by one script, the Mermaid diagrams in the pages, the screenshots made by their scripts) and the six agent skills. Before a change is done, the impact review and the checks run: the contract tests, the link, personal and drift checks, the diagram check. A change is complete when it ends with the documentation review summary.', (d) => {
+    const guide = d.node(230, 24, 300, 56, 'AGENTS.md', ['the entry: the rule and the definition of done'], 'green');
+    const rules = d.node(170, 124, 420, 72, 'docs/development.md · Documentation', ['owns the rules: what a change owes, the impact review,', 'diagrams and pictures, security claims, the checks'], 'green');
+    d.line([[guide.cx, guide.bottom], [guide.cx, rules.top]]);
+
+    const pages = d.node(30, 264, 220, 72, 'Pages', ['guides · references', 'security model · assessment'], 'green');
+    const pictures = d.node(270, 264, 220, 72, 'Pictures', ['SVG by one script · Mermaid', 'screenshots by their scripts'], 'green');
+    const skills = d.node(510, 264, 220, 72, 'Skills', ['three for the CLI, three for MCP', 'the same from the status on'], 'green');
+    // One trunk from the rules, forked to the three kinds, and joined again below them.
+    d.line([[rules.cx, rules.bottom], [rules.cx, 230]], { head: false });
+    d.line([[pages.cx, 230], [skills.cx, 230]], { head: false });
+    for (const kind of [pages, pictures, skills]) d.line([[kind.cx, 230], [kind.cx, kind.top]]);
+    d.line([[pages.cx, pages.bottom], [pages.cx, 370], [skills.cx, 370], [skills.cx, skills.bottom]], { head: false });
+
+    const checks = d.node(150, 404, 460, 104, 'Before a change is done', [
+      'the impact review, whatever files changed',
+      'ToolReferenceTest · SkillsTest · the diagram script',
+      'links · nothing personal · drift · the diagrams parse'], 'green');
+    d.line([[rules.cx, 370], [rules.cx, checks.top]]);
+    const done = d.node(190, 556, 380, 56, 'Change complete', ['ends with the documentation review summary'], 'green');
+    d.line([[checks.cx, checks.bottom], [checks.cx, done.top]]);
+  });
+
+console.log('6 files written to docs/assets/diagrams');

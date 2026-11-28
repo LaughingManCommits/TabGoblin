@@ -11,8 +11,8 @@ import java.io.OutputStream;
 import java.util.function.Supplier;
 
 /**
- * One agent as a server holds it: the MCP conversation with it, its tools, and its own connection
- * to the extension on a port of its own. The one server has one of these for each agent that is
+ * One agent as a server holds it: the MCP conversation with it, its tools, and its own view of the
+ * server's connection to the extension. The one server has one of these for each agent that is
  * connected to it; a process that serves its agent alone has one.
  *
  * <p>Nothing here is shared between agents: an agent's sessions, its times and its tool calls are
@@ -20,8 +20,10 @@ import java.util.function.Supplier;
  */
 final class Agent {
 
-    /** What every agent of a server has in common: where the ports begin, the pairing token, and whose extension may connect. */
     /**
+     * What every agent of a server has in common: the server's port, the pairing token, and whose
+     * extension may connect.
+     *
      * @param agentKeys the folder of the agents' keys, or null where agents are not told apart by a key
      */
     record Settings(int port, Supplier<String> token, String extensionOrigin, Supplier<BlockedSites.Rule> blocked,
@@ -31,9 +33,9 @@ final class Agent {
             this(port, token, extensionOrigin, () -> BlockedSites.Rule.NONE);
         }
 
-        /** The same, with the ports beginning elsewhere: where a server found a range the system gives out. */
-        Settings withPort(int first) {
-            return new Settings(first, token, extensionOrigin, blocked, agentKeys);
+        /** The same, on another port: where a server found one the system gives out. */
+        Settings withPort(int port) {
+            return new Settings(port, token, extensionOrigin, blocked, agentKeys);
         }
 
         /** Without keys for agents: each agent has an id for this start only. */
@@ -47,85 +49,53 @@ final class Agent {
     private final String startupProblem;
     /** The same for the log, in one short line: the window has the whole of it above. */
     private final String startupLogged;
-    private final boolean listening;
     /** The conversation this agent was begun with; null for an agent that comes by commands, each with a conversation of its own. */
     private volatile McpSyncServer mcp;
 
-    private Agent(WebSocketBridge bridge, String startupProblem, String startupLogged, boolean listening, BrowserService service,
-            McpSyncServer mcp) {
+    private Agent(WebSocketBridge bridge, String startupProblem, String startupLogged, BrowserService service, McpSyncServer mcp) {
         this.bridge = bridge;
         this.startupProblem = startupProblem;
         this.startupLogged = startupLogged;
-        this.listening = listening;
         this.service = service;
         this.mcp = mcp;
     }
 
     /**
-     * Begins to serve one agent. Its connection to the extension takes the first free port from
-     * the settings' port up; the MCP conversation is read from {@code in} and answered on
-     * {@code out}.
+     * Begins to serve one agent on the server's connection to the extension; the MCP conversation
+     * is read from {@code in} and answered on {@code out}.
      *
+     * @param server     the server's one connection, or null where this process could get no port
      * @param onInputEnd run once when {@code in} ends: the agent has gone
-     * @param held       the user has the connection to the browser switched off in the server's window
+     * @param unpaired   asked when a tool finds no browser: what is known of the browser. Whoever
+     *                   answers may bring the server's window up
+     * @param identity   who this agent is: the id of its key, proven before this is called, or an id for this start
      */
-    static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held) {
-        return serve(settings, in, out, onInputEnd, held, () -> BrowserService.Unpaired.NOTHING_KNOWN);
-    }
-
-    /**
-     * @param unpaired asked when a tool finds no browser on this agent's connection: what is known of
-     *                 the browser. Whoever answers may bring the server's window up.
-     */
-    static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
-            Supplier<BrowserService.Unpaired> unpaired) {
-        return serve(settings, in, out, onInputEnd, held, unpaired, AgentKeys.Identity.ephemeral());
-    }
-
-    /**
-     * @param identity who this agent is: the id of its key, proven before this is called, or an id for this start
-     */
-    static Agent serve(Settings settings, InputStream in, OutputStream out, Runnable onInputEnd, boolean held,
+    static Agent serve(Settings settings, ExtensionServer server, InputStream in, OutputStream out, Runnable onInputEnd,
             Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity) {
-        Agent agent = open(settings, held, unpaired, identity, false);
+        Agent agent = open(settings, server, unpaired, identity, false);
         agent.mcp = agent.converse(in, out, onInputEnd);
         return agent;
     }
 
     /**
-     * An agent with its connection to the extension and its tools, and no conversation yet. For an
-     * agent that comes by commands ({@link Cli}) each command is a conversation of its own
+     * An agent with its view of the extension and its tools, and no conversation yet. For an agent
+     * that comes by commands ({@link Cli}) each command is a conversation of its own
      * ({@link Commands}), and the agent stays between them.
      *
      * @param byCommands the agent comes by commands of the command line, and not by MCP
      */
-    static Agent open(Settings settings, boolean held, Supplier<BrowserService.Unpaired> unpaired, AgentKeys.Identity identity,
-            boolean byCommands) {
-        WebSocketBridge bridge = null;
+    static Agent open(Settings settings, ExtensionServer server, Supplier<BrowserService.Unpaired> unpaired,
+            AgentKeys.Identity identity, boolean byCommands) {
+        WebSocketBridge bridge = new WebSocketBridge(server, identity.id());
         String startupProblem = null;
         String startupLogged = null;
-        for (int candidate = settings.port(); candidate < settings.port() + McpMain.PORT_RANGE && bridge == null; candidate++) {
-            WebSocketBridge attempt = new WebSocketBridge(candidate, settings.token(), settings.extensionOrigin(), identity.id());
-            try {
-                attempt.startAndWait();
-                bridge = attempt;
-            } catch (Exception e) {
-                // Port taken, by another agent or by another program: try the next one.
-            }
-        }
-        boolean listening = bridge != null;
-        if (!listening) {
-            bridge = new WebSocketBridge(settings.port(), settings.token(), settings.extensionOrigin(), identity.id());
-            int answering = answering(settings.port());
+        if (server == null) {
+            boolean answering = answering(settings.port());
             startupProblem = noPort(settings.port(), answering);
             startupLogged = noPortLogged(settings.port(), answering);
         }
-        if (held) {
-            bridge.setHeld(true);
-        }
-        bridge.blockedSites(settings.blocked());
         BrowserService service = new BrowserService(bridge, startupProblem, unpaired, identity, byCommands);
-        return new Agent(bridge, startupProblem, startupLogged, listening, service, null);
+        return new Agent(bridge, startupProblem, startupLogged, service, null);
     }
 
     /**
@@ -149,60 +119,54 @@ final class Agent {
     }
 
     /**
-     * How many of the ports from {@code first} on have something listening: a connection to it is
-     * taken. A port that could not be listened on and that nothing answers on is not held by a
-     * program: the system keeps it back. The error of the failed listening does not say which it
-     * is; on Windows it says "in use" for both.
+     * Whether something listens on the port: a connection to it is taken. A port that could not be
+     * listened on and that nothing answers on is not held by a program: the system keeps it back.
+     * The error of the failed listening does not say which it is; on Windows it says "in use" for
+     * both.
      */
-    static int answering(int first) {
-        int answering = 0;
-        for (int port = first; port < first + McpMain.PORT_RANGE; port++) {
-            try (java.net.Socket probe = new java.net.Socket()) {
-                probe.connect(new java.net.InetSocketAddress(java.net.InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), port), 300);
-                answering++;
-            } catch (java.io.IOException e) {
-                // nobody there
-            }
+    static boolean answering(int port) {
+        try (java.net.Socket probe = new java.net.Socket()) {
+            probe.connect(new java.net.InetSocketAddress(java.net.InetAddress.getByAddress(new byte[] {127, 0, 0, 1}), port), 300);
+            return true;
+        } catch (java.io.IOException e) {
+            return false;
         }
-        return answering;
     }
 
     /**
-     * Why this agent has no port, as it is said to the agent, in the log and in the window.
+     * Why this process has no port, as it is said to the agent, in the log and in the window.
      *
-     * @param answering how many of the ports have something listening on them
+     * @param answering whether something listens on the port
      */
-    static String noPort(int first, int answering) {
-        int last = first + McpMain.PORT_RANGE - 1;
-        String could = "Could not listen on any of ports " + first + "-" + last + " on 127.0.0.1: ";
-        String other = "Start the server with --port and a port that is free, and set the same first port in the "
-                + "extension's popup under Connection.";
-        if (answering >= McpMain.PORT_RANGE) {
-            return could + "all of them are taken, by TabGoblin servers or by other programs. Close agents that are "
-                    + "not used, or: " + other;
+    static String noPort(int port, boolean answering) {
+        String could = "Could not listen on port " + port + " on 127.0.0.1: ";
+        if (answering) {
+            return could + "it is taken by a program that is not a TabGoblin server. Close that program: the server does "
+                    + "not step over a port another program holds.";
         }
-        String kept = "the system does not give them out. On Windows, a range of ports can be kept back for the "
-                + "system's own networking, as Hyper-V, WSL and Docker have it done; "
-                + "\"netsh interface ipv4 show excludedportrange protocol=tcp\" lists the ranges. " + other;
-        if (answering == 0) {
-            return could + "no program is listening on them, and " + kept;
-        }
-        return could + answering + " of them are taken by programs, and of the rest " + kept;
+        // The extension looks at the list and nowhere else: the way out is one of those ports, not another.
+        String other = Ports.FIRST.contains(port)
+                ? "The server tries " + Ports.listed() + ", the ports the extension looks at, and all three are kept back: "
+                        + "free one of them."
+                : "Start the server without --port: it then takes the first of " + Ports.listed() + " that the system "
+                        + "gives out, which are the ports the extension looks at.";
+        return could + "the system does not give it out. On Windows, a range of ports can be kept back for the system's "
+                + "own networking, as Hyper-V, WSL and Docker have it done; \"netsh interface ipv4 show excludedportrange "
+                + "protocol=tcp\" lists the ranges. " + other;
     }
 
-    /** The same in the log's own form: what, the ports, how many are taken, and the reason in a word. */
-    static String noPortLogged(int first, int answering) {
-        String reason = answering >= McpMain.PORT_RANGE ? "all_taken" : answering == 0 ? "kept_back_by_the_system" : "taken_or_kept_back";
-        return "no port to listen on ports=" + first + "-" + (first + McpMain.PORT_RANGE - 1) + " taken=" + answering + " reason=" + reason;
+    /** The same in the log's own form: what, the port, and the reason in a word. */
+    static String noPortLogged(int port, boolean answering) {
+        return "no port to listen on port=" + port + " reason=" + (answering ? "taken" : "kept_back_by_the_system");
     }
 
     /**
-     * Says in the log that this agent is served, and on which port, or why it has none. Said by the
-     * one who serves it, once it holds the agent: the line is the agent's, and goes to the agent's log.
+     * Says in the log that this agent is served, or why it has no browser. Said by the one who
+     * serves it, once it holds the agent: the line is the agent's, and goes to the agent's log.
      */
     void announce() {
-        if (listening) {
-            Log.of(bridge.clientId()).info("listening port=" + bridge.getPort() + " client=" + bridge.clientId());
+        if (startupProblem == null) {
+            Log.of(bridge.clientId()).info("serving client=" + bridge.clientId() + " port=" + bridge.getPort());
         } else {
             Log.of(bridge.clientId()).warn(startupLogged);
         }
@@ -216,15 +180,15 @@ final class Agent {
         return service;
     }
 
-    /** Why this agent has no port to the extension, or null when it has one. */
+    /** Why this process has no port to the extension, or null when it has one. */
     String startupProblem() {
         return startupProblem;
     }
 
     /**
      * Ends this agent's part in order: the MCP conversation first, so that nothing new is taken on,
-     * then its socket, which tells the extension that this agent is going away instead of leaving
-     * it to find the connection gone.
+     * then its place among the server's agents, which tells the extension that this agent is going
+     * away instead of leaving it to find out.
      */
     void close() {
         McpSyncServer own = mcp;
@@ -235,14 +199,10 @@ final class Agent {
                 // ending anyway
             }
         }
-        if (listening) {
-            try {
-                bridge.stop(1000);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (RuntimeException e) {
-                // ending anyway
-            }
+        try {
+            bridge.close();
+        } catch (RuntimeException e) {
+            // ending anyway
         }
     }
 }

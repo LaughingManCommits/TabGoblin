@@ -1,6 +1,6 @@
-// Background service worker: connects to every local Java server (one per agent), binds each
-// authorized tab to one agent as a session, enforces authorization before every command, and
-// keeps the short-lived activity feed.
+// Background service worker: connects to the one local Java server, on which every agent travels
+// with its id, binds each authorized tab to one agent as a session, enforces authorization before
+// every command, and keeps the short-lived activity feed.
 //
 // It never touches cookies, headers, storage of the page, the debugger or the network of the site,
 // and it has no way to run agent-supplied code: commands map to a fixed set of operations.
@@ -9,14 +9,14 @@ import { clientProof, randomNonce, safeEqual, serverProof } from './pairing.ts';
 import type { NoticeUpdate } from './notice.ts';
 import { foldedOf, withFolded, type Panel } from './panels.ts';
 import {
-  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, leadsOn, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent, noticeAtRest, rangesToScan,
+  ALLOW_LASTS_MS, CommandError, NOTHING_BLOCKED, NO_LIMITS, NO_STANDS_MS, REQUEST_LASTS_MS, RateLimiter, askUnder, capMode, checkAccessRequest, requestKey, requestReason, workspaceName, checkLimits, endsAt, outsideAllowed, restricted, strictest, RecentIds, activityLabel, badgeFor, blockedAmong, canUse, checkAsk, checkBlocked, checkClick, leadsOn, checkGate, askModeOf, checkKey, endedLine, failureNote, highImpactWord, inScope, isLastingAgent, noticeAtRest, portsToTry,
   needsAsking, noteAnswer, notePassed, rememberAllow, remembersAllow, standingAllows, standingRefusals,
   judgeSubmission, originOf, parseKey, requireMode, resolveNavigation, resolveSession, serverGone, sessionsOfAgent,
   type AccessRequest, type AllowMemory, type AskMemory, type AskMode, type Blocked, type Limits, type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitHow, type SubmitSignals, type SubmitVerdict,
 } from './policy.ts';
 import {
-  CLOSE_UNAUTHORIZED, CLOSE_UNRESPONSIVE, CLOSE_USER_DISCONNECTED, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
-  type CommandMessage,
+  CLOSE_UNAUTHORIZED, CLOSE_UNRESPONSIVE, CLOSE_VERSION, PROTOCOL_VERSION, commandTiming, parseServerMessage,
+  type AgentInfo, type CommandMessage,
 } from './protocol.ts';
 import { redactUrl } from './redact.ts';
 import { MAX_CHARS, MAX_MS, MAX_STEPS, afterPage, afterScroll, stoppedWords, withContext, type Stopped } from './collect.ts';
@@ -25,7 +25,6 @@ import type { SubmitBaseline } from './submit.ts';
 
 const DEFAULT_PORT = 47821;
 /** Servers take the first free port of this many, counting up from the configured one. */
-const PORT_RANGE = 8;
 const MAX_INBOUND_CHARS = 1_000_000;
 const CONFIRM_TIMEOUT_MS = 60_000;
 const ACTIVITY_KEPT = 6;
@@ -106,20 +105,41 @@ interface Persisted {
 }
 
 /** One authenticated server connection, i.e. one agent. */
+/** The server's one connection to this extension. Every agent of the server travels on it. */
+interface Server {
+  port: number;
+  ws: WebSocket;
+  authenticated: boolean;
+  keepalive?: ReturnType<typeof setInterval>;
+  /** Heartbeats sent since the server last said anything. */
+  unanswered: number;
+  /** The ids of the commands that came on this connection: a command is run once. */
+  seen: RecentIds;
+  /** The sites no agent may work on, as the server last said. */
+  blocked: Blocked;
+  /** What else the user's settings restrict, as the server last said. */
+  limits: Limits;
+  /** The agents as the server last named them. */
+  named: AgentInfo[];
+}
+
+/**
+ * One agent of a server, as the server named it. Its tabs are bound to its id; its commands come
+ * on the server's connection and name it. An agent the user disconnected is none of these: the
+ * server is told so, and a command that still names it is refused.
+ */
 interface Client {
+  server: Server;
   port: number;
   ws: WebSocket;
   clientId: string;
   name: string;
   authenticated: boolean;
-  keepalive?: ReturnType<typeof setInterval>;
-  /** Heartbeats sent since the server last said anything. */
-  unanswered: number;
   limiter: RateLimiter;
   seen: RecentIds;
-  /** The sites no agent may work on, as this server last said. */
+  /** The sites no agent may work on, as the agent's server last said. */
   blocked: Blocked;
-  /** What else the user's settings restrict, as this server last said. */
+  /** What else the user's settings restrict, as the agent's server last said. */
   limits: Limits;
 }
 
@@ -161,7 +181,9 @@ function forgetAllows(sessionId: string): void {
   allows.delete(sessionId);
 }
 let persisted: Persisted = { sessions: [], sessionSeq: 0, activity: [], activitySeq: 0, blockedClients: [], refRanges: [], diagnostics: [] };
-const clients = new Map<number, Client>();
+const servers = new Map<number, Server>();
+/** The agents of the connected servers, by id. */
+const clients = new Map<string, Client>();
 const operations = new Map<string, Operation>();
 const queues = new Map<string, Promise<void>>();
 /** The settings for asking, in the words the activity list uses. */
@@ -1575,7 +1597,7 @@ async function execute(op: Operation, command: CommandMessage): Promise<void> {
   // And in which session it ran: a command may name none, and the server's panel shows the times
   // and the calls of one tab. It is the id the agent has from the status tool, and nothing more.
   respond(op.client, { ...response, timing, session: op.sessionId });
-  respond(op.client, { type: 'event', event: 'activity', data: { id: command.id, session: op.sessionId, action: command.action, ms: timing.ran, code } });
+  respond(op.client, { type: 'event', event: 'activity', agent: op.client.clientId, data: { id: command.id, session: op.sessionId, action: command.action, ms: timing.ran, code } });
 }
 
 /** Validates, rate-limits and routes one command to its session's queue. */
@@ -1587,7 +1609,7 @@ async function onCommand(client: Client, command: CommandMessage): Promise<void>
     recordDiagnostic(client.clientId, command.session ?? null, command.action, 0, code);
     respond(client, { id: command.id, success: false, error: { code, message }, timing: unqueued() });
   };
-  if (!client.seen.add(command.id)) {
+  if (!client.server.seen.add(command.id)) {
     return refuse('DUPLICATE_COMMAND', 'A command with this id was already received on this connection; it was not run again.');
   }
   if (!client.limiter.tryTake()) {
@@ -1689,7 +1711,7 @@ function requestAccess(client: Client, command: CommandMessage): object {
   };
 }
 
-// ---------------------------------------------------------------- connections to the Java servers
+// ---------------------------------------------------------------- the connection to the Java server
 
 /** Tells every connected agent which sessions it has now. */
 function pushState(): void {
@@ -1697,26 +1719,74 @@ function pushState(): void {
   refreshBadge();
   for (const client of clients.values()) {
     if (!client.authenticated) continue;
-    void sessionsFor(client).then((sessions) => respond(client, { type: 'event', event: 'sessions', data: { sessions } }));
+    void sessionsFor(client).then((sessions) => respond(client, { type: 'event', event: 'sessions', agent: client.clientId, data: { sessions } }));
   }
 }
 
-function dropClient(client: Client, closeCode?: number, reason?: string): void {
-  clearInterval(client.keepalive);
-  if (clients.get(client.port) === client) clients.delete(client.port);
+/** An agent is gone, or refused: what it was doing is cancelled, and it is no longer known. */
+function dropClient(client: Client): void {
+  if (clients.get(client.clientId) === client) clients.delete(client.clientId);
   cancelOperations((op) => op.client === client, 'The agent disconnected.');
-  if (client.ws.readyState <= WebSocket.OPEN) client.ws.close(closeCode, reason);
+}
+
+/** The server's connection ends, by its own doing or by this extension's: its agents go with it. */
+function dropServer(server: Server, closeCode?: number, reason?: string): void {
+  clearInterval(server.keepalive);
+  if (servers.get(server.port) === server) servers.delete(server.port);
+  for (const client of [...clients.values()]) {
+    if (client.server === server) dropClient(client);
+  }
+  if (server.ws.readyState <= WebSocket.OPEN) server.ws.close(closeCode, reason);
+}
+
+/**
+ * Makes the agents a server names into the agents known here, less those the user disconnected,
+ * and tells the server which those are. Called when the server pairs, when it names its agents
+ * anew, and when the user disconnects an agent or allows one again. An agent the user
+ * disconnected is no agent here: no command of it runs, and the server is told that it has no
+ * browser. Nothing is granted by this: a tab is still the user's click in the popup.
+ */
+function syncAgents(server: Server): void {
+  const refused: string[] = [];
+  const present = new Set<string>();
+  for (const agent of server.named) {
+    present.add(agent.id);
+    const existing = clients.get(agent.id);
+    if (persisted.blockedClients.includes(agent.id)) {
+      refused.push(agent.id);
+      if (existing && existing.server === server) dropClient(existing);
+      continue;
+    }
+    if (existing && existing.server === server) {
+      if (existing.name !== agent.name) {
+        existing.name = agent.name;
+        // A name is what the user is shown. It gives an agent nothing: its sessions are those of its id.
+        for (const session of persisted.sessions) {
+          if (session.clientId === agent.id) session.clientName = agent.name || null;
+        }
+      }
+      continue;
+    }
+    clients.set(agent.id, {
+      server, port: server.port, ws: server.ws, clientId: agent.id, name: agent.name, authenticated: true,
+      limiter: new RateLimiter(COMMANDS_PER_SECOND, COMMAND_BURST), seen: new RecentIds(), blocked: server.blocked, limits: server.limits,
+    });
+  }
+  for (const client of [...clients.values()]) {
+    if (client.server === server && !present.has(client.clientId)) dropClient(client);
+  }
+  if (server.ws.readyState === WebSocket.OPEN) server.ws.send(JSON.stringify({ type: 'agents_refused', agents: refused }));
+  pushState();
 }
 
 function connectPort(port: number): void {
-  const existing = clients.get(port);
+  const existing = servers.get(port);
   if (existing && existing.ws.readyState <= WebSocket.OPEN) return;
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
-  const client: Client = {
-    port, ws, clientId: '', name: '', authenticated: false, unanswered: 0,
-    limiter: new RateLimiter(COMMANDS_PER_SECOND, COMMAND_BURST), seen: new RecentIds(), blocked: NOTHING_BLOCKED, limits: NO_LIMITS,
+  const server: Server = {
+    port, ws, authenticated: false, unanswered: 0, seen: new RecentIds(), blocked: NOTHING_BLOCKED, limits: NO_LIMITS, named: [],
   };
-  clients.set(port, client);
+  servers.set(port, server);
   const token = config.token;
   const clientNonce = randomNonce();
   let serverNonce = '';
@@ -1724,7 +1794,7 @@ function connectPort(port: number): void {
 
   ws.onmessage = (event) => {
     // Whatever it says, it is there.
-    client.unanswered = 0;
+    server.unanswered = 0;
     if (typeof event.data !== 'string' || event.data.length > MAX_INBOUND_CHARS) {
       ws.close(1009, 'Message too large');
       return;
@@ -1739,32 +1809,44 @@ function connectPort(port: number): void {
     const msg = parseServerMessage(raw);
     if (!msg) {
       // Before pairing nothing malformed is tolerated; afterwards an unknown message is ignored.
-      if (!client.authenticated) ws.close(1008, 'Invalid message');
+      if (!server.authenticated) ws.close(1008, 'Invalid message');
       return;
     }
 
     /** A message of a paired server. */
     const regular = (): void => {
-      if (msg.type === 'command') void onCommand(client, msg.command);
-      else if (msg.type === 'cancel') cancelOperations((op) => op.key === `${port}:${msg.id}`, 'The agent cancelled the command.');
-      else if (msg.type === 'policy') {
+      if (msg.type === 'command') {
+        // A command names its agent: one the server named, and one the user has not disconnected.
+        const client = clients.get(msg.command.agent);
+        if (!client || client.server !== server) {
+          respond({ ws } as Pick<Client, 'ws'> as Client, {
+            id: msg.command.id, success: false,
+            error: { code: 'NOT_CONNECTED', message: 'This agent has no browser: the user disconnected it in the TabGoblin popup, or the server has not named it.' },
+          });
+          return;
+        }
+        void onCommand(client, msg.command);
+      } else if (msg.type === 'cancel') cancelOperations((op) => op.key === `${port}:${msg.id}`, 'The agent cancelled the command.');
+      else if (msg.type === 'agents') {
+        server.named = msg.agents;
+        syncAgents(server);
+      } else if (msg.type === 'policy') {
         // What this server refuses: checked before each of its commands, and shown in the popup.
-        client.blocked = { sites: msg.blocked, everything: msg.unreadable };
-        client.limits = msg.limits;
+        server.blocked = { sites: msg.blocked, everything: msg.unreadable };
+        server.limits = msg.limits;
+        for (const client of clients.values()) {
+          if (client.server === server) {
+            client.blocked = server.blocked;
+            client.limits = server.limits;
+          }
+        }
         // What passes without a question does not outlast a policy under which everything is asked.
         if (msg.limits.strict) allows.clear();
         endExpired();
         pushState();
-      } else if (msg.type === 'client') {
-        client.name = msg.name;
-        for (const session of persisted.sessions) {
-          if (session.clientId === client.clientId) session.clientName = msg.name || null;
-        }
-        // A name is what the user is shown. It gives an agent nothing: its sessions are those of its id.
-        pushState();
       }
     };
-    if (client.authenticated) {
+    if (server.authenticated) {
       regular();
       return;
     }
@@ -1774,24 +1856,16 @@ function connectPort(port: number): void {
     // The messages take their turn one after the other, in the order they came.
     handshake = handshake.then(async () => {
       // The connection was closed or dropped while this message waited for its turn.
-      if (clients.get(port) !== client || ws.readyState !== WebSocket.OPEN) return;
+      if (servers.get(port) !== server || ws.readyState !== WebSocket.OPEN) return;
       // A server may send its first message right behind `auth_ok`, while its proof is still being
       // checked here. By its turn the server is paired, and this is a message like any other.
       // Before that nothing has changed: without a valid `auth_ok` it is a failed pairing.
-      if (client.authenticated) {
+      if (server.authenticated) {
         regular();
         return;
       }
       if (msg.type === 'challenge' && !serverNonce) {
-        // A server says who it is before anything is proven. That is believed for one thing only:
-        // an agent the user disconnected is turned away here. Otherwise it would be paired with
-        // and closed again each time the ports are looked at, and its log would fill with that.
-        // What a server is given depends on the id in its proven answer, as before.
-        if (msg.clientId && persisted.blockedClients.includes(msg.clientId)) {
-          dropClient(client, CLOSE_USER_DISCONNECTED, 'Disconnected by the user');
-          return;
-        }
-        if (!msg.versions.includes(PROTOCOL_VERSION)) {
+        if (msg.version !== PROTOCOL_VERSION) {
           versionMismatch = true;
           ws.close(CLOSE_VERSION, 'No common protocol version');
           return;
@@ -1803,33 +1877,29 @@ function connectPort(port: number): void {
         }));
       } else if (msg.type === 'auth_ok' && serverNonce && msg.version === PROTOCOL_VERSION
           && safeEqual(msg.proof, await serverProof(token, serverNonce, clientNonce))) {
-        if (clients.get(port) !== client) return;
-        if (persisted.blockedClients.includes(msg.clientId)) {
-          dropClient(client, CLOSE_USER_DISCONNECTED, 'Disconnected by the user');
-          return;
-        }
-        client.clientId = msg.clientId;
-        client.name = msg.clientName;
-        client.authenticated = true;
+        if (servers.get(port) !== server) return;
+        server.authenticated = true;
+        server.named = msg.agents;
         pairingFailed = false;
         versionMismatch = false;
         // Regular traffic also keeps the MV3 service worker alive while connected.
-        client.keepalive = setInterval(() => {
+        server.keepalive = setInterval(() => {
           // A connection can stay open to a server that hangs. One that has answered none of the
           // last heartbeats is taken for gone, as if it had closed: the popup and the badge then
           // say what is so, and the port is looked at again.
-          if (serverGone(client.unanswered)) {
-            dropClient(client, CLOSE_UNRESPONSIVE, 'No answer to the heartbeat');
+          if (serverGone(server.unanswered)) {
+            dropServer(server, CLOSE_UNRESPONSIVE, 'No answer to the heartbeat');
             pushState();
             setTimeout(() => scan(true), 1500);
             return;
           }
           if (ws.readyState === WebSocket.OPEN) {
-            client.unanswered += 1;
+            server.unanswered += 1;
             ws.send('{"type":"ping"}');
           }
         }, 20000);
-        pushState();
+        // The agents it named, less those the user disconnected; the server is told which.
+        syncAgents(server);
       } else {
         pairingFailed = true;
         ws.close(CLOSE_UNAUTHORIZED, 'Pairing failed');
@@ -1838,17 +1908,10 @@ function connectPort(port: number): void {
   };
 
   ws.onclose = (event) => {
-    const wasPaired = client.authenticated;
-    if (event.code === CLOSE_UNAUTHORIZED) {
-      pairingFailed = true;
-      // The token this extension holds was refused, typically because it was rotated. Other
-      // servers share it: a heartbeat makes each of them check now instead of in a while.
-      for (const other of clients.values()) {
-        if (other !== client && other.authenticated && other.ws.readyState === WebSocket.OPEN) other.ws.send('{"type":"ping"}');
-      }
-    }
+    const wasPaired = server.authenticated;
+    if (event.code === CLOSE_UNAUTHORIZED) pairingFailed = true;
     if (event.code === CLOSE_VERSION) versionMismatch = true;
-    dropClient(client);
+    dropServer(server);
     if (wasPaired) {
       pushState();
       // The server may be restarting: look for it again shortly.
@@ -1859,31 +1922,27 @@ function connectPort(port: number): void {
 }
 
 /**
- * Looks for servers on every port of the range that has no live connection yet. Each server takes
- * the first free port, but other software may hold ports in between, so the whole range is tried.
- * While no server is connected, the other ranges a server may have are tried as well (`rangesToScan`).
- * Throttled, because the popup asks for it while it is open.
+ * Looks for the server on each port it may have, while none is connected (`portsToTry`). There
+ * is one server, with one connection: once it is connected nothing more is looked for, and its
+ * agents come and go on that connection. Throttled, because the popup asks for it while it is open.
  */
 function scan(force: boolean, minGapMs = 2500): void {
   void ready.then(() => {
     // A wrong token will not fix itself: wait for the user to pair again.
     if (!config.token || pairingFailed) return;
+    if ([...servers.values()].some((s) => s.authenticated)) return;
     const now = Date.now();
     if (!force && now - lastScan < minGapMs) return;
     lastScan = now;
-    // Where the system keeps the usual ports back, the server is on a later range of the list.
-    const connected = [...clients.values()].filter((c) => c.authenticated).map((c) => c.port);
-    for (const first of rangesToScan(config.port, connected)) {
-      for (let port = first; port < first + PORT_RANGE; port++) connectPort(port);
-    }
+    for (const port of portsToTry(config.port)) connectPort(port);
   });
 }
 
 function connectionStatus(): string {
   if (!config.token) return 'unpaired';
-  // A refused token needs the user's attention even while another server is still connected.
+  // A refused token needs the user's attention even while a server is still connected.
   if (pairingFailed) return 'pairing_failed';
-  if ([...clients.values()].some((c) => c.authenticated)) return 'connected';
+  if ([...servers.values()].some((s) => s.authenticated)) return 'connected';
   if (versionMismatch) return 'version_mismatch';
   return 'disconnected';
 }
@@ -1910,13 +1969,12 @@ function popupState(): object {
   const connected = connectedClientIds();
   return {
     connection: connectionStatus(),
-    port: config.port,
     hasToken: !!config.token,
     ask: askUnder(limitsNow(), config.ask),
     indicator: config.indicator,
     folded: config.folded,
     clients: [...clients.values()].filter((c) => c.authenticated).map((c) => ({
-      id: c.clientId, name: c.name, port: c.port,
+      id: c.clientId, name: c.name,
       // How many tabs a Disconnect would take from this agent, so that the popup can say it beforehand.
       tabs: sessionsOfAgent(persisted.sessions, { id: c.clientId, name: c.name }).length,
       // Whether this agent is the same agent at every start, by a key of its own.
@@ -1970,14 +2028,14 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       scan(false);
       return;
     case 'pair': {
+      // The token alone: the server's port is not the user's to set. The extension looks at the
+      // three ports a server may be on (`portsToTry`); a port in its storage, which no popup
+      // writes, is for a server that is not on them, as the end-to-end suite runs its own.
       const token = (msg.token ?? '').trim();
-      const port = Number(msg.port);
       if (token.length < 32) throw new Error('That does not look like a pairing token.');
-      if (!Number.isInteger(port) || port < 1 || port > 65535 - PORT_RANGE) throw new Error('Port must be between 1 and 65527.');
       config.token = token;
-      config.port = port;
-      await chrome.storage.local.set({ token, port });
-      for (const client of [...clients.values()]) dropClient(client);
+      await chrome.storage.local.set({ token });
+      for (const server of [...servers.values()]) dropServer(server);
       pairingFailed = false;
       versionMismatch = false;
       scan(true);
@@ -1986,7 +2044,7 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
     case 'forget':
       config.token = '';
       await chrome.storage.local.remove('token');
-      for (const client of [...clients.values()]) dropClient(client);
+      for (const server of [...servers.values()]) dropServer(server);
       pushState();
       return;
     case 'authorize':
@@ -2105,7 +2163,8 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       const taken = sessionsOfAgent(persisted.sessions, { id: msg.clientId, name: client?.name ?? '' });
       if (!persisted.blockedClients.includes(msg.clientId)) persisted.blockedClients.push(msg.clientId);
       saveBlockedAgents();
-      if (client) dropClient(client, CLOSE_USER_DISCONNECTED, 'Disconnected by the user');
+      // The agent is no agent here from now on, and its server is told so; the connection stays for the others.
+      if (client) syncAgents(client.server);
       for (const owned of taken) endSession(owned, 'Access revoked: you disconnected its agent');
       const ended = taken.length === 1 ? '; 1 session ended' : taken.length ? `; ${taken.length} sessions ended` : '';
       noteActivity(null, `Agent disconnected by you${ended}`);
@@ -2116,6 +2175,10 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       persisted.blockedClients = persisted.blockedClients.filter((id) => id !== msg.clientId);
       save();
       saveBlockedAgents();
+      // Named by a connected server, it is an agent again at once; otherwise when its server names it.
+      for (const server of servers.values()) {
+        if (server.authenticated) syncAgents(server);
+      }
       scan(true);
       return;
     case 'setAsk':
@@ -2228,11 +2291,16 @@ function endExpired(): void {
     endSession(session, unused ? 'Authorization ended by your security policy' : 'Authorization expired');
   }
 }
+// A port written into the storage, which no popup does: the servers of the end-to-end suite are
+// on ports of their own. The next look is there; a server found before is let go.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.port) return;
+  const port = changes.port.newValue;
+  config.port = typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535 ? port : DEFAULT_PORT;
+  for (const server of [...servers.values()]) dropServer(server);
+  scan(true);
+});
 chrome.runtime.onInstalled.addListener(() => scan(true));
 chrome.runtime.onStartup.addListener(() => scan(true));
 void chrome.alarms.create('reconnect', { periodInMinutes: 0.5 });
-// While at least one agent is connected the worker is awake anyway: find further agents quickly.
-setInterval(() => {
-  if ([...clients.values()].some((c) => c.authenticated)) scan(false);
-}, 3000);
 scan(true);

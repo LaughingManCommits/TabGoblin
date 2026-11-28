@@ -115,9 +115,9 @@ final class PanelPictures {
                 session("s2", "http://127.0.0.1:8931", "write", "paused"),
                 session("s3", "https://docs.example.org", "read", "suspended"));
         var log = List.of(
-                line(-512, "info", "listening port=47821 client=c-7240df8e"),
+                line(-512, "info", "serving client=c-7240df8e port=47821"),
                 line(-511, "info", "panel shown"),
-                line(-498, "info", "extension connected client=c-7240df8e protocol=2"),
+                line(-498, "info", "extension connected protocol=1 agents=1"),
                 line(-301, "debug", "command id=9 session=s1 action=snapshot ms=18 outcome=ok", "s1"),
                 line(-214, "info", "command id=12 session=s2 action=fill ms=4 outcome=error code=PAUSED category=AUTHORIZATION", "s2"),
                 line(-61, "warn", "connection rejected reason=pairing_proof"),
@@ -126,19 +126,19 @@ final class PanelPictures {
         var times = timings();
         var none = new Timings.Shares(0, 0, 0, 0, 0);
         var twoAgents = new State("10-two-agents", PanelModel.of(List.of(
-                new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0,
+                new PanelModel.Facts("claude-code", "c-7240df8e", null, true, NOW - 498_000, 0,
                         List.of(sessions.get(0), new Protocol.Session("s4", "", "a-s4", "https://wiki.example.net", 9, 0, "d4",
                                 "read", 1, "active", "A page title that must not show", "https://wiki.example.net/not/shown", true)),
                         tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}), java.util.Map.of("s1", tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}))),
-                new PanelModel.Facts("IntelliJ IDEA", "c-3b9a01c2", 47822, null, false, 0, Protocol.CLOSE_USER_DISCONNECTED,
+                new PanelModel.Facts("IntelliJ IDEA", "c-3b9a01c2", null, false, 0, Protocol.CLOSE_USER_DISCONNECTED,
                         List.of(), tab(new long[][] {{14_000, 8, 52, 1_600}}), java.util.Map.of())),
-                47829, McpMain.version(), false, List.of(
-                        line(-512, "info", "server listening for agents port=47829"),
-                        new Log.Line(NOW - 510_000, "info", "listening port=47821 client=c-7240df8e", null, "c-7240df8e"),
-                        new Log.Line(NOW - 498_000, "info", "extension connected client=c-7240df8e protocol=2", null, "c-7240df8e"),
+                47821, McpMain.version(), false, List.of(
+                        line(-512, "info", "server listening port=47821"),
+                        new Log.Line(NOW - 510_000, "info", "serving client=c-7240df8e port=47821", null, "c-7240df8e"),
+                        new Log.Line(NOW - 498_000, "info", "extension connected protocol=1 agents=1", null, "c-7240df8e"),
                         new Log.Line(NOW - 301_000, "debug", "command id=9 session=s1 action=snapshot ms=18 outcome=ok", "s1", "c-7240df8e"),
-                        new Log.Line(NOW - 120_000, "info", "listening port=47822 client=c-3b9a01c2", null, "c-3b9a01c2"),
-                        new Log.Line(NOW - 90_000, "info", "extension disconnected client=c-3b9a01c2 code=4403", null, "c-3b9a01c2")),
+                        new Log.Line(NOW - 120_000, "info", "serving client=c-3b9a01c2 port=47821", null, "c-3b9a01c2"),
+                        new Log.Line(NOW - 90_000, "info", "agent disconnected by the user in the popup", null, "c-3b9a01c2")),
                 ZONE), false);
         var connected = new State("1-connected", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false);
         return List.of(
@@ -146,18 +146,18 @@ final class PanelPictures {
                 new State("2-waiting", model("", null, false, false, 0, 0, List.of(), none, log.subList(0, 2)), false),
                 new State("3-switched-off", model("IntelliJ IDEA", null, false, true, 0, 1001, List.of(), times, log), false),
                 new State("4-no-port", model("claude-code",
-                        Agent.noPort(47821, 0),
+                        Agent.noPort(47821, false),
                         false, false, 0, 0, List.of(), none, List.of()), false),
                 new State("5-armed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions.subList(0, 1), times, log), true),
                 new State("6-framed", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false, true),
                 new State("7-many-tabs", model("claude-code", null, true, false, NOW - 498_000, 0, many(9), times, log), false),
                 // The most there is to show, on a screen 768 pixels high with a taskbar: everything has to stay inside.
                 new State("8-low-screen", model("claude-code",
-                        Agent.noPort(47821, 0),
+                        Agent.noPort(47821, false),
                         true, false, NOW - 498_000, 0, many(9), times, log), false, false, 680),
                 // The one server before any agent has connected: started by the user, it waits and says so.
-                new State("9-no-agent", PanelModel.of(List.of(), 47829, McpMain.version(), false,
-                        List.of(line(-512, "info", "server listening for agents port=47829"), line(-511, "info", "panel shown")),
+                new State("9-no-agent", PanelModel.of(List.of(), 47821, McpMain.version(), false,
+                        List.of(line(-512, "info", "server listening port=47821"), line(-511, "info", "panel shown")),
                         ZONE), false),
                 // Two agents of the one server: each with a heading over its tabs. And the second agent clicked.
                 twoAgents,
@@ -179,9 +179,9 @@ final class PanelPictures {
                         new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0))), false),
                 // MCP off by the settings: its pill in the header is red with the no-entry sign, the CLI's is
                 // green, the one agent is one of the command line, and the log says that an MCP start was turned away.
-                new State("21-cli-only", PanelModel.of(List.of(new PanelModel.Facts("ide (command line)", "c-7240df8e", 47821, null, true,
+                new State("21-cli-only", PanelModel.of(List.of(new PanelModel.Facts("ide (command line)", "c-7240df8e", null, true,
                         NOW - 498_000, 0, sessions.subList(0, 1), times, java.util.Map.of(), null, true)),
-                        Link.port(47821), McpMain.version(), false, withTurnedAway(log), ZONE, new BlockedSites.Rule(List.of(), null,
+                        47821, McpMain.version(), false, withTurnedAway(log), ZONE, new BlockedSites.Rule(List.of(), null,
                                 new BlockedSites.Limits(false, List.of(), true, BlockedSites.Access.WRITE, 0, 0, true, false)),
                         "~/.tabgoblin/tabgoblin.properties", 1), false),
                 // Someone reads in the log, scrolled up to its first line, and seven lines have come since:
@@ -212,9 +212,9 @@ final class PanelPictures {
     private static PanelModel blocked(List<Protocol.Session> sessions, Timings.Shares times, List<Log.Line> log, BlockedSites.Rule rule) {
         var more = new java.util.ArrayList<>(log);
         more.add(line(-4, "info", "command id=28 session=s3 action=snapshot ms=0 outcome=error code=SITE_BLOCKED category=SCOPE scope_violation=true", "s3"));
-        return PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-7240df8e", 47821, null, true, NOW - 498_000, 0, sessions, times,
+        return PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-7240df8e", null, true, NOW - 498_000, 0, sessions, times,
                 java.util.Map.of("s1", tab(new long[][] {{1_200, 9, 31, 0}, {5_200, 7, 28, 0}, {800, 44, 1_241, 0}}), "s2", tab(new long[][] {{14_000, 8, 52, 1_600}})))),
-                Link.port(47821), McpMain.version(), false, more, ZONE, rule, "~/.tabgoblin/tabgoblin.properties");
+                47821, McpMain.version(), false, more, ZONE, rule, "~/.tabgoblin/tabgoblin.properties");
     }
 
     private static PanelModel model(String agent, String problem, boolean connected, boolean off, long since, int closeCode,

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -16,7 +17,11 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
-/** WebSocket authentication, protocol negotiation, request correlation, cancellation and limits. */
+/**
+ * The server's one connection to the extension ({@link ExtensionServer}) and an agent's view of it
+ * ({@link WebSocketBridge}): authentication, protocol negotiation, the agents on the one
+ * connection, request correlation, cancellation and limits.
+ */
 class WebSocketBridgeTest {
 
     static final String TOKEN = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -25,19 +30,21 @@ class WebSocketBridgeTest {
     /** How often the tests of the moment of pairing pair: that moment is hit by chance only. */
     static final int PAIRINGS = 200;
 
+    ExtensionServer server;
     WebSocketBridge bridge;
     int port;
 
     @BeforeEach
     void start() throws Exception {
-        bridge = new WebSocketBridge(0, TOKEN, FakeExtension.ORIGIN, 400);
-        bridge.startAndWait();
-        port = bridge.getPort();
+        server = new ExtensionServer(0, TOKEN, FakeExtension.ORIGIN, 400);
+        server.startAndWait();
+        bridge = new WebSocketBridge(server, "c-" + Pairing.randomHex(4));
+        port = server.getPort();
     }
 
     @AfterEach
     void stop() throws Exception {
-        bridge.stop(500);
+        server.stop(500);
     }
 
     private static ObjectNode obj() {
@@ -64,7 +71,8 @@ class WebSocketBridgeTest {
 
     @Test
     void listensOnLoopbackOnly() {
-        assertEquals("127.0.0.1", bridge.getAddress().getAddress().getHostAddress());
+        assertEquals("127.0.0.1", server.getAddress().getAddress().getHostAddress());
+        assertEquals(port, bridge.getPort(), "an agent's port is the server's one port");
     }
 
     @Test
@@ -88,7 +96,7 @@ class WebSocketBridgeTest {
 
     @Test
     void anyExtensionModeStillRefusesWebOrigins() throws Exception {
-        WebSocketBridge open = new WebSocketBridge(0, TOKEN, WebSocketBridge.ANY_EXTENSION_ORIGIN, 400);
+        ExtensionServer open = new ExtensionServer(0, TOKEN, ExtensionServer.ANY_EXTENSION_ORIGIN, 400);
         open.startAndWait();
         try {
             FakeExtension web = new FakeExtension(open.getPort(), "http://localhost:3000", TOKEN);
@@ -110,7 +118,7 @@ class WebSocketBridgeTest {
 
     @Test
     void repeatedFailedPairingsLockOutNewConnections() throws Exception {
-        for (int i = 0; i < WebSocketBridge.MAX_FAILED_PAIRINGS; i++) {
+        for (int i = 0; i < ExtensionServer.MAX_FAILED_PAIRINGS; i++) {
             FakeExtension guess = new FakeExtension(port, FakeExtension.ORIGIN, Pairing.randomHex(32));
             assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, closedWith(guess));
         }
@@ -121,17 +129,18 @@ class WebSocketBridgeTest {
 
     @Test
     void lockoutExpires() throws Exception {
-        WebSocketBridge quick = new WebSocketBridge(0, () -> TOKEN, FakeExtension.ORIGIN, 400, 300);
+        ExtensionServer quick = new ExtensionServer(0, () -> TOKEN, FakeExtension.ORIGIN, 400, 300);
         quick.startAndWait();
         try {
-            for (int i = 0; i < WebSocketBridge.MAX_FAILED_PAIRINGS; i++) {
+            WebSocketBridge agent = new WebSocketBridge(quick, "c-quick");
+            for (int i = 0; i < ExtensionServer.MAX_FAILED_PAIRINGS; i++) {
                 FakeExtension guess = new FakeExtension(quick.getPort(), FakeExtension.ORIGIN, Pairing.randomHex(32));
                 guess.connectBlocking(3, TimeUnit.SECONDS);
                 guess.closed.get(3, TimeUnit.SECONDS);
             }
             Thread.sleep(400);
             FakeExtension.paired(quick.getPort(), TOKEN);
-            assertTrue(quick.isExtensionConnected());
+            assertTrue(agent.isExtensionConnected());
         } finally {
             quick.stop(500);
         }
@@ -151,25 +160,27 @@ class WebSocketBridgeTest {
     void unpairedConnectionCannotInjectEvents() throws Exception {
         FakeExtension rogue = new FakeExtension(port, FakeExtension.ORIGIN, null);
         assertTrue(rogue.connectBlocking(3, TimeUnit.SECONDS));
-        rogue.send("{\"type\":\"event\",\"event\":\"sessions\",\"data\":{\"sessions\":[{\"session\":\"s1\"}]}}");
+        rogue.send("{\"type\":\"event\",\"event\":\"sessions\",\"agent\":\"" + bridge.clientId()
+                + "\",\"data\":{\"sessions\":[{\"session\":\"s1\"}]}}");
         assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, rogue.closed.get(3, TimeUnit.SECONDS));
         assertTrue(bridge.sessions().isEmpty());
     }
 
     @Test
-    void pairsNegotiatesTheProtocolVersionAndIdentifiesTheAgent() throws Exception {
+    void pairsNegotiatesTheProtocolVersionAndNamesTheAgents() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         assertTrue(bridge.isExtensionConnected());
-        assertEquals(Protocol.VERSION, ext.challenge.path("versions").get(0).asInt());
-        // Who it is, is in its first message as well: an extension can turn it away on that alone.
-        assertEquals(bridge.clientId(), ext.challenge.path("clientId").asString());
-        assertEquals(bridge.clientId(), ext.clientId);
-        assertTrue(ext.clientId.matches("c-[0-9a-f]{8}"));
+        assertEquals(Protocol.VERSION, ext.challenge.path("version").asInt());
+        // Nothing of an agent is said before the proofs: who the agents are is in the proven answer.
+        assertFalse(ext.challenge.has("clientId"));
+        assertEquals(List.of(bridge.clientId()), ext.agents());
+        assertTrue(bridge.clientId().matches("c-[0-9a-f]{8}"));
+        assertEquals("", ext.nameOf(bridge.clientId()), "no name yet");
 
         bridge.setClientName("Test IDE\u0007 with a very long name ".repeat(5));
-        await(() -> !ext.clientNames.isEmpty());
-        assertTrue(ext.clientNames.get(0).startsWith("Test IDE  with"));
-        assertTrue(ext.clientNames.get(0).length() <= 60);
+        await(() -> !"".equals(ext.nameOf(bridge.clientId())));
+        assertTrue(ext.nameOf(bridge.clientId()).startsWith("Test IDE  with"));
+        assertTrue(ext.nameOf(bridge.clientId()).length() <= 60);
         ext.closeBlocking();
     }
 
@@ -186,7 +197,7 @@ class WebSocketBridgeTest {
             assertTrue(bridge.isExtensionConnected(), "pairing " + i);
             bridge.send("status", null, null, SHORT);
             assertEquals(1, ext.commands.size(), "pairing " + i);
-            assertEquals(java.util.List.of(), ext.early, "nothing may arrive ahead of the pairing answer");
+            assertEquals(List.of(), ext.early, "nothing may arrive ahead of the pairing answer");
         }
     }
 
@@ -218,18 +229,18 @@ class WebSocketBridgeTest {
             assertTrue(ext.paired.get(3, TimeUnit.SECONDS));
             naming.join(3000);
             for (long giveUp = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
-                    !name.equals(ext.agentName) && System.nanoTime() < giveUp;) {
+                    !name.equals(ext.nameOf(bridge.clientId())) && System.nanoTime() < giveUp;) {
                 Thread.sleep(1);
             }
-            assertEquals(name, ext.agentName, "pairing " + i + ": the extension must learn the agent's name");
-            assertEquals(java.util.List.of(), ext.early, "nothing may arrive ahead of the pairing answer");
+            assertEquals(name, ext.nameOf(bridge.clientId()), "pairing " + i + ": the extension must learn the agent's name");
+            assertEquals(List.of(), ext.early, "nothing may arrive ahead of the pairing answer");
         }
     }
 
     @Test
     void anExtensionSpeakingAnotherProtocolVersionIsRefusedWithAReason() throws Exception {
-        // Version 2 among them: an extension of that version would hand an agent's tabs on by its name.
-        for (int version : new int[] {0, 1, 2, Protocol.VERSION + 1}) {
+        // Version 3 among them, the released extension's: it would look for agents on ports that are not there.
+        for (int version : new int[] {0, 2, 3, Protocol.VERSION + 1}) {
             FakeExtension old = new FakeExtension(port, FakeExtension.ORIGIN, TOKEN);
             old.version = version;
             assertEquals(Protocol.CLOSE_VERSION, closedWith(old), "version " + version);
@@ -238,26 +249,34 @@ class WebSocketBridgeTest {
     }
 
     @Test
-    void eachServerIsADistinctAgent() throws Exception {
-        WebSocketBridge second = new WebSocketBridge(0, TOKEN, FakeExtension.ORIGIN, 400);
-        second.startAndWait();
-        try {
-            assertNotEquals(bridge.clientId(), second.clientId());
-            FakeExtension a = FakeExtension.paired(port, TOKEN);
-            FakeExtension b = FakeExtension.paired(second.getPort(), TOKEN);
-            a.responder = cmd -> FakeExtension.ok(cmd, obj().put("who", "a"));
-            b.responder = cmd -> FakeExtension.ok(cmd, obj().put("who", "b"));
-            assertEquals("a", bridge.send("status", null, null, SHORT).path("who").asString());
-            assertEquals("b", second.send("status", null, null, SHORT).path("who").asString());
-            assertEquals(1, a.commands.size());
-            assertEquals(1, b.commands.size());
-        } finally {
-            second.stop(500);
-        }
+    void everyAgentOfTheServerTravelsOnTheOneConnectionAndIsToldApart() throws Exception {
+        WebSocketBridge second = new WebSocketBridge(server, "c-second");
+        assertNotEquals(bridge.clientId(), second.clientId());
+        FakeExtension ext = FakeExtension.paired(port, TOKEN);
+        assertEquals(List.of(bridge.clientId(), second.clientId()), ext.agents(), "both named in the pairing answer, in order");
+        ext.responder = cmd -> FakeExtension.ok(cmd, obj().put("who", cmd.path("agent").asString()));
+        assertEquals(bridge.clientId(), bridge.send("status", null, null, SHORT).path("who").asString());
+        assertEquals(second.clientId(), second.send("status", null, null, SHORT).path("who").asString());
+        assertEquals(2, ext.commands.size());
+        assertEquals(2, ext.commands.stream().map(c -> c.path("id").asString()).distinct().count(), "ids are the connection's");
+
+        // An agent's sessions are its own: what the extension says of one reaches no other.
+        ext.sessions(bridge.clientId(), obj().arrayNode().add(obj().put("session", "s1").put("origin", "https://a.example")));
+        await(() -> !bridge.sessions().isEmpty());
+        assertTrue(second.sessions().isEmpty());
+        ext.sessions("c-nobody", obj().arrayNode().add(obj().put("session", "s9")));
+        Thread.sleep(100);
+        assertEquals(1, bridge.sessions().size(), "what names an agent that is not here is dropped");
+
+        // An agent that goes is taken out of what the extension is told, and its answers find nobody.
+        second.close();
+        await(() -> ext.agents().equals(List.of(bridge.clientId())));
+        BrowserException gone = assertThrows(BrowserException.class, () -> second.send("status", null, null, SHORT));
+        assertEquals("NOT_CONNECTED", gone.code());
     }
 
     @Test
-    void commandsCarryIdSessionAndDeadline() throws Exception {
+    void commandsCarryIdAgentSessionAndDeadline() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         ext.responder = cmd -> FakeExtension.ok(cmd,
                 obj().put("echo", cmd.path("action").asString() + ":" + cmd.path("params").path("n").asInt()));
@@ -266,6 +285,7 @@ class WebSocketBridgeTest {
             JsonNode result = bridge.send("act" + i, "s" + i, obj().put("n", i), SHORT);
             assertEquals("act" + i + ":" + i, result.path("echo").asString());
             assertEquals("s" + i, ext.commands.get(i).path("session").asString());
+            assertEquals(bridge.clientId(), ext.commands.get(i).path("agent").asString());
         }
         assertEquals(5, ext.commands.stream().map(c -> c.path("id").asString()).distinct().count());
         long deadline = ext.commands.get(0).path("deadline").asLong();
@@ -393,7 +413,7 @@ class WebSocketBridgeTest {
         bridge.send("other", "s2", null, SHORT);
         bridge.send("status", null, null, SHORT);
         Thread.sleep(150);
-        assertEquals(java.util.List.of("slow", "other", "status"),
+        assertEquals(List.of("slow", "other", "status"),
                 ext.commands.stream().map(c -> c.path("action").asString()).toList(),
                 "the second s1 command must wait for the first");
 
@@ -417,60 +437,35 @@ class WebSocketBridgeTest {
         assertFalse(bridge.isExtensionConnected());
     }
 
+    /**
+     * The user disconnects one agent in the popup. The extension stays paired with the server,
+     * says which agents it refuses, and that agent alone is told so by every tool; allowed again,
+     * it has the browser again, without a word to the others.
+     */
     @Test
-    void aUserDisconnectIsExplainedToTheAgent() throws Exception {
+    void aUserDisconnectIsOfOneAgentAndIsExplainedToIt() throws Exception {
+        WebSocketBridge other = new WebSocketBridge(server, "c-other");
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
-        ext.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
-        // Until the server has taken note of the code it was closed with: the connection stops being
-        // open a moment before that, and a call in that moment is told only that it is not connected.
+        ext.refuse(bridge.clientId());
         await(() -> bridge.lastCloseCode() == Protocol.CLOSE_USER_DISCONNECTED);
+        assertFalse(bridge.isExtensionConnected());
+        assertEquals(0, bridge.connectedSince());
+        assertTrue(other.isExtensionConnected(), "the other agent has the browser as before");
         BrowserException e = assertThrows(BrowserException.class, () -> bridge.send("snapshot", "s1", null, SHORT));
         assertEquals("NOT_CONNECTED", e.code());
         assertTrue(e.getMessage().contains("user disconnected this agent"), e.getMessage());
-    }
+        other.send("status", null, null, SHORT);
+        assertEquals(1, ext.commands.size());
 
-    /**
-     * While its popup is open, the extension looks at every port every few seconds, and the server
-     * of an agent the user disconnected is still on one of them. It is turned away on what it says
-     * of itself in its first message, before the extension has proven anything. The server then
-     * never counted the extension as connected: its status stays what it was, and its log says
-     * nothing. Before, each look was a pairing and a close, and a panel's log filled with them.
-     */
-    @Test
-    void anExtensionThatLeavesAtTheFirstMessageWasNeverConnectedAndLeavesNoLine() throws Exception {
-        FakeExtension ext = FakeExtension.paired(port, TOKEN);
-        ext.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
-        await(() -> bridge.lastCloseCode() == Protocol.CLOSE_USER_DISCONNECTED);
-
-        Log.keep(50);
-        try {
-            long lines = Log.count();
-            for (int look = 0; look < 3; look++) {
-                // Proves nothing: it has no token to prove with. It reads who the server is and goes.
-                FakeExtension again = new FakeExtension(port, FakeExtension.ORIGIN, null);
-                assertTrue(again.connectBlocking(3, TimeUnit.SECONDS));
-                for (int i = 0; i < 100 && again.challenge == null; i++) {
-                    Thread.sleep(20);
-                }
-                assertEquals(bridge.clientId(), again.challenge.path("clientId").asString());
-                again.close(Protocol.CLOSE_USER_DISCONNECTED, "Disconnected by the user");
-                assertEquals(Protocol.CLOSE_USER_DISCONNECTED, again.closed.get(3, TimeUnit.SECONDS));
-                assertFalse(bridge.isExtensionConnected());
-                assertEquals(0, bridge.connectedSince());
-            }
-            // Longer than the time a connection is given to prove itself: nothing follows from it.
-            Thread.sleep(600);
-            assertEquals(Protocol.CLOSE_USER_DISCONNECTED, bridge.lastCloseCode(), "the reason it is not connected stays the user's");
-            assertEquals(lines, Log.count(), () -> "written meanwhile: "
-                    + Log.recent().stream().map(Log.Line::text).toList());
-        } finally {
-            Log.keep(0);
-        }
-
-        // Allowed again, it pairs as always: what was turned away counted as no failed pairing.
-        FakeExtension back = FakeExtension.paired(port, TOKEN);
-        assertTrue(bridge.isExtensionConnected());
-        back.closeBlocking();
+        // A command that was out when the user said no has an unknown outcome.
+        ext.refuse();
+        await(bridge::isExtensionConnected);
+        ext.responder = cmd -> {
+            ext.refuse(bridge.clientId());
+            return null;
+        };
+        BrowserException lost = assertThrows(BrowserException.class, () -> bridge.send("click", "s1", null, Duration.ofSeconds(3)));
+        assertEquals("CONNECTION_LOST", lost.code());
     }
 
     @Test
@@ -484,7 +479,7 @@ class WebSocketBridgeTest {
         assertEquals(org.java_websocket.framing.CloseFrame.GOING_AWAY, ext.closed.get(3, TimeUnit.SECONDS));
         await(() -> !bridge.isExtensionConnected());
         assertEquals(0, bridge.connectedSince());
-        // The extension looks for servers every half minute. None of its attempts gets in.
+        // The extension looks for the server every half minute. None of its attempts gets in.
         for (int attempt = 0; attempt < 3; attempt++) {
             FakeExtension again = new FakeExtension(port, FakeExtension.ORIGIN, TOKEN);
             assertFalse(again.connectBlocking(3, TimeUnit.SECONDS));
@@ -506,7 +501,7 @@ class WebSocketBridgeTest {
     @Test
     void closesConnectionOnOversizedMessage() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
-        ext.send("{\"type\":\"event\",\"pad\":\"" + "x".repeat(WebSocketBridge.MAX_MESSAGE_BYTES + 1024) + "\"}");
+        ext.send("{\"type\":\"event\",\"pad\":\"" + "x".repeat(ExtensionServer.MAX_MESSAGE_BYTES + 1024) + "\"}");
         ext.closed.get(5, TimeUnit.SECONDS);
         await(() -> !bridge.isExtensionConnected());
     }
@@ -514,7 +509,7 @@ class WebSocketBridgeTest {
     @Test
     void closesConnectionThatFloodsMessages() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
-        for (int i = 0; i < WebSocketBridge.MAX_MESSAGES_PER_SECOND * 3 && ext.isOpen(); i++) {
+        for (int i = 0; i < ExtensionServer.MAX_MESSAGES_PER_SECOND * 3 && ext.isOpen(); i++) {
             ext.send("{\"type\":\"event\",\"event\":\"activity\"}");
         }
         assertEquals(Protocol.CLOSE_RATE_LIMITED, ext.closed.get(5, TimeUnit.SECONDS));
@@ -531,18 +526,19 @@ class WebSocketBridgeTest {
 
     @Test
     void aPairingMadeOnAnOlderTokenIsNoneAlsoWhileItIsStillOpen() throws Exception {
-        java.util.concurrent.atomic.AtomicReference<String> current = new java.util.concurrent.atomic.AtomicReference<>(TOKEN);
-        WebSocketBridge changing = new WebSocketBridge(0, current::get, FakeExtension.ORIGIN);
+        AtomicReference<String> current = new AtomicReference<>(TOKEN);
+        ExtensionServer changing = new ExtensionServer(0, current::get, FakeExtension.ORIGIN);
         changing.startAndWait();
         try {
-            assertFalse(changing.pairedOnCurrentToken());
+            WebSocketBridge agent = new WebSocketBridge(changing, "c-changing");
+            assertFalse(agent.pairedOnCurrentToken());
             FakeExtension paired = FakeExtension.paired(changing.getPort(), TOKEN);
-            assertTrue(changing.pairedOnCurrentToken());
+            assertTrue(agent.pairedOnCurrentToken());
             // The token changes. Until its next heartbeat or command the connection is still there,
             // and it counts for nothing: another agent of the server must not be told that the browser is paired.
             current.set(Pairing.randomHex(32));
-            assertTrue(changing.isExtensionConnected(), "the old pairing ends at its next heartbeat or command, not before");
-            assertFalse(changing.pairedOnCurrentToken());
+            assertTrue(agent.isExtensionConnected(), "the old pairing ends at its next heartbeat or command, not before");
+            assertFalse(agent.pairedOnCurrentToken());
             paired.closeBlocking();
         } finally {
             changing.stop(500);
@@ -551,28 +547,29 @@ class WebSocketBridgeTest {
 
     @Test
     void aBrowserThatComesWithAnotherTokenIsWhyNoneIsPairedUnlessOneIs() throws Exception {
-        WebSocketBridge fresh = new WebSocketBridge(0, TOKEN, FakeExtension.ORIGIN, 400);
+        ExtensionServer fresh = new ExtensionServer(0, TOKEN, FakeExtension.ORIGIN, 400);
         fresh.startAndWait();
         try {
-            assertEquals(0, fresh.lastCloseCode());
+            WebSocketBridge agent = new WebSocketBridge(fresh, "c-fresh");
+            assertEquals(0, agent.lastCloseCode());
             // The extension still holds the token of an earlier start.
             FakeExtension stale = new FakeExtension(fresh.getPort(), FakeExtension.ORIGIN, "e".repeat(64));
             stale.connectBlocking();
-            for (int i = 0; i < 100 && fresh.lastCloseCode() != Protocol.CLOSE_UNAUTHORIZED; i++) {
+            for (int i = 0; i < 100 && agent.lastCloseCode() != Protocol.CLOSE_UNAUTHORIZED; i++) {
                 Thread.sleep(20);
             }
-            assertEquals(Protocol.CLOSE_UNAUTHORIZED, fresh.lastCloseCode(), "said in the window and to the agent");
-            assertFalse(fresh.isExtensionConnected());
+            assertEquals(Protocol.CLOSE_UNAUTHORIZED, agent.lastCloseCode(), "said in the window and to the agent");
+            assertFalse(agent.isExtensionConnected());
             // Paired with the right token, that is over.
             FakeExtension right = FakeExtension.paired(fresh.getPort(), TOKEN);
-            assertTrue(fresh.isExtensionConnected());
-            assertEquals(0, fresh.lastCloseCode());
+            assertTrue(agent.isExtensionConnected());
+            assertEquals(0, agent.lastCloseCode());
             // And while one is paired, another that comes with a wrong token changes nothing of what is said.
             FakeExtension other = new FakeExtension(fresh.getPort(), FakeExtension.ORIGIN, "d".repeat(64));
             other.connectBlocking();
             Thread.sleep(200);
-            assertTrue(fresh.isExtensionConnected());
-            assertEquals(0, fresh.lastCloseCode());
+            assertTrue(agent.isExtensionConnected());
+            assertEquals(0, agent.lastCloseCode());
             right.closeBlocking();
         } finally {
             fresh.stop(500);
@@ -582,9 +579,10 @@ class WebSocketBridgeTest {
     @Test
     void rotatingTheTokenEndsThePairingAtTheNextHeartbeat() throws Exception {
         AtomicReference<String> current = new AtomicReference<>(TOKEN);
-        WebSocketBridge rotating = new WebSocketBridge(0, current::get, FakeExtension.ORIGIN, 400, 60_000);
+        ExtensionServer rotating = new ExtensionServer(0, current::get, FakeExtension.ORIGIN, 400, 60_000);
         rotating.startAndWait();
         try {
+            WebSocketBridge agent = new WebSocketBridge(rotating, "c-rotating");
             FakeExtension ext = FakeExtension.paired(rotating.getPort(), TOKEN);
             ext.send("{\"type\":\"ping\"}");
             Thread.sleep(150);
@@ -600,7 +598,7 @@ class WebSocketBridgeTest {
             String again = Pairing.randomHex(32);
             current.set(again);
             BrowserException refused = assertThrows(BrowserException.class,
-                    () -> rotating.send("snapshot", "s1", null, SHORT));
+                    () -> agent.send("snapshot", "s1", null, SHORT));
             assertEquals("NOT_CONNECTED", refused.code());
             assertTrue(refused.getMessage().contains("not this server's"), refused.getMessage());
             assertTrue(second.commands.isEmpty(), "nothing may be sent over a pairing made with an old token");
@@ -609,7 +607,7 @@ class WebSocketBridgeTest {
             FakeExtension stale = new FakeExtension(rotating.getPort(), FakeExtension.ORIGIN, TOKEN);
             assertEquals(WebSocketBridge.CLOSE_UNAUTHORIZED, closedWith(stale));
             FakeExtension.paired(rotating.getPort(), rotated);
-            assertTrue(rotating.isExtensionConnected());
+            assertTrue(agent.isExtensionConnected());
         } finally {
             rotating.stop(500);
         }
@@ -619,10 +617,10 @@ class WebSocketBridgeTest {
     void tracksTheSessionsTheExtensionReports() throws Exception {
         FakeExtension ext = FakeExtension.paired(port, TOKEN);
         ext.send("""
-                {"type":"event","event":"sessions","data":{"sessions":[
+                {"type":"event","event":"sessions","agent":"%s","data":{"sessions":[
                   {"session":"s2","clientId":"c-1","authorizationId":"a-9","origin":"https://app.example","tabId":41,
                    "frameId":0,"documentId":"d1","mode":"explore","generation":3,"state":"active",
-                   "tab":{"title":"App","url":"https://app.example/x"}}]}}""");
+                   "tab":{"title":"App","url":"https://app.example/x"}}]}}""".formatted(bridge.clientId()));
         await(() -> !bridge.sessions().isEmpty());
         Protocol.Session session = bridge.sessions().get(0);
         assertEquals("s2", session.sessionId());
@@ -634,5 +632,18 @@ class WebSocketBridgeTest {
 
         ext.closeBlocking();
         await(() -> bridge.sessions().isEmpty());
+    }
+
+    @Test
+    void aLinkIsAnotherKindOfConnectionAndAPageCannotMakeOne() throws Exception {
+        // A page says where it is from; a process on this machine does not. The link's path takes the latter only.
+        FakeExtension page = new FakeExtension(port, ExtensionServer.LINK_PATH, FakeExtension.ORIGIN, TOKEN);
+        assertFalse(page.connectBlocking(3, TimeUnit.SECONDS), "a page on the link's path is refused");
+        assertFalse(bridge.isExtensionConnected());
+        // A process without an origin is taken for a link, and is nobody's concern here: the server's hub has it.
+        FakeExtension process = new FakeExtension(port, ExtensionServer.LINK_PATH, null, TOKEN);
+        assertTrue(process.connectBlocking(3, TimeUnit.SECONDS));
+        assertFalse(bridge.isExtensionConnected(), "nothing of the extension's follows from a link");
+        process.close();
     }
 }

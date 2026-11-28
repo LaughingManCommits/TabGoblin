@@ -1,6 +1,58 @@
 # Current state and handoff
 
-Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-28. Claims here go stale; check the date, then `git status` and `git log`.
+
+## WP-33, one port: built, 2026-11-28
+
+On branch `one-port`, made from `main` at `0d54694` (the merge of pull request 15) on the owner's
+word ("go, one port, drop the servers folder, new branch after merge"). Built in one session, not
+yet merged: the server listens on one port (`ExtensionServer`, new; `Ports` cut to the list of
+three), the extension opens one connection and every agent travels inside it with its id on each
+message (`agents`, `agent`, `agents_refused`), the agents' processes reach the server over the
+same port on the path `/link` as WebSocket frames (`Link` version 3), protocol version 1 on the
+owner's word ("we should still be version 1 of our protocol"; a 0.2.0 part, which said 3, is
+refused and told to update). Gone: `RunningServers` and the `servers` folder, the per-agent
+ports and bridges, the port scan, the limit of eight agents, `setup_port`, `settings` and
+`origin` in the link's `attach`, `cameFrom`, the port chips of the window and the popup. The
+pages follow: architecture (processes and ports, the pairing diagram), the protocol reference,
+the tool reference's status, the security model's connection and identity rows, installation,
+developer guide, assessment, the CLI page, the three CLI skills (the paragraph on another
+server's port is out).
+
+Seen: the server's `mvn verify` (240 tests, 20 skipped `PanelTest`; `McpConformanceIT` 8 of 8),
+the extension's `npm run check` (217 tests), the end-to-end suite here (110 passed, 0 failed;
+the window's section is Windows-only and did not run). Not seen: the window on a real screen,
+and the acceptance by hand on Windows that WP-33 in [TODO.md](../../TODO.md) lists.
+
+A second commit on the branch, the same day, on the owner's word ("review and strengthen
+TabGoblin's documentation maintenance rules"): the rules that documentation is part of a change
+are in [development.md](../development.md#documentation-is-part-of-a-change) (the owner), with
+the impact review's table, the contract for diagrams and pictures, the four grades of a security
+claim, the checks and the review summary that ends a task, with a picture of the flow at its
+head (`documentation.svg`, the sixth of the script's); `AGENTS.md` and `CONTRIBUTING.md`
+point there. Two checks are new: `check-drift.mjs` (retired names; the protocol version, the
+link version and the ports the same in both parts and in the pages; in CI, in the job now
+called *Documentation*, with the link check) and `check-diagrams.mjs` (every Mermaid block
+parses; in CI too, with a Mermaid installed outside the tree, since its dependencies carry
+advisories, and the SVG files held to their script there). The drift check also holds every
+code file and `TABGOBLIN_*` variable a page names to the tree.
+
+Then, on the owner's word ("no port needed as input on the extension"): the popup's pairing
+form takes the token alone. The extension looks at the three ports a server may be on and at no
+other; a port in its storage (`port`), which no popup writes, is for the end-to-end suite, whose
+servers are on ports of their own, and the worker takes it up at once (`chrome.storage.onChanged`).
+The server's words follow: a held port is not stepped over ("Close that program"), a kept-back
+one has the list as the way out, and a server started with `--port` on another port is told in
+its pairing help that the extension does not look there (`Ports.offList`); the window's port
+chip says the extension finds the port by itself. The pages say the same (architecture,
+developer guide, installation, tool reference, assessment). `--port` stays, for a second server
+beside the one. The alignment review of the branch found and mended: the components picture ("one
+port per agent", "protocol 3"), the window's picture (footer "protocol 3"), the popup's pictures
+(port chips, *First port*), `status.txt`, a Mermaid line that a semicolon cut short, stale
+comments in five tests and `McpMain`, the worker's header comment, two backlog notes, the Windows
+token script's comment. The window's 20 tests ran under a virtual display: 19 passed, and the
+icon test wants the extension's icons beside the copy it ran in. **Next:** the owner reviews and
+merges; then the acceptance by hand on Windows.
 
 ## CI's end-to-end run on Windows: two steps mended, 2026-11-28
 
