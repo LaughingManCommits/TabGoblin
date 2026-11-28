@@ -221,8 +221,33 @@ the folder you cloned the project into; write yours in its place (`D:/code`, for
 
 ### Through MCP
 
-Your agent starts TabGoblin's server itself; you only tell it how. Use the **absolute path** of
-the jar, with forward slashes, also on Windows. Most MCP clients take this JSON:
+Your agent starts TabGoblin's server itself; you only tell it how. Every agent is told the same
+one command, with a name of its own at the end:
+
+```text
+java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent <name>
+```
+
+**The short way,** for Claude Code, Codex and GitHub Copilot: setup prints the line that
+registers the server, with your own paths in it, and installs the agent's skill. Run it, then
+run the line it prints:
+
+```sh
+java -jar java-server/target/tabgoblin.jar --setup claude-code
+```
+
+**By hand,** pick your agent:
+
+| Agent | What to do |
+|---|---|
+| Claude Code | `claude mcp add --scope user tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent claude-code` |
+| Codex | `codex mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent codex` |
+| GitHub Copilot, command line | `copilot mcp add tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent copilot` |
+| GitHub Copilot in VS Code | Run **MCP: Add Server** from the Command Palette and give it the command above, with `--agent copilot` |
+| IntelliJ IDEA, AI Assistant | *Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add*, paste the JSON below. The menu names vary a little between versions. |
+| Anything else that speaks MCP over stdio | The JSON below, or: command `java`, arguments `-jar`, the path, `--agent` and a name |
+
+The JSON that most MCP clients take, also Claude Code in a project's `.mcp.json`:
 
 ```json
 {
@@ -235,11 +260,17 @@ the jar, with forward slashes, also on Windows. Most MCP clients take this JSON:
 }
 ```
 
-| Agent | Where it goes |
-|---|---|
-| IntelliJ IDEA, AI Assistant | *Settings → Tools → AI Assistant → Model Context Protocol (MCP) → Add*, paste the JSON. The menu names vary a little between versions. |
-| Claude Code | `claude mcp add --scope user tabgoblin -- java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --agent claude-code` |
-| Anything else that speaks MCP over stdio | Command `java`, arguments `-jar`, the path, `--agent` and a name |
+Four things to get right:
+
+- **The path of the jar is absolute,** with forward slashes, also on Windows.
+- **`java` is a Java 25 or newer.** Where the `java` on your `PATH` is older, write the full
+  path of a newer one in its place, such as `C:/jdks/jdk-25/bin/java.exe`.
+- **No `--port`.** The server takes its port by itself, and the extension finds it there. A
+  server on a port of your own is one the extension does not look at.
+- **`--agent` has a different name for each agent** ([below](#the-agents-name)).
+
+Add `--panel` as a further argument to have the server's window open whenever that agent
+runs ([the server's panel](developer-guide.md#the-servers-panel)).
 
 Restart the agent, or reload its MCP servers, so it picks the server up.
 
@@ -265,8 +296,8 @@ are its own again after a restart, and from one CLI command to the next. Through
 optional: without it everything works, and the tabs have to be authorized again after each
 restart ([agents](developer-guide.md#agents)). A CLI command always needs it.
 
-You can connect several agents, up to eight at once. Whichever of them needs TabGoblin first
-starts the one server, and the others connect to it.
+You can connect several agents at once. Whichever of them needs TabGoblin first starts the one
+server, and the others connect to it.
 
 ### The skill
 
@@ -281,10 +312,6 @@ java -jar <folder>/TabGoblin/java-server/target/tabgoblin.jar --install-skill cl
 ```
 
 What the skills say, and where each agent keeps them, is in [skills](../skills/README.md).
-
-A server has no window. With `--panel` as a further argument it shows a small one, with its
-sessions, its log and a button to stop it: see
-[the server's panel](developer-guide.md#the-servers-panel).
 
 ## 6. Pair the extension with the server
 

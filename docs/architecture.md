@@ -97,7 +97,7 @@ asks by which interface a command came. The CLI is described for its users in th
 | TabGoblin | The browser bridge: the server, the extension and the two interfaces together |
 | Integration interface | How an agent reaches TabGoblin: the CLI (commands) or MCP (tools). Both carry the same tool calls |
 | Browser extension | TabGoblin in Chrome: where the user's decisions are held and where every operation is carried out |
-| Agent | One identity that uses the tools: an MCP client, or the CLI commands that are run under one name. Up to eight are served at once |
+| Agent | One identity that uses the tools: an MCP client, or the CLI commands that are run under one name |
 | Session | One authorized tab, bound to one agent: `s1`, `s2`, … |
 | Origin | Scheme, host and port, such as `https://app.example.com`. A session covers the origins the user gave it |
 | Access level | Read, Explore, or Read / Write ([developer guide](developer-guide.md#access-levels)) |

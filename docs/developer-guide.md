@@ -25,7 +25,7 @@ that name, `tabgoblin status`.
 - **`--agent <name>`** gives the agent a key of its own, so it is the same agent at every
   start and its tabs are its own again after a restart. Use a different name for each agent.
   See [agents](#agents).
-- **One server serves all your agents,** up to eight at once. The first agent that needs it
+- **One server serves all your agents.** The first agent that needs it
   starts it; it ends a few seconds after its last agent has gone. An agent of the CLI counts
   as there for ten minutes after its last command.
 - **Skills.** The server tells every agent in a few lines how to use the tools. For Claude
