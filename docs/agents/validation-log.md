@@ -3,6 +3,17 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-28, working tree from `9492189`: link opening and CLI error stages
+
+Windows, Java 25. Focused hub and CLI tests passed. In an isolated copy of the final tree,
+`mvn verify` passed 243 unit tests and eight conformance tests. The Chrome end-to-end suite
+passed 115 checks. Socket fixtures covered a silent TCP listener (including socket cleanup),
+an HTTP upgrade refusal, a non-HTTP greeting, and missing or malformed WebSocket messages.
+With the final jar and host loopback access, no-port CLI status against the running hub returned
+the expected `AGENT_IN_USE` for the connected MCP identity. Links, drift, personal-content
+and diff whitespace checks passed. The original sandbox failure was not diagnosed further.
+The live same-identity handoff and other operating systems were not tested.
+
 ## 2026-11-28, branch `simpler-agent-setup-docs` from `354952c`: the installation guide's MCP part, and a live run
 
 Documentation only. Passed: the link check (353 links), the drift check, the check for personal
@@ -584,42 +595,9 @@ reference's example outputs against `docs/examples`; the measured numbers carrie
 the earlier pages (sizes, the search measurement). `ToolReferenceTest` was not tried against
 a reference with an argument taken out.
 
-## 2026-11-24, on `claude/tabgoblin-security-features-ncxa9m` at `acc8167`: Show me, in the notice in the page
-
-Asked for by the owner: a button in the notice that brings the popup back to a question that
-waits. In the first session's container.
-
-| Command | Result |
-|---|---|
-| `npm run check` in `chrome-extension` | 209 tests, with the type-check and the build. Four are new: the button in the asking state and in no other, a click that is not the user's, what a notice says at rest, and the worker's part |
-| `cd e2e && node run.mjs` | 103 passed, 0 failed. The new step: a question is put, the popup is closed, a click the page makes up opens nothing, the user's click on the button brings the popup back on the question, nothing was sent by it, and the answer is given in the popup |
-| `node notice-pictures.mjs` in `e2e` | 34 pictures; one state is new, the pointer on the button |
-| `node docs/agents/check-links.mjs`, `node docs/agents/check-personal.mjs` | all links resolve; nothing personal found |
-
-Looked at: the asking state over a light and a dark page and at the narrow width, and the
-working state. The button stands before Pause, in the amber of the state, with its words whole;
-Pause is where it was; the status takes two lines beside the two buttons, and the bar is no
-higher for it. The other states were not opened again: nothing of theirs was changed, and the
-button is not drawn in them.
-
-A run of the suite before this one failed from the step of a restarted server on, with calls
-that got no answer. The container had been started anew in the middle of it: its clock said
-so. The run above was the next one, and was not disturbed.
-
-Afterwards the owner chose other words for the button, and a glyph: an arrow up and to the
-right, where the toolbar is, and the word *Answer*, in the place of *Show me*. `npm run check`:
-209 tests. Drawn and looked at over a light and a dark page: the arrow and the word are whole
-beside Pause. The first drawing of the arrow had its shaft on the other diagonal and read as a
-wedge; that was seen in the picture and set right. A variant with the arrow alone was drawn
-beside it for the owner and is not in the tree: the status took two lines there as well, so it
-gained no room. The suite end to end was started after the commit; its result is in the
-session's report and not here.
-
-Not run: the server's tests, which this did not touch; Windows; the button by hand in the
-owner's browser. Not decided, and the owner's: whether the button also shows for a question
-that belongs to another tab's session; it does not.
-
 ## Earlier, in one line each
+
+- 2026-11-24, `acc8167`: the in-page Answer button passed the extension suite (209), the initial end-to-end run (103), links and personal-content checks. Notice pictures were reviewed. The final post-commit end-to-end result and a live Windows click were not recorded.
 
 - 2026-11-24, Windows at `8b7656d` and Linux at `9b287f0`: Windows reserved the default port range. The panel explained the bind failure. Both server suites passed 184 tests, Linux also passed 8 conformance and 102 end-to-end checks. A live Windows smoke test covered Explore, submission confirmation and access refusals.
 

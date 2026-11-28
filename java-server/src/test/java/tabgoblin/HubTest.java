@@ -311,7 +311,7 @@ class HubTest {
             Client client = new Client(port, TOKEN, () -> { });
             // The process then serves its agent alone: that is the caller's part, and none of the agent's messages was touched.
             assertFalse(client.connect());
-            assertTrue(client.log().contains("no server to connect to reason=not_a_tabgoblin_server"), client.log());
+            assertTrue(client.link.refusal().startsWith("WebSocket connection ended before opening"), client.log());
             assertEquals(0, client.starts.get());
         }
     }

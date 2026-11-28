@@ -7,6 +7,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.ConnectException;
+import java.net.Proxy;
+import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -77,16 +80,22 @@ final class Link {
     private static final class Wire extends WebSocketClient {
         private static final String END = "\u0000";
         private final BlockingQueue<String> in = new LinkedBlockingQueue<>();
+        private final CountDownLatch opening = new CountDownLatch(1);
+        private volatile boolean opened;
         private volatile Exception failure;
 
         Wire(URI uri) {
             super(uri, new Draft_6455(Collections.emptyList(), Collections.singletonList(new org.java_websocket.protocols.Protocol("")),
                     ExtensionServer.MAX_MESSAGE_BYTES), Map.of(), 2000);
             setTcpNoDelay(true);
+            // Own the socket before connect() starts, so expiry can also interrupt an unfinished upgrade.
+            setSocket(new Socket(Proxy.NO_PROXY));
         }
 
         @Override
         public void onOpen(ServerHandshake handshake) {
+            opened = true;
+            opening.countDown();
         }
 
         @Override
@@ -96,6 +105,7 @@ final class Link {
 
         @Override
         public void onClose(int code, String reason, boolean remote) {
+            opening.countDown();
             in.add(END);
         }
 
@@ -104,6 +114,7 @@ final class Link {
             if (failure == null) {
                 failure = ex;
             }
+            opening.countDown();
         }
 
         /** The next message, or null when the connection has ended. */
@@ -113,16 +124,16 @@ final class Link {
         }
 
         /** The next message within a time, or null when the connection has ended. */
-        String take(long ms) throws IOException {
+        String take(long ms, String stage) throws IOException {
             String next;
             try {
                 next = in.poll(ms, TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted");
+                throw new IOException(stage + " interrupted");
             }
             if (next == null) {
-                throw new SocketTimeoutException("no answer from the server");
+                throw new SocketTimeoutException(stage + " timed out after " + ms + " ms");
             }
             return END.equals(next) ? null : next;
         }
@@ -159,7 +170,7 @@ final class Link {
     private volatile boolean stopping;
     /** This process runs one command for its agent and ends ({@link Cli}): the server keeps the agent between such commands. */
     private boolean command;
-    /** Why the server would not have this process, if it said so. */
+    /** The last unsuccessful attempt to reach the server, including local failures. */
     private volatile String refusal;
 
     /**
@@ -218,7 +229,7 @@ final class Link {
         return this;
     }
 
-    /** The reason the server gave for not having this process, or null if it gave none. */
+    /** The local connection failure or the server's refusal, for the command's answer. */
     String refusal() {
         return refusal;
     }
@@ -242,6 +253,7 @@ final class Link {
 
     /** A connection to the server on which both sides have proven themselves, or null if there is none to be had. */
     private Wire reach() {
+        refusal = null;
         long deadline = System.currentTimeMillis() + CONNECT_WITHIN_MS;
         long started = 0;
         while (true) {
@@ -254,7 +266,8 @@ final class Link {
                         starter.start();
                         started = System.currentTimeMillis();
                     } catch (IOException | RuntimeException failed) {
-                        say("the server could not be started reason=" + failed.getClass().getSimpleName());
+                        refusal = "server start failed: " + failed.getClass().getSimpleName();
+                        say(refusal);
                         return null;
                     }
                 }
@@ -263,18 +276,20 @@ final class Link {
                 say("no server to connect to reason=" + e.getMessage());
                 return null;
             } catch (IOException e) {
-                // Something holds the port and does not speak as the server does.
-                say("no server to connect to reason=" + e.getClass().getSimpleName());
+                refusal = e.getMessage();
+                say("no server to connect to reason=" + refusal);
                 return null;
             }
             if (System.currentTimeMillis() > deadline) {
-                say("no server to connect to reason=not_started_in_time");
+                refusal = "not_started_in_time";
+                say("no server to connect to reason=" + refusal);
                 return null;
             }
             try {
                 Thread.sleep(150);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                refusal = "server start wait interrupted";
                 return null;
             }
         }
@@ -317,27 +332,30 @@ final class Link {
         IOException nobody = new ConnectException("no port to look for the server on");
         for (int port : ports) {
             Wire wire = new Wire(URI.create("ws://127.0.0.1:" + port + ExtensionServer.LINK_PATH));
-            boolean opened;
+            boolean keep = false;
             try {
-                opened = wire.connectBlocking(2, TimeUnit.SECONDS);
+                wire.connect();
+                if (!wire.opening.await(2, TimeUnit.SECONDS)) {
+                    throw new SocketTimeoutException("WebSocket open timed out after 2 seconds");
+                }
+                if (wire.opened) {
+                    keep = true;
+                    return wire;
+                }
+                if (wire.failure instanceof ConnectException refused) {
+                    nobody = refused;
+                    continue;
+                }
+                String detail = wire.failure == null ? "" : ": " + wire.failure.getClass().getSimpleName();
+                throw new Refused("WebSocket connection ended before opening" + detail);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new IOException("interrupted");
+                throw new IOException("WebSocket open interrupted");
+            } finally {
+                if (!keep) {
+                    wire.getSocket().close();
+                }
             }
-            if (opened) {
-                return wire;
-            }
-            Exception failure = wire.failure;
-            if (failure instanceof ConnectException refused) {
-                nobody = refused;
-                continue;
-            }
-            if (failure instanceof IOException io) {
-                throw io;
-            }
-            // Something holds the port and does not answer the handshake as the server does, or not in time:
-            // a program that is not TabGoblin, or a server that hangs. The server answers at once.
-            throw new Refused("not_a_tabgoblin_server");
         }
         throw nobody;
     }
@@ -348,10 +366,10 @@ final class Link {
         boolean kept = false;
         try {
             wire = open();
-            JsonNode hello = message(wire.take(ANSWER_WITHIN_MS));
+            JsonNode hello = message(wire, "server greeting");
             String serverNonce = hello.path("nonce").asString("");
             if (!hello.path("type").asString("").equals("hello") || serverNonce.length() < 16) {
-                throw new Refused("not_a_tabgoblin_server");
+                throw new Refused("invalid server greeting");
             }
             if (hello.path("link").asInt(0) != VERSION) {
                 throw new Refused("server_of_another_version");
@@ -383,7 +401,7 @@ final class Link {
                 }
             }
             wire.send(json.writeValueAsString(ask));
-            JsonNode answer = message(wire.take(ANSWER_WITHIN_MS));
+            JsonNode answer = message(wire, what + " reply");
             if (answer.path("type").asString("").equals("refused")) {
                 throw new Refused(answer.path("reason").asString("refused"));
             }
@@ -395,7 +413,7 @@ final class Link {
             return wire;
         } catch (RuntimeException e) {
             // The connection went while a message was sent: as a connection that closed.
-            throw new IOException(e.getClass().getSimpleName(), e);
+            throw new IOException(what + " handshake failed: " + e.getClass().getSimpleName(), e);
         } finally {
             if (!kept && wire != null) {
                 wire.close();
@@ -403,14 +421,15 @@ final class Link {
         }
     }
 
-    private JsonNode message(String text) throws Refused {
+    private JsonNode message(Wire wire, String stage) throws IOException, Refused {
+        String text = wire.take(ANSWER_WITHIN_MS, stage);
         if (text == null) {
-            throw new Refused("connection_closed");
+            throw new Refused("connection closed before " + stage);
         }
         try {
             return json.readTree(text);
         } catch (RuntimeException e) {
-            throw new Refused("not_a_tabgoblin_server");
+            throw new Refused("invalid JSON in " + stage);
         }
     }
 

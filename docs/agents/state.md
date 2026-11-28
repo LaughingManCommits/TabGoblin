@@ -2,6 +2,14 @@
 
 Last updated: 2026-11-28. Claims here go stale; check the date, then `git status` and `git log`.
 
+## Link opening and CLI connection errors, 2026-11-28
+
+The working tree based on `9492189` distinguishes an open timeout from a connection that
+ended before opening, and reports the stage in the CLI answer. See the
+[protocol reference](../development.md#protocol-reference) and [validation log](validation-log.md).
+The live server still uses its existing jar. Next: review the change. Whether the same key
+can read its original tab after a live MCP-to-CLI handoff remains unverified.
+
 ## Connecting an agent through MCP, said more simply: 2026-11-28
 
 On branch `simpler-agent-setup-docs`, made from `main` at `354952c`, on the owner's word
