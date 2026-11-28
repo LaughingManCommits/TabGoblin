@@ -15,6 +15,10 @@ through the extension's storage: 110 passed, 0 failed, among them the pairing st
 that asserts the popup has no port field, and the hand-made server reached by a port written
 into the storage. The pairing picture was captured anew under the virtual display and opened:
 token field and button, no port. Links 352, nothing personal, no drift, the SVG files as drawn.
+CI run 66 on pull request 16 (`d459614`): the editor lab failed at once, since its two scripts
+still set the popup's port field; both now write the port into the extension's storage as the
+suite does, checked for syntax here and not run (the lab runs on Windows in CI). The other jobs
+passed but *Dependencies*, which fails on the repository's dependency graph as before.
 
 ## 2026-11-28, branch `one-port` after `9a6e233`: the documentation rules and the alignment review
 
