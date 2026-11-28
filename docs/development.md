@@ -33,7 +33,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 | `mvn -f java-server/pom.xml test` | Pairing, origin check, version check, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. The tests of the panel's window (`PanelTest`) need a display and are skipped without one |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, the notice in the page, and the background worker against a fake Chrome |
-| `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
+| `cd e2e && npm test` | Everything together in your installed Chrome: one real server with two agents' processes and a command-line agent, a hand-made server for the protocol's protections, three demo sites |
 | `cd e2e/editors && npm test` | Text entry into thirteen editor libraries and two plain controls, checked against each editor's own model |
 
 How the end-to-end run works:
@@ -89,9 +89,10 @@ than a line is broken with `<br/>`, and a note over one participant is kept shor
 (`Note over B,S`): Mermaid does not wrap a note, and a long one runs out of its box. Where
 several outcomes end the same way, they lead to one named state (*Not submitted*) and not to
 the end marker, whose lines otherwise cross the whole diagram. A legend in an SVG picture is
-spaced by an estimate of each word's width (`textWidth` in the script), so its gaps are even. To check that
-they parse, render each block with Mermaid in Chromium; the session that last did so used
-Mermaid 11.4.1.
+spaced by an estimate of each word's width (`textWidth` in the script), so its gaps are even.
+`docs/agents/check-diagrams.mjs` renders each block with Mermaid in a headless Chrome and
+reports the ones that do not parse ([runbook](agents/runbook.md#check-the-diagrams)); the pages
+were last rendered with Mermaid 11.4.1.
 
 ### About the screenshots
 
@@ -128,7 +129,7 @@ started by hand:
 | Chrome extension | Linux | `npm ci` and `npm run check`: type-check, unit tests, build |
 | End to end | Windows | Builds both parts and runs the end-to-end suite in the runner's Chrome, headless |
 | Editors | Windows | Builds both parts and runs the editor lab, tab in front |
-| Nothing personal | Linux | Runs the tests of `docs/agents/check-personal.mjs` and then the check on the files |
+| Documentation | Linux | Runs the tests of `docs/agents/check-personal.mjs` and `check-drift.mjs`, then both checks on the files and the link check |
 | One version | Linux | Runs the tests of `release/version.mjs` and then the script without a version, which fails if the files that carry the version disagree |
 | Dependencies | Linux | `npm audit` for the extension and the test runner, which fails on an advisory of high severity; the same for the editor lab, listed only, because the editors under test are fixed versions of other people's libraries and are never shipped; and, on a pull request, GitHub's dependency review of what it changes, which covers the server's Maven libraries |
 
@@ -262,8 +263,119 @@ page that owns it:
   log and into git, not into a page that explains.
 - A number that a run produces (a count of tests, a size) goes stale: state it where a command
   beside it checks it, and nowhere else.
-- After an edit, check the links and that nothing personal got in
-  ([runbook](agents/runbook.md#check-the-documentation-links)).
+- After an edit, run the checks under [the documentation review](#the-documentation-review).
+
+### Documentation is part of a change
+
+A change is done when the pages say what the code does now. These rules hold for every change
+and every contributor, agent or person:
+
+- **The pages are part of the implementation,** not a task after it. A change is not complete
+  until its impact on the documentation has been assessed and what is affected has been updated.
+- **The implementation and its tests decide what may be claimed.** A page describes the behaviour
+  as it is and as a test or a run has shown it. Where that disagrees with the intended design or
+  with a security requirement, the disagreement is a fault to look into and to say, not a sentence
+  to adjust until it fits.
+- **Each fact has one page**, the table above. Another page may sum it up in a sentence and link
+  to it; it does not say it again in its own words.
+- **What is gone is taken out.** A removed component, a changed default, a dropped option leaves
+  no description behind. Nothing is added beside an old sentence to correct it.
+- **Nothing planned, assumed or unverified is written as implemented.** A plan goes into
+  [TODO.md](../TODO.md); what a run showed into the [validation log](agents/validation-log.md),
+  with what it did not show.
+- **Plain, short, consistent, easy to find.** The names of the [vocabulary](architecture.md) and
+  of the diagrams, the same in every page.
+
+### The impact review
+
+For every change, whatever files it touched, look at the pages the row names. It is an
+assessment: a page is changed where it says something that is no longer so, and left alone
+where it does not.
+
+| The change touches | Assess |
+|---|---|
+| Architecture, components, transport or protocol | [Architecture](architecture.md) with its diagrams, the [protocol reference](#protocol-reference), the [security model](security-model.md), the [corporate assessment](corporate-assessment.md) |
+| Authentication, authorization, permissions or policy | Security model, corporate assessment, architecture, [developer guide](developer-guide.md), [README](../README.md) |
+| Tools, their arguments, answers or errors | [Tool reference](tool-reference.md), [CLI guide](cli.md), the server instructions in `McpMain.java`, the examples in `docs/examples`, the six [skills](../skills/README.md) |
+| Installation, configuration or startup | [Installation](installation.md), README, developer guide, CLI guide, the skills |
+| The popup, the window, the notice, or how the user is asked | The pictures, the developer guide, the README, the flows that show the interaction (architecture, installation) |
+| Dependencies, the build or a release | This page, installation, [CONTRIBUTING](../CONTRIBUTING.md), the [runbook](agents/runbook.md) |
+| Tests, what is possible, or where something stops | The reference it belongs to, the security model's [table of what is verified](security-model.md#what-is-verified-by-tests), the validation log |
+
+Then search the whole repository, not the files already open, for the words of the change: the
+names of what was removed, the old default, the old number, the old message. Comments, tests,
+the skills, examples, tables and the diagrams' sources carry them as pages do. The drift check
+below finds the names that were retired before; a new removal adds its names to that list.
+
+### Diagrams and pictures
+
+A diagram is documentation under the same contract: it shows the implementation as it is.
+There are the five SVG pictures (the README's overview and security boundary, the architecture's
+components, the security model's command checks, the assessment's data flow), the Mermaid
+diagrams in the pages (the connections, a command end to end, submissions, the session's
+lifecycle, the command line's identity, the first use) and the pictures of the popup, the window
+and the notice. When a flow, a component, a responsibility, an interface or a security boundary
+changes, assess every diagram that shows it, and the alt text and the paragraph beside it.
+
+- Keep the visual language: the four colours and what each means, the line kinds, the names of
+  the participants, the layout ([about the diagrams](#about-the-diagrams)). One idea a diagram.
+- Change an SVG picture in `docs/assets/diagrams/build.mjs` and run it; never edit an SVG file.
+- Check that the Mermaid blocks parse ([runbook](agents/runbook.md#check-the-diagrams)), and open
+  a changed diagram with the system set to light and to dark. Look for a participant that no
+  longer exists, a path that cannot happen, an arrow in the wrong direction, a label that runs out
+  of its box, a boundary drawn where the code does not enforce one.
+- Regenerate a picture with its script only ([about the screenshots](#about-the-screenshots)),
+  and open it before it is used.
+
+### Security claims
+
+The security model, the assessment, the architecture, the README and the security pictures say
+the same thing in four grades, and a change keeps the grade: a boundary that is **enforced**
+always and by TabGoblin; a control the user's settings **configure**, enforced once set; a
+protection that is **best effort** and has holes; and a **limitation** or residual risk. A claim
+is never made stronger than the implementation and a test show; a weaker one is said as such.
+The CLI and MCP share one set of controls ([security model](security-model.md#cli-and-mcp-one-set-of-controls)):
+a page that describes one interface says what is shared and names any actual difference, and
+says no difference where there is none.
+
+### Checks before a change is done
+
+Verify against the tree and a run, not from memory: component names, file paths and links;
+commands, settings keys, defaults, ports and protocol versions; tool names, arguments, answers,
+error codes and access levels; the examples; the pictures against the interface as it is; and
+that nothing removed is still described as there. The checks that exist do part of it, and run
+before a change is done:
+
+| Check | Holds |
+|---|---|
+| `ToolReferenceTest` | The tool reference to the server's tool definitions: every tool and argument |
+| `SkillsTest` | The six skills to the tools, to the reference's codes and to each other |
+| `node docs/agents/check-links.mjs` | Every relative link and heading anchor |
+| `node docs/agents/check-personal.mjs` | Nothing personal in the files |
+| `node docs/agents/check-drift.mjs` | No retired name anywhere; the protocol version, the link version and the server's ports the same in both parts and in every page, skill, example and diagram source that quotes them |
+| `node docs/agents/check-diagrams.mjs` | Every Mermaid block parses ([runbook](agents/runbook.md#check-the-diagrams)) |
+| `node docs/assets/diagrams/build.mjs` | The SVG pictures are what the script draws |
+| `node release/version.mjs` | One version in every file that carries it |
+
+A check is extended where a drift has happened and a machine can tell it apart; a small,
+deterministic rule, not a framework. A change to code alone asks for no edit of a page: the
+review is of the impact, and its result may be that nothing is affected.
+
+### The documentation review
+
+Every completed task ends with a short summary of its documentation review, in the last message
+of a session and in a pull request's description, and nowhere in a page:
+
+- Documentation updated: which pages.
+- Diagrams updated, or verified as unaffected.
+- Pictures updated, or verified as unaffected.
+- Skills updated, or verified as unaffected.
+- Validation performed: which checks and tests ran.
+- Outstanding: what could not be checked, and why.
+
+Where no documentation changes were needed, the summary says that the impact was assessed and
+why nothing was affected. The [state file](agents/state.md) and the
+[validation log](agents/validation-log.md) are kept as before; they record, and repeat no page.
 
 ## Implementation notes
 
@@ -373,8 +485,8 @@ browser has to be paired. How it is built:
 - **The switch holds the connection off.** The server closes the extension's connection with
   the code for "going away" and refuses every handshake after it, before any pairing proof is
   looked at, until it is switched on. A refused handshake is not a failed pairing and counts
-  nothing towards the lockout. The extension is not told why. It goes on looking for servers
-  every half minute, as for any server it cannot reach, so switching on needs nothing in the
+  nothing towards the lockout. The extension is not told why. It goes on looking for the server
+  every half minute, as for a server it cannot reach, so switching on needs nothing in the
   popup. Meanwhile a tool call is answered [`NOT_CONNECTED`](tool-reference.md#errors), with words that
   say where the connection was switched off.
 - **The log is kept for the window, which may come up at any time:** the last 300 lines, in

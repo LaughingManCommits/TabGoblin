@@ -3,6 +3,25 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-28, branch `one-port` after `9a6e233`: the documentation rules and the alignment review
+
+In the copy with the Java 25 runtime, under a virtual display (`xvfb-run`): `PanelTest` ran its
+20 tests, 19 passed, and `theWindowsIconIsTheGoblinInAFormTheWindowTakes` errored for want of
+`icon16.png`, which the build takes from `chrome-extension/icons` beside `java-server` and the
+copy has no `chrome-extension`; `PanelModelTest` 17, `McpMainTest` 18, `HubTest` 17,
+`SkillsTest` 9, `ToolReferenceTest` 2, none failed. `PanelPictures` drew its 21 pictures under
+the display; the first is the documentation's. The popup's pictures were captured under the
+display with `HEADED=1` and the container's Chromium; four pictures and `status.txt` changed for
+the cause (port chips, the form's label, the status line) and were taken; the others differed in
+pixels only, from another Chrome, and were left. The extension's type-check passed. The new
+`check-drift.mjs` found, before the mends, nine places: the agent guide's task map, the
+development page's names (allowed: the rule states them), `status.txt` (protocol 3), two
+comments; its own tests 4 of 4. `check-diagrams.mjs`: 10 Mermaid blocks, 0 fail, Mermaid
+11.4.1, after it had found one that a semicolon cut short. The five SVG pictures were drawn by
+the script; the components picture was opened in light and in dark. Links 348, all resolve;
+nothing personal. Not run: the full suites (the code changes of this commit are comments, a
+test's expected string and the pictures' made-up log lines), the end-to-end suite.
+
 ## 2026-11-28, branch `one-port`, WP-33 built, before its first commit
 
 In a copy of the tree with a Java 25 runtime (`jdk4py`) and the Eclipse compiler, the tree

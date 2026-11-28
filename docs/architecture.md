@@ -14,7 +14,7 @@ rules themselves, with where each is enforced and where it stops, are in the
 
 ## Components
 
-![The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a loopback socket to the link endpoint of the one TabGoblin server, which checks the proofs and hands a command to the command adapter and an MCP call to the MCP adapter; both adapters are built from one set of tool definitions and lead into one service and one WebSocket endpoint; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.](assets/diagrams/components.svg)
+![The components: a coding agent uses the CLI (one process per command) or the MCP link (one process per agent); both connect over a WebSocket on the server's one port, path /link, to the link endpoint of the one TabGoblin server, which checks the proofs and hands a command to the command adapter and an MCP call to the MCP adapter; both adapters are built from one set of tool definitions and lead into one service and one WebSocket endpoint, which carries every agent on one connection to the extension; in Chrome the extension's worker takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.](assets/diagrams/components.svg)
 
 | Component | Responsibility | Does not |
 |---|---|---|
@@ -165,7 +165,7 @@ sequenceDiagram
   participant L as CLI process or MCP link
   participant S as TabGoblin server
   A->>L: starts the process (--agent name)
-  L->>S: connects on 127.0.0.1, or starts the server if none runs
+  L->>S: WebSocket to the server's port on 127.0.0.1, path /link, or starts the server if none runs
   S->>L: hello { nonce, link version }
   L->>S: attach { nonce, proof of the pairing token, agent, agentProof, cli }
   break wrong token proof, another link version, server stopping, interface turned off, key not proven, or a command's key held by an MCP agent
@@ -527,7 +527,7 @@ stateDiagram-v2
   agents the user disconnected are in `chrome.storage.local`.
 - **The worker can stop at any time.** Manifest V3 stops an idle worker. All durable state is
   in storage; while an agent is connected the heartbeat keeps the worker alive; otherwise an
-  alarm every 30 seconds, the popup or a tab switch wakes it to look for servers. After a
+  alarm every 30 seconds, the popup or a tab switch wakes it to look for the server. After a
   restart, operations that were in flight are gone and submissions that had been dispatched
   are marked `UNCERTAIN`.
 

@@ -93,7 +93,7 @@ The workflow is `.github/workflows/ci.yml`. Each job is these commands on a clea
 | Chrome extension | `cd chrome-extension && npm ci && npm run check` |
 | End to end | `mvn -B -f java-server/pom.xml package -DskipTests`; `cd chrome-extension && npm ci && npm run build`; `cd e2e && npm ci && npm test` |
 | Editors | the two builds as above; `npm ci --prefix e2e`; `npm ci --prefix e2e/editors`; `cd e2e/editors && npm test` |
-| Nothing personal | `node --test docs/agents/check-personal.test.mjs`; `node docs/agents/check-personal.mjs` |
+| Documentation | `node --test docs/agents/check-personal.test.mjs`; `node --test docs/agents/check-drift.test.mjs`; `node docs/agents/check-personal.mjs`; `node docs/agents/check-drift.mjs`; `node docs/agents/check-links.mjs` |
 | One version | `node --test release/version.test.mjs`; `node release/version.mjs` |
 | Dependencies | `npm audit --audit-level=high` in `chrome-extension` and in `e2e`; the same in `e2e/editors`, whose result does not fail the job. The review of a pull request runs on GitHub only |
 
@@ -367,6 +367,49 @@ know the owner's name or account either; it finds forms, not persons.
 
 Its own tests: `node --test docs/agents/check-personal.test.mjs`. Success: `ℹ fail 0`. They
 build their planted values while they run, so the test file passes the check.
+
+## Check for documentation drift
+
+```sh
+node docs/agents/check-drift.mjs
+```
+
+Success: `no drift: protocol N in both parts, link N, ports …, no retired name`, and exit code
+0. It reads every text file of the tree but the records (`state.md`, the validation log) and
+fails on a name that was retired (`RETIRED` in the script: the names from before the product was
+named TabGoblin, and the per-agent ports and the servers folder of before the one port), on a
+protocol version, link version or port list that the server and the extension do not define
+alike, and on a page, skill, example or diagram source that quotes a protocol version other
+than the one defined. A finding is printed as `file:line` and what it is. When a change retires
+a name, add it to the list with the change that retired it; when it changes one of the numbers,
+the check names every place that still says the old one.
+
+Its own tests: `node --test docs/agents/check-drift.test.mjs`. Success: `ℹ fail 0`.
+
+## Check the diagrams
+
+The Mermaid diagrams are in the pages themselves; this renders each with Mermaid in a headless
+Chrome and reports the blocks that do not parse (a semicolon ends a message early, for one).
+Mermaid is not a dependency of the repository (its own dependencies carry advisories that the
+*Dependencies* job fails on), so install it once outside the tree, pinned, and name the file:
+
+```sh
+mkdir -p ../mermaid && npm --prefix ../mermaid install mermaid@11.4.1
+MERMAID=../mermaid/node_modules/mermaid/dist/mermaid.min.js node docs/agents/check-diagrams.mjs
+```
+
+Success: `N Mermaid blocks, 0 do not parse (Mermaid 11.4.1)`, exit code 0. It needs the
+end-to-end suite's browser driver (`npm install` in `e2e`) and a Chrome; `TABGOBLIN_CHROME=<path>`
+picks another, as for the suite. With `OUT=<folder>` it also writes each diagram as an SVG
+there, to open. The SVG pictures are drawn, not checked:
+
+```sh
+node docs/assets/diagrams/build.mjs
+```
+
+writes the five files in `docs/assets/diagrams`, and `git status` says whether the script and
+the files agreed. Open a changed picture with the system set to light and to dark; the rules for
+what to look for are in [development.md](../development.md#diagrams-and-pictures).
 
 ## Common problems
 

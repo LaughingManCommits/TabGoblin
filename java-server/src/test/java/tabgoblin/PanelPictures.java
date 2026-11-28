@@ -115,9 +115,9 @@ final class PanelPictures {
                 session("s2", "http://127.0.0.1:8931", "write", "paused"),
                 session("s3", "https://docs.example.org", "read", "suspended"));
         var log = List.of(
-                line(-512, "info", "listening port=47821 client=c-7240df8e"),
+                line(-512, "info", "serving client=c-7240df8e port=47821"),
                 line(-511, "info", "panel shown"),
-                line(-498, "info", "extension connected client=c-7240df8e protocol=2"),
+                line(-498, "info", "extension connected protocol=1 agents=1"),
                 line(-301, "debug", "command id=9 session=s1 action=snapshot ms=18 outcome=ok", "s1"),
                 line(-214, "info", "command id=12 session=s2 action=fill ms=4 outcome=error code=PAUSED category=AUTHORIZATION", "s2"),
                 line(-61, "warn", "connection rejected reason=pairing_proof"),
@@ -134,11 +134,11 @@ final class PanelPictures {
                         List.of(), tab(new long[][] {{14_000, 8, 52, 1_600}}), java.util.Map.of())),
                 47821, McpMain.version(), false, List.of(
                         line(-512, "info", "server listening port=47821"),
-                        new Log.Line(NOW - 510_000, "info", "listening port=47821 client=c-7240df8e", null, "c-7240df8e"),
-                        new Log.Line(NOW - 498_000, "info", "extension connected client=c-7240df8e protocol=2", null, "c-7240df8e"),
+                        new Log.Line(NOW - 510_000, "info", "serving client=c-7240df8e port=47821", null, "c-7240df8e"),
+                        new Log.Line(NOW - 498_000, "info", "extension connected protocol=1 agents=1", null, "c-7240df8e"),
                         new Log.Line(NOW - 301_000, "debug", "command id=9 session=s1 action=snapshot ms=18 outcome=ok", "s1", "c-7240df8e"),
                         new Log.Line(NOW - 120_000, "info", "serving client=c-3b9a01c2 port=47821", null, "c-3b9a01c2"),
-                        new Log.Line(NOW - 90_000, "info", "extension disconnected client=c-3b9a01c2 code=4403", null, "c-3b9a01c2")),
+                        new Log.Line(NOW - 90_000, "info", "agent disconnected by the user in the popup", null, "c-3b9a01c2")),
                 ZONE), false);
         var connected = new State("1-connected", model("claude-code", null, true, false, NOW - 498_000, 0, sessions, times, log), false);
         return List.of(

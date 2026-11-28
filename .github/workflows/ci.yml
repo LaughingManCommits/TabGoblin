@@ -69,10 +69,11 @@ jobs:
         working-directory: chrome-extension
         run: npm run check
 
-  # No home directory, no mail address outside the example domains and no link to an agent's
-  # session in the files. The check's own tests run first.
-  personal:
-    name: Nothing personal
+  # The documentation's checks: no home directory, no mail address outside the example domains
+  # and no link to an agent's session in the files; no retired name, and the numbers both parts
+  # carry the same; every link resolves. The checks' own tests run first.
+  documentation:
+    name: Documentation
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -80,10 +81,16 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Test the check
-        run: node --test docs/agents/check-personal.test.mjs
-      - name: Check the files
+      - name: Test the checks
+        run: |
+          node --test docs/agents/check-personal.test.mjs
+          node --test docs/agents/check-drift.test.mjs
+      - name: Nothing personal in the files
         run: node docs/agents/check-personal.mjs
+      - name: No drift between the parts and the pages
+        run: node docs/agents/check-drift.mjs
+      - name: The documentation's links
+        run: node docs/agents/check-links.mjs
 
   # The files that carry the version name the same one. The script's own tests run first.
   version:

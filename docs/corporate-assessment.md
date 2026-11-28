@@ -117,7 +117,7 @@ encrypted; they do not leave the loopback interface. There are no outbound conne
 
 | Between | Mechanism |
 |---|---|
-| Extension and server | A shared pairing token of 256 random bits, proven in both directions by HMAC-SHA256 challenge and response. The token is not transmitted. The WebSocket `Origin` must be this extension's id. Ten failures lock a port for a minute. `--rotate-token` invalidates all pairings |
+| Extension and server | A shared pairing token of 256 random bits, proven in both directions by HMAC-SHA256 challenge and response. The token is not transmitted. The WebSocket `Origin` must be this extension's id. Ten failures lock the port for a minute. `--rotate-token` invalidates all pairings |
 | Agent's process and server | Proof of the same pairing token, with a distinct prefix. The same for an MCP agent's process and for each CLI command |
 | Agent identity | A per-agent key of 256 random bits (`--agent <name>`; optional through MCP, required by the CLI), proven by HMAC-SHA256. The agent's id is derived from the key. Sessions are bound to that id and never pass to another. `--revoke-agent` deletes a key |
 | User and extension | None beyond the browser profile: whoever operates the browser operates the popup |

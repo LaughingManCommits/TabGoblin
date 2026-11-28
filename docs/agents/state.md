@@ -21,10 +21,25 @@ server's port is out).
 
 Seen: the server's `mvn verify` (240 tests, 20 skipped `PanelTest`; `McpConformanceIT` 8 of 8),
 the extension's `npm run check` (217 tests), the end-to-end suite here (110 passed, 0 failed;
-the window's section is Windows-only and did not run). Not seen: the window on a screen, and
-the acceptance by hand with real processes that WP-33 in [TODO.md](../../TODO.md) lists.
-**Next:** the owner reviews and merges; then the acceptance by hand, and the window's pictures
-if its look changed (the per-agent port chips are gone from the rows and the header's line).
+the window's section is Windows-only and did not run). Not seen: the window on a real screen,
+and the acceptance by hand on Windows that WP-33 in [TODO.md](../../TODO.md) lists.
+
+A second commit on the branch, the same day, on the owner's word ("review and strengthen
+TabGoblin's documentation maintenance rules"): the rules that documentation is part of a change
+are in [development.md](../development.md#documentation-is-part-of-a-change) (the owner), with
+the impact review's table, the contract for diagrams and pictures, the four grades of a security
+claim, the checks and the review summary that ends a task; `AGENTS.md` and `CONTRIBUTING.md`
+point there. Two checks are new: `check-drift.mjs` (retired names; the protocol version, the
+link version and the ports the same in both parts and in the pages; in CI, in the job now
+called *Documentation*, with the link check) and `check-diagrams.mjs` (every Mermaid block
+parses; by hand, with a Mermaid installed outside the tree, since its dependencies carry
+advisories). The alignment review of the branch found and mended: the components picture ("one
+port per agent", "protocol 3"), the window's picture (footer "protocol 3"), the popup's pictures
+(port chips, *First port*), `status.txt`, a Mermaid line that a semicolon cut short, stale
+comments in five tests and `McpMain`, the worker's header comment, two backlog notes, the Windows
+token script's comment. The window's 20 tests ran under a virtual display: 19 passed, and the
+icon test wants the extension's icons beside the copy it ran in. **Next:** the owner reviews and
+merges; then the acceptance by hand on Windows.
 
 ## CI's end-to-end run on Windows: two steps mended, 2026-11-28
 

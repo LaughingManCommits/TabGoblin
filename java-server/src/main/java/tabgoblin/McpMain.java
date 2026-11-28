@@ -322,7 +322,7 @@ public final class McpMain {
     }
 
     /**
-     * Opens the one server on the first port that the system gives out, or says null: there is a
+     * Opens the one server on the first of the ports that the system gives out, or says null: there is a
      * server already, and one is enough, or no port is given out, and the agent's process then
      * serves its agent alone and says why it has no port.
      */

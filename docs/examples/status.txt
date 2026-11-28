@@ -1,5 +1,5 @@
-Extension: connected (protocol 3)
-This agent: c-1a2b3c4d on port 47821 (no identity of its own: its tabs do not come back after a restart. The user gives it one by adding --agent <name> to the command that starts this server)
+Extension: connected (protocol 1)
+This agent: c-1a2b3c4d (no identity of its own: its tabs do not come back after a restart. The user gives it one by adding --agent <name> to the command that starts this server)
 Submissions need user confirmation: yes
 Sessions: 1
 Session s1

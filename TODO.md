@@ -88,13 +88,12 @@ leaving, the server ending after its last agent, a chosen port set in both place
 of another protocol version refused. Seen with real processes: a program that holds the usual
 port makes each agent's process serve its agent alone and say why (taken, not kept back: a held
 port is never stepped over, only one the system keeps back is, `Ports.usable`), and the processes
-end in order. Not yet done: Kill and Stop in the window on Windows, and a port the system keeps
-back with the fallback taken, which only a Windows machine with such a range shows.
+end in order. The window's and the popup's pictures are drawn anew and looked at. Not yet done:
+Kill and Stop in the window on Windows, and a port the system keeps back with the fallback
+taken, which only a Windows machine with such a range shows.
 
 ## Small faults, found and not mended
 
-- `Ports.note` says the ranges are `47821-47829` and `37821-37829`; each range is eight ports
-  (`PORT_RANGE`), so they end at …28. `docs/tool-reference.md` quotes the text: mend both.
 - The server's window says every agent is turned away while the settings file cannot be read;
   in fact agents are let in and every site is refused (`PanelModel.Blocked`).
 - Every command's process logs the blocked sites and the policy on its standard error
@@ -109,8 +108,7 @@ back with the fallback taken, which only a Windows machine with such a range sho
   `art/`).
 - Read from the source in November and not rechecked since: a tool call right after the
   connection was switched off in the window may wait ten seconds (`awaitExtension` in
-  `BrowserService.java`); a server that cannot take its first port prints the socket library's
-  stack trace to the agent's log before it takes the next.
+  `BrowserService.java`).
 
 ## Not tried
 
@@ -131,7 +129,8 @@ back with the fallback taken, which only a Windows machine with such a range sho
   how the server is added to them could not be read from their documentation.
 - **The command line on Windows and macOS** beyond reading and Explore: Write, `submit`,
   `tabgoblin.cmd`, quoting JSON (`--args-file` and `--args -` are there for it).
-- **Reserved ports (WP-28):** never run on a machine whose system keeps the ports back.
+- **Reserved ports (WP-28):** never run on a machine whose system keeps the port back; the
+  fallback to 37821 and 27821 is held by tests with a stand-in for the system.
 - A screenshot of a tab whose window is covered or minimized.
 - The SBOM and the dependency scan in the workflows were read, not run.
 - The Mermaid diagrams on GitHub's own renderer.
@@ -158,8 +157,8 @@ back with the fallback taken, which only a Windows machine with such a range sho
   - WP-27: the strict profile's values (eight hours, thirty minutes); redaction cannot be
     switched off; a frame under 8 pixels a side does not hold a picture back; search runs on an
     automaton of its own, with a subset of the syntax.
-  - WP-28: which first ports, and that the others are tried only when the first range has
-    nobody.
+  - WP-28: which ports (47821, 37821, 27821), and that the next is tried only when the system
+    keeps the one before back; a port another program holds is not stepped over.
   - `OFF` on the toolbar badge when no agent is there to act.
   - The popup's setting is called "Indicator in the page" where the documentation says notice.
 - **Not built:** a build without the MCP SDK; progress while a command waits; a skill installed

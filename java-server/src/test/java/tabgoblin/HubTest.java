@@ -30,9 +30,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * One server for all agents: the processes that agents' programs start connect to it, each proves
- * that it knows the pairing token, and each agent has its own port, sessions and tools there. And
- * what happens when the server ends: stopped by the user, left by its last agent, or gone.
+ * One server for all agents, on one port: the processes that agents' programs start connect to it
+ * there, each proves that it knows the pairing token, and each agent has its own id, sessions and
+ * tools there. And what happens when the server ends: stopped by the user, left by its last agent,
+ * or gone.
  */
 class HubTest {
 
@@ -48,7 +49,7 @@ class HubTest {
         hubs.forEach(Hub::drop);
     }
 
-    /** A port from which this many are free in a row: the agents' ports, and the server's own after them. */
+    /** A free port for a server of the test's own. */
     private static int freePorts() throws IOException {
         for (int attempt = 0; attempt < 50; attempt++) {
             int port = 20_000 + (int) (Math.random() * 30_000);
@@ -197,7 +198,7 @@ class HubTest {
         Agent agent = hub.agents().get(0);
         // The agent's name comes from its opening message, as it does where an agent has a process of its own.
         await(() -> agent.bridge().clientName().equals("claude-code"), "the agent's name");
-        assertEquals(port, agent.bridge().getPort(), "the first agent has the first port");
+        assertEquals(port, agent.bridge().getPort(), "the agent is on the server's port");
 
         client.send("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}");
         assertEquals(14, client.answerTo(1).path("result").path("tools").size());

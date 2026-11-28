@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 1166" width="760" height="1166" role="img" aria-labelledby="t d" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
 <title id="t">The components of TabGoblin</title>
-<desc id="d">The CLI and the MCP link are two interfaces of TabGoblin, one process per command and one per agent. Both connect over a loopback socket to the one TabGoblin server, whose link endpoint checks the proofs of the pairing token and the agent's key. A command goes to the command adapter (call, cancel, result) and an MCP call to the MCP adapter; neither runs through the other, both are built from one set of tool definitions, and both lead into one service that validates and applies the policy. The service sends the command through the agent's WebSocket endpoint to the extension's worker in Chrome, which takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.</desc>
+<desc id="d">The CLI and the MCP link are two interfaces of TabGoblin, one process per command and one per agent. Both connect over a WebSocket on the server's one port, path /link, to the one TabGoblin server, whose link endpoint checks the proofs of the pairing token and the agent's key. A command goes to the command adapter (call, cancel, result) and an MCP call to the MCP adapter; neither runs through the other, both are built from one set of tool definitions, and both lead into one service that validates and applies the policy. The service sends the command, named for its agent, through the server's one WebSocket connection to the extension's worker in Chrome, which takes the user's decisions from the popup and has the content script carry out one operation in the authorized tab.</desc>
 <style>
 svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --line: #64748B; --tint: 0.07; --red-text: #B91C1C; --green-text: #15803D; --amber-text: #B45309; }
 @media (prefers-color-scheme: dark) {
@@ -46,11 +46,11 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <text class="green-text" fill="#15803D" x="54" y="288" font-size="11" font-weight="600" letter-spacing="0.6">TABGOBLIN SERVER</text>
 <rect class="tint" fill-opacity="0.07" x="170" y="300" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="310" y="324.6666666666667" text-anchor="middle" font-size="14">Link endpoint</text>
-<text class="sub" fill="#475569" x="310" y="340.6666666666667" text-anchor="middle" font-size="12">proofs: pairing token · agent key</text>
+<text class="sub" fill="#475569" x="310" y="340.6666666666667" text-anchor="middle" font-size="12">path /link · proofs: token · agent key</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="180,196 180,244 260,244 260,300" marker-end="url(#head)"/>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="440,196 440,244 360,244 360,300" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="450" y="237" text-anchor="start" font-size="11">loopback socket: the proofs, then</text>
-<text class="sub" fill="#475569" x="450" y="251" text-anchor="start" font-size="11">the interface's own messages</text>
+<text class="sub" fill="#475569" x="450" y="237" text-anchor="start" font-size="11">WebSocket on the one port: the proofs,</text>
+<text class="sub" fill="#475569" x="450" y="251" text-anchor="start" font-size="11">then the interface's own messages</text>
 <rect class="tint" fill-opacity="0.07" x="52" y="396" width="156" height="72" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="130" y="420.6666666666667" text-anchor="middle" font-size="14">Command adapter</text>
 <text class="sub" fill="#475569" x="130" y="436.6666666666667" text-anchor="middle" font-size="12">call · cancel · result</text>
@@ -76,7 +76,7 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <text class="sub" fill="#475569" x="310" y="490" text-anchor="middle" font-size="11">one path from here</text>
 <rect class="tint" fill-opacity="0.07" x="170" y="632" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="310" y="656.6666666666666" text-anchor="middle" font-size="14">WebSocket endpoint</text>
-<text class="sub" fill="#475569" x="310" y="672.6666666666666" text-anchor="middle" font-size="12">one port per agent</text>
+<text class="sub" fill="#475569" x="310" y="672.6666666666666" text-anchor="middle" font-size="12">one port · one connection · every agent</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="310,592 310,632" marker-end="url(#head)"/>
 <rect class="tint" fill-opacity="0.07" x="606" y="520" width="140" height="72" rx="8" fill="#64748B" stroke="#64748B" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="676" y="544.6666666666666" text-anchor="middle" font-size="14">Home folder</text>
@@ -91,8 +91,8 @@ svg { --ground: #FFFFFF; --edge: #D0D7DE; --text: #0F172A; --soft: #475569; --li
 <text class="name" fill="#0F172A" font-weight="600" x="310" y="840.6666666666666" text-anchor="middle" font-size="14">Extension worker</text>
 <text class="sub" fill="#475569" x="310" y="856.6666666666666" text-anchor="middle" font-size="12">sessions · rules · flows</text>
 <polyline class="wire" fill="none" stroke="#64748B" stroke-width="1.25" points="310,688 310,816" marker-end="url(#head)"/>
-<text class="sub" fill="#475569" x="320" y="730" text-anchor="start" font-size="11">WebSocket on 127.0.0.1</text>
-<text class="sub" fill="#475569" x="320" y="744" text-anchor="start" font-size="11">paired · protocol 3</text>
+<text class="sub" fill="#475569" x="320" y="730" text-anchor="start" font-size="11">WebSocket on 127.0.0.1, paired once</text>
+<text class="sub" fill="#475569" x="320" y="744" text-anchor="start" font-size="11">each command names its agent · protocol 1</text>
 <rect class="tint" fill-opacity="0.07" x="170" y="916" width="280" height="56" rx="8" fill="#16A34A" stroke="#16A34A" stroke-width="1.25"/>
 <text class="name" fill="#0F172A" font-weight="600" x="310" y="940.6666666666666" text-anchor="middle" font-size="14">Content script</text>
 <text class="sub" fill="#475569" x="310" y="956.6666666666666" text-anchor="middle" font-size="12">fixed page operations</text>

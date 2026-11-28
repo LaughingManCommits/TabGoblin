@@ -1,6 +1,6 @@
-// Background service worker: connects to every local Java server (one per agent), binds each
-// authorized tab to one agent as a session, enforces authorization before every command, and
-// keeps the short-lived activity feed.
+// Background service worker: connects to the one local Java server, on which every agent travels
+// with its id, binds each authorized tab to one agent as a session, enforces authorization before
+// every command, and keeps the short-lived activity feed.
 //
 // It never touches cookies, headers, storage of the page, the debugger or the network of the site,
 // and it has no way to run agent-supplied code: commands map to a fixed set of operations.

@@ -402,7 +402,7 @@ class PanelModelTest {
 
         // Nothing blocked: the rows are as they were, and the line says so.
         PanelModel open = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
-        // The server's link port comes after the agents' ports: the first of those is what the popup is told.
+        // The server's one port is what the popup is told.
         assertEquals(47821, open.port());
         assertEquals(List.of("active", "paused", "active"), open.sessions().stream().map(PanelModel.Row::state).toList());
         assertEquals("No site is blocked", open.blocked().summary());
