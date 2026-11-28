@@ -340,8 +340,8 @@ sequenceDiagram
    of its JSON answer):
 
    ```text
-   Extension: connected (protocol 3)
-   This agent: a-1a2b3c4d5e6f on port 47821 …
+   Extension: connected (protocol 1)
+   This agent: a-1a2b3c4d5e6f …
    Submissions need user confirmation: …
    Sessions: 1
    Session s1
@@ -405,7 +405,7 @@ do not, the popup says *Server and extension versions differ*. The pairing survi
 | **Load unpacked** is not there | Developer mode is off | Switch it on, top right |
 | Developer mode or loading is blocked | A managed (work) browser forbids unpacked extensions | Ask your administrator, or use a personal Chrome profile |
 | The extension's ID is different | The `key` in `chrome-extension/manifest.json` was changed or removed | Restore it; or start the server with `--extension-origin any` |
-| Agent: *Could not listen on any of ports 47821-47828*, and the server's window says the same | The message says which. All eight are taken, by servers or other programs. Or the system does not give them out: Windows keeps ranges of ports back for its own networking where Hyper-V, WSL or Docker is used, and they move when those start anew (`netsh interface ipv4 show excludedportrange protocol=tcp` lists them). For that case the server tries two more ranges by itself, from 37821 and from 27821, and the extension finds it there; the message appears only when all three are kept back, or when a port was set with `--port` | Taken: close unused agents. Kept back: start the server with `--port` and a free port, and set the same *First port* in the popup under *Connection…* |
+| Agent: *Could not listen on port 47821*, and the server's window says the same | The message says which. Another program that is not a TabGoblin server holds the port. Or the system does not give it out: Windows keeps ranges of ports back for its own networking where Hyper-V, WSL or Docker is used, and they move when those start anew (`netsh interface ipv4 show excludedportrange protocol=tcp` lists them). For that case the server tries 37821 and then 27821 by itself, and the extension finds it there; the message appears only when all three are kept back, or when a port was set with `--port` | Taken: close that program. Kept back: start the server with `--port` and a free port, and set the same *Port* in the popup under *Connection…* |
 
 What the popup and the agent say once everything is installed (*Disconnected*, *Paste the server's current token*,
 "not connected") is in the developer guide's [troubleshooting](developer-guide.md#troubleshooting).

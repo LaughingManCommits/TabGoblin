@@ -30,7 +30,7 @@ After rebuilding the extension, press the reload button on its card in `chrome:/
 |---|---|
 | `node release/version.mjs` | Prints the version, or fails if the files that carry it disagree; with a version, changes it in all of them (runbook: "Change the version") |
 | `bash release/bundle.sh` | Makes the download for the system it runs on, from both parts as they are built, into `release/out` |
-| `mvn -f java-server/pom.xml test` | Pairing, origin check, version negotiation, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. The tests of the panel's window (`PanelTest`) need a display and are skipped without one |
+| `mvn -f java-server/pom.xml test` | Pairing, origin check, version check, lockout, rotation, correlation, deadlines, cancellation, tool routing, submission ids, client cancel, the server's panel. The tests of the panel's window (`PanelTest`) need a display and are skipped without one |
 | `mvn -f java-server/pom.xml verify` | The same, and then the built jar driven as an MCP client drives it: see [MCP conformance](mcp-conformance.md) |
 | `cd chrome-extension && npm test` | Rules (`policy`), protocol validation, snapshot, extract, interactions, submission signals, the notice in the page, and the background worker against a fake Chrome |
 | `cd e2e && npm test` | Everything together in your installed Chrome: two real servers, a hand-made protocol agent, three demo sites |
@@ -485,44 +485,61 @@ is WP-12.
 
 ## Protocol reference
 
-Version 3. Typed in `Protocol.java` and `protocol.ts`; independent of MCP. A peer of another
-version is refused; version 2 handed sessions on by an agent's name and had no security policy.
+Version 1. Typed in `Protocol.java` and `protocol.ts`; independent of MCP. A peer of another
+version is refused. It is counted from the release with one connection for every agent of the
+server, 0.3.0; the release before it (0.2.0, which called its protocol version 3) had a
+connection and a port for each agent, and a server or an extension of that release is refused
+and told to update.
 
 ```json
-{ "type": "challenge", "nonce": "…", "versions": [3], "clientId": "a-1a2b3c4d5e6f" }
-{ "type": "auth", "nonce": "…", "proof": "…", "version": 3 }
-{ "type": "auth_ok", "proof": "…", "version": 3, "clientId": "a-1a2b3c4d5e6f", "clientName": "…" }
+{ "type": "challenge", "nonce": "…", "version": 1 }
+{ "type": "auth", "nonce": "…", "proof": "…", "version": 1 }
+{ "type": "auth_ok", "proof": "…", "version": 1, "agents": [{ "id": "a-1a2b3c4d5e6f", "name": "IntelliJ IDEA" }] }
+{ "type": "agents", "agents": [{ "id": "a-1a2b3c4d5e6f", "name": "IntelliJ IDEA" }, { "id": "c-7f3a9b2c", "name": "" }] }
+{ "type": "agents_refused", "agents": ["c-7f3a9b2c"] }
 
-{ "id": "17", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
+{ "id": "17", "agent": "a-1a2b3c4d5e6f", "action": "click", "session": "s2", "params": { "ref": 12 }, "deadline": 1700000000000 }
 { "id": "17", "success": true, "result": {}, "timing": { "ran": 132, "queued": 0, "asked": 0 }, "session": "s2" }
 { "id": "17", "success": false, "error": { "code": "NOT_AUTHORIZED", "message": "…" } }
 
 { "type": "cancel", "id": "17" }
-{ "type": "client", "name": "IntelliJ IDEA" }
 { "type": "policy", "blocked": ["example.org"], "unreadable": false, "strict": false, "allowed": [], "screenshots": true,
   "maxAccess": "write", "sessionMaxMinutes": 0, "sessionIdleMinutes": 0 }
-{ "type": "event", "event": "sessions", "data": { "sessions": [] } }
-{ "type": "event", "event": "activity", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
+{ "type": "event", "event": "sessions", "agent": "a-1a2b3c4d5e6f", "data": { "sessions": [] } }
+{ "type": "event", "event": "activity", "agent": "a-1a2b3c4d5e6f", "data": { "id": "17", "session": "s2", "action": "click", "ms": 132, "code": "ok" } }
 { "type": "ping" }   { "type": "pong" }
 ```
 
-On a connection the server sends `auth_ok` before anything else, and may send a command or
-`client` right behind it. Taking the connection for its paired one and sending `auth_ok` are one
-step for the server's other threads (`WebSocketBridge.authenticate`): an extension that holds
-`auth_ok` is connected for every tool call from then on, and none is told `NOT_CONNECTED`. The
-agent's name is in `auth_ok` if the server knows it by then, and follows as `client` if it
-learns it later. An agent names itself when it opens its connection to the server
-(`initialize`). The name is shown to the user and decides nothing. `clientId` is who the agent
-is: `a-` and twelve hexadecimal digits for an agent with a key of its own, the same at every
-start; anything else is an id for one start ([architecture](architecture.md#browser-session-authorization)).
+One connection carries every agent of the server. The server names its agents in `auth_ok`, and
+again as `agents` whenever one comes, goes or says its name; a command names its agent; an event
+names the agent it is for, and so does a `sessions` event, which the extension sends for each
+agent. An agent's `id` is who it is: `a-` and twelve hexadecimal digits for an agent with a key
+of its own, the same at every start; anything else is an id for one start
+([architecture](architecture.md#browser-session-authorization)). The `name` is what the user is
+shown; an agent names itself when it opens its connection to the server (`initialize`), so the
+name may be empty at first and come with a later `agents`. The name decides nothing.
+
+On a connection the server sends `auth_ok` before anything else, and may send a command right
+behind it. Taking the connection for its paired one and sending `auth_ok` are one step for the
+server's other threads (`ExtensionServer`): an extension that holds `auth_ok` is connected for
+every tool call of every agent from then on, and none is told `NOT_CONNECTED`. The extension
+keeps per agent what is an agent's: its sessions, bound to its id; the rate limit; the command
+ids it has seen. What is the server's it keeps once: the pairing, the blocked sites and the
+policy, the heartbeat.
+
+`agents_refused` is the extension's answer to the server's list, each time it gets one: those of
+the named agents the user disconnected in the popup. No command of such an agent runs, however
+often the server names it, and the server tells that agent that it has no browser until the
+user allows it again, when the next `agents_refused` no longer names it. A command whose
+`agent` the server did not name is answered with `NOT_CONNECTED` and runs nowhere. Nothing is
+granted by any of this: a tab is still the user's click in the popup, on an agent the server
+has proven by its key.
 
 `policy` is the user's list of [blocked sites](security-model.md#blocked-sites), as the server's settings
 have it: the domains, in lower case and in their encoded form; `unreadable` is true while the
 settings file cannot be read and every site is refused. The extension takes the list whole or not
 at all. The server sends it when the extension has said its first word as a paired one, which it
-does at once with its sessions, and again when the list has changed. It is not sent right behind
-`auth_ok`: an extension from before this message, still checking the server's proof, would take a
-message it does not know for a failed pairing. Once paired, such an extension ignores it. What an
+does at once with its agents refused and its sessions, and again when the list has changed. What an
 entry blocks is decided in two places, `BlockedSites.java` and `blockedBy` in `policy.ts`; both are
 held to one list of cases, `java-server/src/test/resources/tabgoblin/blocked-sites-cases.json`.
 The same message carries the rest of the user's [security policy](security-model.md#the-security-policy):
@@ -535,13 +552,6 @@ A command's `action` is one of `ACTIONS` in `policy.ts`. Two of them need no ses
 answered before one is looked for: `status`, and `request_access`, an agent's request to the
 user, which may be for a site it has no session on.
 
-`clientId` in `challenge` is who the server says it is before anything is proven. The
-extension uses it for one thing: the server of an agent the user disconnected is closed there
-with 4403, without a proof being sent, so that server never counts the extension as connected
-and logs nothing. Nothing is granted on it; that takes the id in `auth_ok`, which is proven.
-The field is optional: without it a disconnected agent is turned away after the pairing, as
-before, and an older extension ignores it.
-
 The extension takes the messages of a connection in the order they came. One that arrives while
 it still checks the proof in `auth_ok` waits for that, and is then a message like any other.
 Without a valid `auth_ok` before it, any other message is a failed pairing (4401).
@@ -550,38 +560,33 @@ Without a valid `auth_ok` before it, any other message is a failed pairing (4401
 the extension, how long it waited before that for its turn in the tab's queue, and how much of
 the running was waiting for the user's answer. The server cannot see inside the round trip; with
 these it says where the time of a tool call went (`Timings.java`,
-[tool-reference.md](tool-reference.md#where-the-time-went)). The field is optional: an older server ignores it, and
-without it the server counts the round trip whole.
+[tool-reference.md](tool-reference.md#where-the-time-went)).
 
 `session` comes with the answer of every command that ran in a session, failed ones too: the
 id of that session. A command may name none and be given the agent's only one, and the
 server's panel shows the times and the calls of one tab
 ([architecture](architecture.md#the-servers-panel)). The status and a command that was refused
-before a session was looked for have none. The field is optional: without it the server keeps
-the session the command named.
+before a session was looked for have none.
 
 Between the process an agent starts and the one server there is a second, smaller protocol, on
-the port after the agents' eight (`Link.java`, `Hub.java`): one line of JSON each way to prove
-the pairing token, then the agent's messages: MCP as it is for an MCP client's process, or the
-command line's own three messages for a command. Its version is 2 (1 had MCP for both).
+the same port: a WebSocket connection on the path `/link`, each message a text frame
+(`Link.java`, `Hub.java`). One message each way proves the pairing token, then the agent's
+messages follow: MCP as it is for an MCP client's process, or the command line's own three
+messages for a command. Its version is 3 (2 had a line of JSON on a plain TCP connection, on a
+port of its own; 1 had MCP for both).
 
 ```json
-{ "type": "hello", "nonce": "…", "link": 2 }
-{ "type": "attach", "nonce": "…", "proof": "…", "link": 2, "panel": false, "quiet": false, "setup_port": 47821, "settings": "…/tabgoblin.properties", "origin": "chrome-extension://…", "agent": "claude-code", "agentProof": "…" }
+{ "type": "hello", "nonce": "…", "link": 3 }
+{ "type": "attach", "nonce": "…", "proof": "…", "link": 3, "panel": false, "quiet": false, "agent": "claude-code", "agentProof": "…" }
 { "type": "attached", "proof": "…" }      { "type": "refused", "reason": "proof" }
 
-{ "tabgoblin": "log", "text": "listening port=47821 client=c-1a2b3c4d" }
+{ "tabgoblin": "log", "text": "serving client=a-1a2b3c4d5e6f port=47821" }
 { "tabgoblin": "stopping" }
 ```
 
 `panel` asks for the server's window at once; `quiet` says that the window is not to come up
 by itself for this agent when the browser has to be paired (`--no-panel`). Both are optional.
-`setup_port` is the first port the process's setup names (`--port`), sent only where it names
-one: a server on another port that serves the agent, because it has the browser and runs under
-the same settings ([architecture](architecture.md#processes-and-ports)), says so in the agent's
-status. `settings` and `origin` are the settings file and the extension origin the process would
-start its own server with; the server compares another server's with them when it tells the
-agent that the browser is at that other server. `agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
+`agent` and `agentProof` are sent by a process that was started with `--agent`: the name, and
 the proof that it holds that name's key (`AgentKeys.proof`). Without them, or with a proof that
 does not hold, the agent gets an id for this start only.
 A process that runs one command of the [command line](cli.md) adds
@@ -604,11 +609,12 @@ interrupted, which stops the command in the browser at its next safe point, and 
 the tool reference lists it, where `isError` is true; `structured` is the object of a tool
 that returns one; `image` has `mimeType` and `base64`.
 `refused` with the reason `interface_not_allowed` says that the settings file has this
-interface off (`interfaces`). A `turned_away` in the place of `attach`, with the same proof,
-tells a running server that an MCP start found MCP off before it came; it is answered with
-`counted`, and the server's window counts it.
+interface off (`interfaces`); `not_a_tabgoblin_server` is the link's own word for a port on
+which something answers that does not greet as the server does. A `turned_away` in the place
+of `attach`, with the same proof, tells a running server that an MCP start found MCP off before
+it came; it is answered with `counted`, and the server's window counts it.
 `show` in the place of `attach` asks for the server's window and is answered with `shown`. The
-two lines that begin with `tabgoblin` are the server's to the link itself and never reach the
+two messages that begin with `tabgoblin` are the server's to the link itself and never reach the
 agent: a line of the agent's log, and the word that the user stopped the server, without which
 a link takes the server's end for a loss and starts it anew
 ([architecture](architecture.md#how-a-server-ends)).
@@ -616,8 +622,8 @@ a link takes the server's end for a loss and starts it anew
 | Close code | Meaning |
 |---|---|
 | 4401 | Pairing failed, timed out, or the token was rotated |
-| 4403 | The user disconnected this agent |
-| 4406 | No common protocol version |
+| 4403 | Not a close code since version 1: the user's disconnecting of one agent is said as `agents_refused`, and that agent is told so. The number is kept in both parts for the agent's state |
+| 4406 | Another protocol version |
 | 4408 | The server left two heartbeats in a row unanswered; the extension takes it for gone and looks for it again |
 | 4409 | Replaced by a newer connection |
 | 4429 | Too many messages |

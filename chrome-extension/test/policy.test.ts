@@ -10,7 +10,7 @@ import {
   HEARTBEATS_UNANSWERED, badgeFor, serverGone,
   NOTHING_BLOCKED, blockedAmong, blockedBy, checkBlocked, hostOf,
   type ClickTarget, type KeyTarget, type Mode, type SessionAuth, type SubmitSignals,
-  FIRST_PORTS, PORTS_OF_A_SERVER, rangesToScan,
+  PORTS, portsToTry,
 } from '../src/policy.ts';
 
 const ORIGIN = 'https://app.example';
@@ -739,25 +739,18 @@ test('at rest a tab\'s notice says that it is paused, that an answer is needed, 
   assert.equal(noticeAtRest(true, false), 'paused');
 });
 
-test('the ranges of ports that are looked at: every one of the list while no server is found, then the one it is on', () => {
-  const [usual, second, third] = FIRST_PORTS;
-  // Nobody connected: the server may be on any range, where the system keeps the usual one back.
-  assert.deepEqual(rangesToScan(usual, []), [usual, second, third]);
-  // A server is connected on the usual range: the others are left alone.
-  assert.deepEqual(rangesToScan(usual, [usual, usual + 2]), [usual]);
-  // It is on the second range, on any of its eight ports: the extension stays there.
-  assert.deepEqual(rangesToScan(usual, [second + PORTS_OF_A_SERVER - 1]), [second]);
-  // The port after a range's eight is the server's own for its agents' processes, and no agent's.
-  assert.deepEqual(rangesToScan(usual, [second + PORTS_OF_A_SERVER]), [usual, second, third]);
-  // A first port the user set is the only one, connected or not: a setup that names a port means that port.
-  assert.deepEqual(rangesToScan(5000, []), [5000]);
-  assert.deepEqual(rangesToScan(5000, [5003]), [5000]);
-  assert.deepEqual(rangesToScan(second, []), [second]);
+test('the ports that are looked at for the server: every one of the list, or the one the user set', () => {
+  const [usual, second, third] = PORTS;
+  // The server may be on any port of the list, where the system keeps the usual one back.
+  assert.deepEqual(portsToTry(usual), [usual, second, third]);
+  // A port the user set is the only one: a setup that names a port means that port.
+  assert.deepEqual(portsToTry(5000), [5000]);
+  assert.deepEqual(portsToTry(second), [second]);
 });
 
-test('the ranges of the list do not touch, and each leaves room for the server\'s own port after it', () => {
-  const sorted = [...FIRST_PORTS].sort((a, b) => a - b);
+test('the ports of the list are far apart and usable', () => {
+  const sorted = [...PORTS].sort((a, b) => a - b);
   for (let i = 1; i < sorted.length; i++) assert.ok(sorted[i] - sorted[i - 1] > 1000, 'far apart: a block the system keeps back is a hundred ports');
-  for (const first of FIRST_PORTS) assert.ok(first >= 1024 && first + PORTS_OF_A_SERVER <= 65535);
+  for (const port of PORTS) assert.ok(port >= 1024 && port <= 65535);
 });
 

@@ -2,11 +2,9 @@ package tabgoblin;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
@@ -15,35 +13,44 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import org.java_websocket.WebSocket;
+import org.java_websocket.exceptions.WebsocketNotConnectedException;
+import org.java_websocket.framing.CloseFrame;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The one server: every agent on this machine is connected to it. It listens on the loopback
- * address for the processes that agents' programs start ({@link Link}), has each prove that it
- * knows the pairing token and proves the same in return, and then serves that agent: its
- * conversation, by MCP or by the command line's own messages, its tools, and its own connection to
- * the extension ({@link Agent}).
+ * The one server: every agent on this machine is connected to it. It has one port, on the loopback
+ * address ({@link ExtensionServer}): the extension pairs there once, and the processes that agents'
+ * programs start ({@link Link}) connect there too, on the path {@code /link}. Each process proves
+ * that it knows the pairing token, the server proves the same in return, and the server then
+ * serves that agent: its conversation, by MCP or by the command line's own messages, its tools,
+ * and its view of the extension ({@link Agent}).
  *
- * <p>The agents share the process and nothing else. Each has its own port to the extension, its
- * own sessions and its own times; no tool tells one agent anything of another. What is one for
- * all is what the user has: the window, the log in it, and Stop.
+ * <p>The agents share the process and the connection to the browser, and nothing else: each has
+ * its own sessions and its own times, and no tool tells one agent anything of another. What is
+ * one for all is what the user has: the window, the log in it, and Stop.
  *
  * <p>It ends when its last agent has gone, or when the user stops it. A server that the user
  * started stays until it is stopped.
  */
-final class Hub {
+final class Hub implements ExtensionServer.Links {
 
     /** The reason a process is given when the user's settings have its interface off. */
     static final String INTERFACE_NOT_ALLOWED = "interface_not_allowed";
     /** How many MCP starts were turned away since this server started, because MCP is off: for the window. */
     private final java.util.concurrent.atomic.AtomicInteger turnedAway = new java.util.concurrent.atomic.AtomicInteger();
 
-    /** Longest line a process may send before it has proven itself. */
+    /** Longest message a process may send before it has proven itself. */
     private static final int MAX_HANDSHAKE_BYTES = 4096;
+    /** How long a process has to prove itself after it connected. */
+    private static final long HANDSHAKE_MS = 5_000;
     /** Failed proofs within a minute before nothing new is listened to for a while. */
     private static final int MAX_FAILED_PROOFS = 10;
     private static final long LOCKOUT_MS = 60_000;
@@ -51,24 +58,30 @@ final class Hub {
     static final long EMPTY_FOR_MS = 3_000;
     private volatile long emptyFor = EMPTY_FOR_MS;
     /**
-     * How long an agent that comes by commands is kept after its last command has left: its
-     * connection to the browser stays for the next command, which would otherwise have to wait
-     * until the extension has found the agent anew.
+     * How long an agent that comes by commands is kept after its last command has left: its view of
+     * the browser stays for the next command, with the tabs the extension reports for it.
      */
     static final long COMMAND_IDLE_MS = 10 * 60_000;
     private volatile long commandIdle = COMMAND_IDLE_MS;
 
     /** One connection of an agent's process, and the way it is written to. */
     private static final class Conn {
-        private final Socket socket;
+        private final WebSocket socket;
         private final LineOut out;
         private final AtomicBoolean gone = new AtomicBoolean();
+        /** The server's nonce of the handshake, until the process has proven itself. */
+        private final String nonce = Pairing.randomHex(16);
+        private volatile boolean proven;
+        /** The agent's messages, as the agent's conversation reads them: a message is a line there. */
+        private volatile PipedOutputStream toAgent;
         /** The conversation of one command; null for the one connection of an agent that stays connected. */
         private volatile Commands talk;
+        /** The agent this connection belongs to, once it is served. */
+        private volatile Member member;
 
-        private Conn(Socket socket, LineOut out) {
+        private Conn(WebSocket socket) {
             this.socket = socket;
-            this.out = out;
+            this.out = new LineOut(socket);
         }
     }
 
@@ -88,8 +101,8 @@ final class Hub {
         private Member() {
         }
 
-        private Member(Socket socket, LineOut out) {
-            links.add(new Conn(socket, out));
+        private Member(Conn conn) {
+            links.add(conn);
         }
 
         Agent agent() {
@@ -98,15 +111,15 @@ final class Hub {
     }
 
     /**
-     * Writes whole lines to a link, one at a time. The MCP conversation and what the server says to
-     * the link itself go down the same connection: a line of the one never lands inside a line of
+     * Writes whole lines to a link, one message each. The MCP conversation and what the server says
+     * to the link itself go down the same connection: a line of the one never lands inside a line of
      * the other.
      */
     static final class LineOut extends OutputStream {
-        private final OutputStream to;
+        private final WebSocket to;
         private final ByteArrayOutputStream line = new ByteArrayOutputStream();
 
-        LineOut(OutputStream to) {
+        LineOut(WebSocket to) {
             this.to = to;
         }
 
@@ -129,11 +142,15 @@ final class Hub {
         }
 
         private void send() throws IOException {
-            synchronized (to) {
-                line.writeTo(to);
-                to.flush();
-            }
+            String text = line.toString(StandardCharsets.UTF_8);
             line.reset();
+            // The line's end is the frame's end.
+            text = text.endsWith("\n") ? text.substring(0, text.length() - 1) : text;
+            try {
+                to.send(text);
+            } catch (WebsocketNotConnectedException | IllegalArgumentException e) {
+                throw new IOException("the link is gone", e);
+            }
         }
 
         /** A line for the link itself: what kind it is, and a text. Never thrown from: a link that is gone is found gone elsewhere. */
@@ -143,20 +160,16 @@ final class Hub {
             if (text != null) {
                 msg.put("text", text);
             }
-            byte[] bytes = (json.writeValueAsString(msg) + "\n").getBytes(StandardCharsets.UTF_8);
             try {
-                synchronized (to) {
-                    to.write(bytes);
-                    to.flush();
-                }
-            } catch (IOException e) {
+                to.send(json.writeValueAsString(msg));
+            } catch (RuntimeException e) {
                 // gone
             }
         }
     }
 
     private final Agent.Settings settings;
-    private final ServerSocket listening;
+    private final ExtensionServer server;
     private final ObjectMapper json = new ObjectMapper();
     private final List<Member> members = new CopyOnWriteArrayList<>();
     private final Deque<Long> failedProofs = new ArrayDeque<>();
@@ -168,12 +181,19 @@ final class Hub {
      * at once, and they have the one agent's sessions. Guards itself.
      */
     private final java.util.Map<String, Member> commanded = new java.util.HashMap<>();
+    /** The connections of processes, by their socket. */
+    private final java.util.Map<WebSocket, Conn> conns = new ConcurrentHashMap<>();
     /** Said by {@link #identify} to a command whose key an agent holds that stays connected. */
     private static final AgentKeys.Identity IN_USE = new AgentKeys.Identity("", null, false, () -> false);
     private final BiConsumer<String, String> logTo = this::passOn;
+    private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "tabgoblin-hub-timer");
+        t.setDaemon(true);
+        return t;
+    });
     private volatile boolean standing;
-    private volatile boolean held;
     private volatile boolean stopping;
+    private volatile boolean closed;
     private volatile long emptySince = System.currentTimeMillis();
     /** Shows the server's window; run when a link asks for it, or when the browser has to be paired. */
     private volatile Runnable window = () -> { };
@@ -183,36 +203,46 @@ final class Hub {
     private final AtomicBoolean cameUp = new AtomicBoolean();
     /** Run when the last agent has gone and stayed gone, unless the user started this server. */
     private volatile Runnable whenEmpty = () -> { };
-    /** Another server that runs on this machine and has the browser, or null: asked only when an agent finds no browser. */
-    private volatile java.util.function.Function<RunningServers.Fit, BrowserService.Elsewhere> others = mine -> null;
-    /** Told when the browser comes or goes, and whether it was here at the last look; on the thread that watches. */
-    private volatile java.util.function.Predicate<Boolean> onBrowser = browser -> true;
-    private boolean hadBrowser;
-    /** Held while the browser's coming or going is told, and while the server begins to stop: nothing is told after that. */
-    private final Object browserLock = new Object();
 
-    private Hub(Agent.Settings settings, ServerSocket listening, boolean standing) {
+    private Hub(Agent.Settings settings, ExtensionServer server, boolean standing) {
         this.settings = settings;
-        this.listening = listening;
+        this.server = server;
         this.standing = standing;
     }
 
     /**
-     * Begins to listen for links, on the port after the agents' own.
+     * Begins to listen on the one port: for the extension, and for the agents' processes.
      *
      * @param standing the user started this server: it stays when no agent is connected
      * @throws IOException if the port is taken: there is a server already, or another program has it
      */
     static Hub open(Agent.Settings settings, boolean standing) throws IOException {
-        ServerSocket socket = new ServerSocket(Link.port(settings.port()), 50, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}));
-        Hub hub = new Hub(settings, socket, standing);
+        ExtensionServer server = new ExtensionServer(settings.port(), settings.token(), settings.extensionOrigin());
+        server.blockedSites(settings.blocked());
+        Hub hub = new Hub(settings, server, standing);
+        server.links(hub);
+        try {
+            server.startAndWait();
+        } catch (Exception e) {
+            try {
+                server.stop(100);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            throw e instanceof IOException io ? io : new IOException("port " + settings.port() + " could not be listened on", e);
+        }
         Log.written(hub.logTo);
-        Log.info("server listening for agents port=" + socket.getLocalPort());
+        Log.info("server listening port=" + server.getPort());
         return hub;
     }
 
     int port() {
-        return listening.getLocalPort();
+        return server.getPort();
+    }
+
+    /** The server's one connection to the browser, which every agent's view is of. */
+    ExtensionServer server() {
+        return server;
     }
 
     /** The agents that are connected, in the order they came. */
@@ -230,7 +260,7 @@ final class Hub {
     }
 
     boolean held() {
-        return held;
+        return server.isHeld();
     }
 
     void window(Runnable show) {
@@ -247,55 +277,30 @@ final class Hub {
     }
 
     /**
-     * Asked when a tool of one agent finds no browser on that agent's connection: what the server
-     * knows of it. If a browser came to one of its agents with a token that is not the server's,
-     * the user has to paste the token: the window, where it is copied, comes up by itself, once
-     * until something is paired. Where no browser has come at all, none does: a paired extension
-     * is on its way as a rule.
+     * Asked when a tool of one agent finds no browser: what the server knows of it. If a browser
+     * came with a token that is not the server's, the user has to paste the token: the window,
+     * where it is copied, comes up by itself, once until something is paired. Where no browser has
+     * come at all, none does: a paired extension is on its way as a rule.
      *
      * @param quiet the agent's process was started with --no-panel: no window comes up for it
-     * @param mine  what the agent's process would start its own server under; null if it did not say
      */
-    BrowserService.Unpaired unpaired(boolean quiet, RunningServers.Fit mine) {
-        // Paired on the token as it is now: after a new token an agent's old pairing is still open for a moment.
-        if (agents().stream().anyMatch(agent -> agent.bridge().pairedOnCurrentToken())) {
+    BrowserService.Unpaired unpaired(boolean quiet) {
+        // Paired on the token as it is now: after a new token the old pairing is still open for a moment.
+        if (server.pairedOnCurrentToken()) {
             cameUp.set(false);
             return new BrowserService.Unpaired(true, false, windowUp.getAsBoolean());
         }
-        boolean refused = agents().stream().anyMatch(agent -> agent.bridge().lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED);
-        if (refused && !quiet && !held && cameUp.compareAndSet(false, true)) {
+        boolean refused = server.lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED;
+        if (refused && !quiet && !server.isHeld() && cameUp.compareAndSet(false, true)) {
             Log.info("window asked for reason=browser_has_another_token");
             window.run();
         }
-        // A browser that came here with another token is not at another server. Otherwise another server's file that
-        // says it has the browser is fresh, whatever happened here before: that server writes it again when the browser goes.
-        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean(), refused ? null : others.apply(mine));
+        return new BrowserService.Unpaired(false, refused, windowUp.getAsBoolean());
     }
 
-    /** @param other whether another server on this machine has the browser, and whether it runs as the asking process would, or null */
-    void others(java.util.function.Function<RunningServers.Fit, BrowserService.Elsewhere> other) {
-        this.others = other;
-    }
-
-    /** Whether the browser is connected to one of this server's agents. */
+    /** Whether the browser is connected to this server. */
     boolean hasBrowser() {
-        return agents().stream().anyMatch(agent -> agent.bridge().isExtensionConnected());
-    }
-
-    /**
-     * @param changed told when the browser has come to this server, or has gone from it; says whether it could act on
-     *                it, and is told again at the next look if it could not
-     */
-    void onBrowser(java.util.function.Predicate<Boolean> changed) {
-        this.onBrowser = changed;
-    }
-
-    /** What the process that attached said it would start its own server under, or null. */
-    private static RunningServers.Fit fitOf(JsonNode ask) {
-        if (!ask.path("settings").isString() || !ask.path("origin").isString()) {
-            return null;
-        }
-        return new RunningServers.Fit(ask.path("settings").asString(), ask.path("origin").asString());
+        return server.isConnected();
     }
 
     /** Shows the server's window, or brings it up if it is there already. */
@@ -308,162 +313,207 @@ final class Hub {
     }
 
     /**
-     * Switches every agent's connection to the browser off or on, for the window's switch. An
-     * agent that connects while it is off starts with its connection off.
+     * Switches the connection to the browser off or on, for the panel. Off closes the connection
+     * and takes no new one; the agents' tools say so. On lets the extension pair again.
      */
     void setHeld(boolean off) {
-        held = off;
-        for (Agent agent : agents()) {
-            agent.bridge().setHeld(off);
-        }
+        server.setHeld(off);
     }
 
-    /** Takes links until the server is closed. Each is dealt with on a thread of its own. */
+    /** Serves until the server is closed: watches for the last agent to go, and lets idle agents of the command line go. */
     void serve() {
-        Thread emptiness = new Thread(this::watchEmptiness, "tabgoblin-hub-empty");
-        emptiness.setDaemon(true);
-        emptiness.start();
-        while (!listening.isClosed()) {
-            Socket socket;
-            try {
-                socket = listening.accept();
-            } catch (IOException e) {
-                break;
+        watchEmptiness();
+    }
+
+    // ---------------------------------------------------------------- the links
+
+    @Override
+    public void opened(WebSocket socket) {
+        if (lockedOut()) {
+            Log.warn("link rejected reason=lockout");
+            socket.close(CloseFrame.POLICY_VALIDATION, "lockout");
+            return;
+        }
+        Conn conn = new Conn(socket);
+        conns.put(socket, conn);
+        ObjectNode hello = json.createObjectNode();
+        hello.put("type", "hello");
+        hello.put("nonce", conn.nonce);
+        hello.put("link", Link.VERSION);
+        try {
+            socket.send(json.writeValueAsString(hello));
+        } catch (RuntimeException e) {
+            conns.remove(socket);
+            return;
+        }
+        timer.schedule(() -> {
+            if (!conn.proven && socket.isOpen()) {
+                socket.close(CloseFrame.POLICY_VALIDATION, "no proof in time");
             }
-            Thread thread = new Thread(() -> welcome(socket), "tabgoblin-hub-link");
-            thread.setDaemon(true);
-            thread.start();
+        }, HANDSHAKE_MS, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void message(WebSocket socket, String text) {
+        Conn conn = conns.get(socket);
+        if (conn == null) {
+            socket.close(CloseFrame.POLICY_VALIDATION, "unknown link");
+            return;
+        }
+        if (conn.proven) {
+            // The agent's own message: a line of its conversation.
+            PipedOutputStream toAgent = conn.toAgent;
+            if (toAgent == null) {
+                return;
+            }
+            try {
+                toAgent.write((text + "\n").getBytes(StandardCharsets.UTF_8));
+                toAgent.flush();
+            } catch (IOException e) {
+                // The agent's side has ended: the connection is on its way out.
+            }
+            return;
+        }
+        if (text.length() > MAX_HANDSHAKE_BYTES) {
+            socket.close(CloseFrame.TOOBIG, "handshake too long");
+            return;
+        }
+        welcome(conn, text);
+    }
+
+    @Override
+    public void closed(WebSocket socket, int code) {
+        Conn conn = conns.remove(socket);
+        if (conn == null) {
+            return;
+        }
+        PipedOutputStream toAgent = conn.toAgent;
+        if (toAgent != null) {
+            try {
+                // The agent's conversation reads the end of its input: that is the agent's going.
+                toAgent.close();
+            } catch (IOException e) {
+                // closing anyway
+            }
+        }
+        Member member = conn.member;
+        if (member != null && conn.talk != null) {
+            commandLeft(member, conn);
         }
     }
 
     /** The first exchange with a process that connected: proofs both ways, and what it wants. */
-    private void welcome(Socket socket) {
+    private void welcome(Conn conn, String text) {
+        WebSocket socket = conn.socket;
         boolean kept = false;
         Member joining = null;
         String byKey = null;
         String commandOf = null;
         try {
-            socket.setSoTimeout(5000);
-            socket.setTcpNoDelay(true);
-            if (lockedOut()) {
-                Log.warn("link rejected reason=lockout");
-                return;
-            }
-            String nonce = Pairing.randomHex(16);
-            OutputStream to = socket.getOutputStream();
-            ObjectNode hello = json.createObjectNode();
-            hello.put("type", "hello");
-            hello.put("nonce", nonce);
-            hello.put("link", Link.VERSION);
-            line(to, hello);
-            JsonNode ask = json.readTree(readLine(socket.getInputStream()));
+            JsonNode ask = json.readTree(text);
             String type = ask.path("type").asString("");
             String linkNonce = ask.path("nonce").asString("");
             String current = settings.token().get();
             boolean proven = (type.equals("attach") || type.equals("show") || type.equals("turned_away"))
                     && linkNonce.length() >= 16 && linkNonce.length() <= 128
-                    && Pairing.constantTimeEquals(ask.path("proof").asString(""), Pairing.linkProof(current, nonce, linkNonce));
+                    && Pairing.constantTimeEquals(ask.path("proof").asString(""), Pairing.linkProof(current, conn.nonce, linkNonce));
             if (!proven) {
                 noteFailedProof();
                 Log.warn("link rejected reason=proof");
-                refuse(to, "proof");
+                refuse(socket, "proof");
                 return;
             }
             if (ask.path("link").asInt(0) != Link.VERSION) {
                 Log.warn("link rejected reason=version peer=" + ask.path("link").asInt(0));
-                refuse(to, "link_of_another_version");
+                refuse(socket, "link_of_another_version");
                 return;
             }
             if (stopping) {
-                refuse(to, "server_stopping");
+                refuse(socket, "server_stopping");
                 return;
             }
             ObjectNode answer = json.createObjectNode();
-            answer.put("proof", Pairing.hubProof(current, nonce, linkNonce));
+            answer.put("proof", Pairing.hubProof(current, conn.nonce, linkNonce));
             if (type.equals("show")) {
                 // The user ran the command for the window: it is theirs to close, so the server stays for them.
                 standing = true;
                 window.run();
                 answer.put("type", "shown");
-                line(to, answer);
+                socket.send(json.writeValueAsString(answer));
                 return;
             }
             boolean command = ask.path("cli").asBoolean(false);
             BlockedSites.Rule policy = settings.blocked().get();
             boolean off = !policy.everything() && !policy.limits().allows(command);
             if (type.equals("turned_away")) {
-                // An MCP start that found MCP off before it reached this server: counted, so that the window
-                // can say that something tried. Not counted where the settings say otherwise by now.
+                // An MCP start that found MCP off before it reached this server: counted while MCP is off here too,
+                // so that the window can say how many were turned away. Nothing of the agent's follows.
                 if (off) {
                     turnedAway.incrementAndGet();
-                    Log.warn("MCP agent turned away reason=interface_off interfaces=" + policy.limits().interfaces().replace(", ", ","));
                 }
                 answer.put("type", "counted");
-                line(to, answer);
+                socket.send(json.writeValueAsString(answer));
                 return;
             }
             if (off) {
-                // The user's settings have this interface off: no agent comes this way. Said in the log, for the window.
+                // The user's settings have this interface off: said in the window, and the process is told why.
                 if (!command) {
                     turnedAway.incrementAndGet();
                 }
-                Log.warn((command ? "command" : "MCP agent") + " turned away reason=interface_off interfaces="
-                        + policy.limits().interfaces().replace(", ", ","));
-                refuse(to, INTERFACE_NOT_ALLOWED);
+                Log.warn("link refused reason=" + INTERFACE_NOT_ALLOWED + " interface=" + (command ? "cli" : "mcp"));
+                refuse(socket, INTERFACE_NOT_ALLOWED);
                 return;
             }
-            // Who the agent is, before anything is said to it: a key that is not proven is no agent of this server.
-            AgentKeys.Identity identity = identify(ask, nonce, linkNonce, command);
+            AgentKeys.Identity identity = identify(ask, conn.nonce, linkNonce, command);
             if (identity == null) {
                 noteFailedProof();
                 Log.warn("link rejected reason=agent_proof");
-                refuse(to, "agent_proof");
+                refuse(socket, "agent_proof");
                 return;
             }
             if (identity == IN_USE) {
-                // A key has one agent at a time: a command does not become a second one beside it, and is not let into the first.
-                Log.warn("command rejected reason=agent_in_use");
-                refuse(to, "agent_in_use");
+                Log.warn("command refused reason=agent_in_use");
+                refuse(socket, "agent_in_use");
                 return;
             }
             commandOf = command && identity.persistent() ? identity.id() : null;
             answer.put("type", "attached");
-            line(to, answer);
+            // The agent's conversation reads its input from here: a pipe that the connection's messages are lines of.
+            PipedOutputStream toAgent = new PipedOutputStream();
+            PipedInputStream fromLink = new PipedInputStream(toAgent, 1 << 16);
+            conn.toAgent = toAgent;
+            conn.proven = true;
+            socket.send(json.writeValueAsString(answer));
             if (ask.path("panel").asBoolean(false)) {
                 window.run();
             }
-            socket.setSoTimeout(0);
-            LineOut out = new LineOut(to);
+            boolean quiet = ask.path("quiet").asBoolean(false);
             if (commandOf != null) {
                 // The key's agent is taken from here on by the list of those that come by commands.
-                serveCommand(identity, socket, out, ask.path("quiet").asBoolean(false), ask.path("setup_port").asInt(0), fitOf(ask));
+                serveCommand(identity, conn, fromLink, quiet);
                 kept = true;
                 return;
             }
             byKey = identity.persistent() ? identity.id() : null;
-            Member member = new Member(socket, out);
+            Member member = new Member(conn);
+            conn.member = member;
             // In the list before it is served: its first lines in the log are passed on to it.
             joining = member;
             member.byKey = byKey;
             members.add(member);
             emptySince = 0;
-            boolean quiet = ask.path("quiet").asBoolean(false);
-            RunningServers.Fit mine = fitOf(ask);
             if (command) {
                 // A command of a name that has no agent to keep (the user revoked it): served once, by the
                 // command line's own conversation, on an agent that goes with it. Every tool says why.
-                member.agent = Agent.open(settings, held, () -> unpaired(quiet, mine), identity, true);
-                noteSetup(member.agent, ask.path("setup_port").asInt(0));
+                member.agent = Agent.open(settings, server, () -> unpaired(quiet), identity, true);
                 member.agent.announce();
                 // One whose key could not be read or made has no label: it is not called "null".
                 String called = identity.label() == null ? "command line" : identity.label() + " (command line)";
-                member.links.get(0).talk = Commands.serve(member.agent.service(), socket.getInputStream(), out,
-                        called, () -> left(member));
+                conn.talk = Commands.serve(member.agent.service(), fromLink, conn.out, called, () -> left(member));
                 kept = true;
                 return;
             }
-            member.agent = Agent.serve(settings, socket.getInputStream(), out, () -> left(member), held, () -> unpaired(quiet, mine), identity);
-            noteSetup(member.agent, ask.path("setup_port").asInt(0));
+            member.agent = Agent.serve(settings, server, fromLink, conn.out, () -> left(member), () -> unpaired(quiet), identity);
             member.agent.announce();
             kept = true;
         } catch (IOException | RuntimeException e) {
@@ -481,7 +531,8 @@ final class Hub {
                         }
                     }
                 }
-                close(socket);
+                conns.remove(socket);
+                closeSocket(socket);
                 // One that was taken into the list and could not be served is not kept there: a server
                 // that counts an agent it does not have never ends.
                 if (joining != null && members.remove(joining) && members.isEmpty()) {
@@ -551,21 +602,10 @@ final class Hub {
 
     /**
      * One command of an agent that comes by commands. The agent is made at its first command and
-     * stays between them, with its connection to the extension; a command is one conversation of
-     * the command line's own with it ({@link Commands}), and ends with its process.
+     * stays between them, with its view of the browser; a command is one conversation of the
+     * command line's own with it ({@link Commands}), and ends with its process.
      */
-    /**
-     * An agent whose setup names another first port than this server's came here, because this one
-     * has the browser and runs as its setup asks: its status says so. Its own port is said, and no other.
-     */
-    private void noteSetup(Agent agent, int setupPort) {
-        int first = listening.getLocalPort() - McpMain.PORT_RANGE;
-        agent.service().cameFrom(setupPort > 0 && setupPort != first ? setupPort : 0);
-    }
-
-    private void serveCommand(AgentKeys.Identity identity, Socket socket, LineOut out, boolean quiet, int setupPort,
-            RunningServers.Fit mine) throws IOException {
-        Conn conn = new Conn(socket, out);
+    private void serveCommand(AgentKeys.Identity identity, Conn conn, PipedInputStream fromLink, boolean quiet) {
         Member member;
         synchronized (commanded) {
             member = commanded.get(identity.id());
@@ -576,20 +616,19 @@ final class Hub {
                 member.byKey = identity.id();
                 members.add(member);
                 emptySince = 0;
-                member.agent = Agent.open(settings, held, () -> unpaired(quiet, mine), identity, true);
+                member.agent = Agent.open(settings, server, () -> unpaired(quiet), identity, true);
                 member.agent.announce();
                 commanded.put(identity.id(), member);
             }
-            // Each command says its setup's port: the last one's is what its status speaks of.
-            noteSetup(member.agent, setupPort);
             member.links.add(conn);
             member.idleSince = 0;
         }
+        conn.member = member;
         Member its = member;
         try {
-            conn.talk = Commands.serve(member.agent.service(), socket.getInputStream(), out, identity.label() + " (command line)",
+            conn.talk = Commands.serve(member.agent.service(), fromLink, conn.out, identity.label() + " (command line)",
                     () -> commandLeft(its, conn));
-        } catch (IOException | RuntimeException e) {
+        } catch (RuntimeException e) {
             commandLeft(its, conn);
             throw e;
         }
@@ -605,7 +644,7 @@ final class Hub {
         }
         Thread ending = new Thread(() -> {
             closeTalk(conn);
-            close(conn.socket);
+            closeSocket(conn.socket);
             synchronized (commanded) {
                 member.links.remove(conn);
                 if (member.links.isEmpty()) {
@@ -647,32 +686,15 @@ final class Hub {
         }
     }
 
-    private void refuse(OutputStream to, String reason) throws IOException {
+    private void refuse(WebSocket to, String reason) {
         ObjectNode no = json.createObjectNode();
         no.put("type", "refused");
         no.put("reason", reason);
-        line(to, no);
-    }
-
-    private void line(OutputStream to, ObjectNode message) throws IOException {
-        to.write((json.writeValueAsString(message) + "\n").getBytes(StandardCharsets.UTF_8));
-        to.flush();
-    }
-
-    /** One line, byte by byte, so that nothing behind it is taken from the stream: that is the agent's. */
-    private static String readLine(InputStream in) throws IOException {
-        ByteArrayOutputStream line = new ByteArrayOutputStream();
-        int b;
-        while ((b = in.read()) >= 0 && b != '\n') {
-            if (line.size() >= MAX_HANDSHAKE_BYTES) {
-                throw new IOException("line too long");
-            }
-            line.write(b);
+        try {
+            to.send(json.writeValueAsString(no));
+        } catch (RuntimeException e) {
+            // gone
         }
-        if (b < 0 && line.size() == 0) {
-            throw new IOException("closed");
-        }
-        return line.toString(StandardCharsets.UTF_8);
     }
 
     private synchronized void noteFailedProof() {
@@ -706,7 +728,7 @@ final class Hub {
                 present.remove(member.byKey);
             }
             members.remove(member);
-            member.links.forEach(conn -> close(conn.socket));
+            member.links.forEach(conn -> closeSocket(conn.socket));
             if (members.isEmpty()) {
                 emptySince = System.currentTimeMillis();
             }
@@ -717,22 +739,13 @@ final class Hub {
 
     /** Ends the server when its last agent has gone and none has come since, unless the user started it. */
     private void watchEmptiness() {
-        while (!listening.isClosed()) {
+        while (!closed) {
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
                 return;
             }
             letIdleGo();
-            synchronized (browserLock) {
-                // A server that stops closes its agents, and the browser goes with them: that is not told, so that
-                // what is written of this server is not written again after it was taken out.
-                boolean browser = !stopping && hasBrowser();
-                if (!stopping && browser != hadBrowser && onBrowser.test(browser)) {
-                    // Where what was told could not be acted on, it is told again at the next look.
-                    hadBrowser = browser;
-                }
-            }
             long since = emptySince;
             if (!standing && !stopping && members.isEmpty() && since > 0 && System.currentTimeMillis() - since >= emptyFor) {
                 Log.info("server ending reason=no_agent_left");
@@ -757,9 +770,7 @@ final class Hub {
      * them starts the server anew; then each agent's part is ended, and the port is given up.
      */
     void close() {
-        synchronized (browserLock) {
-            stopping = true;
-        }
+        stopping = true;
         Log.unwritten(logTo);
         for (Member member : members) {
             member.links.forEach(conn -> conn.out.control("stopping", null, json));
@@ -770,27 +781,37 @@ final class Hub {
             if (agent != null) {
                 agent.close();
             }
-            member.links.forEach(conn -> close(conn.socket));
+            member.links.forEach(conn -> closeSocket(conn.socket));
         }
         members.clear();
+        end();
+    }
+
+    private void end() {
+        closed = true;
+        timer.shutdownNow();
         try {
-            listening.close();
-        } catch (IOException e) {
+            server.stop(1000);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (RuntimeException e) {
             // ending anyway
         }
     }
 
-    private static void close(Socket socket) {
+    private static void closeSocket(WebSocket socket) {
         try {
-            socket.close();
-        } catch (IOException e) {
+            if (socket.isOpen()) {
+                socket.close(CloseFrame.NORMAL, "");
+            }
+        } catch (RuntimeException e) {
             // closing anyway
         }
     }
 
     /** For tests: whether the port is still listened on. */
     boolean open() {
-        return !listening.isClosed();
+        return !closed;
     }
 
     /** How long an agent that comes by commands is kept without one, where it is not {@link #COMMAND_IDLE_MS}. */
@@ -805,25 +826,18 @@ final class Hub {
 
     /**
      * For tests: ends as a process that is killed ends, without a word to anyone. The links find
-     * their connections gone, and the extension its sockets.
+     * their connections gone, and the extension its socket.
      */
     void drop() {
-        synchronized (browserLock) {
-            stopping = true;
-        }
+        stopping = true;
         Log.unwritten(logTo);
-        try {
-            listening.close();
-        } catch (IOException e) {
-            // gone anyway
-        }
         for (Member member : members) {
-            member.links.forEach(conn -> close(conn.socket));
             Agent agent = member.agent;
             if (agent != null) {
                 agent.close();
             }
         }
         members.clear();
+        end();
     }
 }

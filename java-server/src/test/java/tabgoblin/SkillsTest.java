@@ -105,7 +105,7 @@ class SkillsTest {
 
     @Test
     void aSkillNamesTheServersToolsAndNoOtherAndOnlyCodesTheToolReferenceKnows() throws Exception {
-        WebSocketBridge bridge = new WebSocketBridge(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
+        WebSocketBridge bridge = new WebSocketBridge(null, "c-tools");
         Set<String> tools = new TreeSet<>();
         McpMain.toolSpecs(new BrowserService(bridge, null), McpJsonDefaults.getMapper()).forEach(spec -> tools.add(spec.tool().name()));
         assertEquals(14, tools.size());

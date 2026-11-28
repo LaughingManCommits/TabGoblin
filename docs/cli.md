@@ -41,7 +41,7 @@ with a letter or a digit); the same name at every command is the same agent, wit
 and makes the agent known. It may take up to ten seconds, and answers:
 
 ```json
-{"ok":true,"tool":"browser_status","text":"Extension: connected (protocol 3)\nThis agent: …\nAuthorized origin: none\nAsk the user to open the site in Chrome, click the TabGoblin icon, and authorize that tab."}
+{"ok":true,"tool":"browser_status","text":"Extension: connected (protocol 1)\nThis agent: …\nAuthorized origin: none\nAsk the user to open the site in Chrome, click the TabGoblin icon, and authorize that tab."}
 ```
 
 **2. You authorize a tab.** Open a website in Chrome and click the TabGoblin icon on that tab.
@@ -99,7 +99,7 @@ The tool's own name is taken as well (`tabgoblin browser_click …`). One more c
 | `--args <json>` | All arguments as one JSON object. `--args -` reads it from standard input and `--args-file <path>` from a file: for text with quotes or line breaks, and where a shell's quoting is in the way (on Windows above all). Single arguments given beside it come on top |
 | `--out <path>` | With `screenshot`: the image is written to that file, and the answer names the file in place of the data |
 | `--plain` | The answer is printed as the text it is, in place of the JSON object: see [below](#the-answer-as-text) |
-| Server options | `--port`, `--token-file`, `--settings`, `--extension-origin`, `--panel` and `--no-panel`, as [for the server](developer-guide.md#settings). Only needed where the server was started with them: a command has to name the same token file to reach the same server. A command without `--port` finds a server on a port of the user's own as well ([processes and ports](architecture.md#processes-and-ports)); one with `--port` goes to a server that has the browser only where that one reads the same settings file and lets in the same extension, and otherwise looks at its own port alone; its `status` says which |
+| Server options | `--port`, `--token-file`, `--settings`, `--extension-origin`, `--panel` and `--no-panel`, as [for the server](developer-guide.md#settings). Only needed where the server was started with them: a command has to name the same token file and the same port to reach the same server ([processes and ports](architecture.md#processes-and-ports)) |
 
 An argument the tool does not have, a value of another type, a value outside a fixed set and a
 missing required argument are refused before anything is sent (`USAGE`, exit code 2). Whatever
@@ -206,13 +206,13 @@ sequenceDiagram
   break no server, the command line turned off, or the name held by an MCP agent
     C-->>A: NO_SERVER, INTERFACE_NOT_ALLOWED or AGENT_IN_USE, exit code 3, nothing was sent
   end
-  S->>S: first command of this key: make the agent, open its port
-  X->>S: finds the agent's port and pairs
+  S->>S: first command of this key: make the agent, name it to the extension
+  X->>S: has the agent at once, on the one connection
   C->>S: call { tool, arguments }
   S-->>C: result
   C-->>A: one JSON object and an exit code
   Note over C: the process ends
-  Note over S,X: the agent, its port and its sessions stay
+  Note over S,X: the agent and its sessions stay
   A->>C: tabgoblin snapshot --agent my-agent (a new process)
   C->>S: prove token and agent key: same key, same agent
   C->>S: call { tool, arguments }

@@ -59,83 +59,37 @@ is told (proposal: the code for an expired authorization).
 ### WP-33: One port for the server, one connection for the browser
 
 Filed 2026-11-28, on the owner's word ("go, one port, drop the servers folder, new branch after
-merge"). Decided: one port for everything; the `servers` folder goes; built on a branch from
-`main` after pull request 15 is merged.
+merge"); built the same day on branch `one-port`, from `main` at `0d54694`. Open until the owner
+has merged it and the acceptance by hand below has been done.
 
-**Why.** Each agent has a WebSocket port of its own to the extension, eight for a server, and the
-agents' processes reach the server on the ninth. That is from before there was one server for all
-agents. Everything intricate about ports follows from it: the fallback ranges of eight, the
-extension looking at 24 ports, the limit of eight agents, a command-line agent holding a port for
-ten minutes, the `servers` folder with what a server writes of itself, and the question which
+**Why.** Each agent had a WebSocket port of its own to the extension, eight for a server, and
+the agents' processes reached the server on the ninth. That was from before there was one server
+for all agents. Everything intricate about ports followed from it: the fallback ranges of eight,
+the extension looking at 24 ports, the limit of eight agents, a command-line agent holding a port
+for ten minutes, the `servers` folder with what a server writes of itself, and the question which
 server the browser is at. With one port, one server for a machine is what the operating system
 enforces: a second process finds the port taken and joins.
 
-**What it is.**
+**What it is.** The server listens on one port (default 47821, then 37821, then 27821 where the
+system keeps one back; `--port` and the popup's *Port* name one port). The extension opens one
+WebSocket to it and pairs once; the agents travel inside that connection, each named by its id
+(`agents` from the server, `agent` on every command and event, `agents_refused` from the
+extension for those the user disconnected). The agents' processes reach the server over the same
+port, as WebSocket connections on the path `/link`, one message a frame. Protocol version 1,
+counted anew from this release; a peer of the release before (which said 3) is refused with the
+word to update both. The status says the server's port and no port of the agent's; the window
+and the popup list agents without ports. Described in
+[architecture.md](docs/architecture.md#processes-and-ports) and the
+[protocol reference](docs/development.md#protocol-reference).
 
-1. The server listens on one port (default 47821, then 37821, then 27821 where the system keeps
-   one back; `--port` and the popup's *First port* name one port). The extension opens one
-   WebSocket to it and pairs once, with the proofs as they are. The agents' processes reach the
-   server over the same port, as WebSocket connections on the path `/link`, carrying the link's
-   messages (`hello`, `attach`, `attached`, `refused`, the MCP stream or the command line's
-   three) as text frames, one message a frame; the Java library has the client side
-   (`org.java_websocket.client.WebSocketClient`). The extension's path is `/`, and its `Origin`
-   is checked as now; a connection on `/link` carries no origin.
-2. The agents travel inside the one connection. The server tells the extension its agents
-   (`agents`: id, name, whether it has a key) when it pairs and when one comes or goes; every
-   command carries the agent's id; every event and answer the agent it is for. The extension
-   keeps per agent what it keeps now (sessions by id, the rate limit, the ids seen); what is the
-   server's (blocked sites, the policy) is kept once. The server is proven once by the token; the
-   agents' ids are what the server says of agents it has proven by their keys, as the extension
-   already took them from `auth_ok`.
-3. An agent the user disconnected is refused by the extension by its id (`canUse`, as now), and
-   the server is told (`agent_refused`), so that agent's tools say what they say now
-   (`CLOSE_USER_DISCONNECTED` becomes a per-agent state, not a close code).
-4. Protocol version 4; a peer of 3 is refused, with the message that both have to be of one
-   release.
-5. The status says the server's port (`Listening on: ws://127.0.0.1:47821`) and no port of the
-   agent's; the `Ports:` note names one port where a fallback was taken; the window and the
-   popup list agents without ports.
-
-**What goes.** `RunningServers`, `Ports`, `Fit`, `Elsewhere`, `setup_port`, `settings` and
-`origin` in the link's `attach`, `cameFrom`, `serveAlone`, the per-agent `WebSocketBridge`
-(one bridge for the server), `Agent.open`'s hunt for a free port, `PORT_RANGE`, `FIRST_PORTS`,
-`rangesToScan`, `PORTS_OF_A_SERVER`, the scan in `background.ts`, the eight-agent limit, the
-ten-minute hold of a command-line agent's port (`commandIdle` stays for the agent, not a port),
-the popup's `:port` beside an agent, the window's port rows, and the architecture page's
-"Processes and ports" from the ranges on.
-
-**What stays.** The fallback list, as three single ports (the extension looks at each while no
-server is connected). A user-chosen port set in two places; when they differ the status says so
-plainly ("the browser is not connected to this server; the popup's First port has to be X").
-Pairing, the proofs, the token, the agents' keys, the lockout, the rate limits, the policy
-message, the heartbeat and `serverGone`, the panel, the switch in the window.
-
-**Where.** Server: `WebSocketBridge` (one per hub, path routing, agent ids on messages),
-`ExtensionConnection` (per agent view over the one connection), `Agent` (no bridge of its own),
-`Hub` and `Link` (WebSocket frames in place of lines; `Hub` no longer a `ServerSocket`),
-`McpMain` (`openWhereThePortsAre` for one port), `PanelModel`, `BrowserService` (status lines,
-`Unpaired` simplified: the browser is at this server or not), `Protocol`. Extension:
-`background.ts` (`connectPort` becomes `connect`, `clients` becomes one server with agents,
-`onCommand` by agent id), `protocol.ts`, `policy.ts` (ports out), `popup.ts`. Tests: the
-extension's `background.test.ts` (the fake server speaks the new frames), `policy.test.ts`,
-`protocol.test.ts`; the server's `WebSocketBridgeTest`, `HubTest`, `AgentPortsTest` (goes),
-`PortsTest` (goes), `RunningServersTest` (goes), `McpMainTest`, `PanelModelTest`; the end-to-end
-suite's assertions on ports (`on port`, `wsPort + 8`, `freeRange`, "a port of its own") and the
-window's section. Docs: `architecture.md` (processes and ports, the connection), `development.md`
-(protocol reference, version 4), `tool-reference.md` (the status), `security-model.md` (agent
-identity: what the extension takes from the server), `installation.md` (troubleshooting row on
-ports), `developer-guide.md` (settings), the six skills if a status line they quote changes.
-
-**Acceptance.** The three suites and the end-to-end suite pass; by hand with real processes: two
-agents through one server over one port, a command-line agent beside an MCP agent, an agent
-leaving, the server ending after its last agent, Kill and Stop in the window, a user-chosen port
-set in both places, the default port kept back (simulated by a program holding it) and the
-fallback taken, and the extension of this release refusing a server of the one before.
-
-**Risks.** The biggest change to the protocol since version 3; extension and server must be
-updated together (as already required). The link over WebSocket frames instead of lines touches
-`Link`'s reconnection and the command line's three messages. The eight-agent limit's removal
-changes what the window shows with many agents. Two to three sessions.
+**Acceptance.** The three suites and the end-to-end suite pass (done, see the validation log);
+the suite has two agents through one server, a command-line agent beside an MCP agent, an agent
+leaving, the server ending after its last agent, a chosen port set in both places, and a server
+of another protocol version refused. Seen with real processes: a program that holds the usual
+port makes each agent's process serve its agent alone and say why (taken, not kept back: a held
+port is never stepped over, only one the system keeps back is, `Ports.usable`), and the processes
+end in order. Not yet done: Kill and Stop in the window on Windows, and a port the system keeps
+back with the fallback taken, which only a Windows machine with such a range shows.
 
 ## Small faults, found and not mended
 

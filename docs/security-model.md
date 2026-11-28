@@ -180,10 +180,11 @@ including a secret that a page displays as ordinary text.
 **Risk.** One local agent uses tabs that were authorized for another; a restarted program
 inherits access by claiming a name.
 
-**Mitigation.** All agents are served by one process, and each is a separate authenticated
-connection to the extension with its own id. A session has one owner, and every command is
-checked against it. Another agent cannot list, read or act on it, and a forged session id is
-refused.
+**Mitigation.** All agents are served by one process, which has one authenticated connection
+to the extension; on it each agent has an id of its own, which the server derived from the
+agent's proven key, and every command, event and answer names its agent. A session has one
+owner, and every command is checked against it. Another agent cannot list, read or act on it,
+and a forged session id is refused.
 
 - **Identity by key.** A program names its agent with `--agent <name>`. The name selects a key
   of 256 random bits in a file of its own (`agents/<name>.key` beside the pairing token),
@@ -476,12 +477,12 @@ or impersonates the server to the extension.
 
 | Protection | Detail |
 |---|---|
-| Loopback only | The server binds `127.0.0.1`, for the extension and for the agents' processes |
-| Origin pinning | The WebSocket handshake must carry this extension's `chrome-extension://` origin, which a web page cannot forge |
+| Loopback only | The server binds `127.0.0.1`, one port for the extension and for the agents' processes |
+| Origin pinning | The extension's WebSocket handshake must carry this extension's `chrome-extension://` origin, which a web page cannot forge. An agent's process connects on the path `/link` and carries none, and a page cannot make that connection: the browser sends an `Origin` with every WebSocket a page opens |
 | Mutual proof | HMAC-SHA256 challenge and response over the pairing token in both directions. The token is not sent, so a process that takes the port cannot drive the browser either |
 | Agents' processes prove themselves | A process that attaches to the server proves the pairing token, with a prefix different from the extension's pairing, and a named agent's key as well |
-| Version negotiation | A peer of another protocol version is refused with a reason. The version is 3 |
-| Lockout | Ten failed pairings block new connections to that port for a minute; ten wrong proofs from agents' processes block attaching for the rest of that minute |
+| Version check | A peer of another protocol version is refused with a reason. The version is 1, counted from the release with one connection for every agent |
+| Lockout | Ten failed pairings block the extension's connections for a minute; ten wrong proofs from agents' processes block attaching for the rest of that minute |
 | Rotation | `--rotate-token` ends every pairing before its next command. The token file is replaced atomically |
 | Validation | Every inbound message is parsed into a typed message or dropped |
 | Limits | Message size (1 MB to the extension, 8 MB to the server), 20 commands per second per agent, at most 20 commands waiting per tab, a deadline per command |
@@ -491,7 +492,7 @@ or impersonates the server to the extension.
 The token is stored in `~/.tabgoblin/pairing-token` and in the extension's storage,
 which content scripts cannot read. It is not logged.
 
-**Enforced in.** `WebSocketBridge.java`, `Pairing.java`, `Hub.java`, `Link.java`,
+**Enforced in.** `ExtensionServer.java`, `Pairing.java`, `Hub.java`, `Link.java`,
 `ExtensionConnection.java`; `pairing.ts`, `protocol.ts`, `background.ts`.
 
 **Limitations.** The connection is not encrypted; it does not leave the loopback interface. A
@@ -708,10 +709,10 @@ Each row is a property and the level of test that holds it. "Rules" are the pure
 | A revoked agent has no tool, running or started again; no key is made for its name; another agent is not touched; allowed again it is a new agent | Java |
 | The user's no to an agent with a key is kept beyond the browser's run | Worker |
 | An agent's key is not the pairing token, and a proof of the one is no proof of the other; a new token leaves the keys | Java |
-| A disconnected agent's server is turned away on what it says of itself, before any proof, and never counts the extension as connected; a server that names another agent there is given nothing of that agent's | Java, worker |
+| An agent the user disconnected is refused on the server's one connection: the extension names it to the server, runs no command of it however often the server names it, and the server tells that agent alone that it has no browser; a server that names another agent is given nothing of that agent's | Java, worker, end-to-end |
 | An agent that is started again with its key is told its tabs by the extension before it calls a tool, also under another name | Java, worker, end-to-end |
 | A process that does not prove the pairing token is no agent of the server, and a series of them shuts the door; a program that holds the server's port is not taken for the server | Java |
-| Agents of one server each have their own port and sessions; a command and a log line of one agent reach no other | Java, end-to-end |
+| Agents of one server travel on its one connection, each with its own sessions; a command, an event and a log line of one agent reach no other, and a command of an agent the server never named runs nowhere | Java, worker, end-to-end |
 | When the server's process is gone, a call that was waiting is answered as of unknown outcome and nothing is sent to the browser twice; stopped by the user, no agent starts it anew | Java |
 | What was allowed when a command began is checked again right before the page is touched: a tab that moved to another site, an authorization that ran out, a pause, a revocation, a lower level, a disconnected agent, each between two steps of one command | Worker |
 | The policy's restrictions are refused by the server before anything is sent, and by the extension at the moment of a command: no screenshots, the highest access level, only the allowed sites; a name that only ends alike is another site | Java, rules, worker |

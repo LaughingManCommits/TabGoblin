@@ -26,7 +26,7 @@ import java.util.Objects;
  * alone: the window shows one agent's or one tab's when the user has clicked it, and everything
  * otherwise. What is chosen is the window's own affair and is in no model.
  */
-record PanelModel(String agent, String identity, int port, int firstPort, String version, String problem,
+record PanelModel(String agent, String identity, int port, String version, String problem,
         boolean connected, boolean switchedOff, String connection, List<Member> agents, List<Row> sessions, int tabs,
         int open, Metrics metrics, Map<String, Metrics> metricsOf, List<Entry> entries, Blocked blocked, Mood mood) {
 
@@ -231,29 +231,29 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
      *
      * @param byCommands the agent comes by commands of the command line, and not by MCP
      */
-    record Facts(String name, String id, int port, String problem, boolean connected, long connectedSince,
+    record Facts(String name, String id, String problem, boolean connected, long connectedSince,
             int lastCloseCode, List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf,
             String running, boolean byCommands) {
 
         /** An agent with no tool call running now. */
-        Facts(String name, String id, int port, String problem, boolean connected, long connectedSince, int lastCloseCode,
+        Facts(String name, String id, String problem, boolean connected, long connectedSince, int lastCloseCode,
                 List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf) {
-            this(name, id, port, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, null, false);
+            this(name, id, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, null, false);
         }
 
         /** An agent of MCP. */
-        Facts(String name, String id, int port, String problem, boolean connected, long connectedSince, int lastCloseCode,
+        Facts(String name, String id, String problem, boolean connected, long connectedSince, int lastCloseCode,
                 List<Protocol.Session> sessions, Timings.Shares time, Map<String, Timings.Shares> timeOf, String running) {
-            this(name, id, port, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, running, false);
+            this(name, id, problem, connected, connectedSince, lastCloseCode, sessions, time, timeOf, running, false);
         }
     }
 
     /**
-     * One agent in the panel: its name, or how it goes without one; its id and its port; whether
-     * the extension is connected to it, and the sentence that says so; how many tabs it has; and
-     * which way it comes, as its mark says it: CLI or MCP.
+     * One agent in the panel: its name, or how it goes without one; its id; whether the extension
+     * is connected to it, and the sentence that says so; how many tabs it has; and which way it
+     * comes, as its mark says it: CLI or MCP. It has no port: the server's one port is every agent's.
      */
-    record Member(String id, String name, int port, boolean connected, String connection, int tabs, boolean byCommands) {
+    record Member(String id, String name, boolean connected, String connection, int tabs, boolean byCommands) {
 
         /** The mark of the way it comes, as the window shows it. */
         String way() {
@@ -323,7 +323,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
         // Asked once, so that the picture agrees with itself. And no tabs without a connection: for a
         // moment after a connection has closed the server still holds what it reported.
         boolean connected = bridge.isExtensionConnected();
-        return new Facts(bridge.clientName(), bridge.clientId(), bridge.getPort(), startupProblem, connected,
+        return new Facts(bridge.clientName(), bridge.clientId(), startupProblem, connected,
                 bridge.connectedSince(), bridge.lastCloseCode(), connected ? bridge.sessions() : List.of(),
                 bridge.timings().shares(), bridge.timings().sharesBySession(), bridge.running(), byCommands);
     }
@@ -337,10 +337,12 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
      * The same, with where the settings file is.
      *
      * @param settingsFile the path of the settings file, as the window shows it
+     * @param port         the port the extension's popup is to be set to: the server's, or the one
+     *                     the settings name where the process has none to listen on
      */
-    static PanelModel of(WebSocketBridge bridge, String startupProblem, String settingsFile, int firstPort) {
-        return of(List.of(facts(bridge, startupProblem)), bridge.getPort(), McpMain.version(), bridge.isHeld(), Log.recent(),
-                ZoneId.systemDefault(), bridge.blocked(), settingsFile, firstPort);
+    static PanelModel of(WebSocketBridge bridge, String startupProblem, String settingsFile, int port) {
+        return of(List.of(facts(bridge, startupProblem)), port, McpMain.version(), bridge.isHeld(), Log.recent(),
+                ZoneId.systemDefault(), bridge.blocked(), settingsFile, 0);
     }
 
     /** One agent, without times of single tabs: where only the whole is known, or looked at. */
@@ -355,42 +357,35 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
     static PanelModel of(String agent, String clientId, int port, String version, String problem, boolean connected,
             boolean switchedOff, long connectedSince, int lastCloseCode, List<Protocol.Session> sessions,
             Timings.Shares time, Map<String, Timings.Shares> timeOf, List<Log.Line> log, ZoneId zone) {
-        return of(List.of(new Facts(agent, clientId, port, problem, connected, connectedSince, lastCloseCode, sessions, time,
-                timeOf)), port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "", port, 0);
+        return of(List.of(new Facts(agent, clientId, problem, connected, connectedSince, lastCloseCode, sessions, time,
+                timeOf)), port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "", 0);
     }
 
     /**
      * Every agent of a server, in the order they came.
      *
-     * @param linkPort the shared server's link port ({@link Link#port}), immediately after the extension's
-     *                 port range: the first port the window shows is counted back from it, so an agent's
-     *                 own port given here shows a wrong one
+     * @param port the server's one port, which the window shows and the popup is set to
      */
-    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
-        return of(agents, linkPort, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
+    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone) {
+        return of(agents, port, version, switchedOff, log, zone, BlockedSites.Rule.NONE, "");
     }
 
     /**
      * Every agent of a server, and the sites the user has blocked: a tab on one of them says so in
      * its row, and a settings file that cannot be read is the window's problem.
      *
-     * @param linkPort     the shared server's link port, as above
+     * @param port         the server's one port, as above
      * @param rule         the blocked sites as they are in force
      * @param settingsFile the path of the settings file, as the window shows it
      */
-    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
+    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
             BlockedSites.Rule rule, String settingsFile) {
-        return of(agents, linkPort, version, switchedOff, log, zone, rule, settingsFile, 0);
+        return of(agents, port, version, switchedOff, log, zone, rule, settingsFile, 0);
     }
 
     /** @param turnedAway how many MCP starts the server turned away since it started, because MCP is off */
-    static PanelModel of(List<Facts> agents, int linkPort, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
+    static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log, ZoneId zone,
             BlockedSites.Rule rule, String settingsFile, int turnedAway) {
-        return of(agents, linkPort, version, switchedOff, log, zone, rule, settingsFile, linkPort - McpMain.PORT_RANGE, turnedAway);
-    }
-
-    private static PanelModel of(List<Facts> agents, int port, String version, boolean switchedOff, List<Log.Line> log,
-            ZoneId zone, BlockedSites.Rule rule, String settingsFile, int firstPort, int turnedAway) {
         List<Member> members = new ArrayList<>();
         List<Row> rows = new ArrayList<>();
         Map<String, Metrics> metricsOf = new LinkedHashMap<>();
@@ -402,8 +397,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
         for (Facts facts : agents) {
             // An agent says its name when it opens its connection. Until then it goes by its id, as in the popup.
             boolean named = facts.name() != null && !facts.name().isBlank();
-            int listeningPort = facts.problem() == null ? facts.port() : 0;
-            members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), listeningPort, facts.connected(),
+            members.add(new Member(facts.id(), named ? facts.name() : "Agent " + facts.id(), facts.connected(),
                     // Without a port no browser can come: that, and not a browser that is waited for.
                     facts.problem() != null && !facts.connected() && !switchedOff ? NO_PORT
                             : connection(facts.connected(), switchedOff, facts.connectedSince(), facts.lastCloseCode(), zone),
@@ -444,7 +438,7 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
                 // With no agent there is nobody to name: the line says what this window is. That no agent
                 // is connected is said once, in the line with the dot.
                 : members.isEmpty() ? "one server for all your agents" : members.size() + " agents";
-        return new PanelModel(title, identity, port, firstPort, version, problem,
+        return new PanelModel(title, identity, port, version, problem,
                 !members.isEmpty() && members.stream().allMatch(Member::connected), switchedOff,
                 only != null ? only.connection() : connection(members, switchedOff),
                 List.copyOf(members), List.copyOf(rows), rows.size(), open,
@@ -453,11 +447,6 @@ record PanelModel(String agent, String identity, int port, int firstPort, String
                 blocked, mood(switchedOff, problem, !members.isEmpty() && members.stream().allMatch(Member::connected),
                         agents.stream().map(Facts::running).filter(Objects::nonNull).findFirst().orElse(null), log,
                         System.currentTimeMillis()));
-    }
-
-    /** The port of the one agent a server has, or 0: with several each has its own, and one without a port has none. */
-    int agentPort() {
-        return agents.size() == 1 ? agents.get(0).port() : 0;
     }
 
     private static Timings.Shares plus(Timings.Shares a, Timings.Shares b) {

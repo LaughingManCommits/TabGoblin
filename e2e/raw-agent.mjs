@@ -1,7 +1,8 @@
-// A bare agent server for tests: speaks the Java-to-extension protocol directly over a minimal
-// WebSocket implementation, so the extension's protocol-level protections (one-time command ids,
-// deadlines, rate limits, cancellation of queued commands, version negotiation) can be exercised
-// in real Chrome with messages the real server would never send.
+// A bare server for tests, with one agent: speaks the Java-to-extension protocol directly over a
+// minimal WebSocket implementation, so the extension's protocol-level protections (one-time command
+// ids, deadlines, rate limits, cancellation of queued commands, the version check) can be exercised
+// in real Chrome with messages the real server would never send. The extension reaches it on the
+// port its popup is set to, as it reaches the real server.
 
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -9,11 +10,11 @@ import { createServer } from 'node:http';
 const hmac = (token, message) => createHmac('sha256', token).update(message).digest('hex');
 
 export class RawAgent {
-  constructor(token, { clientId = 'c-rawagent', name = 'raw-agent', versions = [3] } = {}) {
+  constructor(token, { clientId = 'c-rawagent', name = 'raw-agent', version = 1 } = {}) {
     this.token = token;
     this.clientId = clientId;
     this.name = name;
-    this.versions = versions;
+    this.version = version;
     this.paired = false;
     this.closeCodes = [];
     this.waiting = new Map();
@@ -22,19 +23,14 @@ export class RawAgent {
     this.server.on('upgrade', (req, socket) => this.accept(req, socket));
   }
 
-  /** Listens on the first free port of the range the extension scans. */
-  async listen(firstPort, range = 8) {
-    for (let port = firstPort; port < firstPort + range; port++) {
-      const ok = await new Promise((resolve) => {
-        this.server.once('error', () => resolve(false));
-        this.server.listen(port, '127.0.0.1', () => resolve(true));
-      });
-      if (ok) {
-        this.port = port;
-        return port;
-      }
-    }
-    throw new Error('no free port in the range');
+  /** Listens on the port, which the extension's popup is then set to. */
+  async listen(port) {
+    await new Promise((resolve, reject) => {
+      this.server.once('error', reject);
+      this.server.listen(port, '127.0.0.1', () => resolve());
+    });
+    this.port = port;
+    return port;
   }
 
   accept(req, socket) {
@@ -61,7 +57,7 @@ export class RawAgent {
     });
     socket.on('error', () => undefined);
     socket.on('close', () => { this.paired = false; });
-    this.send({ type: 'challenge', nonce: this.nonce, versions: this.versions });
+    this.send({ type: 'challenge', nonce: this.nonce, version: this.version });
   }
 
   /** One client frame (always masked), or null when the buffer does not hold a whole one yet. */
@@ -96,9 +92,10 @@ export class RawAgent {
   receive(msg) {
     if (msg.type === 'auth') {
       if (msg.proof !== hmac(this.token, `client:${this.nonce}:${msg.nonce}`)) return;
+      // The server names its agents in its proven answer: this one has the one.
       this.send({
-        type: 'auth_ok', proof: hmac(this.token, `server:${this.nonce}:${msg.nonce}`), version: 3,
-        clientId: this.clientId, clientName: this.name,
+        type: 'auth_ok', proof: hmac(this.token, `server:${this.nonce}:${msg.nonce}`), version: this.version,
+        agents: [{ id: this.clientId, name: this.name }],
       });
       this.paired = true;
     } else if (typeof msg.id === 'string') {
@@ -107,11 +104,11 @@ export class RawAgent {
     }
   }
 
-  /** Sends a command (any id, any deadline) and resolves with the extension's response. */
-  command(action, { session, params = {}, id = `raw-${this.nextId++}`, deadline = Date.now() + 30000 } = {}) {
+  /** Sends a command of its agent (any id, any deadline) and resolves with the extension's response. */
+  command(action, { session, params = {}, id = `raw-${this.nextId++}`, deadline = Date.now() + 30000, agent = this.clientId } = {}) {
     return new Promise((resolve) => {
       this.waiting.set(id, resolve);
-      this.send({ id, action, ...(session ? { session } : {}), params, deadline });
+      this.send({ id, agent, action, ...(session ? { session } : {}), params, deadline });
     });
   }
 

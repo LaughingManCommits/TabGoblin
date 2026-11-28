@@ -100,33 +100,15 @@ function freePort() {
     });
   });
 }
-/**
- * A port with the eight after it free as well: a server takes its agents' ports from its first one
- * up and its own after them, and one that does not get them all serves in another way.
- */
-async function freeRange() {
-  const bindable = (port) => new Promise((done) => {
-    const s = createServer();
-    s.once('error', () => done(false));
-    s.listen(port, '127.0.0.1', () => s.close(() => done(true)));
-  });
-  for (let tries = 0; tries < 30; tries++) {
-    const first = await freePort();
-    let free = first + 8 <= 65535;
-    for (let port = first + 1; free && port <= first + 8; port++) free = await bindable(port);
-    if (free) return first;
-  }
-  throw new Error('no nine free ports in a row were found');
-}
-
 const work = mkdtempSync(join(tmpdir(), 'tabgoblin-e2e-'));
 const tokenFile = join(work, 'pairing-token');
 // The server's settings are beside its pairing token: the sites no agent may work on are named there.
 const settingsFile = join(work, 'tabgoblin.properties');
 const demo = await startDemo(0, 0, 0);
 const wsPort = await freePort();
-// Every agent's server gets the same arguments; each takes the first free port from wsPort up.
-// No window: the server's would come up by itself in the step that pairs with a wrong token.
+// Every agent's process gets the same arguments: the first opens the one server on wsPort, the
+// others find it there. No window: the server's would come up by itself in the step that pairs
+// with a wrong token.
 const serverArgs = ['-jar', JAR, '--port', String(wsPort), '--token-file', tokenFile, '--no-panel'];
 
 // An agent of the command line is kept by the server between its commands: here for seconds, so that
@@ -232,6 +214,15 @@ try {
     return undefined;
   };
   /** Clicks the extension's toolbar button for `target`, like the user would, and returns the popup. */
+  /** Pairs the popup with the server on the port, with the suite's token: the form is behind Connection… while a server is paired. */
+  async function pairPopup(popup, port) {
+    if (await popup.$eval('#pairing', (el) => el.hidden)) await popup.click('#settings');
+    await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
+    await popup.$eval('#token', (el) => { el.value = ''; });
+    await popup.type('#token', token);
+    await popup.$eval('#port', (el, value) => { el.value = value; }, String(port));
+    await popup.click('#pair');
+  }
   async function openPopup(target = page, { fresh = false } = {}) {
     let popup = await findPopup();
     // A real popup closes as soon as the user clicks elsewhere. Chrome grants the extension access
@@ -472,7 +463,7 @@ try {
     await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
-    has((await one.tool('browser_status')).text, 'Extension: connected (protocol 3)');
+    has((await one.tool('browser_status')).text, 'Extension: connected (protocol 1)');
     await popup.waitForFunction(() => document.querySelector('#agents .name')?.textContent === 'agent-one');
   });
   await step('nothing is readable before the user authorizes a tab', async () => {
@@ -1651,18 +1642,15 @@ try {
   let pageB;
   let sB;
   let twoId;
-  await step('a second agent connects on its own port and is listed', async () => {
+  await step('a second agent comes through the same server and is listed', async () => {
     two = new McpClient('java', argsOf('agent-two'), 'agent-two');
     servers.push(two);
     await two.initialize();
     const popup = await openPopup();
     await until(async () => (await two.tool('browser_status')).text.includes('Extension: connected'), 'the second agent to connect', 15000);
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '2 agents connected');
-    const port = /on port (\d+)/.exec((await two.tool('browser_status')).text)?.[1];
-    assert(port && port !== String(wsPort), `each agent has its own port, got ${port}`);
-    // Both are agents of one server: it listens for them on the port after their eight, and
-    // neither process had to serve its agent alone.
-    assert(await listens(wsPort + 8), 'the one server does not listen for agents');
+    // Both are agents of the one server on the one port, and neither process had to serve its agent alone.
+    assert(await listens(wsPort), 'the one server does not listen');
     for (const server of servers) lacks(server.stderr, 'serving this agent alone');
     // An agent tells its name with its first tool call. The extension may have found its server
     // before that: the popup then lists it by its id until its next refresh.
@@ -2012,19 +2000,23 @@ try {
   const raw = new RawAgent(token);
   let pageR;
   let sR;
-  await step('an agent that only speaks an older protocol version is refused', async () => {
-    // Version 2 was the one before: its extension handed an agent's tabs on by the agent's name.
-    const old = new RawAgent(token, { clientId: 'c-oldproto', name: 'old-agent', versions: [1, 2] });
-    await old.listen(wsPort);
-    await openPopup();
-    await until(() => old.closeCodes.includes(4406), 'the old-protocol agent to be refused', 15000);
+  // The extension reaches a server on the one port its popup is set to: for these steps that is
+  // the hand-made server's, and the suite's own server is paired with again after them.
+  const rawPort = await freePort();
+  await step('a server that speaks another protocol version is refused', async () => {
+    // Version 3 was the release before's: its extension looked for each agent on a port of its own.
+    const old = new RawAgent(token, { clientId: 'c-oldproto', name: 'old-agent', version: 3 });
+    await old.listen(rawPort);
+    await pairPopup(await openPopup(), rawPort);
+    await until(() => old.closeCodes.includes(4406), 'the old-protocol server to be refused', 15000);
     assert(!old.paired, 'it must never be paired');
     await old.close();
   });
   await step('replayed ids, stale deadlines, unknown actions and other agents\' sessions are refused', async () => {
-    await raw.listen(wsPort);
+    await raw.listen(rawPort);
     const popup = await openPopup();
-    await until(() => raw.paired, 'the hand-made agent to pair', 15000);
+    await pairPopup(popup, rawPort);
+    await until(() => raw.paired, 'the hand-made server to pair', 15000);
     await popup.waitForFunction(() => [...document.querySelectorAll('#agents .name')].some((n) => n.textContent === 'raw-agent'));
     pageR = await browser.newPage();
     await pageR.goto(demo.originA + '/page2.html');
@@ -2038,9 +2030,12 @@ try {
     assert(code(await raw.command('cookies')) === 'UNSUPPORTED_ACTION', 'there is no such action');
     assert(code(await raw.command('snapshot', { session: sA })) === 'SESSION_NOT_OWNED', 'a forged session id must not work');
     assert(code(await raw.command('fill', { params: { ref: 1, text: 'x' } })) === 'WRITE_NOT_AUTHORIZED', 'the access level holds for any agent');
-    // Malformed messages are ignored and the connection keeps working.
-    raw.send({ id: 'bad', action: 'snapshot', session: 'tab-1', deadline: Date.now() + 1000 });
+    // Malformed messages are ignored and the connection keeps working; a command of an agent the
+    // server never named is answered with a refusal, and runs nowhere.
+    raw.send({ id: 'bad', agent: raw.clientId, action: 'snapshot', session: 'tab-1', deadline: Date.now() + 1000 });
+    raw.send({ id: 'nobody', action: 'snapshot', deadline: Date.now() + 1000 });
     raw.send({ type: 'evaluate', script: 'document.cookie' });
+    assert(code(await raw.command('status', { agent: 'c-unnamed' })) === 'NOT_CONNECTED', 'an agent the server did not name has no browser');
     assert(code(await raw.command('status')) === 'ok', 'the connection survives malformed messages');
   });
   await step('a queued command can be cancelled before it runs', async () => {
@@ -2064,12 +2059,15 @@ try {
     assert(limited >= 30 && limited < 90, `${limited} of 90 commands were rate limited`);
     await sleep(2500);
     assert(code(await raw.command('status')) === 'ok', 'the agent is served again');
-    ok(await one.tool('browser_snapshot', { session: sA })); // other agents were never affected
     await raw.close();
     // The open popup belongs to the tab that is about to close: start a new one on the main tab first.
     const popup = await openPopup(page, { fresh: true });
     await pageR.close();
+    // Back to the suite's own server: its agents have their tabs as they were.
+    await pairPopup(popup, wsPort);
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '2 agents connected');
+    await until(async () => !(await one.tool('browser_snapshot', { session: sA })).isError, 'the first agent to have its tab again', 15000);
+    has(ok(await two.tool('browser_snapshot', { session: sB })).text, 'Page: Notes App');
   });
 
   console.log('\nDisconnecting and recovering');
@@ -2096,9 +2094,10 @@ try {
     has(refused.text, 'user disconnected this agent');
     await sleep(2500); // it must not slip back in on the next scan
     fails(await two.tool('browser_snapshot'), 'NOT_CONNECTED');
-    // Its server was looked at again meanwhile, as every port is. It was turned away on what it
-    // says of itself, before any pairing: its log has the one disconnect and nothing after it.
-    assert(lines(two.stderr, 'code=4403') === 1, `one disconnect in the server's log, got ${lines(two.stderr, 'code=4403')}`);
+    // The server was told once which agent the user disconnected, and stays paired: its log has
+    // the one disconnect and no new pairing after it.
+    const disconnects = lines(two.stderr, 'agent disconnected by the user in the popup');
+    assert(disconnects === 1, `one disconnect in the server's log, got ${disconnects}`);
     assert(lines(two.stderr, 'extension connected') === pairedBefore,
       `the server was paired with again after the disconnect: ${lines(two.stderr, 'extension connected') - pairedBefore} times`);
     ok(await one.tool('browser_snapshot', { session: sA }));
@@ -2174,7 +2173,6 @@ try {
       }, row(sA, '.meta'));
     await until(async () => (await badge()) === 'ON', 'the badge to say ON once the restarted agent is back');
     await until(async () => (await one.tool('browser_status')).text.includes('Extension: connected'), 'the restarted agent to connect', 15000);
-    has((await one.tool('browser_status')).text, `on port ${wsPort}`);
     has((await one.tool('browser_status')).text, 'identity "agent-one": the same agent at every start');
     has(ok(await one.tool('browser_snapshot', { session: sA })).text, 'Page: Demo Tracker: Issues');
     has(ok(await one.tool('browser_snapshot', { session: sC })).text, 'Page: Widget Handbook');
@@ -2587,7 +2585,7 @@ try {
       assert(wrong.code === 2 && wrong.out.error.code === 'USAGE', JSON.stringify(wrong.out));
     }
   });
-  await step('an agent of the command line is the same agent at every command, on a port of its own, and has no tab before the user gives it one', async () => {
+  await step('an agent of the command line is the same agent at every command, and has no tab before the user gives it one', async () => {
     // Its first command makes it an agent of the server; the extension finds it when the popup opens.
     const first = cli('status');
     const popup = await openPopup();
@@ -2598,11 +2596,8 @@ try {
     }, 'the extension to find the agent of the command line', 20000);
     has(status.text, 'identity "agent-cli": the same agent at every start');
     has(status.text, 'Authorized origin: none');
-    const port = /on port (\d+)/.exec(status.text)?.[1];
-    assert(port && port !== String(wsPort), `it has a port of its own, got ${port}`);
-    assert(/on port (\d+)/.exec(went(await cli('status')).text)?.[1] === port, 'the next command is another agent, or on another port');
     // The same server as the MCP agents': none was started for the commands, and none serves alone.
-    assert(await listens(wsPort + 8), 'the one server does not listen');
+    assert(await listens(wsPort), 'the one server does not listen');
     const listedAs = await popup.waitForFunction(() => [...document.querySelectorAll('#agents li')]
       .find((li) => li.querySelector('.name').textContent === 'agent-cli (command line)')?.dataset.client, { timeout: 10000 });
     cliId = await listedAs.jsonValue();
@@ -2798,15 +2793,15 @@ try {
       has((await windowOf(wsPort, 'the window to be shown again')).names.join('\n'), `Port ${wsPort}`);
     });
     await step('Kill in the window ends the server at once and its agent starts a new one; Stop ends it for good, and the suite\'s own server is not touched', async () => {
-      // A server of its own, on other ports and with another token: no browser is paired with it.
-      const port = await freeRange();
+      // A server of its own, on another port and with another token: no browser is paired with it.
+      const port = await freePort();
       const own = new McpClient('java', ['-jar', JAR, '--port', String(port), '--token-file', join(work, 'window-token'),
         '--agent', 'agent-ends', '--panel'], 'agent-ends');
       try {
         await own.initialize();
         await own.tool('browser_status');
         const first = await windowOf(port, 'the window of the second server');
-        assert(await listens(port + 8), `the second server is not the one server of its ports: nothing listens on ${port + 8}`);
+        assert(await listens(port), `the second server does not listen on ${port}`);
         const all = first.names.join('\n');
         has(all, 'Not connected: waiting for the extension');
         has(all, 'Open the TabGoblin popup in Chrome');
@@ -2827,17 +2822,17 @@ try {
         assert(toStop.process === next.process,
           `the server ended at the first press of Stop: its window was process ${next.process}'s and is ${toStop.process}'s`);
         press(port, 'Click again to stop');
-        await until(async () => !(await listens(port + 8)), 'the server to end by its Stop button', 20000);
+        await until(async () => !(await listens(port)), 'the server to end by its Stop button', 20000);
         await until(async () => !inWindow(port).found, 'its window to be gone');
         // Stopped, it is ended for its agent as well: nothing starts it again.
         assert(await Promise.race([own.exited, new Promise((later) => setTimeout(() => later('still running'), 15000))]) === 0,
           'the agent of a stopped server did not end in order');
-        assert(!(await listens(port + 8)), 'a stopped server was started again');
+        assert(!(await listens(port)), 'a stopped server was started again');
       } finally {
         if (own.proc.exitCode === null) own.proc.kill();
       }
       has((await one.tool('browser_status')).text, 'Extension: connected');
-      assert(await listens(wsPort + 8), "the suite's own server is gone");
+      assert(await listens(wsPort), "the suite's own server is gone");
     });
     await step('the agent that asked for the window leaves, and the window stays while the server has agents', async () => {
       assert(await watcher.close() === 0, 'the agent that asked for the window did not exit cleanly');
@@ -2867,7 +2862,7 @@ try {
     // The agents of the command line are let go a few seconds after their last command.
     await until(async () => (await badge()) === 'OFF', 'the badge to say OFF once no server is left', 30000);
     // The one server ends by itself when its last agent has gone: nothing is left listening.
-    await until(async () => !(await listens(wsPort + 8)), 'the server to end after its last agent', 30000);
+    await until(async () => !(await listens(wsPort)), 'the server to end after its last agent', 30000);
     const popup = await openPopup();
     await popup.waitForFunction(() => document.getElementById('connection').textContent.startsWith('Disconnected'));
   });

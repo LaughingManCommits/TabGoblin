@@ -30,8 +30,6 @@ import tools.jackson.databind.JsonNode;
 public final class McpMain {
 
     static final int DEFAULT_PORT = 47821;
-    /** Each running server (one per MCP client) takes the first free port of this many, from --port up. */
-    static final int PORT_RANGE = 8;
     /** Id of the unpacked extension; fixed by the "key" in chrome-extension/manifest.json. */
     static final String DEFAULT_EXTENSION_ORIGIN = "chrome-extension://hipkpjlbggddmiognhmjnfihcgimjfop";
 
@@ -106,7 +104,7 @@ public final class McpMain {
             System.exit(2);
             return;
         }
-        // Where the ports begin: the user's own first port and no other, or the list that every part knows.
+        // Where the server listens: the user's own port and no other, or the list that every part knows.
         List<Integer> firsts = Ports.firsts(options.port(), options.portChosen());
         int port = options.port();
         Path tokenFile = options.tokenFile();
@@ -194,9 +192,8 @@ public final class McpMain {
             serveAll(settings, options, firsts);
             return;
         }
-        // Where this process looks for the server: a server that runs on a port of some agent's own first, if this one names none.
-        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile, fit(options))
-                .stream().map(Link::port).toList();
+        // Where this process looks for the server: the same ports, in the same order.
+        List<Integer> serverPorts = firsts;
         boolean byHand = startedByHand();
         boolean inTerminal = inTerminal();
         if (byHand && wantsWindow(options.panel(), System.getProperty(DOWNLOADS_PROGRAM))) {
@@ -243,8 +240,7 @@ public final class McpMain {
             return;
         }
         Link link = new Link(System.in, mcpOut, System.err, tokens, serverPorts, options.panel(), options.quiet(),
-                () -> startServer(options, false), options.agent(), agentKeys)
-                .setup(options.portChosen() ? options.port() : 0, fit(options));
+                () -> startServer(options, false), options.agent(), agentKeys);
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
             return;
@@ -259,8 +255,7 @@ public final class McpMain {
             return;
         }
         // No server is to be had here: its port is held by something else, or it cannot be started.
-        // This process serves its agent alone then, as every such process did before there was one server.
-        // On the first range the system gives out, where the extension looks as well.
+        // This process serves its agent alone then, without a browser, and every tool says why.
         serveAlone(settings.withPort(Ports.firstUsable(firsts)), options, mcpOut);
     }
 
@@ -284,16 +279,9 @@ public final class McpMain {
     private static Link commandLink(java.io.InputStream in, java.io.OutputStream out, Options options) throws java.io.IOException {
         Path tokenFile = options.tokenFile();
         Supplier<String> tokens = Pairing.tokenSource(tokenFile, Pairing.loadOrCreateToken(tokenFile));
-        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile, fit(options))
-                .stream().map(Link::port).toList();
+        List<Integer> serverPorts = Ports.firsts(options.port(), options.portChosen());
         return new Link(in, out, System.err, tokens, serverPorts, options.panel(), options.quiet(),
-                () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand()
-                .setup(options.portChosen() ? options.port() : 0, fit(options));
-    }
-
-    /** What a server started with these options is run under, of what a setup can ask for. */
-    static RunningServers.Fit fit(Options options) {
-        return RunningServers.Fit.of(options.settings(), options.extensionOrigin());
+                () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand();
     }
 
     /**
@@ -307,16 +295,9 @@ public final class McpMain {
         if (hub == null) {
             return;
         }
-        // The token and the settings file are the same wherever the ports begin.
+        // The token and the settings file are the same whichever port the server is on.
         Agent.Settings settings = configured;
         RUNNING.add(hub::close);
-        // Written down for the processes that name no port, and taken out again when this server ends in order.
-        int first = hub.port() - PORT_RANGE;
-        RunningServers.add(options.tokenFile(), first, fit(options));
-        RUNNING.add(() -> RunningServers.remove(options.tokenFile(), first));
-        // And written again when the browser comes or goes, so that a process without a port goes to the server it is at.
-        hub.onBrowser(browser -> RunningServers.write(options.tokenFile(), first, browser, fit(options)));
-        hub.others(mine -> RunningServers.other(options.tokenFile(), first, mine));
         hub.commandIdle(options.commandIdleMs());
         hub.whenEmpty(McpMain::end);
         java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
@@ -341,21 +322,21 @@ public final class McpMain {
     }
 
     /**
-     * Opens the one server on the first range of ports that the system gives out, or says null:
-     * there is a server already, and one is enough, or no range is given out, and the agent's
-     * process then serves its agent alone and says why it has no port.
+     * Opens the one server on the first port that the system gives out, or says null: there is a
+     * server already, and one is enough, or no port is given out, and the agent's process then
+     * serves its agent alone and says why it has no port.
      */
     static Hub openWhereThePortsAre(Agent.Settings configured, List<Integer> firsts, boolean standing) {
         return openWhereThePortsAre(configured, firsts, standing, Ports::usable);
     }
 
-    /** @param usable whether the system gives out the range that begins at a port */
+    /** @param usable whether the system gives out a port */
     static Hub openWhereThePortsAre(Agent.Settings configured, List<Integer> firsts, boolean standing,
             java.util.function.IntPredicate usable) {
         for (int first : firsts) {
             if (!usable.test(first)) {
-                // The system keeps this range back: no agent could listen there. The next one of the list.
-                Log.warn("ports kept back by the system ports=" + first + "-" + Link.port(first));
+                // The system keeps this port back: nothing could listen there. The next one of the list.
+                Log.warn("port kept back by the system port=" + first);
                 continue;
             }
             try {
@@ -396,14 +377,13 @@ public final class McpMain {
         // Asked when a tool finds no browser. If one came with a token that is not this server's, the
         // user has to paste the token: the window comes up for it, once.
         java.util.concurrent.atomic.AtomicBoolean cameUp = new java.util.concurrent.atomic.AtomicBoolean();
-        Agent agent = Agent.serve(settings, System.in, mcpOut, McpMain::inputEnded, false, () -> {
+        Agent agent = Agent.serve(settings, null, System.in, mcpOut, McpMain::inputEnded, () -> {
             Agent own = served[0];
             boolean refused = own != null && own.bridge().lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED;
             if (refused && !options.quiet() && cameUp.compareAndSet(false, true)) {
                 window.run();
             }
-            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen(),
-                    refused ? null : RunningServers.other(options.tokenFile(), settings.port(), fit(options)));
+            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen());
         }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();
@@ -463,12 +443,12 @@ public final class McpMain {
             }
             problems.println("The TabGoblin server did not start within 20 seconds.");
         } catch (Link.Refused e) {
-            problems.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that is not this "
+            problems.println("Port " + settings.port() + " on 127.0.0.1 is held by something that is not this "
                     + "TabGoblin server (" + e.getMessage() + ").");
         } catch (java.net.SocketTimeoutException e) {
             // Only the first look gets here: something took the connection and said nothing, another
             // program or a server that hangs. Later looks wait for the server this process started.
-            problems.println("Port " + Link.port(settings.port()) + " on 127.0.0.1 is held by something that does not answer. "
+            problems.println("Port " + settings.port() + " on 127.0.0.1 is held by something that does not answer. "
                     + "If it is a TabGoblin server that hangs, end its process (javaw or java) and try again.");
         } catch (java.io.IOException e) {
             problems.println("The TabGoblin server could not be started: " + e.getMessage());
@@ -518,7 +498,7 @@ public final class McpMain {
             command.add("--panel");
         }
         if (options.portChosen()) {
-            // Only the user's own first port is handed on: without one the server finds its range itself.
+            // Only the user's own port is handed on: without one the server finds its port itself.
             command.add("--port");
             command.add(String.valueOf(options.port()));
         }
@@ -750,7 +730,7 @@ public final class McpMain {
             its next one finds the browser connected; TABGOBLIN_COMMAND_IDLE_SECONDS, set where the server starts,
             changes that.
 
-            Options:  --port <first port, default 47821>   --token-file <path>   --extension-origin <origin>
+            Options:  --port <port, default 47821>   --token-file <path>   --extension-origin <origin>
                       --agent <name>  who the agent is that starts this server (or TABGOBLIN_AGENT)
                       --settings <path of the settings file>
                       --replace  with --setup or --install-skill: overwrite a skill that is there and is not this one
@@ -1029,7 +1009,7 @@ public final class McpMain {
             } catch (NumberFormatException e) {
                 throw new UsageException("The port must be a number, not \"" + portText + "\".");
             }
-            int highest = 65535 - PORT_RANGE + 1;
+            int highest = 65535;
             if (number < 1 || number > highest) {
                 throw new UsageException("The port must be between 1 and " + highest + ", not " + number + ".");
             }

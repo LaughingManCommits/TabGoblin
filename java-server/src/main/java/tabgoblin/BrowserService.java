@@ -75,47 +75,9 @@ public final class BrowserService {
      * @param pairedElsewhere the browser is paired with this server, by way of another agent: it has only not found this one yet
      * @param refused         a browser came with a token that is not this server's: the user has to paste the server's
      * @param window          the server's window is on the user's screen: the token is copied there
-     * @param elsewhere       another TabGoblin server that answers on this machine and says that the browser is
-     *                        connected to it; null if there is none
      */
-    record Unpaired(boolean pairedElsewhere, boolean refused, boolean window, Elsewhere elsewhere) {
+    record Unpaired(boolean pairedElsewhere, boolean refused, boolean window) {
         static final Unpaired NOTHING_KNOWN = new Unpaired(false, false, false);
-
-        Unpaired(boolean pairedElsewhere, boolean refused, boolean window) {
-            this(pairedElsewhere, refused, window, null);
-        }
-    }
-
-    /**
-     * Another server, that has the browser. Nothing of it is said to the agent but that it is there:
-     * not its port, and nothing of its agents.
-     *
-     * @param sameSettings it reads the same settings file and lets in the same extension as the agent's own process
-     *                     would start a server with: the agent's next process goes to it by itself, with a port of
-     *                     its setup or without
-     */
-    record Elsewhere(boolean sameSettings) {
-    }
-
-    /**
-     * What an agent is told when no browser is here and another server runs that has it. Where that
-     * server runs as this one does, the agent's next process goes there by itself; where it does not,
-     * none goes there, since its setup asked for this one's settings, and only the user can settle it.
-     */
-    static String otherServer(Elsewhere other, boolean byCommands) {
-        String head = "Another TabGoblin server runs on this machine, and the browser is connected to that one, not to "
-                + "this one. ";
-        if (!other.sameSettings()) {
-            return head + "It reads another settings file, or lets in another extension, than this agent's setup names, so "
-                    + "this agent does not go to it by itself. Tell the user: the server's window shows the ports; their "
-                    + "agents' setups have to name the same settings, or the browser has to be paired with this server instead.";
-        }
-        return head + "It runs under the settings this agent's setup names. "
-                + (byCommands
-                        ? "Run the command once more: it goes to that server by itself. If it comes back here, tell the "
-                                + "user. Their agents' setups name different ports."
-                        : "Tell the user: this agent goes to that server by itself when it is started again, and their "
-                                + "agents' setups name different ports.");
     }
 
     /** What the user has to do when the browser holds another token. */
@@ -141,8 +103,6 @@ public final class BrowserService {
     private final AgentKeys.Identity identity;
     /** Which way the agent comes: by commands of the command line, or by MCP. The policy can turn one of them off. */
     private final boolean byCommands;
-    /** The first port this agent's setup names where that is another server's, or 0. */
-    private volatile int cameFrom;
 
     public BrowserService(WebSocketBridge bridge, String startupProblem) {
         this(bridge, startupProblem, () -> Unpaired.NOTHING_KNOWN);
@@ -231,10 +191,6 @@ public final class BrowserService {
             return FOUND_SOON;
         }
         boolean refused = known.refused() || bridge.lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED;
-        if (!refused && known.elsewhere() != null) {
-            // No browser has come here at all, and another server has it: that is the cause, not the pairing.
-            return otherServer(known.elsewhere(), byCommands);
-        }
         String where = !known.window() ? TOKEN_BY_COMMAND : refused ? TOKEN_AT_WINDOWS_TOP : TOKEN_IN_WINDOW;
         if (refused) {
             return (said ? "" : HOLDS_ANOTHER + " ") + PAIR + " " + where;
@@ -270,21 +226,6 @@ public final class BrowserService {
         }
         return " (no identity of its own: its tabs do not come back after a restart. The user gives it one by "
                 + "adding --agent <name> to the command that starts this server)";
-    }
-
-    /**
-     * @param setupPort the first port this agent's setup names, where it came to this server from it
-     *                  because this one has the browser and runs as its setup asks; 0 if it did not
-     */
-    void cameFrom(int setupPort) {
-        cameFrom = setupPort;
-    }
-
-    /** What the status says of an agent that came here from the port its setup names. */
-    static String cameFromLine(int setupPort) {
-        return "This agent's setup names first port " + setupPort + ". It is served by this server because the browser was "
-                + "connected here, under the same settings, and not at that port; a setup's port only says where to start a "
-                + "server when none has the browser.";
     }
 
     /** Whether this agent comes by commands of the command line, and not by MCP. */
@@ -523,9 +464,6 @@ public final class BrowserService {
         if (!bridge.isExtensionConnected()) {
             sb.append("Extension: not connected\n");
             sb.append("Listening on: ws://127.0.0.1:").append(bridge.getPort()).append('\n');
-            if (cameFrom > 0) {
-                sb.append(cameFromLine(cameFrom)).append('\n');
-            }
             if (pairingIsMissing()) {
                 sb.append(pairingHelp(false));
             } else if (bridge.lastCloseCode() == Protocol.CLOSE_USER_DISCONNECTED) {
@@ -546,15 +484,11 @@ public final class BrowserService {
         p.put("diagnostics", optBool(a, "diagnostics", false));
         JsonNode s = bridge.send("status", null, p, defaultTimeout);
         sb.append("Extension: connected (protocol ").append(Protocol.VERSION).append(")\n");
-        sb.append("This agent: ").append(bridge.clientId()).append(" on port ").append(bridge.getPort())
-                .append(identityLine()).append('\n');
-        // Where the usual ports could not be had: said so that the agent can tell the user why the port is another.
+        sb.append("This agent: ").append(bridge.clientId()).append(identityLine()).append('\n');
+        // Where the usual port could not be had: said so that the agent can tell the user why the port is another.
         String ports = Ports.note(bridge.getPort());
         if (!ports.isEmpty()) {
             sb.append(ports).append('\n');
-        }
-        if (cameFrom > 0) {
-            sb.append(cameFromLine(cameFrom)).append('\n');
         }
         // The general setting. Older extensions say only yes or no.
         String asking = s.path("confirmation").asString(s.path("confirmSubmissions").asBoolean(true) ? "always" : "never");

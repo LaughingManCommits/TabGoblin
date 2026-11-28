@@ -222,7 +222,7 @@ function renderAgents(s: State): void {
       name.title = `${name.textContent ?? ''} · ${client.id} · ${client.lasting
         ? 'has a key of its own: the same agent at every start'
         : 'no key of its own: known for this start only, and its tabs do not come back after a restart'}`;
-      li.append(name, el('span', 'tabs', cost.beside), el('span', 'muted', `:${client.port}`), button);
+      li.append(name, el('span', 'tabs', cost.beside), button);
       list.append(li);
     }
     for (const id of s.blockedClients) {

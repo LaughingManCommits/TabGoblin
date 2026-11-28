@@ -7,26 +7,38 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Typed messages of the Java-to-extension WebSocket protocol. Independent of MCP.
  *
+ * <p>One connection carries every agent of the server: a command names its agent, and an event or
+ * an answer names the agent it is for.
+ *
  * <pre>
- * server: {"type":"challenge","nonce":"..","versions":[3],"clientId":"a-1a2b3c4d5e6f"}
- * ext:    {"type":"auth","nonce":"..","proof":"..","version":3}
- * server: {"type":"auth_ok","proof":"..","version":3,"clientId":"a-1a2b3c4d5e6f","clientName":".."}
- * server: {"id":"17","action":"click","session":"s2","params":{..},"deadline":1700000000000}
+ * server: {"type":"challenge","nonce":"..","version":1}
+ * ext:    {"type":"auth","nonce":"..","proof":"..","version":1}
+ * server: {"type":"auth_ok","proof":"..","version":1,"agents":[{"id":"a-1a2b3c4d5e6f","name":".."}]}
+ * server: {"type":"agents","agents":[{"id":"a-1a2b3c4d5e6f","name":".."}]}        when one comes, goes or is named
+ * ext:    {"type":"agents_refused","agents":["a-.."]}                              those the user disconnected
+ * server: {"id":"17","agent":"a-1a2b3c4d5e6f","action":"click","session":"s2","params":{..},"deadline":1700000000000}
  * ext:    {"id":"17","success":true,"result":{..},"session":"s2"}  |  {"id":"17","success":false,"error":{"code":"..","message":".."}}
  * server: {"type":"cancel","id":"17"}
- * ext:    {"type":"event","event":"sessions","data":{"sessions":[..]}}
+ * ext:    {"type":"event","event":"sessions","agent":"a-1a2b3c4d5e6f","data":{"sessions":[..]}}
  * </pre>
  */
 final class Protocol {
 
     /**
-     * Version this server speaks. Negotiated in the handshake; a peer without it is refused.
-     * Version 3: an agent is known by the id of its key, and the server tells its security policy.
-     * An extension of version 2 would hand an agent's tabs on by its name, so it is not let in.
+     * The version this server speaks: said in the handshake, and a peer that speaks another is
+     * refused with the word to update both parts to one release. It is 1: counted from the first
+     * release that has one connection for every agent of the server, each message naming its
+     * agent. The releases before it (0.2.0, which said 3) had a connection and a port for each
+     * agent, and are not let in: such an extension would look for agents on ports that no longer
+     * exist.
      */
-    static final int VERSION = 3;
+    static final int VERSION = 1;
 
     static final int CLOSE_UNAUTHORIZED = 4401;
+    /**
+     * Not a close code any more: the user's disconnecting of one agent is said by the extension
+     * ({@code agents_refused}) and kept by that agent as the reason it has no browser.
+     */
     static final int CLOSE_USER_DISCONNECTED = 4403;
     static final int CLOSE_VERSION = 4406;
     static final int CLOSE_REPLACED = 4409;
@@ -36,10 +48,11 @@ final class Protocol {
     }
 
     /** One command for the extension. {@code session} is null for commands that are not tab-bound. */
-    record Command(String id, String action, String session, JsonNode params, long deadline) {
+    record Command(String id, String agent, String action, String session, JsonNode params, long deadline) {
         String toJson(ObjectMapper json) {
             ObjectNode node = json.createObjectNode();
             node.put("id", id);
+            node.put("agent", agent);
             node.put("action", action);
             if (session != null) {
                 node.put("session", session);
@@ -112,7 +125,7 @@ final class Protocol {
     /**
      * A browser session as the extension reports it: one authorized tab bound to one agent.
      * {@code unclaimed} is a tab the user authorized for any agent, which none has used yet: the
-     * extension reports it to every server, and it is the agent's own from its first command on.
+     * extension reports it to every agent, and it is the agent's own from its first command on.
      */
     record Session(String sessionId, String clientId, String authorizationId, String origin, int tabId, int frameId,
             String documentId, String mode, int generation, String state, String title, String url, boolean unclaimed,

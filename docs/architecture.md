@@ -21,7 +21,7 @@ rules themselves, with where each is enforced and where it stops, are in the
 | Coding agent | Understand the website, plan, decide which tool to call | Touch the browser except through the tools |
 | CLI (`Cli.java`) | One interface: read one command line against the tools' own definitions, send it as one tool call through a link, print the answer as JSON | Define a tool, decide what is allowed, or keep anything between commands |
 | MCP link (`Link.java`) | The other interface: pass an MCP client's messages to the server and the answers back; start the server if none runs; prove the pairing token and the agent's key | Read or change a message; send one twice |
-| Server (`Hub`, `Agent`, `McpMain`, `BrowserService`, `WebSocketBridge`) | Serve every connected agent: define the tools, validate arguments, apply the settings file's policy, bind calls to sessions, time out, cancel, remember submission ids, log | Know any website; hold page content; tell one agent about another |
+| Server (`Hub`, `Agent`, `McpMain`, `BrowserService`, `ExtensionServer`) | Serve every connected agent: define the tools, validate arguments, apply the settings file's policy, bind calls to sessions, time out, cancel, remember submission ids, log | Know any website; hold page content; tell one agent about another |
 | Extension worker (`background.ts`, rules in `policy.ts`) | Hold the sessions; check every command against what the user allowed; drive navigation and submissions; keep the activity list | Trust the page; run code supplied by an agent |
 | Content script (`content.ts`) | Read the rendered page into allowlisted text; perform one fixed operation per request | Keep anything; talk to anyone but the worker |
 | Popup | Show state; take the user's decisions: pair, authorize, set a level, approve, pause, revoke | Decide anything itself |
@@ -107,93 +107,55 @@ asks by which interface a command came. The CLI is described for its users in th
 
 ## Processes and ports
 
-There is one server for all agents, whichever interface they use. An agent's process reaches
-it through a *link*, a short local connection on which it first proves itself.
+There is one server for all agents, whichever interface they use, and it has one port. An
+agent's process reaches it through a *link*, a short local connection on which it first proves
+itself.
 
 **MCP.** An MCP client starts its server as a child process and talks to it over stdio. So that
 all agents share one server, that child is only a link: it connects to the one server on
-`127.0.0.1` and passes its agent's messages on, line by line. If no server is listening, the
-link starts one as an independent process, which then also serves the agents that come later.
+`127.0.0.1` and passes its agent's messages on, one message a frame. If no server is listening,
+the link starts one as an independent process, which then also serves the agents that come
+later.
 
-Inside the server each agent has its own id, its own WebSocket port for the extension, its own
-sessions and its own tools. The ports:
+**One port.** The server listens on one port, 47821 by default (`--port`). The extension opens
+one WebSocket connection to it, on the path `/`, and pairs once; every agent of the server
+travels inside that connection, told apart by its id: the server names its agents to the
+extension, a command names its agent, and an event or an answer names the agent it is for. The
+agents' processes connect to the same port, as WebSocket clients on the path `/link`, and the
+link's messages travel as text frames on that connection. A connection on `/link` carries no
+`Origin`; one on `/` must carry the extension's. Inside the server each agent has its own id,
+its own sessions and its own tools, and nothing else of its own.
 
-| Port | Default | Used for |
-|---|---|---|
-| Agents' ports | 47821 to 47828 | One WebSocket endpoint per agent, the first free port counting up from `--port`. The extension connects to each |
-| Server's port | 47829 | Links connect here: the port after the agents' eight |
+That there is one server for a machine is what the operating system enforces: a second process
+finds the port taken and joins. Where something listens on the port that is not a TabGoblin
+server, the link does not take it for one (the server's greeting and its proof are missing), and
+the process an agent started serves that agent alone, without a browser, and says why in its
+log and in the agent's status (`Agent.noPort`).
 
-**When the system keeps ports back.** Windows can reserve a range of ports for its own
-networking (Hyper-V, WSL and Docker have it done), and a server then cannot listen on any port
-of that range. The extension cannot be told a port: it finds a server only by trying addresses.
-So the server, the links and the extension share a fixed list of first ports, far apart:
-47821, 37821 and 27821 (`Ports.FIRST` in the server, `FIRST_PORTS` in `policy.ts`). The server
-takes the first whose range the system gives out; a link looks for the server on each in turn
-before it starts one; the extension looks at every range while no server is connected, and
-only at the server's range while one is (`rangesToScan`). A first port the user set, with
-`--port` or in the popup, is the only one of the list that is tried; how a process with a port
-of its own still reaches a server with the browser is below.
+**When the system keeps a port back.** Windows can reserve ranges of ports for its own
+networking (Hyper-V, WSL and Docker have it done), and a server then cannot listen on a port of
+such a range. The extension cannot be told a port: it finds a server only by trying addresses.
+So the server, the links and the extension share a fixed list of ports, far apart: 47821,
+37821 and 27821 (`Ports.FIRST` in the server, `PORTS` in `policy.ts`). The server takes the
+first that the system gives out; a link looks for the server on each in turn before it starts
+one; the extension tries each while no server is connected, and stays on the one it is paired
+with. A port the user set, with `--port` or in the popup, is the only one that is tried, for
+all three; a setup that names a port means that port, and the popup has to name it too. An
+agent whose server is on another port than the usual one is told so in its status (`Ports.note`),
+with nothing for the user to set.
 
-**When one agent's setup names a port and another's does not.** A server on a port of the
-user's own is not on that list, and an agent set up without a port would start a second
-server beside it, which the browser never comes to. So each server writes a file of its own
-into the folder `servers`, beside the pairing token, when it has opened: its first port, whether
-the browser is connected to it, which it writes again when that changes (`RunningServers`; the
-server looks four times a second, and writes again at the next look where a write failed, as
-it can on Windows while another process reads the file), and what it runs under (below). It
-takes the file out when it ends in order, and nothing is written of it once it has begun to
-stop; a server that opens takes out the files of servers that no longer answer. A link or a
-command without a port of its own looks there before it looks at the list: first at a server
-that has the browser, then at the other servers that answer. The folder decides nothing by
-itself: a port from it is used only where something opens with the server's greeting, the two
-proofs of the pairing token follow on that connection as on any other, and what a file says of
-the browser only puts one server before another. Whether a server is there is told by its port
-alone, never by a process id, which means nothing across the Linux subsystem of Windows or a
-sandbox; a port nobody listens on refuses at once, so the file of a server that was ended by
-force costs nothing to pass over. Each server writes its own file only, so two servers never
-write over each other; each file names the token file its server runs with, and a process reads
-only the files of its own token, so two token files in one folder are two TabGoblins whose
-servers do not know of each other. What a look costs: a start reads the folder and connects
-once to each server in it; a tool that finds no browser does the same.
-
-**A link or a command that names a port** goes to a server that has the browser only where that
-server runs as the one it would start would: each file also says which settings file its server
-reads and which extension it lets in, and the process compares them with its own `--settings`
-and `--extension-origin` (`RunningServers.Fit`). Then nothing its setup asked for is lost, and
-its port only decides where a server is started when none with the browser runs. Where they
-differ, it looks at its own port and no other, as a named port always meant, and starts its
-server there. The same holds for a person who opens the window with `--panel --port`: the window
-of the server that has the browser comes, where that server runs as theirs would. The process
-tells the server which port its setup names and what it would start its own server under
-(`setup_port`, `settings` and `origin` in the link's `attach`), and an agent served elsewhere
-than at its setup's port is told why in its status (`BrowserService.cameFrom`). An agent of a
-server that has no browser is told when another has it: when a tool finds no browser, that
-server looks in the folder for another server that answers and says it has the browser
-(`Hub.unpaired`, `BrowserService.otherServer`), and says in place of the pairing help whether
-that one runs under the settings the agent's own process named: if so, the agent's next process
-goes there by itself; if not, only the user can settle it. What another server's file says is
-fresh, since it is written again when the browser goes, so it is said whatever happened at this
-server before; only a browser that came here with another token is not at another server.
-Nothing else is said of that server, not its port and nothing of its agents. A process without
-a port of its own joins a server that runs whatever its settings, as before: there is one server
-for all agents, and its settings are those of the process that started it.
-
-Both listen on `127.0.0.1` only. Agents share the process and nothing else: no tool tells one
-agent anything about another.
-
-Where the one server cannot be reached or started, for example because another program holds
-its port, the process an agent started serves that agent alone and says so in its log.
+Both kinds of connection are on `127.0.0.1` only. Agents share the process and nothing else: no
+tool tells one agent anything about another.
 
 **CLI.** An agent runs a tool as a command in its terminal ([CLI guide](cli.md)). Such a
-command is a link that lives for
-one call: it connects to the one server, or starts it, proves the token and its agent's key,
-sends one tool call as a `call` message of the command line's own (no MCP is spoken), prints
-the answer and ends. There is no second port or server for it, and from `BrowserService` on
-what runs the call is what runs it for an MCP client. Because the extension
-finds a new agent only by looking at the ports, which takes up to half a minute, the server
-does not let such an agent go with each command: it keeps the agent, with its port, its
-pairing and its submission ids, until no command has come for ten minutes. A command that
-finds no server to be had ends with an error; it does not serve its agent alone.
+command is a link that lives for one call: it connects to the one server, or starts it, proves
+the token and its agent's key, sends one tool call as a `call` message of the command line's own
+(no MCP is spoken), prints the answer and ends. There is no second server for it, and from
+`BrowserService` on what runs the call is what runs it for an MCP client. The server does not
+let such an agent go with each command: it keeps the agent, with its sessions as the extension
+reports them, its submission ids and the user's answers to it, until no command has come for ten
+minutes, so that its next command finds what the last one left. A command that finds no server
+to be had ends with an error; it does not serve its agent alone.
 
 ## Agent connection and authentication
 
@@ -218,30 +180,32 @@ sequenceDiagram
   Note over A,S: Tool calls now pass: a CLI command's own messages (call, cancel, result), or an MCP client's calls
 ```
 
-The extension finds the agent's WebSocket port by trying the ports, and pairs with it:
+The extension connects to the server's one port, and pairs with the server once, for all its agents:
 
 ```mermaid
 sequenceDiagram
   participant E as TabGoblin extension
   participant S as TabGoblin server
-  E->>S: WebSocket handshake on the agent's port
+  E->>S: WebSocket handshake on the server's port, path /
   break Origin is not the extension's, the port is locked after failed pairings, or switched off in the server's window
     S--xE: handshake refused
   end
-  S->>E: challenge { nonce, versions: [3], clientId }
-  break the user disconnected this agent, or no common protocol version
-    E--xS: closes (4403 or 4406)
+  S->>E: challenge { nonce, version: 1 }
+  break another protocol version
+    E--xS: closes (4406)
   end
-  E->>S: auth { nonce, proof of the pairing token, version: 3 }
+  E->>S: auth { nonce, proof of the pairing token, version: 1 }
   break wrong proof or version
     S--xE: closes (4401 or 4406)
   end
-  S->>E: auth_ok { proof of the pairing token, version: 3, clientId, clientName }
+  S->>E: auth_ok { proof of the pairing token, version: 1, agents: [{ id, name }, …] }
   break the server's proof is wrong
     E--xS: closes (4401)
   end
-  E->>S: event sessions: those that belong to this clientId
+  E->>S: agents_refused: those of its agents the user disconnected
+  E->>S: event sessions, for each agent: those that belong to its id
   S->>E: policy: blocked sites and the settings' limits
+  S->>E: agents, whenever one comes, goes or is named
   loop every 20 seconds
     E->>S: ping, after two unanswered the server counts as gone
   end
@@ -265,10 +229,12 @@ line are processes of one agent, not agents of their own: each proves the key an
 one key are served as the one agent that key has, also when several run at once. A command
 whose key is held by an agent that stays connected through MCP is refused.
 
-Failure handling: a server that offers no common protocol version is refused (close code
-4406); ten failed pairings lock a port for a minute; ten wrong link proofs in a minute and the
-server accepts no link for the rest of it; a rotated token ends every pairing before its next
-command. The extension sends a heartbeat every 20 seconds, and a server that leaves two in a
+Failure handling: a server of another protocol version is refused (close code 4406); ten
+failed pairings lock the port for a minute; ten wrong link proofs in a minute and the server
+accepts no link for the rest of it; a rotated token ends the pairing before its next command.
+An agent the user disconnected in the popup stays an agent of the server: the extension tells
+the server which agents it refuses (`agents_refused`), runs no command of theirs, and the server
+tells each such agent that it has no browser until the user allows it again. The extension sends a heartbeat every 20 seconds, and a server that leaves two in a
 row unanswered is treated as gone. The messages and close codes are in the
 [protocol reference](development.md#protocol-reference).
 
@@ -568,12 +534,13 @@ stateDiagram-v2
 ### How a server ends
 
 A link ends when its agent's program closes the input, on Ctrl+C or on a signal to stop. The
-server then closes that agent's MCP conversation and its WebSocket; the extension gets the
-close code for "going away" (1001) and drops that agent at once. Other agents are not touched.
+server then closes that agent's MCP conversation and names its agents to the extension anew,
+without that one; the extension drops that agent at once, and its connection to the server
+stays. Other agents are not touched.
 
 An agent of the command line does not go with its command's process: the server lets it go
-when it has had no command for ten minutes, and closes its WebSocket then. A command that ends
-closes only its own conversation.
+when it has had no command for ten minutes, and takes it out of its agents then. A command that
+ends closes only its own conversation.
 
 The server itself ends when its last agent has gone and none has come for three seconds, or
 when the user stops it in its window. A server the user started with `--panel` in a terminal
@@ -630,16 +597,18 @@ java-server/src/main/java/tabgoblin/
   McpMain.java             entry point, command line, tool definitions
   Link.java                the process an agent starts: passes messages to the one server
   Cli.java                 the tools as commands of a terminal: one tool call through a link
-  Hub.java                 the one server: accepts links, identifies agents
-  Agent.java               one agent inside the server: its port, sessions, tools
+  Hub.java                 the one server: accepts links on the one port, identifies agents
+  Agent.java               one agent inside the server: its id, sessions, tools
   StdinTap.java            end of input, client-side cancellation
   Progress.java            tells a client that asked for it that a call is still running
   BrowserService.java      tool arguments → commands → results, submission ids, policy checks
   BlockedSites.java        the settings file: blocked sites and the security policy (Limits)
   AgentKeys.java           an agent's key file, the id that follows from it, its proof, revoking
   Audit.java               the optional record on disk, one JSON line per command
-  WebSocketBridge.java     localhost endpoint, origin check, pairing, lockout, limits
-  ExtensionConnection.java correlation, deadlines, cancellation, per-session ordering
+  ExtensionServer.java     the one localhost endpoint: origin check, pairing, lockout, limits, the links' path
+  WebSocketBridge.java     one agent's handle on that endpoint: its sessions, its commands
+  ExtensionConnection.java correlation, deadlines, cancellation, per-session ordering, one agent's refusal
+  Ports.java               the ports a server may be on where the system keeps one back
   Protocol.java            typed messages, error categories
   BrowserException.java    an error for the agent: a stable code and a message
   Pairing.java             token file, rotation, HMAC proofs

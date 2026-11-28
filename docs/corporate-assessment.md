@@ -106,14 +106,12 @@ There are **no host permissions** and no `cookies`, `webRequest`, `debugger`, `t
 
 | Listener | Address | Default port | Accepts |
 |---|---|---|---|
-| WebSocket endpoint, one per connected agent | `127.0.0.1` | 47821 to 47828 | Only this extension's origin, then mutual proof of the pairing token |
-| Server's endpoint for agents' processes | `127.0.0.1` | 47829 | A process that proves the pairing token, and for a named agent that agent's key |
+| WebSocket endpoint, one for the browser's extension (path `/`) | `127.0.0.1` | 47821 | Only this extension's origin, then mutual proof of the pairing token; every agent of the server travels on it |
+| The same endpoint for agents' processes (path `/link`) | `127.0.0.1` | 47821 | A process that proves the pairing token, and for a named agent that agent's key |
 
-Nothing listens on another interface. The first port is configurable (`--port`). Where the
-system keeps the default ports back, the server uses the same nine ports counted from 37821,
-or else from 27821. The
-connections are not encrypted; they do not leave the loopback interface. There are no outbound
-connections.
+Nothing listens on another interface. The port is configurable (`--port`). Where the system
+keeps the default port back, the server uses 37821, or else 27821. The connections are not
+encrypted; they do not leave the loopback interface. There are no outbound connections.
 
 ## Authentication mechanisms
 

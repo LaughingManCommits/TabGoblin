@@ -3,6 +3,26 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-28, branch `one-port`, WP-33 built, before its first commit
+
+In a copy of the tree with a Java 25 runtime (`jdk4py`) and the Eclipse compiler, the tree
+having no JDK: `mvn verify`, 240 tests, none failed, 20 skipped (`PanelTest`, no display), among
+them `WebSocketBridgeTest` rewritten (33: one connection for every agent, each told apart; a
+user's disconnect of one agent; the links' path refuses a page's origin; versions 0, 2 and 3
+refused), `HubTest` (17: two agents on one connection, each with its own sessions; a program
+that holds the port is not taken for the server), `CliTest`, `CommandsTest`, `PanelModelTest`,
+`PortsTest` rewritten for single ports, `BrowserServiceTest` (35); `McpConformanceIT` 8 of 8.
+In the same copy `npm run check` in `chrome-extension`: 217 tests, with the type-check and the
+build; `background.test.ts` drives one fake server with several agents. End to end here, in the
+copy: 110 passed, 0 failed, with the hand-made server reached by setting the popup's port to it
+and the suite's own server paired with again after; the window's section is Windows-only and
+did not run. With real processes of that jar and a plain program holding 47821: two agents'
+processes started without `--port` each served their agent alone, logged `no port to listen on
+port=47821 reason=taken`, answered `initialize`, and left the fallback port free, which is the
+designed telling-apart of a held port from one the system keeps back. After the pages: links
+320, all resolve; nothing personal. Not run: the panel's tests and its pictures (no display),
+Kill and Stop in the window, a port the system keeps back.
+
 ## 2026-11-28, branch `one-server-found-and-plain-answers` after `3cfff0b`: CI's two failed steps
 
 CI run 61 on pull request 15, read on GitHub: *End to end* on Windows, 113 passed, 2 failed

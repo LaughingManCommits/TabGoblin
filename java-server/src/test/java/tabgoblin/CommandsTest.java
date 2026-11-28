@@ -27,6 +27,7 @@ class CommandsTest {
     static final ObjectMapper JSON = new ObjectMapper();
 
     WebSocketBridge bridge;
+    ExtensionServer server;
     BrowserService service;
     FakeExtension ext;
     PipedOutputStream to;
@@ -36,10 +37,11 @@ class CommandsTest {
 
     @BeforeEach
     void start() throws Exception {
-        bridge = new WebSocketBridge(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
-        bridge.startAndWait();
+        server = new ExtensionServer(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
+        server.startAndWait();
+        bridge = new WebSocketBridge(server, "c-" + Pairing.randomHex(4));
         service = new BrowserService(bridge, null, Duration.ofMillis(800));
-        ext = FakeExtension.paired(bridge.getPort(), WebSocketBridgeTest.TOKEN);
+        ext = FakeExtension.paired(server.getPort(), WebSocketBridgeTest.TOKEN);
         to = new PipedOutputStream();
         from = new ByteArrayOutputStream();
         ended = new AtomicInteger();
@@ -49,7 +51,7 @@ class CommandsTest {
     @AfterEach
     void stop() throws Exception {
         to.close();
-        bridge.stop(500);
+        server.stop(500);
     }
 
     private void send(String line) throws Exception {

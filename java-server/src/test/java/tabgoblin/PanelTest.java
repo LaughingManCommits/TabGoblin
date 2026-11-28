@@ -279,10 +279,10 @@ class PanelTest {
                 java.util.function.Supplier<String> ports = () -> view.root().lookupAll(".port").stream()
                         .filter(javafx.scene.Node::isVisible).map(javafx.scene.control.Label.class::cast)
                         .map(javafx.scene.control.Label::getText).toList().toString();
-                // The port the popup is told is in the header. The one agent's own shows only where it is another.
+                // The port the popup is told is in the header, and it is the one port there is: an agent has none of its own.
                 steps.add(ports.get());
-                view.show(PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47823, null, true, 1_000, 0,
-                        List.of(), TIME, java.util.Map.of())), Link.port(47821), "9.8.7", false, List.of(), ZoneId.of("UTC")));
+                view.show(PanelModel.of(List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", null, true, 1_000, 0,
+                        List.of(), TIME, java.util.Map.of())), 47821, "9.8.7", false, List.of(), ZoneId.of("UTC")));
                 steps.add(ports.get());
                 view.show(model(true, false));
                 var port = (Panel.PortLabel) view.root().lookup(".header .port");
@@ -292,8 +292,8 @@ class PanelTest {
                 // Bringing the view up to date leaves what it says for the moment.
                 view.show(model(true, false));
                 steps.add(port.getText());
-                view.show(PanelModel.of(List.of(), Link.port(37821), "9.8.7", false, List.of(), ZoneId.of("UTC")));
-                // No agent, no agent's port: the first port is the one that shows.
+                view.show(PanelModel.of(List.of(), 37821, "9.8.7", false, List.of(), ZoneId.of("UTC")));
+                // No agent: the server's port shows all the same.
                 assertEquals(1, view.root().lookupAll(".port").stream().filter(javafx.scene.Node::isVisible).count());
                 steps.add(port.getText());
                 port.copy();
@@ -309,7 +309,7 @@ class PanelTest {
                 steps.add("reached by Tab: " + port.isFocusTraversable());
                 return steps;
             });
-            assertEquals(List.of("[Port 47821]", "[Port 47821, agent port 47823]",
+            assertEquals(List.of("[Port 47821]", "[Port 47821]",
                     "Port 47821 shown=true -> what the user had", "copied -> 47821 asked=[]", "copied",
                     "Port 37821", "37821", "ENTER -> 37821", "SPACE -> 37821", "A -> what the user had",
                     "reached by Tab: true"), seen);
@@ -468,14 +468,14 @@ class PanelTest {
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
             view.show(PanelModel.of("", "c-1a2b3c4d", 47821, "9.8.7",
-                    Agent.noPort(47821, 0),
+                    Agent.noPort(47821, false),
                     false, false, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), List.of(), ZoneId.of("UTC")));
             return view.words();
         });
         for (String shown : List.of("Agent c-1a2b3c4d", "Port 47821",
                 "Not connected: this server has no port to listen on",
                 // What is wrong, why, and what to do: a line each, and no word of it changed.
-                Agent.noPort(47821, 0).replace(". On Windows", ".\nOn Windows").replace(". Start the server", ".\nStart the server"),
+                Agent.noPort(47821, false).replace(". On Windows", ".\nOn Windows").replace(". Start the server", ".\nStart the server"),
                 "Tabs show here once the browser is connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));
         }
@@ -565,7 +565,7 @@ class PanelTest {
     void aServerWithoutAnAgentSaysSoUnderItsStatusAndInItsCards() throws Exception {
         record Shown(List<String> empty, List<String> withOne) {
         }
-        PanelModel empty = PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"));
+        PanelModel empty = PanelModel.of(List.of(), 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"));
         Shown shown = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
             view.show(empty);
@@ -588,17 +588,17 @@ class PanelTest {
         record Seen(List<String> all, List<String> agent, List<String> tab, List<String> again, int rows, int sentToTheServer) {
         }
         var open = new Protocol.Session("s3", "", "a3", "https://wiki.example.net", 9, 0, "d3", "read", 1, "active", "", "", true);
-        var first = new PanelModel.Facts("claude-code", "c-11111111", 47821, null, true, 1_000, 0,
+        var first = new PanelModel.Facts("claude-code", "c-11111111", null, true, 1_000, 0,
                 List.of(new Protocol.Session("s1", "c-11111111", "a1", "https://mail.example.com", 7, 0, "d1", "write", 2, "active",
                         "Inbox", "https://mail.example.com/mail"), open),
                 new Timings.Shares(4, 1_000, 0, 1_000, 0), java.util.Map.of("s1", new Timings.Shares(3, 0, 0, 900, 100)));
-        var second = new PanelModel.Facts("IntelliJ IDEA", "c-22222222", 47822, null, false, 0, 0, List.of(),
+        var second = new PanelModel.Facts("IntelliJ IDEA", "c-22222222", null, false, 0, 0, List.of(),
                 new Timings.Shares(1, 0, 0, 0, 500), java.util.Map.of());
         var log = List.of(
-                new Log.Line(1_000, "info", "server listening for agents port=47829"),
+                new Log.Line(1_000, "info", "server listening port=47821"),
                 new Log.Line(2_000, "debug", "command id=1 session=s1 action=snapshot ms=12 outcome=ok", "s1", "c-11111111"),
-                new Log.Line(3_000, "info", "listening port=47822 client=c-22222222", null, "c-22222222"));
-        PanelModel model = PanelModel.of(List.of(first, second), 47829, "9.8.7", false, log, ZoneId.of("UTC"));
+                new Log.Line(3_000, "info", "serving client=c-22222222 port=47821", null, "c-22222222"));
+        PanelModel model = PanelModel.of(List.of(first, second), 47821, "9.8.7", false, log, ZoneId.of("UTC"));
 
         Seen seen = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
@@ -616,7 +616,7 @@ class PanelTest {
 
         // Both agents, each with what it has: the first its tabs, the second the words in their place.
         for (String shown : List.of("2 agents", "1 of 2 agents is connected to the browser", "2 agents  ·  2 tabs",
-                "claude-code", "c-11111111", ":47821", "s1", "mail.example.com", "owner: claude-code", "s3", "wiki.example.net", "any agent",
+                "claude-code", "c-11111111", "s1", "mail.example.com", "owner: claude-code", "s3", "wiki.example.net", "any agent",
                 "IntelliJ IDEA", "c-22222222", "Port 47821", "not connected", "Tabs show here once the browser is connected",
                 "time of the last 5 calls", "the last 300 lines")) {
             assertTrue(seen.all().contains(shown), shown + " is not among:\n" + String.join("\n", seen.all()));
@@ -629,7 +629,7 @@ class PanelTest {
                 "showing IntelliJ IDEA only  ·  click again for all")) {
             assertTrue(seen.agent().contains(shown), shown + " is not among:\n" + String.join("\n", seen.agent()));
         }
-        assertTrue(String.join("\n", seen.agent()).contains("listening port=47822"));
+        assertTrue(String.join("\n", seen.agent()).contains("serving client=c-22222222"));
         assertFalse(String.join("\n", seen.agent()).contains("session=s1"));
         // A tab of the first agent chosen instead.
         for (String shown : List.of("s1  ·  time of the last 3 calls", "s1  ·  1 of the last 300 lines",
@@ -642,19 +642,19 @@ class PanelTest {
 
     @Test
     void theBlockedSitesAreSaidInTheControlsAndEditAsksForTheSettingsFile() throws Exception {
-        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0,
+        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", null, true, 1_000, 0,
                 List.of(new Protocol.Session("s1", "c-1a2b3c4d", "a1", "https://mail.example.org", 7, 0, "d1", "write", 2, "active",
                         "Inbox (3) - private mail", "https://mail.example.org/mail/u/0/#inbox")), TIME, java.util.Map.of()));
         String file = "~/.tabgoblin/tabgoblin.properties";
         List<String> seen = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
             var steps = new ArrayList<String>();
-            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"), BlockedSites.Rule.NONE, file));
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"), BlockedSites.Rule.NONE, file));
             steps.add(String.valueOf(view.words().containsAll(List.of("Blocked sites", "No site is blocked"))));
             steps.add(String.valueOf(view.words().contains("blocked")));
             // The user's click asks for the file; bringing the view up to date asks for nothing.
             view.edit().fire();
-            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
                     new BlockedSites.Rule(List.of("example.org"), null), file));
             steps.add(sent.toString());
             // The site that is blocked now is named, and the tab on it is marked.
@@ -662,7 +662,7 @@ class PanelTest {
             steps.add(String.valueOf(view.blockedExplained().contains("Blocked now:\n  example.org") && view.blockedExplained().endsWith(file)));
             // The path is under the mouse, and in no line of the window.
             steps.add(String.valueOf(view.words().stream().noneMatch(word -> word.contains("tabgoblin.properties"))));
-            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC"),
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC"),
                     new BlockedSites.Rule(List.of(), "it cannot be read (AccessDeniedException)"), file));
             steps.add(String.valueOf(view.words().containsAll(List.of("Every site is refused: the file has a mistake",
                     "Every site is refused until the settings file is mended: it cannot be read (AccessDeniedException)."))));
@@ -675,11 +675,11 @@ class PanelTest {
     void theMetricsSayHowLongACallTypicallyTakesInEachHeapBesideItsShare() throws Exception {
         var each = List.of(new Timings.Spent(-1, 2, 30, 0), new Timings.Spent(4_000, 1, 20, 0),
                 new Timings.Spent(6_000, 3, 1_200, 0), new Timings.Spent(346_000, 2, 26, 0));
-        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0, List.of(),
+        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", null, true, 1_000, 0, List.of(),
                 new Timings.Shares(4, 70_000, 8, 1_276, 0, each), java.util.Map.of()));
         List<String> words = inTheWindow(sent -> {
             var view = new Panel.View(sent::add);
-            view.show(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), ZoneId.of("UTC")));
+            view.show(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), ZoneId.of("UTC")));
             return view.words();
         });
         // Over the numbers stands what they are; each heap has its share and its typical time.

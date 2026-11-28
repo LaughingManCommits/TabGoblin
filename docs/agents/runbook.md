@@ -145,7 +145,7 @@ There is one server for all agents (`javaw` on Windows, with `--hub` in its comm
 ends by itself three seconds after its last agent has gone, and by **Stop server** in its
 window. The process an agent starts is a pipe to it and ends when the agent closes it; run in a
 terminal without an option it waits on its input and looks like a hang, and Ctrl+C ends it. Ending
-the server's process is no stop: agents that still run start it again. Finding it by its ports
+the server's process is no stop: agents that still run start it again. Finding it by its port
 is in the [developer guide](../developer-guide.md#stopping).
 
 ## Regenerate screenshots and examples
@@ -236,7 +236,7 @@ not start without one. `1-connected.png` is the documentation's picture: copy it
 `docs/images/server-panel.png` when it has changed.
 
 A drawing does not show the window on a desktop. For that, open the server's window yourself,
-on ports of its own, so that it is a server beside the one your agents use and your own
+on a port of its own, so that it is a server beside the one your agents use and your own
 extension does not pair with it:
 
 ```sh

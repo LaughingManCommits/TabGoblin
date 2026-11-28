@@ -79,7 +79,7 @@ class PanelModelTest {
         assertFalse(PanelModel.of("claude-code", "c-1a2b3c4d", 47821, "9.8.7", "Could not listen on any port.", false, false, 0,
                 Protocol.CLOSE_UNAUTHORIZED, List.of(), NO_CALLS, List.of(), UTC).pairingWanted());
         // And a server that no agent talks to has nothing to pair for.
-        assertFalse(PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), UTC).pairingWanted());
+        assertFalse(PanelModel.of(List.of(), 47821, "9.8.7", false, List.of(), UTC).pairingWanted());
     }
 
     @Test
@@ -226,10 +226,10 @@ class PanelModelTest {
         assertEquals("claude-code", named.agent());
         assertEquals("claude-code  ·  c-1a2b3c4d", named.identity());
         // The window shows the port apart from the rest of the line, to be copied by a click.
-        assertEquals(47821, named.firstPort());
-        PanelModel stuck = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", "Could not listen on any of ports 47821-47828.",
+        assertEquals(47821, named.port());
+        PanelModel stuck = PanelModel.of("claude-code", "c-1", 47821, "9.8.7", "Could not listen on port 47821.",
                 false, false, 0, 0, List.of(), NO_CALLS, List.of(new Log.Line(5, "warn", "a line")), UTC);
-        assertEquals("Could not listen on any of ports 47821-47828.", stuck.problem());
+        assertEquals("Could not listen on port 47821.", stuck.problem());
         // A line of the log is shown as it was written, with its time of day in front and a mark on a warning.
         assertEquals(List.of("00:00:00  ! a line"), stuck.log());
         assertEquals("03:25:45  listening port=47821",
@@ -240,7 +240,7 @@ class PanelModelTest {
     @Test
     void aServerWithoutAnAgentSaysSoAndWaitsForOne() {
         // The one server, started by the user, before any agent's program has connected to it.
-        PanelModel empty = PanelModel.of(List.of(), 47829, "9.8.7", false, List.of(), UTC);
+        PanelModel empty = PanelModel.of(List.of(), 47821, "9.8.7", false, List.of(), UTC);
         assertEquals("no agent", empty.agent());
         // An agent that waits for the browser: the next step is the user's, and the window says which.
         assertTrue(model(false, false, 0, 0, List.of()).note().startsWith("Open the TabGoblin popup in Chrome"));
@@ -248,7 +248,7 @@ class PanelModelTest {
         assertEquals("", model(true, false, 1_000, 0, List.of()).note());
         assertEquals("", model(false, true, 0, 0, List.of()).note());
         assertEquals("", model(false, false, 0, Protocol.CLOSE_UNAUTHORIZED, List.of()).note());
-        assertEquals(47821, empty.firstPort());
+        assertEquals(47821, empty.port());
         assertEquals("one server for all your agents", empty.identity());
         assertFalse(empty.connected());
         assertEquals("No agent connected", empty.connection());
@@ -260,7 +260,7 @@ class PanelModelTest {
         assertEquals(List.of(), empty.agents());
         // Switched off, it says that first: nothing connects while that is so.
         assertEquals("Switched off here: the extension is not let in",
-                PanelModel.of(List.of(), 47829, "9.8.7", true, List.of(), UTC).connection());
+                PanelModel.of(List.of(), 47821, "9.8.7", true, List.of(), UTC).connection());
         // With an agent there is no such note, and the words are that agent's.
         PanelModel one = model(true, false, 0, 0, List.of());
         assertEquals("", one.note());
@@ -276,22 +276,22 @@ class PanelModelTest {
         var other = new Timings.Shares(2, 1_000, 0, 1_000, 0);
         // A tab that the user authorized for any agent is reported to each agent until one has used it.
         var open = new Protocol.Session("s3", "", "a3", "https://c.example", 9, 0, "d3", "read", 1, "active", "", "", true);
-        var first = new PanelModel.Facts("claude-code", "c-11111111", 47821, null, true, 12 * 3_600_000L, 0,
+        var first = new PanelModel.Facts("claude-code", "c-11111111", null, true, 12 * 3_600_000L, 0,
                 List.of(session("s1", "https://a.example", "write", "active"), open), time, java.util.Map.of("s1", ofTab));
-        var second = new PanelModel.Facts("", "c-22222222", 47822, null, false, 0, Protocol.CLOSE_USER_DISCONNECTED,
+        var second = new PanelModel.Facts("", "c-22222222", null, false, 0, Protocol.CLOSE_USER_DISCONNECTED,
                 List.of(), other, java.util.Map.of());
         var log = List.of(
-                new Log.Line(1_000, "info", "server listening for agents port=47829"),
-                new Log.Line(2_000, "info", "listening port=47821 client=c-11111111", null, "c-11111111"),
+                new Log.Line(1_000, "info", "server listening port=47821"),
+                new Log.Line(2_000, "info", "serving client=c-11111111 port=47821", null, "c-11111111"),
                 new Log.Line(3_000, "debug", "command id=1 session=s1 action=snapshot ms=12 outcome=ok", "s1", "c-11111111"),
-                new Log.Line(4_000, "info", "listening port=47822 client=c-22222222", null, "c-22222222"));
-        PanelModel shown = PanelModel.of(List.of(first, second), 47829, "9.8.7", false, log, UTC);
+                new Log.Line(4_000, "info", "serving client=c-22222222 port=47821", null, "c-22222222"));
+        PanelModel shown = PanelModel.of(List.of(first, second), 47821, "9.8.7", false, log, UTC);
 
         assertEquals("2 agents", shown.agent());
         assertEquals("2 agents", shown.identity());
         assertEquals(List.of(
-                new PanelModel.Member("c-11111111", "claude-code", 47821, true, "Connected to the browser since 12:00:00", 2, false),
-                new PanelModel.Member("c-22222222", "Agent c-22222222", 47822, false,
+                new PanelModel.Member("c-11111111", "claude-code", true, "Connected to the browser since 12:00:00", 2, false),
+                new PanelModel.Member("c-22222222", "Agent c-22222222", false,
                         "Not connected: disconnected in the extension's popup", 0, false)), shown.agents());
         // The dot is green only when every agent is connected, and the line says how many are.
         assertFalse(shown.connected());
@@ -312,14 +312,14 @@ class PanelModelTest {
         assertEquals("claude-code  ·  2 of the last 300 lines", shown.logCount("c-11111111", 300));
         assertEquals("showing claude-code only  ·  click again for all", shown.chosenNote("c-11111111"));
         assertEquals("Agent c-22222222  ·  time of the last 2 calls", shown.callsCount("c-22222222"));
-        assertEquals(List.of("00:00:04  listening port=47822 client=c-22222222"), shown.log("c-22222222"));
+        assertEquals(List.of("00:00:04  serving client=c-22222222 port=47821"), shown.log("c-22222222"));
         // One tab: as with one agent.
         assertEquals(3, shown.metrics("s1").calls());
         assertEquals(1, shown.log("s1").size());
         assertEquals("showing s1 only  ·  click again for all", shown.chosenNote("s1"));
         // An agent without a call, and what stands in the place of each agent's tabs.
-        PanelModel quiet = PanelModel.of(List.of(first, new PanelModel.Facts("IntelliJ IDEA", "c-33333333", 47823, null, true,
-                0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), java.util.Map.of())), 47829, "9.8.7", false, List.of(), UTC);
+        PanelModel quiet = PanelModel.of(List.of(first, new PanelModel.Facts("IntelliJ IDEA", "c-33333333", null, true,
+                0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), java.util.Map.of())), 47821, "9.8.7", false, List.of(), UTC);
         assertEquals("No tool call of this agent has ended yet", quiet.noTimes("c-33333333"));
         assertEquals("No line of this agent among the lines that are kept.", quiet.noLog("c-33333333"));
         assertEquals("Both agents are connected to the browser", quiet.connection());
@@ -350,8 +350,9 @@ class PanelModelTest {
 
     @Test
     void itIsReadFromTheRunningServerThroughTheObjectsTheStatusToolReads() throws Exception {
-        WebSocketBridge bridge = new WebSocketBridge(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
-        bridge.startAndWait();
+        ExtensionServer server = new ExtensionServer(0, WebSocketBridgeTest.TOKEN, FakeExtension.ORIGIN, 400);
+        server.startAndWait();
+        WebSocketBridge bridge = new WebSocketBridge(server, "c-" + Pairing.randomHex(4));
         try {
             bridge.setClientName("claude-code");
             PanelModel alone = PanelModel.of(bridge, null);
@@ -363,8 +364,9 @@ class PanelModelTest {
 
             FakeExtension ext = FakeExtension.paired(bridge.getPort(), WebSocketBridgeTest.TOKEN);
             ext.send("""
-                    {"type":"event","event":"sessions","data":{"sessions":[{"session":"s1","origin":"https://app.example.com",\
-                    "mode":"explore","state":"active","tab":{"title":"Board - private","url":"https://app.example.com/b/42"}}]}}""");
+                    {"type":"event","event":"sessions","agent":"%s","data":{"sessions":[{"session":"s1","origin":"https://app.example.com",\
+                    "mode":"explore","state":"active","tab":{"title":"Board - private","url":"https://app.example.com/b/42"}}]}}"""
+                    .formatted(bridge.clientId()));
             for (int i = 0; i < 100 && bridge.sessions().isEmpty(); i++) {
                 Thread.sleep(20);
             }
@@ -385,7 +387,7 @@ class PanelModelTest {
             assertEquals("Switched off here: the extension is not let in", off.connection());
             assertTrue(off.sessions().isEmpty(), "what the extension reported went with its connection");
         } finally {
-            bridge.stop(500);
+            server.stop(500);
         }
     }
 
@@ -395,13 +397,13 @@ class PanelModelTest {
                 session("s2", "https://mail.example.org:8443", "read", "paused"),
                 new Protocol.Session("s3", "c-1a2b3c4d", "a3", "https://wiki.example.net", 9, 0, "d3", "read", 1, "active",
                         "Wiki", "https://wiki.example.net/", false, List.of("https://wiki.example.net", "https://intranet.example")));
-        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0, sessions, NO_CALLS, Map.of()));
+        var facts = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", null, true, 1_000, 0, sessions, NO_CALLS, Map.of()));
         String file = "~/.tabgoblin/tabgoblin.properties";
 
         // Nothing blocked: the rows are as they were, and the line says so.
-        PanelModel open = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        PanelModel open = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
         // The server's link port comes after the agents' ports: the first of those is what the popup is told.
-        assertEquals(47821, open.firstPort());
+        assertEquals(47821, open.port());
         assertEquals(List.of("active", "paused", "active"), open.sessions().stream().map(PanelModel.Row::state).toList());
         assertEquals("No site is blocked", open.blocked().summary());
         assertTrue(open.blocked().explained().endsWith(file), open.blocked().explained());
@@ -412,28 +414,28 @@ class PanelModelTest {
         // Some: a tab on a blocked site says "blocked" in place of its state, and so does one that
         // spans a blocked site. The line names what fits and counts the rest; under the mouse is all of it.
         var rule = new BlockedSites.Rule(List.of("bank.example", "example.org", "intranet.example"), null);
-        PanelModel some = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, rule, file);
+        PanelModel some = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, rule, file);
         assertEquals(List.of("active", "blocked", "blocked"), some.sessions().stream().map(PanelModel.Row::state).toList());
         // The entries that block a tab come first: the line names what is in the user's way.
         assertEquals("example.org, intranet.example and 1 more", some.blocked().summary());
         assertTrue(some.blocked().explained().contains("Blocked now:\n  example.org\n  intranet.example\n  bank.example\n\n" + file),
                 some.blocked().explained());
-        assertEquals("example.org", PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
+        assertEquals("example.org", PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null), file).blocked().summary());
         assertNull(some.problem());
 
         // A file that cannot be read: every tab is blocked, and the window's problem says why, in the file's own words.
         var slip = new BlockedSites.Rule(List.of(), "\"exam_ple.org\" in blocked.sites is no domain");
-        PanelModel mistaken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, slip, file);
+        PanelModel mistaken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, slip, file);
         assertEquals(List.of("blocked", "blocked", "blocked"), mistaken.sessions().stream().map(PanelModel.Row::state).toList());
         assertEquals("Every site is refused until the settings file is mended: \"exam_ple.org\" in blocked.sites is no domain.",
                 mistaken.problem());
         assertTrue(mistaken.blocked().explained().contains(mistaken.problem()), "under the mouse it is said in full as well");
         assertEquals("Every site is refused: the file has a mistake", mistaken.blocked().summary());
         // A server that could not start says that first: it is the greater trouble.
-        var broken = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, "Could not listen.", false, 0, 0, List.of(),
+        var broken = List.of(new PanelModel.Facts("claude-code", "c-1a2b3c4d", "Could not listen.", false, 0, 0, List.of(),
                 NO_CALLS, Map.of()));
-        assertEquals("Could not listen.", PanelModel.of(broken, 47829, "9.8.7", false, List.of(), UTC, slip, file).problem());
+        assertEquals("Could not listen.", PanelModel.of(broken, 47821, "9.8.7", false, List.of(), UTC, slip, file).problem());
         // Nothing of a page is in it.
         assertFalse(some.toString().contains("Inbox"), "the page's title stays out");
         assertFalse(some.toString().contains("?q=from"), "the page's address stays out");
@@ -466,9 +468,9 @@ class PanelModelTest {
         var other = new Timings.Shares(3, 3_000, 3, 3_000, 0, List.of(new Timings.Spent(-1, 1, 1_000, 0),
                 new Timings.Spent(1_000, 1, 1_000, 0), new Timings.Spent(2_000, 1, 1_000, 0)));
         var both = PanelModel.of(List.of(
-                new PanelModel.Facts("claude-code", "c-1a2b3c4d", 47821, null, true, 1_000, 0, List.of(), time, Map.of()),
-                new PanelModel.Facts("IntelliJ IDEA", "c-5e6f7a8b", 47822, null, true, 1_000, 0, List.of(), other, Map.of())),
-                47829, "9.8.7", false, List.of(), UTC);
+                new PanelModel.Facts("claude-code", "c-1a2b3c4d", null, true, 1_000, 0, List.of(), time, Map.of()),
+                new PanelModel.Facts("IntelliJ IDEA", "c-5e6f7a8b", null, true, 1_000, 0, List.of(), other, Map.of())),
+                47821, "9.8.7", false, List.of(), UTC);
         // The browser's seven times: 20, 26, 30, 1000, 1000, 1000, 1200.
         assertEquals("1.0 s", both.metrics().shares().get(2).typical());
         assertEquals("28 ms", both.metrics("c-1a2b3c4d").shares().get(2).typical());
@@ -492,11 +494,11 @@ class PanelModelTest {
 
     @Test
     void theWindowNamesASecurityPolicyInItsHeadingSaysInShortWhatItRestrictsAndInFullUnderTheMouse() {
-        var facts = List.of(new PanelModel.Facts("claude-code", "a-0123456789ab", 47821, null, true, 0, 0, List.of(),
+        var facts = List.of(new PanelModel.Facts("claude-code", "a-0123456789ab", null, true, 0, 0, List.of(),
                 new Timings.Shares(0, 0, 0, 0, 0), Map.of()));
         String file = "/somewhere/tabgoblin.properties";
         var limits = new BlockedSites.Limits(true, List.of("ci.example"), false, BlockedSites.Access.EXPLORE, 240, 20);
-        PanelModel.Blocked shown = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked shown = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null, limits), file).blocked();
         assertEquals("Blocked sites and security policy", shown.heading());
         assertEquals("example.org", shown.summary(), "the line of the blocked sites says the blocked sites");
@@ -509,14 +511,14 @@ class PanelModelTest {
         assertTrue(under.endsWith(file));
 
         // A policy and no blocked site: the heading says that there is a policy, and each line says its own.
-        PanelModel.Blocked alone = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked alone = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), false, BlockedSites.Access.WRITE, 0, 0)), file).blocked();
         assertEquals("Blocked sites and security policy", alone.heading());
         assertEquals("No site is blocked", alone.summary());
         assertEquals("Policy: no screenshots", alone.policyLine());
 
         // Without a policy the heading, the line and the text are as they were, and there is no second line.
-        PanelModel.Blocked plain = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked plain = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of("example.org"), null), file).blocked();
         assertEquals("Blocked sites", plain.heading());
         assertEquals("example.org", plain.summary());
@@ -524,7 +526,7 @@ class PanelModelTest {
         assertFalse(plain.restricts());
         assertFalse(plain.explained().contains("Security policy"));
         // A file that cannot be read refuses everything: that is what the window says, and not a policy.
-        PanelModel.Blocked broken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked broken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of(), "\"admin\" in access.max is none of read, explore, write", limits), file).blocked();
         assertEquals("Blocked sites", broken.heading());
         assertFalse(broken.restricts());
@@ -533,11 +535,11 @@ class PanelModelTest {
     @Test
     void theWindowShowsEachInterfaceAsAPillAndMarksEachAgentByTheWayItComes() {
         var facts = List.of(
-                new PanelModel.Facts("claude-code", "a-0123456789ab", 47821, null, true, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), Map.of(), null, false),
-                new PanelModel.Facts("ide (command line)", "a-ba9876543210", 47822, null, true, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), Map.of(), null, true));
+                new PanelModel.Facts("claude-code", "a-0123456789ab", null, true, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), Map.of(), null, false),
+                new PanelModel.Facts("ide (command line)", "a-ba9876543210", null, true, 0, 0, List.of(), new Timings.Shares(0, 0, 0, 0, 0), Map.of(), null, true));
         String file = "/somewhere/tabgoblin.properties";
         // Without a word in the settings both are on, and each agent is marked by the way it comes.
-        PanelModel both = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
+        PanelModel both = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, BlockedSites.Rule.NONE, file);
         assertTrue(both.blocked().on(true) && both.blocked().on(false));
         assertEquals("CLI", both.blocked().pill(true));
         assertEquals("MCP", both.blocked().pill(false));
@@ -546,7 +548,7 @@ class PanelModelTest {
 
         // MCP off: its pill is off and says why, where the file is, and how many starts were turned away; the CLI's is on.
         var cliOnly = new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), true, BlockedSites.Access.WRITE, 0, 0, true, false));
-        PanelModel.Blocked off = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, cliOnly, file, 2).blocked();
+        PanelModel.Blocked off = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, cliOnly, file, 2).blocked();
         assertTrue(off.on(true));
         assertFalse(off.on(false));
         assertEquals(2, off.turnedAway());
@@ -557,19 +559,19 @@ class PanelModelTest {
         assertEquals("Policy: CLI only", off.policyLine());
         assertTrue(off.explained().contains("agents come by the command line only (MCP is off)"));
         // One start reads as one.
-        assertTrue(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, cliOnly, file, 1).blocked().interfaceExplained(false).contains("1 MCP start was"));
-        assertFalse(PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, cliOnly, file).blocked().interfaceExplained(false).contains("turned away"));
+        assertTrue(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, cliOnly, file, 1).blocked().interfaceExplained(false).contains("1 MCP start was"));
+        assertFalse(PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, cliOnly, file).blocked().interfaceExplained(false).contains("turned away"));
 
         // The command line off: the other way round, and no count, which is of MCP starts.
         var mcpOnly = new BlockedSites.Rule(List.of(), null, new BlockedSites.Limits(false, List.of(), true, BlockedSites.Access.WRITE, 0, 0, false, true));
-        PanelModel.Blocked cliOff = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC, mcpOnly, file).blocked();
+        PanelModel.Blocked cliOff = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC, mcpOnly, file).blocked();
         assertFalse(cliOff.on(true));
         assertTrue(cliOff.on(false));
         assertTrue(cliOff.interfaceExplained(true).contains("The command line is off by the settings file (interfaces = mcp)"), cliOff.interfaceExplained(true));
         assertEquals("Policy: MCP only", cliOff.policyLine());
 
         // A file that cannot be read: both are off, and each says that every agent is turned away until it is mended.
-        PanelModel.Blocked mistaken = PanelModel.of(facts, 47829, "9.8.7", false, List.of(), UTC,
+        PanelModel.Blocked mistaken = PanelModel.of(facts, 47821, "9.8.7", false, List.of(), UTC,
                 new BlockedSites.Rule(List.of(), "\"http\" in interfaces is neither cli nor mcp"), file).blocked();
         assertFalse(mistaken.on(true) || mistaken.on(false));
         assertTrue(mistaken.interfaceExplained(true).contains("Every agent is turned away until the settings file is mended"));

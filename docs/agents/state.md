@@ -1,17 +1,30 @@
 # Current state and handoff
 
-Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
+Last updated: 2026-11-28. Claims here go stale; check the date, then `git status` and `git log`.
 
-## WP-33, one port: begun, 2026-11-28
+## WP-33, one port: built, 2026-11-28
 
 On branch `one-port`, made from `main` at `0d54694` (the merge of pull request 15) on the owner's
-word ("go, one port, drop the servers folder, new branch after merge"). WP-33 is filed in
-[TODO.md](../../TODO.md): the server listens on one port, the extension opens one connection and
-the agents travel inside it, the agents' processes reach the server over the same port on the
-path `/link`, protocol version 4; `RunningServers`, `Ports`, the per-agent bridge, the port scan
-and the limit of eight agents go. Nothing of it is built yet. **Next:** the server's side first
-(`WebSocketBridge` as one bridge for the hub, agent ids on the messages, `Protocol` 4), then the
-extension, then the link over the same port, then the window, the suite and the pages.
+word ("go, one port, drop the servers folder, new branch after merge"). Built in one session, not
+yet merged: the server listens on one port (`ExtensionServer`, new; `Ports` cut to the list of
+three), the extension opens one connection and every agent travels inside it with its id on each
+message (`agents`, `agent`, `agents_refused`), the agents' processes reach the server over the
+same port on the path `/link` as WebSocket frames (`Link` version 3), protocol version 1 on the
+owner's word ("we should still be version 1 of our protocol"; a 0.2.0 part, which said 3, is
+refused and told to update). Gone: `RunningServers` and the `servers` folder, the per-agent
+ports and bridges, the port scan, the limit of eight agents, `setup_port`, `settings` and
+`origin` in the link's `attach`, `cameFrom`, the port chips of the window and the popup. The
+pages follow: architecture (processes and ports, the pairing diagram), the protocol reference,
+the tool reference's status, the security model's connection and identity rows, installation,
+developer guide, assessment, the CLI page, the three CLI skills (the paragraph on another
+server's port is out).
+
+Seen: the server's `mvn verify` (240 tests, 20 skipped `PanelTest`; `McpConformanceIT` 8 of 8),
+the extension's `npm run check` (217 tests), the end-to-end suite here (110 passed, 0 failed;
+the window's section is Windows-only and did not run). Not seen: the window on a screen, and
+the acceptance by hand with real processes that WP-33 in [TODO.md](../../TODO.md) lists.
+**Next:** the owner reviews and merges; then the acceptance by hand, and the window's pictures
+if its look changed (the per-agent port chips are gone from the rows and the header's line).
 
 ## CI's end-to-end run on Windows: two steps mended, 2026-11-28
 
