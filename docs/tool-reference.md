@@ -146,8 +146,12 @@ tool answers `NOT_CONNECTED` meanwhile, with the same explanation.
 
 - No browser has come. One that is paired finds the server within about 30 seconds; one that is
   not has to be paired. The result says where the user finds the token: by a command, or in the
-  server's window where that is open. `Listening on` is the server's one port, the one the
-  popup is set to.
+  server's window where that is open. `Listening on` is the server's one port, which the
+  extension finds by itself. A server started with `--port` on another port is one the extension
+  does not look at: the result ends by saying so, and that the way to a browser is a start
+  without the option (`This server listens on 5000, which the extension does not look at: it
+  finds a server on 47821, 37821 or 27821 only. For a browser, start the server without
+  --port.`).
 
 ```text
 Extension: not connected

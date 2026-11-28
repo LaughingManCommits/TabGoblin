@@ -117,7 +117,7 @@ all agents share one server, that child is only a link: it connects to the one s
 the link starts one as an independent process, which then also serves the agents that come
 later.
 
-**One port.** The server listens on one port, 47821 by default (`--port`). The extension opens
+**One port.** The server listens on one port, 47821 by default. The extension opens
 one WebSocket connection to it, on the path `/`, and pairs once; every agent of the server
 travels inside that connection, told apart by its id: the server names its agents to the
 extension, a command names its agent, and an event or an answer names the agent it is for. The
@@ -139,10 +139,14 @@ So the server, the links and the extension share a fixed list of ports, far apar
 37821 and 27821 (`Ports.FIRST` in the server, `PORTS` in `policy.ts`). The server takes the
 first that the system gives out; a link looks for the server on each in turn before it starts
 one; the extension tries each while no server is connected, and stays on the one it is paired
-with. A port the user set, with `--port` or in the popup, is the only one that is tried, for
-all three; a setup that names a port means that port, and the popup has to name it too. An
-agent whose server is on another port than the usual one is told so in its status (`Ports.note`),
-with nothing for the user to set.
+with. The extension has no port setting: it looks at these three and at no other, and the popup
+asks for the token alone. An agent whose server is on the second or the third is told so in its
+status (`Ports.note`), with nothing for the user to set. `--port` names another port, for a
+server the browser is not to pair with: a second server beside the one, as the end-to-end suite
+runs its own and a developer opens the window on one ([runbook](agents/runbook.md#look-at-the-servers-panel));
+a link or a command reaches such a server only with the same `--port`, and an agent of it is told
+in its status that the extension does not look there. The suite tells its extension the port by
+writing it into the extension's storage, which no popup does.
 
 Both kinds of connection are on `127.0.0.1` only. Agents share the process and nothing else: no
 tool tells one agent anything about another.

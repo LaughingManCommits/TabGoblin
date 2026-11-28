@@ -475,7 +475,7 @@ class PanelTest {
         for (String shown : List.of("Agent c-1a2b3c4d", "Port 47821",
                 "Not connected: this server has no port to listen on",
                 // What is wrong, why, and what to do: a line each, and no word of it changed.
-                Agent.noPort(47821, false).replace(". On Windows", ".\nOn Windows").replace(". Start the server", ".\nStart the server"),
+                Agent.noPort(47821, false).replaceAll("(?<=[.]) (?=[A-Z])", "\n"),
                 "Tabs show here once the browser is connected", "No tool call has ended yet", "Nothing logged yet.")) {
             assertTrue(words.contains(shown), shown + " is not among:\n" + String.join("\n", words));
         }

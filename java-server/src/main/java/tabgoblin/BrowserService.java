@@ -192,10 +192,13 @@ public final class BrowserService {
         }
         boolean refused = known.refused() || bridge.lastCloseCode() == Protocol.CLOSE_UNAUTHORIZED;
         String where = !known.window() ? TOKEN_BY_COMMAND : refused ? TOKEN_AT_WINDOWS_TOP : TOKEN_IN_WINDOW;
+        // A server on a port the extension does not look at waits in vain: said last, after what the user does.
+        String off = Ports.offList(bridge.getPort());
+        String ports = off.isEmpty() ? "" : " " + off;
         if (refused) {
-            return (said ? "" : HOLDS_ANOTHER + " ") + PAIR + " " + where;
+            return (said ? "" : HOLDS_ANOTHER + " ") + PAIR + " " + where + ports;
         }
-        return WAIT_OR_PAIR + " " + where;
+        return WAIT_OR_PAIR + " " + where + ports;
     }
 
     /** Whether pairing is what is missing: not while the user has switched it off or disconnected this agent, which are theirs to undo. */

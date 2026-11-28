@@ -112,6 +112,7 @@ const fakeChrome = {
       set: async (values: object) => { Object.assign(storageLocal, values); },
       remove: async (key: string) => { delete storageLocal[key]; },
     },
+    onChanged: new FakeEvent(),
     session: {
       get: async (key: string) => ({ [key]: storageSession[key] }),
       set: async (values: object) => { Object.assign(storageSession, structuredClone(values)); },
@@ -377,7 +378,8 @@ before(async () => {
 test('connects to the one server, which names its agents, and refuses one that speaks another protocol version', async () => {
   const s = await state();
   assert.equal(s.connection, 'connected');
-  assert.deepEqual(s.clients.map((c: any) => `${c.name}:${c.port}`).sort(), ['agent-one:5000', 'agent-two:5000']);
+  // The agents by name; the popup is told no port, since there is none to set.
+  assert.deepEqual(s.clients.map((c: any) => [c.name, c.port]).sort(), [['agent-one', undefined], ['agent-two', undefined]]);
   assert.deepEqual([...tried], [BASE_PORT], 'the port the user set is the only one looked at');
   assert.equal(hub.proofs, 1);
 
@@ -2305,10 +2307,20 @@ test('a tab sent to an address that answers late is waited for, and is not said 
   }
 });
 
-test('the port the user set is the only one that is looked at', async () => {
-  // The whole file runs with a port of its own. The ports a server falls back to where the system
-  // keeps the usual one back are for a setup that names no port (`portsToTry`).
+test('a port in the storage is the only one that is looked at, and one written there is looked at next', async () => {
+  // The whole file runs with a port of its own, in the storage: no popup writes one, the end-to-end
+  // suite does. The ports a server falls back to where the system keeps the usual one back are
+  // for a storage that names no port (`portsToTry`).
   await popup({ type: 'getState' });
   assert.deepEqual([...tried], [BASE_PORT]);
+  // Written anew, the next look is there and nowhere else; the server found before is let go.
+  fakeChrome.storage.onChanged.emit({ port: { newValue: BASE_PORT + 7 } }, 'local');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok(tried.has(BASE_PORT + 7), `the new port was not looked at: ${[...tried]}`);
+  // Taken out, the list is looked at again, which this fake's one server is not on.
+  tried.clear();
+  fakeChrome.storage.onChanged.emit({ port: { newValue: undefined, oldValue: BASE_PORT + 7 } }, 'local');
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual([...tried], [47821, 37821, 27821]);
 });
 

@@ -140,11 +140,16 @@ final class Agent {
      */
     static String noPort(int port, boolean answering) {
         String could = "Could not listen on port " + port + " on 127.0.0.1: ";
-        String other = "Start the server with --port and a port that is free, and set the same port in the extension's "
-                + "popup under Connection.";
         if (answering) {
-            return could + "it is taken by a program that is not a TabGoblin server. Close that program, or: " + other;
+            return could + "it is taken by a program that is not a TabGoblin server. Close that program: the server does "
+                    + "not step over a port another program holds.";
         }
+        // The extension looks at the list and nowhere else: the way out is one of those ports, not another.
+        String other = Ports.FIRST.contains(port)
+                ? "The server tries " + Ports.listed() + ", the ports the extension looks at, and all three are kept back: "
+                        + "free one of them."
+                : "Start the server without --port: it then takes the first of " + Ports.listed() + " that the system "
+                        + "gives out, which are the ports the extension looks at.";
         return could + "the system does not give it out. On Windows, a range of ports can be kept back for the system's "
                 + "own networking, as Hyper-V, WSL and Docker have it done; \"netsh interface ipv4 show excludedportrange "
                 + "protocol=tcp\" lists the ranges. " + other;

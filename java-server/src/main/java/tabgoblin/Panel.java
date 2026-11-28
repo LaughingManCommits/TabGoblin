@@ -812,9 +812,9 @@ final class Panel {
         /** Hides the window; shown only where the window has no button of the system's for it. */
         private final Button close = new Button();
         private final Label agent = label("", "sub");
-        /** The server's one port, there before any agent connects: the one to set in the extension's popup. */
-        private final PortLabel port = new PortLabel("chip").about(number -> "The port to set in the extension's popup, "
-                + "under Connection. Click to copy " + number + ".");
+        /** The server's one port, there before any agent connects. The extension finds it by itself; a command or a link may have to name it. */
+        private final PortLabel port = new PortLabel("chip").about(number -> "The server's port. The extension finds it by "
+                + "itself; a command or a link that has to name it uses this number. Click to copy " + number + ".");
         /** The two interfaces, in the header: each a pill, green while agents may come that way, red with a sign where it is off. */
         private final WayLabel cliWay = new WayLabel();
         private final WayLabel mcpWay = new WayLabel();

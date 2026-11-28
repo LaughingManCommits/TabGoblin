@@ -214,13 +214,21 @@ try {
     return undefined;
   };
   /** Clicks the extension's toolbar button for `target`, like the user would, and returns the popup. */
+  /**
+   * Tells the extension which port the suite's server is on. The popup has no port: a user's
+   * extension looks at the three ports a server may be on, and the suite's servers are on ports of
+   * their own, so the port goes into the extension's storage, which the worker takes up at once.
+   */
+  async function lookAt(port) {
+    await (await worker()).evaluate((value) => chrome.storage.local.set({ port: value }), Number(port));
+  }
   /** Pairs the popup with the server on the port, with the suite's token: the form is behind Connection… while a server is paired. */
   async function pairPopup(popup, port) {
+    await lookAt(port);
     if (await popup.$eval('#pairing', (el) => el.hidden)) await popup.click('#settings');
     await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
     await popup.$eval('#token', (el) => { el.value = ''; });
     await popup.type('#token', token);
-    await popup.$eval('#port', (el, value) => { el.value = value; }, String(port));
     await popup.click('#pair');
   }
   async function openPopup(target = page, { fresh = false } = {}) {
@@ -440,8 +448,9 @@ try {
   await step('a wrong pairing token is rejected: the popup says what to do, and the agent that the browser holds another token', async () => {
     const popup = await openPopup();
     await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
+    assert(!(await popup.$('#port')), 'the popup asks for no port: the extension finds the server by itself');
+    await lookAt(wsPort);
     await popup.type('#token', 'f'.repeat(64));
-    await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
     await popup.waitForFunction(() => document.getElementById('connection').textContent === 'Paste the server\'s current token to connect');
     assert(await popup.$eval('#dot', (el) => el.classList.contains('wanted') && !el.classList.contains('failed')), 'the dot says a fault, where it is the user\'s step');
@@ -460,7 +469,6 @@ try {
   await step('pairs with the real token; the agent is identified in the popup', async () => {
     const popup = await openPopup();
     await popup.type('#token', token);
-    await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
     await popup.waitForFunction(() => document.getElementById('connection').textContent === '1 agent connected');
     has((await one.tool('browser_status')).text, 'Extension: connected (protocol 1)');
@@ -2258,7 +2266,6 @@ try {
     // The old token no longer pairs.
     await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
     await popup.type('#token', token);
-    await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
     await popup.click('#pair');
     await popup.waitForFunction(() => document.getElementById('connection').textContent.includes('current token'));
     fails(await one.tool('browser_snapshot', { session: sA }), 'NOT_CONNECTED');

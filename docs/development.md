@@ -41,7 +41,9 @@ How the end-to-end run works:
 - It starts real server processes and speaks MCP to them over stdio, like an IDE does.
 - It launches your installed Chrome with a temporary profile, installs the unmodified extension,
   and triggers its toolbar button the way a click does, so Chrome's real `activeTab` grant is used.
-- It drives the popup through its real controls.
+- It drives the popup through its real controls. Its servers are on ports of their own, which
+  an extension does not look at, so it writes the port into the extension's storage through the
+  debugging interface (`port`, a key no popup writes), and the worker takes it up at once.
 - `HEADED=1 npm test` shows the browser; `TABGOBLIN_CHROME=<path>` picks another Chrome.
 
 Other scripts in `e2e/`:

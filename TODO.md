@@ -71,7 +71,7 @@ server the browser is at. With one port, one server for a machine is what the op
 enforces: a second process finds the port taken and joins.
 
 **What it is.** The server listens on one port (default 47821, then 37821, then 27821 where the
-system keeps one back; `--port` and the popup's *Port* name one port). The extension opens one
+system keeps one back; the popup has no port to set). The extension opens one
 WebSocket to it and pairs once; the agents travel inside that connection, each named by its id
 (`agents` from the server, `agent` on every command and event, `agents_refused` from the
 extension for those the user disconnected). The agents' processes reach the server over the same

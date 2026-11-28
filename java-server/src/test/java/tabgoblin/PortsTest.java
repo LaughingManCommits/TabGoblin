@@ -138,4 +138,24 @@ class PortsTest {
         // A port of the user's own is what they asked for: nothing to say.
         assertEquals("", Ports.note(5000));
     }
+
+    @Test
+    void aServerOnAPortOffTheListIsToldThatTheExtensionDoesNotLookThere() {
+        assertEquals("47821, 37821 and 27821", Ports.listed());
+        for (int port : Ports.FIRST) {
+            assertEquals("", Ports.offList(port), "a port of the list is found by the extension");
+        }
+        String off = Ports.offList(5000);
+        assertTrue(off.startsWith("This server listens on 5000, which the extension does not look at"), off);
+        assertTrue(off.contains("47821, 37821 or 27821 only"), off);
+        assertTrue(off.endsWith("start the server without --port."), off);
+        // What a process says when it cannot listen: a held port is not stepped over; a kept-back one has the list as the way out.
+        String taken = Agent.noPort(47821, true);
+        assertTrue(taken.contains("Close that program") && taken.contains("does not step over"), taken);
+        assertFalse(taken.contains("--port"), taken);
+        String keptBack = Agent.noPort(47821, false);
+        assertTrue(keptBack.contains("tries 47821, 37821 and 27821") && keptBack.contains("free one of them"), keptBack);
+        String keptBackOwn = Agent.noPort(5000, false);
+        assertTrue(keptBackOwn.contains("without --port"), keptBackOwn);
+    }
 }

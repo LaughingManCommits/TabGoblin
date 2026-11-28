@@ -109,8 +109,9 @@ There are **no host permissions** and no `cookies`, `webRequest`, `debugger`, `t
 | WebSocket endpoint, one for the browser's extension (path `/`) | `127.0.0.1` | 47821 | Only this extension's origin, then mutual proof of the pairing token; every agent of the server travels on it |
 | The same endpoint for agents' processes (path `/link`) | `127.0.0.1` | 47821 | A process that proves the pairing token, and for a named agent that agent's key |
 
-Nothing listens on another interface. The port is configurable (`--port`). Where the system
-keeps the default port back, the server uses 37821, or else 27821. The connections are not
+Nothing listens on another interface. The port is 47821; where the system keeps it back, the
+server uses 37821, or else 27821, and the extension looks at those three only (`--port` names
+another, for a server the browser does not pair with). The connections are not
 encrypted; they do not leave the loopback interface. There are no outbound connections.
 
 ## Authentication mechanisms

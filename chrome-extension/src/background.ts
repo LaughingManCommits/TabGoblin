@@ -1969,13 +1969,12 @@ function popupState(): object {
   const connected = connectedClientIds();
   return {
     connection: connectionStatus(),
-    port: config.port,
     hasToken: !!config.token,
     ask: askUnder(limitsNow(), config.ask),
     indicator: config.indicator,
     folded: config.folded,
     clients: [...clients.values()].filter((c) => c.authenticated).map((c) => ({
-      id: c.clientId, name: c.name, port: c.port,
+      id: c.clientId, name: c.name,
       // How many tabs a Disconnect would take from this agent, so that the popup can say it beforehand.
       tabs: sessionsOfAgent(persisted.sessions, { id: c.clientId, name: c.name }).length,
       // Whether this agent is the same agent at every start, by a key of its own.
@@ -2029,13 +2028,13 @@ async function handlePopup(msg: PopupMessage): Promise<void> {
       scan(false);
       return;
     case 'pair': {
+      // The token alone: the server's port is not the user's to set. The extension looks at the
+      // three ports a server may be on (`portsToTry`); a port in its storage, which no popup
+      // writes, is for a server that is not on them, as the end-to-end suite runs its own.
       const token = (msg.token ?? '').trim();
-      const port = Number(msg.port);
       if (token.length < 32) throw new Error('That does not look like a pairing token.');
-      if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Port must be between 1 and 65535.');
       config.token = token;
-      config.port = port;
-      await chrome.storage.local.set({ token, port });
+      await chrome.storage.local.set({ token });
       for (const server of [...servers.values()]) dropServer(server);
       pairingFailed = false;
       versionMismatch = false;
@@ -2292,6 +2291,15 @@ function endExpired(): void {
     endSession(session, unused ? 'Authorization ended by your security policy' : 'Authorization expired');
   }
 }
+// A port written into the storage, which no popup does: the servers of the end-to-end suite are
+// on ports of their own. The next look is there; a server found before is let go.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.port) return;
+  const port = changes.port.newValue;
+  config.port = typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535 ? port : DEFAULT_PORT;
+  for (const server of [...servers.values()]) dropServer(server);
+  scan(true);
+});
 chrome.runtime.onInstalled.addListener(() => scan(true));
 chrome.runtime.onStartup.addListener(() => scan(true));
 void chrome.alarms.create('reconnect', { periodInMinutes: 0.5 });

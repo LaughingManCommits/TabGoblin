@@ -182,7 +182,9 @@ try {
     if (!paired) {
       await popup.waitForFunction(() => !document.getElementById('pairing').hidden);
       await popup.type('#token', token);
-      await popup.$eval('#port', (el, port) => { el.value = port; }, String(wsPort));
+      // The popup has no port: the server here is on a port of its own, which goes into the extension's storage.
+      const worker = await (async () => { for (;;) { const w = (await extension.workers())[0]; if (w) return w; await new Promise((r) => setTimeout(r, 100)); } })();
+      await worker.evaluate((p) => chrome.storage.local.set({ port: p }), wsPort);
       await popup.click('#pair');
       paired = true;
     }

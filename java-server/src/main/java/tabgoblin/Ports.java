@@ -35,6 +35,24 @@ final class Ports {
         return chosen ? List.of(port) : FIRST;
     }
 
+    /** The list as a sentence names it: "47821, 37821 and 27821". */
+    static String listed() {
+        List<String> words = FIRST.stream().map(String::valueOf).toList();
+        return String.join(", ", words.subList(0, words.size() - 1)) + " and " + words.get(words.size() - 1);
+    }
+
+    /**
+     * What an agent is told while no browser has come to a server on a port that is not on the
+     * list: the extension looks at the list and nowhere else. Empty for a port on it.
+     */
+    static String offList(int port) {
+        if (FIRST.contains(port)) {
+            return "";
+        }
+        return "This server listens on " + port + ", which the extension does not look at: it finds a server on "
+                + listed().replace(" and ", " or ") + " only. For a browser, start the server without --port.";
+    }
+
     /** The first of these that can be used, or the first of them if none can: what is said then names the usual port. */
     static int firstUsable(List<Integer> ports) {
         return firstUsable(ports, Ports::usable);

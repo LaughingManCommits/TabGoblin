@@ -35,7 +35,18 @@ link version and the ports the same in both parts and in the pages; in CI, in th
 called *Documentation*, with the link check) and `check-diagrams.mjs` (every Mermaid block
 parses; in CI too, with a Mermaid installed outside the tree, since its dependencies carry
 advisories, and the SVG files held to their script there). The drift check also holds every
-code file and `TABGOBLIN_*` variable a page names to the tree. The alignment review of the branch found and mended: the components picture ("one
+code file and `TABGOBLIN_*` variable a page names to the tree.
+
+Then, on the owner's word ("no port needed as input on the extension"): the popup's pairing
+form takes the token alone. The extension looks at the three ports a server may be on and at no
+other; a port in its storage (`port`), which no popup writes, is for the end-to-end suite, whose
+servers are on ports of their own, and the worker takes it up at once (`chrome.storage.onChanged`).
+The server's words follow: a held port is not stepped over ("Close that program"), a kept-back
+one has the list as the way out, and a server started with `--port` on another port is told in
+its pairing help that the extension does not look there (`Ports.offList`); the window's port
+chip says the extension finds the port by itself. The pages say the same (architecture,
+developer guide, installation, tool reference, assessment). `--port` stays, for a second server
+beside the one. The alignment review of the branch found and mended: the components picture ("one
 port per agent", "protocol 3"), the window's picture (footer "protocol 3"), the popup's pictures
 (port chips, *First port*), `status.txt`, a Mermaid line that a semicolon cut short, stale
 comments in five tests and `McpMain`, the worker's header comment, two backlog notes, the Windows

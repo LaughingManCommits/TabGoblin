@@ -3,6 +3,18 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
+## 2026-11-28, branch `one-port` after `fbc1125`: the popup without a port field
+
+In the copy with the Java 25 runtime: the extension's `npm run check`, 217 tests, none failed
+(the worker's suite has a new case: a port written into the storage is looked at next, and the
+list again when it is taken out). The server's `BrowserServiceTest` (35), `PortsTest` (9, one
+new on the words about ports), `PanelModelTest` (17), `McpMainTest` (18), `HubTest` (17),
+`CliTest`, none failed; `PanelTest` under a virtual display 19 of 20, the icon test wanting the
+extension's icons beside the copy as before. The end-to-end suite, with the popup told the port
+through the extension's storage: its first fifty steps passed, among them the pairing steps and
+the one that asserts the popup has no port field; the whole run's result is in the next entry.
+Links 352, nothing personal, no drift, the SVG files as drawn.
+
 ## 2026-11-28, branch `one-port` after `9a6e233`: the documentation rules and the alignment review
 
 In the copy with the Java 25 runtime, under a virtual display (`xvfb-run`): `PanelTest` ran its
