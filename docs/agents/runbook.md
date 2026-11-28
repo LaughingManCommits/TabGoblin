@@ -407,7 +407,7 @@ there, to open. The SVG pictures are drawn, not checked:
 node docs/assets/diagrams/build.mjs
 ```
 
-writes the five files in `docs/assets/diagrams`, and `git status` says whether the script and
+writes the six files in `docs/assets/diagrams`, and `git status` says whether the script and
 the files agreed. Open a changed picture with the system set to light and to dark; the rules for
 what to look for are in [development.md](../development.md#diagrams-and-pictures).
 

@@ -55,7 +55,7 @@ Other scripts in `e2e/`:
 
 ### About the diagrams
 
-Five diagrams are SVG files in `docs/assets/diagrams/`. Each is one file that carries its own
+Six diagrams are SVG files in `docs/assets/diagrams/`. Each is one file that carries its own
 ground and both sets of colours: it is light or dark by the reader's own setting, and readable
 on any page. A page shows one with the plain Markdown form of an image, `![…](…)`, which
 GitHub and an editor's preview both understand; a `<picture>` element with two files, as they
@@ -237,6 +237,8 @@ Run them by hand with `node demo-site/server.mjs`.
 
 ## Documentation
 
+![How a change keeps the documentation true: AGENTS.md is the entry with the rule and the definition of done; this section owns the rules; they apply to the pages, the pictures and the skills; before a change is done the impact review and the checks run (the contract tests, the diagram script, the link, personal, drift and diagram checks); a change is complete when it ends with the documentation review summary.](assets/diagrams/documentation.svg)
+
 Each fact has one page; every other page links to it. Before writing something down, find the
 page that owns it:
 
@@ -310,8 +312,9 @@ below finds the names that were retired before; a new removal adds its names to 
 ### Diagrams and pictures
 
 A diagram is documentation under the same contract: it shows the implementation as it is.
-There are the five SVG pictures (the README's overview and security boundary, the architecture's
-components, the security model's command checks, the assessment's data flow), the Mermaid
+There are the six SVG pictures (the README's overview and security boundary, the architecture's
+components, the security model's command checks, the assessment's data flow, this section's
+own), the Mermaid
 diagrams in the pages (the connections, a command end to end, submissions, the session's
 lifecycle, the command line's identity, the first use) and the pictures of the popup, the window
 and the notice. When a flow, a component, a responsibility, an interface or a security boundary

@@ -353,4 +353,30 @@ picture(760, 494, named('security-boundary', 'What an agent can reach'),
     d.legend(446, [['slate', 'Your agent'], ['green', 'TabGoblin · authorized'], ['amber', 'Asks you'], ['red', 'Denied']]);
   });
 
-console.log('5 files written to docs/assets/diagrams');
+// ---- 6. How a change keeps the pages true: the development page's picture
+
+picture(760, 650, named('documentation', 'How a change keeps the documentation true'),
+  'AGENTS.md is the entry every agent reads: it holds the rule that documentation is part of a change, and the definition of done. The rules themselves are owned by one section of docs/development.md: what a change owes the pages, the impact review by kind of change, the contract for diagrams and pictures, the grades of a security claim, and the checks. They apply to three kinds of artefact: the pages, the pictures (the SVG diagrams drawn by one script, the Mermaid diagrams in the pages, the screenshots made by their scripts) and the six agent skills. Before a change is done, the impact review and the checks run: the contract tests, the link, personal and drift checks, the diagram check. A change is complete when it ends with the documentation review summary.', (d) => {
+    const guide = d.node(230, 24, 300, 56, 'AGENTS.md', ['the entry: the rule and the definition of done'], 'green');
+    const rules = d.node(170, 124, 420, 72, 'docs/development.md · Documentation', ['owns the rules: what a change owes, the impact review,', 'diagrams and pictures, security claims, the checks'], 'green');
+    d.line([[guide.cx, guide.bottom], [guide.cx, rules.top]]);
+
+    const pages = d.node(30, 264, 220, 72, 'Pages', ['guides · references', 'security model · assessment'], 'green');
+    const pictures = d.node(270, 264, 220, 72, 'Pictures', ['SVG by one script · Mermaid', 'screenshots by their scripts'], 'green');
+    const skills = d.node(510, 264, 220, 72, 'Skills', ['three for the CLI, three for MCP', 'the same from the status on'], 'green');
+    // One trunk from the rules, forked to the three kinds, and joined again below them.
+    d.line([[rules.cx, rules.bottom], [rules.cx, 230]], { head: false });
+    d.line([[pages.cx, 230], [skills.cx, 230]], { head: false });
+    for (const kind of [pages, pictures, skills]) d.line([[kind.cx, 230], [kind.cx, kind.top]]);
+    d.line([[pages.cx, pages.bottom], [pages.cx, 370], [skills.cx, 370], [skills.cx, skills.bottom]], { head: false });
+
+    const checks = d.node(150, 404, 460, 104, 'Before a change is done', [
+      'the impact review, whatever files changed',
+      'ToolReferenceTest · SkillsTest · the diagram script',
+      'links · nothing personal · drift · the diagrams parse'], 'green');
+    d.line([[rules.cx, 370], [rules.cx, checks.top]]);
+    const done = d.node(190, 556, 380, 56, 'Change complete', ['ends with the documentation review summary'], 'green');
+    d.line([[checks.cx, checks.bottom], [checks.cx, done.top]]);
+  });
+
+console.log('6 files written to docs/assets/diagrams');

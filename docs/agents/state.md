@@ -28,7 +28,8 @@ A second commit on the branch, the same day, on the owner's word ("review and st
 TabGoblin's documentation maintenance rules"): the rules that documentation is part of a change
 are in [development.md](../development.md#documentation-is-part-of-a-change) (the owner), with
 the impact review's table, the contract for diagrams and pictures, the four grades of a security
-claim, the checks and the review summary that ends a task; `AGENTS.md` and `CONTRIBUTING.md`
+claim, the checks and the review summary that ends a task, with a picture of the flow at its
+head (`documentation.svg`, the sixth of the script's); `AGENTS.md` and `CONTRIBUTING.md`
 point there. Two checks are new: `check-drift.mjs` (retired names; the protocol version, the
 link version and the ports the same in both parts and in the pages; in CI, in the job now
 called *Documentation*, with the link check) and `check-diagrams.mjs` (every Mermaid block
