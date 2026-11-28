@@ -11,9 +11,10 @@ list again when it is taken out). The server's `BrowserServiceTest` (35), `Ports
 new on the words about ports), `PanelModelTest` (17), `McpMainTest` (18), `HubTest` (17),
 `CliTest`, none failed; `PanelTest` under a virtual display 19 of 20, the icon test wanting the
 extension's icons beside the copy as before. The end-to-end suite, with the popup told the port
-through the extension's storage: its first fifty steps passed, among them the pairing steps and
-the one that asserts the popup has no port field; the whole run's result is in the next entry.
-Links 352, nothing personal, no drift, the SVG files as drawn.
+through the extension's storage: 110 passed, 0 failed, among them the pairing steps, the one
+that asserts the popup has no port field, and the hand-made server reached by a port written
+into the storage. The pairing picture was captured anew under the virtual display and opened:
+token field and button, no port. Links 352, nothing personal, no drift, the SVG files as drawn.
 
 ## 2026-11-28, branch `one-port` after `9a6e233`: the documentation rules and the alignment review
 
