@@ -2,6 +2,17 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## WP-33, one port: begun, 2026-11-28
+
+On branch `one-port`, made from `main` at `0d54694` (the merge of pull request 15) on the owner's
+word ("go, one port, drop the servers folder, new branch after merge"). WP-33 is filed in
+[TODO.md](../../TODO.md): the server listens on one port, the extension opens one connection and
+the agents travel inside it, the agents' processes reach the server over the same port on the
+path `/link`, protocol version 4; `RunningServers`, `Ports`, the per-agent bridge, the port scan
+and the limit of eight agents go. Nothing of it is built yet. **Next:** the server's side first
+(`WebSocketBridge` as one bridge for the hub, agent ids on the messages, `Protocol` 4), then the
+extension, then the link over the same port, then the window, the suite and the pages.
+
 ## CI's end-to-end run on Windows: two steps mended, 2026-11-28
 
 On branch `one-server-found-and-plain-answers`, after `3cfff0b`, on the owner's word ("the CI
