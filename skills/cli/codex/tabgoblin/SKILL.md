@@ -232,7 +232,7 @@ retried for you, and a refusal is never an error to work around.
 | `AGENT_REVOKED` | The user revoked this agent. No command works; tell the user and stop. Do not come back under another name |
 | `INTERFACE_NOT_ALLOWED` | The user's settings have the command line turned off. Nothing was sent, and no command works; tell the user and stop. Do not switch to MCP by yourself |
 | `NO_SERVER` | Report the connection stage in the answer. If a sandboxed shell requires local connection approval, ask the user through the host. After approval, only repeat the same read-only `status` check that reported nothing was sent. Keep the launcher, identity and port settings the same |
-| `AGENT_IN_USE` | The server was reached and MCP holds this identity. Tell the user. For a handoff the user disconnects the MCP client first. For side-by-side use the user chooses a separate CLI agent and authorizes a tab for it |
+| `AGENT_IN_USE` | The server was reached and MCP holds this identity. Tell the user, and leave the choice to them: disconnect the MCP client to use this name here, or choose a separate CLI agent and authorize a tab for it. Do not promise that the MCP agent's tabs carry over to the command line |
 | `USAGE` | The command line was wrong, and nothing was sent. Read the message and the command's `--help` |
 | `APPROVAL_STALE` | What would be submitted changed after the user was asked. Nothing was sent. Take a new snapshot, check the content, and submit again |
 | `SCREENSHOT_BLOCKED` | A frame from another site is in view. Scroll it out of view, or read the page as text |

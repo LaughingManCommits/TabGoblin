@@ -267,21 +267,21 @@ final class Link {
                         started = System.currentTimeMillis();
                     } catch (IOException | RuntimeException failed) {
                         refusal = "server start failed: " + failed.getClass().getSimpleName();
-                        say(refusal);
+                        say("the server could not be started reason=" + failed.getClass().getSimpleName());
                         return null;
                     }
                 }
             } catch (Refused e) {
-                refusal = e.getMessage();
-                say("no server to connect to reason=" + e.getMessage());
+                refusal = reasonOf(e);
+                say("no server to connect to reason=" + refusal);
                 return null;
             } catch (IOException e) {
-                refusal = e.getMessage();
+                refusal = reasonOf(e);
                 say("no server to connect to reason=" + refusal);
                 return null;
             }
             if (System.currentTimeMillis() > deadline) {
-                refusal = "not_started_in_time";
+                refusal = "server not started within " + CONNECT_WITHIN_MS / 1000 + " seconds";
                 say("no server to connect to reason=" + refusal);
                 return null;
             }
@@ -290,6 +290,7 @@ final class Link {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 refusal = "server start wait interrupted";
+                say("no server to connect to reason=" + refusal);
                 return null;
             }
         }
@@ -326,7 +327,12 @@ final class Link {
      * Connects to the server on the first of its ports that somebody listens on. Where the system
      * keeps the usual port back, the server is on a later one of the list.
      *
-     * @throws ConnectException if nobody listens on any of them: there is no server
+     * @throws ConnectException       if nobody listens on any of them: there is no server
+     * @throws SocketTimeoutException if the connection did not open within two seconds: something
+     *                                took it and does not answer, or a server that is still starting
+     * @throws IOException            if the connection failed with an I/O error before it opened
+     * @throws Refused                if it ended before opening without one: the other side turned
+     *                                the upgrade down, or does not speak WebSocket
      */
     private Wire open() throws IOException, Refused {
         IOException nobody = new ConnectException("no port to look for the server on");
@@ -347,7 +353,16 @@ final class Link {
                     continue;
                 }
                 String detail = wire.failure == null ? "" : ": " + wire.failure.getClass().getSimpleName();
-                throw new Refused("WebSocket connection ended before opening" + detail);
+                String ended = "WebSocket connection ended before opening" + detail;
+                // An I/O error stays one, of its own kind: the window's command tells a connection that
+                // timed out from a program that is not the server (McpMain.showWindow).
+                if (wire.failure instanceof SocketTimeoutException) {
+                    throw new SocketTimeoutException(ended);
+                }
+                if (wire.failure instanceof IOException io) {
+                    throw new IOException(ended, io);
+                }
+                throw new Refused(ended);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IOException("WebSocket open interrupted");
@@ -706,6 +721,12 @@ final class Link {
                 // closing anyway
             }
         }
+    }
+
+    /** What a failure says, or its kind where it says nothing: never null in a command's answer. */
+    private static String reasonOf(Exception e) {
+        String said = e.getMessage();
+        return said == null || said.isBlank() ? e.getClass().getSimpleName() : said;
     }
 
     private void say(String message) {

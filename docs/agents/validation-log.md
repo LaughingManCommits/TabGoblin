@@ -3,7 +3,15 @@
 Newest first. One entry per session that verified something. Not part of the startup read.
 When this passes about ten entries, fold the oldest into one summary line.
 
-## 2026-11-28, working tree from `9492189`: link opening and CLI error stages
+## 2026-11-28, working tree from `864d165`: fixes after the review of the link's error stages
+
+Linux, Java 25. `mvn verify` passed: 245 unit tests (20 `PanelTest` skipped, no display) and
+eight conformance tests, with the two new `HubTest` cases (the next port after a refused one;
+`show()` against a silent port and a refused upgrade). Links (357), drift, personal content
+and whitespace checks passed. Not tested: an I/O error before opening (a TCP connect timeout or
+a refused permission), which no fixture here produces; the end-to-end suite; Windows.
+
+## 2026-11-28, `864d165` on `cli-link-handshake-diagnostics`: link opening and CLI error stages
 
 Windows, Java 25. Focused hub and CLI tests passed. In an isolated copy of the final tree,
 `mvn verify` passed 243 unit tests and eight conformance tests. The Chrome end-to-end suite

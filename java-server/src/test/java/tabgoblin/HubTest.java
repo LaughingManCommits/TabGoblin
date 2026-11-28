@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -313,6 +315,59 @@ class HubTest {
             assertFalse(client.connect());
             assertTrue(client.link.refusal().startsWith("WebSocket connection ended before opening"), client.log());
             assertEquals(0, client.starts.get());
+        }
+    }
+
+    @Test
+    void aPortWhereNobodyListensIsPassedForTheNextOne() throws Exception {
+        int nobody = freePorts();
+        int port = freePorts();
+        hub(port, false);
+        ByteArrayOutputStream log = new ByteArrayOutputStream();
+        Link link = new Link(new PipedInputStream(new PipedOutputStream()), java.io.OutputStream.nullOutputStream(),
+                new PrintStream(log, true, StandardCharsets.UTF_8), () -> TOKEN, List.of(nobody, port), false, false,
+                () -> fail("a server runs on the second port: none is started"), null, null);
+        assertTrue(link.connect(), log.toString());
+        assertNull(link.refusal());
+    }
+
+    /**
+     * What the window's command tells apart (McpMain.showWindow): a port where something takes the
+     * connection and says nothing is a timeout; one that turns the upgrade down is not a server.
+     */
+    @Test
+    void askingForTheWindowTellsASilentPortFromOneThatIsNotTheServer() throws Exception {
+        for (boolean silent : List.of(true, false)) {
+            int port = freePorts();
+            try (ServerSocket other = new ServerSocket(port, 5, InetAddress.getByAddress(new byte[] {127, 0, 0, 1}))) {
+                Thread answering = new Thread(() -> {
+                    try (Socket socket = other.accept()) {
+                        BufferedReader request = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII));
+                        String line;
+                        do {
+                            line = request.readLine();
+                        } while (line != null && !line.isEmpty());
+                        if (!silent) {
+                            socket.getOutputStream().write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+                            socket.getOutputStream().flush();
+                        }
+                        Thread.sleep(3000);
+                    } catch (IOException | InterruptedException e) {
+                        // the test is over
+                    }
+                }, "test-other-program");
+                answering.setDaemon(true);
+                answering.start();
+                Link asker = new Link(java.io.InputStream.nullInputStream(), java.io.OutputStream.nullOutputStream(),
+                        new PrintStream(new ByteArrayOutputStream()), () -> TOKEN, port, true, () -> { });
+                if (silent) {
+                    var timedOut = assertThrows(java.net.SocketTimeoutException.class, asker::show);
+                    assertEquals("WebSocket open timed out after 2 seconds", timedOut.getMessage());
+                } else {
+                    var refused = assertThrows(Link.Refused.class, asker::show);
+                    assertTrue(refused.getMessage().startsWith("WebSocket connection ended before opening"), refused.getMessage());
+                }
+            }
         }
     }
 
