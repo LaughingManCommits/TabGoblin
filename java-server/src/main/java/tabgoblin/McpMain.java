@@ -48,9 +48,11 @@ public final class McpMain {
             result says [redacted], a credential was taken out; it is not available through these tools.
             Pairing: when a tool says the extension is not connected, tell the user what it says they have to \
             do, and go on once they have done it. No tool pairs the browser.
-            Workflow: browser_status -> browser_snapshot (numbered element refs) -> act with browser_click / \
-            browser_fill / browser_press_key / browser_scroll / browser_navigate -> take a new snapshot to see \
-            the result. Refs go stale when the page changes; take a new snapshot when told so.
+            Workflow: browser_status once -> to read, browser_extract; to act, browser_snapshot (numbered element \
+            refs) -> browser_click / browser_fill / browser_press_key / browser_scroll / browser_navigate. Read what \
+            an action returns: browser_click and browser_navigate say the address and title the tab is at afterwards. \
+            Take a new snapshot only for refs from the changed page, with diff=true where the page stayed. Few calls \
+            with small results are the quickest way. Refs go stale when the page changes; take a new snapshot when told so.
             Asking for access: browser_request_access puts a request to the user, for a higher level on a session \
             or for a tab on another site. It grants nothing; go on with what you may do, or tell the user.
             Access levels: Read looks at the current page; Explore also navigates, follows links, hovers and expands \
@@ -188,11 +190,13 @@ public final class McpMain {
         // The same end for a client that closes the input, for Ctrl+C, and for a signal to stop.
         Runtime.getRuntime().addShutdownHook(new Thread(McpMain::stop, "tabgoblin-shutdown"));
 
-        List<Integer> serverPorts = firsts.stream().map(Link::port).toList();
         if (options.hub()) {
             serveAll(settings, options, firsts);
             return;
         }
+        // Where this process looks for the server: a server that runs on a port of some agent's own first, if this one names none.
+        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile, fit(options))
+                .stream().map(Link::port).toList();
         boolean byHand = startedByHand();
         boolean inTerminal = inTerminal();
         if (byHand && wantsWindow(options.panel(), System.getProperty(DOWNLOADS_PROGRAM))) {
@@ -239,7 +243,8 @@ public final class McpMain {
             return;
         }
         Link link = new Link(System.in, mcpOut, System.err, tokens, serverPorts, options.panel(), options.quiet(),
-                () -> startServer(options, false), options.agent(), agentKeys);
+                () -> startServer(options, false), options.agent(), agentKeys)
+                .setup(options.portChosen() ? options.port() : 0, fit(options));
         if (link.connect()) {
             System.exit(link.run() == Link.End.SERVER_LOST ? 1 : 0);
             return;
@@ -279,9 +284,16 @@ public final class McpMain {
     private static Link commandLink(java.io.InputStream in, java.io.OutputStream out, Options options) throws java.io.IOException {
         Path tokenFile = options.tokenFile();
         Supplier<String> tokens = Pairing.tokenSource(tokenFile, Pairing.loadOrCreateToken(tokenFile));
-        List<Integer> serverPorts = Ports.firsts(options.port(), options.portChosen()).stream().map(Link::port).toList();
+        List<Integer> serverPorts = RunningServers.firsts(options.port(), options.portChosen(), tokenFile, fit(options))
+                .stream().map(Link::port).toList();
         return new Link(in, out, System.err, tokens, serverPorts, options.panel(), options.quiet(),
-                () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand();
+                () -> startServer(options, false), options.agent(), AgentKeys.folder(tokenFile)).forCommand()
+                .setup(options.portChosen() ? options.port() : 0, fit(options));
+    }
+
+    /** What a server started with these options is run under, of what a setup can ask for. */
+    static RunningServers.Fit fit(Options options) {
+        return RunningServers.Fit.of(options.settings(), options.extensionOrigin());
     }
 
     /**
@@ -298,6 +310,13 @@ public final class McpMain {
         // The token and the settings file are the same wherever the ports begin.
         Agent.Settings settings = configured;
         RUNNING.add(hub::close);
+        // Written down for the processes that name no port, and taken out again when this server ends in order.
+        int first = hub.port() - PORT_RANGE;
+        RunningServers.add(options.tokenFile(), first, fit(options));
+        RUNNING.add(() -> RunningServers.remove(options.tokenFile(), first));
+        // And written again when the browser comes or goes, so that a process without a port goes to the server it is at.
+        hub.onBrowser(browser -> RunningServers.write(options.tokenFile(), first, browser, fit(options)));
+        hub.others(mine -> RunningServers.other(options.tokenFile(), first, mine));
         hub.commandIdle(options.commandIdleMs());
         hub.whenEmpty(McpMain::end);
         java.util.concurrent.atomic.AtomicBoolean asked = new java.util.concurrent.atomic.AtomicBoolean();
@@ -383,7 +402,8 @@ public final class McpMain {
             if (refused && !options.quiet() && cameUp.compareAndSet(false, true)) {
                 window.run();
             }
-            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen());
+            return new BrowserService.Unpaired(false, refused, up.get() && Panel.onScreen(),
+                    refused ? null : RunningServers.other(options.tokenFile(), settings.port(), fit(options)));
         }, identityAlone(options.agent(), settings.agentKeys()));
         served[0] = agent;
         agent.announce();

@@ -2702,6 +2702,9 @@ try {
     const fresh = cli('status');
     await openPopup();
     await fresh;
+    // The popup finds a new agent at once if the agent is there when it opens. A command's process can take
+    // longer to attach than the popup takes to open, so the popup is opened again once the command is through.
+    await openPopup();
     const status = await until(async () => {
       const ran = went(await cli('status'));
       return ran.text.includes('Extension: connected') ? ran : null;

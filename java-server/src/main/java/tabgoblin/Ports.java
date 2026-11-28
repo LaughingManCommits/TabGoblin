@@ -21,7 +21,8 @@ import java.util.function.IntPredicate;
  * {@code policy.ts} has to say the same.
  *
  * <p>A first port the user chose, with {@code --port} or {@code TABGOBLIN_PORT}, is the only one that
- * is tried: a setup that names a port means that port.
+ * is tried of these: a setup that names a port means that port, or a server that runs as its own
+ * would and has the browser ({@link RunningServers}).
  */
 final class Ports {
 

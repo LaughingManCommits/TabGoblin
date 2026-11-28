@@ -131,7 +131,52 @@ So the server, the links and the extension share a fixed list of first ports, fa
 takes the first whose range the system gives out; a link looks for the server on each in turn
 before it starts one; the extension looks at every range while no server is connected, and
 only at the server's range while one is (`rangesToScan`). A first port the user set, with
-`--port` or in the popup, is the only one that is tried.
+`--port` or in the popup, is the only one of the list that is tried; how a process with a port
+of its own still reaches a server with the browser is below.
+
+**When one agent's setup names a port and another's does not.** A server on a port of the
+user's own is not on that list, and an agent set up without a port would start a second
+server beside it, which the browser never comes to. So each server writes a file of its own
+into the folder `servers`, beside the pairing token, when it has opened: its first port, whether
+the browser is connected to it, which it writes again when that changes (`RunningServers`; the
+server looks four times a second, and writes again at the next look where a write failed, as
+it can on Windows while another process reads the file), and what it runs under (below). It
+takes the file out when it ends in order, and nothing is written of it once it has begun to
+stop; a server that opens takes out the files of servers that no longer answer. A link or a
+command without a port of its own looks there before it looks at the list: first at a server
+that has the browser, then at the other servers that answer. The folder decides nothing by
+itself: a port from it is used only where something opens with the server's greeting, the two
+proofs of the pairing token follow on that connection as on any other, and what a file says of
+the browser only puts one server before another. Whether a server is there is told by its port
+alone, never by a process id, which means nothing across the Linux subsystem of Windows or a
+sandbox; a port nobody listens on refuses at once, so the file of a server that was ended by
+force costs nothing to pass over. Each server writes its own file only, so two servers never
+write over each other; each file names the token file its server runs with, and a process reads
+only the files of its own token, so two token files in one folder are two TabGoblins whose
+servers do not know of each other. What a look costs: a start reads the folder and connects
+once to each server in it; a tool that finds no browser does the same.
+
+**A link or a command that names a port** goes to a server that has the browser only where that
+server runs as the one it would start would: each file also says which settings file its server
+reads and which extension it lets in, and the process compares them with its own `--settings`
+and `--extension-origin` (`RunningServers.Fit`). Then nothing its setup asked for is lost, and
+its port only decides where a server is started when none with the browser runs. Where they
+differ, it looks at its own port and no other, as a named port always meant, and starts its
+server there. The same holds for a person who opens the window with `--panel --port`: the window
+of the server that has the browser comes, where that server runs as theirs would. The process
+tells the server which port its setup names and what it would start its own server under
+(`setup_port`, `settings` and `origin` in the link's `attach`), and an agent served elsewhere
+than at its setup's port is told why in its status (`BrowserService.cameFrom`). An agent of a
+server that has no browser is told when another has it: when a tool finds no browser, that
+server looks in the folder for another server that answers and says it has the browser
+(`Hub.unpaired`, `BrowserService.otherServer`), and says in place of the pairing help whether
+that one runs under the settings the agent's own process named: if so, the agent's next process
+goes there by itself; if not, only the user can settle it. What another server's file says is
+fresh, since it is written again when the browser goes, so it is said whatever happened at this
+server before; only a browser that came here with another token is not at another server.
+Nothing else is said of that server, not its port and nothing of its agents. A process without
+a port of its own joins a server that runs whatever its settings, as before: there is one server
+for all agents, and its settings are those of the process that started it.
 
 Both listen on `127.0.0.1` only. Agents share the process and nothing else: no tool tells one
 agent anything about another.

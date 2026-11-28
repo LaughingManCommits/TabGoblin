@@ -2,6 +2,208 @@
 
 Last updated: 2026-11-27. Claims here go stale; check the date, then `git status` and `git log`.
 
+## CI's end-to-end run on Windows: two steps mended, 2026-11-28
+
+On branch `one-server-found-and-plain-answers`, after `3cfff0b`, on the owner's word ("the CI
+fails on the end2end tests"). CI run 61 (pull request 15) failed in two steps of the suite on
+Windows and in *Dependencies*:
+
+- **"Kill in the window …":** the suite's second server has a token file of its own beside the
+  first's (`window-token`), and the `servers` folder is beside the token, so both tokens shared
+  it. The new agent saw the first server (browser, same settings), was refused there for its
+  token, and served its agent alone, so nothing listened on its link port. Each file now names
+  its token file, and a process reads only its own token's files (`RunningServers.ownToken`);
+  a test has two tokens in one folder. Seen with real processes: the second token's agent got
+  its own server while the first's had the browser.
+- **"a command under the name of a connected MCP agent …":** timed out waiting for the extension
+  to find the new agent. Concluded from the code, not seen: the step opened the popup while the
+  command's process was still starting, so the popup's look came before the new agent's port
+  existed, and the extension found it only at its 30-second alarm; a Windows runner starts a
+  Java process more slowly than this container, and the branch's start reads the folder and
+  probes a server once more. The step opens the popup again once the command is through.
+- **Also found:** the architecture page still described process ids in the files, since an edit
+  of the session before had not been written; mended.
+- **Not ours:** *Dependencies* fails on every pull request with "Dependency review is not
+  supported on this repository. Please ensure that Dependency graph is enabled" (runs 57, 59,
+  61); a push to `main` does not run that step. The owner enables the dependency graph in the
+  repository's security settings, or the step goes.
+
+**Not run:** the window's section of the suite, which runs on Windows only: CI's next run on
+the pull request is the check. **Next:** read that run.
+
+## The branch reviewed: six faults mended, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `c350f29`, on the owner's word ("review the
+current branch ... fix whatever you find"). Two found by the session (`f0642a5`) and four more
+by an independent review of the whole diff, all mended:
+
+- **The settings were compared on the wrong side.** The server compared another server's
+  settings with its own, where what decides whether an agent's next process goes there is the
+  process's own `--settings` and `--extension-origin`, which the server did not know. The link
+  now sends them in its `attach` (`settings`, `origin`), and the server compares against those
+  (`Hub.fitOf`, `unpaired(quiet, mine)`).
+- **A gate hid the hint when the browser had moved.** "Said only if no browser ever came here"
+  is gone: another server's `browser:true` is written again within a quarter second when the
+  browser goes, so it is fresh whatever happened here; only a browser that came here with
+  another token still takes precedence.
+- **Process ids are gone from the files.** A process id means nothing across the Linux
+  subsystem of Windows or a sandbox, and a wrong "dead" would have deleted a live server's
+  file. Whether a server is there is told by whether its port answers; a refused connection on
+  the loopback is instant, so nothing is lost.
+- **A failed rewrite is written again** at the watcher's next look (`write` says whether it
+  succeeded; on Windows the file cannot be replaced while another process reads it), and no
+  `.tmp` is left.
+- **No write after a stop** (`Hub.close` and the watcher share a lock), and **the own-port
+  check** no longer trusts a file whose server does not answer.
+- **The message names no port any more**: that would tell an agent about another agent's
+  setup, and the process finds the server by itself. It says "once more", and the skills say
+  not to run a third time. The status line of an agent served away from its setup's port says
+  the browser *was* here when it came.
+
+Left as judgement, said in the architecture page: a look costs one connection per listed
+server; `--panel --port X` by hand shows the window of the server with the browser where that
+one runs as X would. **Not tried:** a real browser (a fake extension was paired with real
+servers), and any agent with the skills. **Next:** the owner's look; the jar built in the tree
+once no agent runs from it; a task in a fresh Codex session with the skill installed anew.
+
+## A named port joins the server with the browser where that one runs under the same settings, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `7a79ba7`, on the owner's word ("build the
+safer variant"), which settles the question the entry below left open. Each server's file also
+says which settings file it reads and which extension it lets in. A process whose setup names
+`--port` goes first to a server that has the browser and runs under the same two
+(`RunningServers.Fit`), and otherwise to its own port alone, where it starts its server as
+before. The process tells the server its setup's port, and an agent served elsewhere than there
+is told why in its status (`cameFrom`). The message to an agent without a browser says whether
+the other server runs under the same settings: if so, its next process goes there by itself; if
+not, it is to tell the user. The skills no longer have a command give the other server's port.
+A process without a port still joins any server that runs, whatever its settings, as before.
+**Not tried:** a real browser (a fake extension was paired with real servers), and an agent
+with the skills.
+
+## Each server's own file says whether it has the browser, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `2a20b3b`, committed as `7a79ba7`. The
+question it leaves open is settled above. On the owner's word, with "only
+if it adds value": the file `servers` is now a folder of that name with one file for each
+server that runs (`<first>.json`: first port, process id, and whether the browser is connected
+to it), which only that server writes. A process without `--port` goes to the server that has
+the browser first; the message to an agent without a browser names only a server that says it
+has it, and so says "is connected", where it said "likely". A file whose process is gone is
+passed over without a connection, and taken out by the next server that opens. Left out as
+redundant: the version and the start time, which nothing would read. Owned by
+[architecture.md](../architecture.md#processes-and-ports). **Not decided, the owner's:**
+whether a process that names `--port` should go to the server with the browser when its own has
+none; it does not, and is told the port instead. **Not tried:** the flag with a real browser
+(the hub's test pairs a fake extension over a real connection).
+
+## An agent without a browser is told of another server; the skills share the rules for few calls, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, after `69bdb81`, committed as `2a20b3b`. The
+file `servers` it names is a folder since (above). On the owner's
+word ("help the codex actually use tabgoblin and then apply those improvements to other agent
+skills"):
+
+- **A server that no browser came to names another server's port.** When a tool finds no
+  browser, the server reads `servers` for another server that answers and says its first port
+  in place of the pairing help (`Hub.unpaired`, `BrowserService.otherServer`; in a process that
+  serves its agent alone too). A command of the command line is told to give that `--port`, an
+  MCP agent to have the user change its setup. Nothing is said once a browser has come to this
+  server. Owned by [architecture.md](../architecture.md#processes-and-ports); the text is in the
+  tool reference.
+- **The six skills share the rules for few calls,** where only the two for Codex had them: a
+  section "Use few commands" or "Use few calls" with the table of shortest ways and the smoke
+  test, from "Start with the status" on. The common part says to leave `--port` out unless the
+  setup names one, to read what an action answers instead of a new snapshot ("Act" said
+  otherwise before), and what to do when the status names another server. The Codex heads keep
+  only what is Codex's.
+
+**Not tried:** any agent with the new skills; the message with two real servers and a real
+browser. **Next:** the owner's look and commit; then a task in a fresh Codex session with the
+skill installed anew (the old copy removed first).
+
+## A server on another port is found; `--plain`; the instructions ask for few calls, 2026-11-27
+
+On branch `one-server-found-and-plain-answers`, made from `main` at `9c751a9`, not committed;
+it carries the skill edits of the entries below as well. Three changes, after the owner found
+Codex slow and without a browser:
+
+- **A process that names no port finds a server on a port of another agent's setup.** A server
+  writes its first port into `servers`, beside the pairing token, and takes it out when it
+  ends in order (`RunningServers.java`, called from `McpMain.serveAll`); a link or a command
+  without `--port` looks there before the list (`McpMain.main`, `commandLink`). A port from
+  the file is used only where something opens with the server's greeting, and the proofs
+  follow as before. A process that names a port still looks at that port alone. Owned by
+  [architecture.md](../architecture.md#processes-and-ports).
+- **`--plain` on the command line** prints the answer's text as it is, and an error as the one
+  line `Error [CODE]: message`; `screenshot` needs `--out` with it. In `Cli.java`, the guide
+  ([cli.md](../cli.md#the-answer-as-text)) and the three skills for the command line.
+- **The server's instructions** (`McpMain.java`) say to read with an extract, to read what an
+  action returns, and to take a new snapshot only for refs.
+
+**Not done:** the command line's start was to be made quicker, and cannot be from here: on the
+owner's machine `java -version` alone takes 1.15 s, and a command 1.28 s. **Not run:** the
+end-to-end suite and `mvn verify`; the extension was not changed. **Not covered:** two agents
+set up with two different ports still have two servers; a status does not say that another
+server has the browser. **Next:** the owner's look; end to end before a merge; then the jar
+built in the tree once no agent runs from it, and a task in a fresh Codex session.
+
+## Both Codex skills cut to few calls, 2026-11-27
+
+Working tree on `main` at `9c751a9`, not committed. This replaces the Codex sections that the
+four entries below describe: what they say of diagram captures, timing recipes and repository
+examples is no longer in the skills. The owner found Codex slow with TabGoblin. Seen in the
+running processes, not in Codex itself: a hook of another program (`gk.exe ai hook run --host
+codex --blocking`) ran for more than a minute before Codex's shell calls, and Codex's commands,
+which gave no `--port`, started a second server on 47821 while the browser was connected to the
+one on 39821 that another agent's registration had asked for. Neither is the skill's. In the
+skills, the Codex section of each now says: read with an extract, take a snapshot only for
+refs, read what a click or a navigation answers and take no snapshot to confirm it, and for
+the command line put commands that need no answer of each other into one shell call and write
+no script that searches a snapshot. The command-line skill has the description of the other
+two again. `SkillsTest` passed, 9 of 9. **Not tried:** either skill in Codex; whether Codex is
+quicker with them. An installed skill is not overwritten by `--install-skill`: the copy Codex
+has must be removed first. **Next:** the owner turns the hook off, puts every agent on one
+port, installs the skill anew and tries a task in a fresh Codex session.
+
+## Codex CLI workflow rewrite, 2026-11-27
+
+Working tree on `main` at `9c751a9`. The Codex CLI section starts with session and shell
+handling, then maps tasks to commands for reading, browsing, waiting, requesting access and
+writing. It preserves the diagram and timing recipes and starts smoke tests on the live
+tab when requested. The GitHub run exercised eleven CLI commands and restored the starting
+URL. All fourteen also worked against the local demo in a disposable Chrome profile,
+including the access grant and verified submission. The skill has not been loaded in a
+fresh Codex session.
+
+## Codex CLI diagram captures, 2026-11-27
+
+Working tree on `main` at `9c751a9`. The Codex CLI skill explains how to find a diagram,
+verify its position, save and inspect overlapping viewport captures, and handle a capture
+blocked by a frame from another origin. The live GitHub run captured the Components diagram
+in two images and the README overview in one. Each image was inspected. The command-flow
+capture was blocked. The revised wording has not been tried in a fresh Codex session.
+
+## Codex CLI smoke test and timing, 2026-11-27
+
+Working tree on `main` at `9c751a9`. The Codex CLI skill now groups a known smoke test in
+one shell launch, verifies each move before the next, and records CLI elapsed time and
+TabGoblin diagnostics separately. It also says to wait for a pending shell approval before
+starting another. The live rerun on the configured port passed navigation and restored the
+GitHub tab. The isolated package build passed. The long delay before shell launch is outside
+the skill's control.
+
+## Codex MCP skill examples, 2026-11-27
+
+Working tree on `main` at `9c751a9`, not committed. On the owner's request, the Codex MCP
+skill has a quick start, a tool chooser, examples for reading, repository browsing and build
+logs, a browsing smoke-test checklist, and guidance on timing diagnostics. The additions sit
+in the Codex section; the common text, other agents, CLI skills and `openai.yaml` are unchanged.
+`SkillsTest` passed, 9 of 9; `mvn package` passed in a copy, 244 tests with none skipped.
+The preceding smoke test used seven MCP tools on the repository
+in the owner's authorized GitHub tab; it did not test writing, submissions or automatic skill
+selection. **Next:** review the skill edit; the revised skill has not been tried in a fresh agent.
+
 ## The diagrams looked at again for alignment and wording, 2026-11-27
 
 On branch `ccr-7d9f8e27-k7i1f9`, made from `main` at `f6fe056`, documentation only. Every picture rendered and looked at. In the SVG pictures (`build.mjs`): the legends' gaps are even (each word's width is estimated, where a fixed width per letter left wide gaps after long words); in the components, the loopback label no longer touches the interfaces' box and the agent's labels have room; in the checks, the "yes" above the authorized tab no longer sits on the extension's box, the result's ENFORCED and BEST EFFORT stand on the lines they name, the note beside it is centred, and the session check reads "not paused or suspended"; in the security boundary the fork is coloured as in the overview, so no slate line leads to what is out of reach. In the Mermaid diagrams: notes that ran out of their box span two participants, the submission's long note is in three lines, the submission's states lead their non-submissions to one *Not submitted* state where six lines crossed the diagram to the end marker, and five messages are reworded. **Next:** the owner's look and commit; the pages on GitHub, whose Mermaid version was not tried here.

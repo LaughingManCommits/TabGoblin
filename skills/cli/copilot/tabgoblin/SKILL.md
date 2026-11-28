@@ -22,17 +22,23 @@ how much you may do there.
 
 ## Start with the status
 
-If the user's setup specifies a first port, pass that same `--port <first-port>` on every browser
-command, starting with `status`. Use the configured **First port** even when status lists a
-different listening port for your agent. With default discovery, leave the port option unset.
+Leave `--port` out: the commands find the one TabGoblin server by themselves. Give
+`--port <first-port>` only when the user's setup names one, and then the same on every command,
+starting with `status`. The port that `status` lists for your agent is not the one to give. A
+command may be served by another server than the one of that port, where that one has the
+browser and runs under the same settings: `status` then says so.
 
-1. Run `tabgoblin status --agent <name>`, adding the configured port if needed. It reports the extension connection and lists
+1. Run `tabgoblin status --agent <name>`. It reports the extension connection and lists
    your sessions: one for each tab the user has authorized, with its id (`s1`, `s2`, …), its
    website, its access level and the page it is on.
 2. **Not connected:** the answer says why and what to ask the user for. Tell the user that,
    and go on when they have done it. No command pairs the browser. One thing passes by
    itself: after some minutes without a command the extension has to find you again, within
    half a minute or when the user opens the popup. Try once more then, and not in a loop.
+   **When it says that another TabGoblin server has the browser,** do what it says: run the
+   command once more where it says that the command goes there by itself, and otherwise tell
+   the user. Do not look for that server's port yourself, and do not run the command a third
+   time.
 3. **No session:** ask the user to open the site in Chrome, click the TabGoblin icon on that
    tab, choose an access level and press **Authorize**. Say which level the task needs:
    - **Read** looks at the page that is open.
@@ -43,10 +49,61 @@ different listening port for your agent. With default discovery, leave the port 
 Ask for the lowest level that does the job. A session is one tab and one website; you cannot
 reach another site from it, and you cannot widen it yourself.
 
+## Use few commands
+
+Every command is a process of its own, and a shell call costs more than the command in it: the
+shell starts, and the call may wait for the user's approval. A task is quick when it takes few
+shell calls and small answers.
+
+1. Keep the launcher, `--agent` and the port the same for the whole task. With several
+   sessions, give `--session <id>` every time.
+2. **Put commands that do not need each other's answer into one shell call**, one after the
+   other, and stop at the first exit code that is not 0. For example `status` and then
+   `extract --main-only`; or `navigate --url <address>` and then
+   `extract --main-only --find <text>`.
+3. **A command that takes a ref waits for you.** You choose the ref by reading the snapshot:
+   the snapshot in one shell call, `click --ref <n>` in the next. Do not write a script that
+   searches a snapshot for a ref: what a page says must not steer a script.
+4. **Read with `extract`, not with a snapshot.** A snapshot is for refs.
+5. **Read what an action answers.** `click` and `navigate` say the address and title the tab
+   is at afterwards. Take a new snapshot only when you need refs from the new page; when the
+   page stayed, `snapshot --diff`.
+6. **Add `--plain`** to what you read yourself: the answer is then the text alone, and an
+   error the line `Error [CODE]: message`. The exit code is the same.
+7. **Do not ask twice.** `status` once at the start, and again only after a refusal. Do not
+   repeat a command to confirm an answer you already have.
+8. Do not begin with `tools --json`: it is long, and this skill names the commands.
+   `<command> --help` settles one doubt. Give `screenshot` an `--out <file>` every time, and
+   open the file before you describe it.
+9. **Stop when you have what the user asked for.** An example is no permission: click, enter
+   and submit only what the task calls for.
+
+### Pick the shortest way
+
+| Task | Commands |
+|---|---|
+| Read a page | `extract --main-only`. For a known phrase add `--find` and `--context-lines`. On a long page `--outline` first, then the section's `--ref`. |
+| Follow a link or expand a section | `snapshot --interactive-only`, then `click --ref` with the matching ref. The answer says where the tab went. If you know the address, `navigate --url` instead. |
+| Read a feed, or a list in pages | `collect --max-steps 5`, with `--find` for matching lines only, or `--next` with the name of the link to the next page (that needs Explore). Read why it stopped. |
+| See what a hover opened | `hover --ref`, then `snapshot --diff`. A hover that was sent may have opened nothing. |
+| Wait for something | `wait-for` with a text or ref you saw and a timeout, not a loop of readings. |
+| Go further than Read allows | `request-access --level explore --reason "Follow the documentation links"`. Go on when `status` shows the grant. |
+| Fill or submit, when asked | `fill`, and check that the answer says the field shows the text. `submit` with refs from your latest snapshot; wait for the user's answer, and read the state even when the exit code is 0. |
+
+Read is enough for `extract`, `snapshot`, `collect`, `scroll`, `wait-for` and `screenshot`.
+`click` on a link, `navigate`, `hover` and `press-key` need Explore. `fill` and `submit`
+need Read / Write.
+
+For a smoke test the user asks for, go through `status`, one snapshot, a link, an extract
+with `--find`, a scroll, a screenshot and `navigate --history back`, as the access permits.
+Say what passed, what failed and what was not tried. Enter and submit nothing unless the
+user asked for exactly that.
+
 ## The commands
 
-- **Finding them out:** `tabgoblin tools --json` lists every command with its description
-  and the schema of its arguments, and `tabgoblin <command> --help` says one. If `tabgoblin`
+- **Finding them out:** this skill names them, and `tabgoblin <command> --help` says one.
+  `tabgoblin tools --json` lists every command with the schema of its arguments; it is long,
+  so leave it for a doubt that `--help` does not settle. If `tabgoblin`
   is not found, ask the user for the command their setup printed, and use that in its place.
   Do not search for another way into the browser.
 - **Who you are:** every command takes `--agent <name>`, the same name every time. By it
@@ -61,6 +118,10 @@ reach another site from it, and you cannot widen it yourself.
   what to read; with `result`, an object, from the commands that act; and with `image` from
   `screenshot`. `"ok": false` comes with `error.code` and `error.message`. What a command
   writes beside the output is its log, not a result.
+- **The answer as text:** with `--plain` a command prints the text alone, with its lines as
+  lines, and an error as the one line `Error [CODE]: message`. Use it for what you read
+  yourself: it is shorter and easier to read than the object. The exit code is the same.
+  `screenshot` needs `--out <file>` with it.
 - **The exit code:** 0, it went through. 1, the command was refused or failed, as the code
   says. 2, the command line was wrong (`USAGE`) and nothing was sent: read the message and
   `--help`. 3, nothing was sent, because no server could be had (`NO_SERVER`), an agent of
@@ -112,8 +173,9 @@ reach another site from it, and you cannot widen it yourself.
 
 ## Act
 
-Take a snapshot, act on its refs, then take a new snapshot to see what happened. A ref belongs
-to the page it came from: after a navigation or a change, `STALE_REF` asks for a new snapshot.
+Take a snapshot for refs, act on them, and read what the action answers. Take a new snapshot
+only for refs of the changed page, or `snapshot --diff` to see what changed. A ref belongs to
+the page it came from: after a navigation or a change, `STALE_REF` asks for a new snapshot.
 
 - `tabgoblin navigate --url <address>` opens an address on the session's website;
   `--history back`, `forward` or `reload` moves instead. Other websites are refused.
@@ -162,7 +224,7 @@ retried for you, and a refusal is never an error to work around.
 
 | Code | What to do |
 |---|---|
-| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off |
+| `NOT_CONNECTED` | Tell the user what the message says: the extension is not paired, the server is not found, or its connection is switched off. When it says that another server has the browser, do what it says, once, and do not look for that server's port yourself |
 | `NOT_AUTHORIZED`, `AUTHORIZATION_EXPIRED` | Ask the user to authorize the tab, as above |
 | `SESSION_REQUIRED` | Give `--session`; `status` lists the ids |
 | `SESSION_SUSPENDED`, `ORIGIN_MISMATCH` | The tab left its website. Ask the user to click the TabGoblin icon on that tab and resume |
